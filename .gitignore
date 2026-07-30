@@ -1,0 +1,55 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+
+# Virtual environment
+.venv/
+
+# Logs
+*.log
+logs/*.log
+nohup.out
+
+# Data
+data/raw/
+data/markdown/
+*.xlsx
+*.xls
+config/report-ingest.env
+data/cleaned/
+data/watch/
+data/uploads/*/ingest_*/
+release/.build/
+release/dist/
+
+# Node (frontend)
+frontend/node_modules/
+.frontend-build-runtime-*/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Local backups and generated artifacts
+backups/
+.venv_playwright/
+final_runs/
+tmp_upload_check.txt
+upload_check*.png
+
+chat_stability_question_types.pptx
+confluence-api-doc.html
+kb_architecture_slide.pptx
+manual_ingest_customer_intro.pptx
+neo4j_customer_intro.pptx
+qdrant_customer_intro.pptx
+query_examples_slide.pptx

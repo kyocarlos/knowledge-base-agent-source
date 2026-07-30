@@ -1,0 +1,180 @@
+{
+  "name": "Knowledge-Base Auto Upload",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cron",
+              "expression": "0 9 * * *"
+            }
+          ]
+        }
+      },
+      "id": "schedule-trigger",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1
+    },
+    {
+      "parameters": {
+        "fileSelector": {
+          "path": "<project-root>/knowledge-base/data/watch"
+        }
+      },
+      "id": "read-folder-files",
+      "name": "Read Watch Folder",
+      "type": "n8n-nodes-base.readBinaryFile",
+      "typeVersion": 1,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Filter for new files (last 24 hours)\nconst now = new Date();\nconst oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);\n\nconst items = $input.all();\nconst newFiles = items.filter(item => {\n  const fileTime = new Date(item.binary.file.lastModified);\n  return fileTime > oneDayAgo;\n});\n\nreturn newFiles.map((file, index) => ({\n  json: {\n    filename: file.binary.file.fileName,\n    size: file.binary.file.size,\n    mimeType: file.binary.file.mimeType,\n    lastModified: file.binary.file.lastModified,\n    index: index\n  }\n}));"
+      },
+      "id": "filter-new-files",
+      "name": "Filter New Files",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=http://localhost:8000/upload",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "multipart/form-data"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "file",
+              "value": "={{ $json.binary }}"
+            },
+            {
+              "name": "filename",
+              "value": "={{ $json.filename }}"
+            }
+          ]
+        }
+      },
+      "id": "upload-to-knowledge-base",
+      "name": "Upload to Knowledge-Base",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Generate summary report\nconst results = $input.all();\nconst success = results.filter(r => r.json.status === 'success').length;\nconst failed = results.filter(r => r.json.status === 'error').length;\nconst total = results.length;\n\nreturn [{\n  json: {\n    timestamp: new Date().toISOString(),\n    total_files: total,\n    success_count: success,\n    failed_count: failed,\n    status: failed === 0 ? 'all_success' : (success === 0 ? 'all_failed' : 'partial'),\n    files: results.map(r => ({\n      filename: r.json.filename || r.json.name,\n      status: r.json.status,\n      message: r.json.message || r.json.error\n    }))\n  }\n}];"
+      },
+      "id": "generate-summary",
+      "name": "Generate Summary",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "from": "=noreply@knowledge-base.local",
+        "to": "=admin@company.com",
+        "subject": "=Knowledge-Base Auto Upload Report - {{ $json.timestamp }}",
+        "text": "=Upload Summary:\n\nTotal Files: {{ $json.total_files }}\nSuccess: {{ $json.success_count }}\nFailed: {{ $json.failed_count }}\n\nFiles:\n{{ $json.files.map(f => `- ${f.filename}: ${f.status}`).join('\\n') }}"
+      },
+      "id": "send-email",
+      "name": "Send Email Report",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 4,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "fileName": "=<project-root>/knowledge-base/logs/upload-{{ $json.timestamp }}.json"
+      },
+      "id": "save-log",
+      "name": "Save Log to File",
+      "type": "n8n-nodes-base.writeBinaryFile",
+      "typeVersion": 1,
+      "continueOnFail": true
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Read Watch Folder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Watch Folder": {
+      "main": [
+        [
+          {
+            "node": "Filter New Files",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter New Files": {
+      "main": [
+        [
+          {
+            "node": "Upload to Knowledge-Base",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upload to Knowledge-Base": {
+      "main": [
+        [
+          {
+            "node": "Generate Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Summary": {
+      "main": [
+        [
+          {
+            "node": "Send Email Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Email Report": {
+      "main": [
+        [
+          {
+            "node": "Save Log to File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticId": "knowledge-base-auto-upload",
+  "tags": ["knowledge-base", "auto-upload", "scheduled"]
+}

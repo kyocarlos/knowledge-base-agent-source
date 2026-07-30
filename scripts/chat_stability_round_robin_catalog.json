@@ -1,0 +1,161 @@
+{
+  "base_url": "https://127.0.0.1:3030/chat.html",
+  "headless": true,
+  "timeout_seconds": 120,
+  "retry_count": 2,
+  "question_delay_ms": 1000,
+  "questions": [
+    {
+      "id": "4g5g_01_scu2140_throughput",
+      "group": "4G/5G",
+      "text": "SCU2140 的 Throughput 測試結果是什麼？"
+    },
+    {
+      "id": "4g5g_02_scu5050_performance_test",
+      "group": "4G/5G",
+      "text": "SCU5050 的 Performance Test 有哪些重點數據？"
+    },
+    {
+      "id": "4g5g_03_sce2200_handover",
+      "group": "4G/5G",
+      "text": "請整理 SCE2200 的 Handover 測試內容與結果。"
+    },
+    {
+      "id": "4g5g_04_scu2050_handover",
+      "group": "4G/5G",
+      "text": "請整理 SCU2050 的 Handover 測試內容與結果。"
+    },
+    {
+      "id": "4g5g_05_scu2060_report_summary",
+      "group": "4G/5G",
+      "text": "請查詢 SCU2060 的 report summary。"
+    },
+    {
+      "id": "4g5g_06_scu5050_testcase_throughput",
+      "group": "4G/5G",
+      "text": "SCU5050 的各 Test Case Throughput 數值是多少？"
+    },
+    {
+      "id": "4g5g_07_compare_throughput",
+      "group": "4G/5G",
+      "text": "請比較 SCU2140、SCU2060、SCU5050 的 Throughput 差異"
+    },
+    {
+      "id": "4g5g_08_compare_latency",
+      "group": "4G/5G",
+      "text": "請比較 SCU2140、SCU2060、SCU5050 的 Latency 差異"
+    },
+    {
+      "id": "4g5g_09_compare_bler",
+      "group": "4G/5G",
+      "text": "請比較 SCU2140、SCU2060、SCU5050 的 BLER 差異"
+    },
+
+    {
+      "id": "wifi_01_ncq_report",
+      "group": "WiFi",
+      "text": "請查詢 NCQ2200B2V-D294 的 WiFi Throughput 報告內容。"
+    },
+    {
+      "id": "wifi_02_ncq_24g",
+      "group": "WiFi",
+      "text": "請整理 NCQ2200B2V-D294 的 2.4GHz Throughput 測試結果。"
+    },
+    {
+      "id": "wifi_03_ncq_5g",
+      "group": "WiFi",
+      "text": "請整理 NCQ2200B2V-D294 的 5GHz Throughput 測試結果。"
+    },
+    {
+      "id": "wifi_04_ncq_6g",
+      "group": "WiFi",
+      "text": "請整理 NCQ2200B2V-D294 的 6GHz Throughput 測試結果。"
+    },
+    {
+      "id": "wifi_05_ncq_all_bands",
+      "group": "WiFi",
+      "text": "NCQ2200B2V-D294 的 2.4GHz / 5GHz / 6GHz Throughput 結果是什麼？"
+    },
+    {
+      "id": "wifi_06_be805_report",
+      "group": "WiFi",
+      "text": "請查詢 TP-Link Archer BE805 的 WiFi Throughput 報告內容。"
+    },
+    {
+      "id": "wifi_07_be805_5g_80_160",
+      "group": "WiFi",
+      "text": "請整理 TP-Link Archer BE805 的 5GHz 80MHz 與 160MHz 數據。"
+    },
+    {
+      "id": "wifi_08_be805_24g_5g",
+      "group": "WiFi",
+      "text": "請整理 TP-Link Archer BE805 的 2.4GHz Throughput 與 5GHz Throughput，分開看兩個頻段"
+    },
+    {
+      "id": "wifi_09_compare_be805_ncq",
+      "group": "WiFi",
+      "text": "請比較 TP-Link Archer BE805 和 NCQ2200B2V-D294 的 WiFi Throughput。"
+    },
+    {
+      "id": "wifi_10_compare_chs_ncq",
+      "group": "WiFi",
+      "text": "請比較 CHS3320N-D388 和 NCQ2200B2V-D294 的 WiFi Throughput"
+    },
+    {
+      "id": "wifi_11_compare_be805_chs",
+      "group": "WiFi",
+      "text": "請比較 TP-Link Archer BE805 和 CHS3320N-D388 的 WiFi Throughput"
+    },
+
+    {
+      "id": "lab_01_scope",
+      "group": "Lab",
+      "text": "請整理3GPP TS 38.300第 1 章 Scope 的內容。"
+    },
+    {
+      "id": "lab_02_architecture",
+      "group": "Lab",
+      "text": "請整理3GPP TS 38.300第 4 章 Overall Architecture and Functional Split 的重點。"
+    },
+    {
+      "id": "lab_03_physical_layer",
+      "group": "Lab",
+      "text": "請說明3GPP TS 38.300第 5 章 Physical Layer 的結構。"
+    },
+    {
+      "id": "lab_04_rrc",
+      "group": "Lab",
+      "text": "請解釋3GPP TS 38.300第 7 章 RRC 的主要內容。"
+    },
+    {
+      "id": "lab_05_random_access",
+      "group": "Lab",
+      "text": "請整理3GPP TS 38.300第 9.2.6 節 Random Access Procedure。"
+    },
+    {
+      "id": "lab_06_mobility",
+      "group": "Lab",
+      "text": "請整理3GPP TS 38.300第 9.2.3 節 Mobility in RRC_CONNECTED。"
+    },
+    {
+      "id": "lab_07_scheduling",
+      "group": "Lab",
+      "text": "請說明3GPP TS 38.300第 10 章 Scheduling 的主要內容。"
+    },
+    {
+      "id": "lab_08_qos",
+      "group": "Lab",
+      "text": "請說明3GPP TS 38.300第 12 章 QoS 的重點。"
+    },
+    {
+      "id": "lab_09_security",
+      "group": "Lab",
+      "text": "請整理3GPP TS 38.300第 13 章 Security 的重點。"
+    },
+    {
+      "id": "lab_10_self_config",
+      "group": "Lab",
+      "text": "請說明3GPP TS 38.300第 15 章 Self-Configuration and Self-Optimisation 在講什麼"
+    }
+  ]
+}

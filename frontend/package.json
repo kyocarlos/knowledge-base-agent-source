@@ -1,0 +1,23 @@
+{
+  "name": "knowledge-base-frontend",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "KB_FRONTEND_BUILD_DIR=<project-root>/knowledge-base/.frontend-build-runtime-user8 vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@monaco-editor/loader": "^1.7.0",
+    "marked": "^18.0.2",
+    "monaco-editor": "^0.55.1",
+    "tweetnacl": "^1.0.3",
+    "vue": "^3.4.0",
+    "vue-router": "^4.3.0",
+    "ws": "^8.20.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^5.0.0",
+    "vite": "^5.4.0"
+  }
+}
