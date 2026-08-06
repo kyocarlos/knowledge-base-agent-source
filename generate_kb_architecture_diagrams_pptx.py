@@ -488,7 +488,7 @@ def add_deployment_architecture(prs):
     )
 
     # Current site panel
-    zone(slide, 0.40, 1.35, 6.10, 5.48, "CURRENT SITE · 127.0.0.1", C["blue"], C["blue_soft"])
+    zone(slide, 0.40, 1.35, 6.10, 5.48, "CURRENT SITE · 61.216.9.52", C["blue"], C["blue_soft"])
     node(slide, 0.64, 1.87, 1.16, 0.68, "Browser", "HTTPS :3030", C["blue"], "U", title_size=8.5, subtitle_size=6.4)
     node(slide, 2.12, 1.87, 1.22, 0.68, "Nginx", "TLS + static + proxy", C["blue"], "NG", title_size=8.5, subtitle_size=6.2)
     edge(slide, 1.80, 2.21, 2.12, 2.21, C["blue"])

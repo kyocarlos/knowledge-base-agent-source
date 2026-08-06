@@ -7,7 +7,7 @@ from pptx.enum.text import MSO_AUTO_SIZE, PP_ALIGN
 from pptx.util import Inches, Pt
 
 
-OUT = Path("<project-root>/knowledge-base/new_machine_rebuild_guide.pptx")
+OUT = Path("/home/da40_ai_gb10/knowledge-base/new_machine_rebuild_guide.pptx")
 
 
 def rgb(value: str) -> RGBColor:
@@ -242,7 +242,7 @@ def add_clone_slide(slide):
 
     card(slide, Inches(0.72), Inches(1.80), Inches(4.20), Inches(1.25), "Clone GitHub", "git clone git@github.com:kyocarlos/knowledge-base.git knowledge-base", "2563EB")
     card(slide, Inches(0.72), Inches(3.20), Inches(4.20), Inches(1.25), "切到專案目錄", "cd knowledge-base", "16A34A")
-    card(slide, Inches(0.72), Inches(4.60), Inches(4.20), Inches(1.25), "建立相容 symlink", "sudo mkdir -p <project-root> && sudo ln -s \"$(pwd)\" <project-root>/knowledge-base", "D97706")
+    card(slide, Inches(0.72), Inches(4.60), Inches(4.20), Inches(1.25), "建立相容 symlink", "sudo mkdir -p /home/da40_ai_gb10 && sudo ln -s \"$(pwd)\" /home/da40_ai_gb10/knowledge-base", "D97706")
 
     card(slide, Inches(5.35), Inches(1.85), Inches(6.55), Inches(1.45), "為什麼要做這一步", "目前 `docker-compose.yml`、`restart_kb.sh`、`start.sh`、`config/config.yaml` 與部分 `src/` 還有原機器的絕對路徑。先建立 symlink，最快能讓現有腳本直接跑起來。", "1D4ED8")
     card(slide, Inches(5.35), Inches(3.45), Inches(6.55), Inches(1.45), "長期建議", "如果你之後要把它變成真正可移機版本，再把硬編碼路徑改成相對路徑或環境變數。", "047857")
@@ -350,7 +350,7 @@ def add_troubleshoot_slide(slide):
     )
 
     card(slide, Inches(0.72), Inches(1.78), Inches(3.95), Inches(1.18), "看不到 Neo4j 資料", "Browser 內連到 `bolt://localhost:17687`，不是預設的 7687。", "B91C1C")
-    card(slide, Inches(0.72), Inches(3.10), Inches(3.95), Inches(1.18), "restart_kb.sh 找不到路徑", "先建立 `<project-root>/knowledge-base` 的 symlink，或把硬編碼路徑改掉。", "D97706")
+    card(slide, Inches(0.72), Inches(3.10), Inches(3.95), Inches(1.18), "restart_kb.sh 找不到路徑", "先建立 `/home/da40_ai_gb10/knowledge-base` 的 symlink，或把硬編碼路徑改掉。", "D97706")
     card(slide, Inches(0.72), Inches(4.42), Inches(3.95), Inches(1.18), "Ollama 模型不存在", "先 `ollama pull gemma4:12b`，再重新啟動。", "16A34A")
 
     card(slide, Inches(4.95), Inches(1.92), Inches(7.55), Inches(1.35), "Docker port 衝突", "如果 17474 / 17687 / 3030 / 8000 / 6335 被別的服務佔用，先停掉衝突服務，再重新啟動。", "2563EB")

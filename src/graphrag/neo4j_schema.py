@@ -199,7 +199,7 @@ if __name__ == "__main__":
 
         neo4j_uri = config.get("neo4j_uri", "bolt://neo4j:7687")
         neo4j_user = config.get("neo4j_user", "neo4j")
-        neo4j_password = config.get("neo4j_password", "#*cda40da40")
+        neo4j_password = config.get("neo4j_password", "change-me")
 
         print(f"連線到 Neo4j: {neo4j_uri}")
 

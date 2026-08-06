@@ -7,7 +7,7 @@ from pptx.enum.text import MSO_AUTO_SIZE, PP_ALIGN
 from pptx.util import Inches, Pt
 
 
-OUT = Path("<project-root>/knowledge-base/dual_test_env_ollama_architecture.pptx")
+OUT = Path("/home/da40_ai_gb10/knowledge-base/dual_test_env_ollama_architecture.pptx")
 prs = None
 
 
@@ -231,7 +231,7 @@ def add_overview_slide(slide):
         Inches(4.26),
         Inches(2.38),
         "DGX GB10 / Ollama",
-        "同一台推論主機提供兩邊共用的 LLM 服務。\n\nEndpoint: http://127.0.0.1:11434\nOpenAI compatible: /v1\n\n左、右兩個 OpenClaw 都連到這一層。",
+        "同一台推論主機提供兩邊共用的 LLM 服務。\n\nEndpoint: http://61.216.9.52:11434\nOpenAI compatible: /v1\n\n左、右兩個 OpenClaw 都連到這一層。",
         "047857",
     )
 

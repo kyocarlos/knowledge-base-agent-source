@@ -139,7 +139,7 @@ Qdrant 仍使用既有 collection，但每個 point 增加 `run_id`、`environme
 - 驗證 token scope、錯誤環境、路徑越界、超大檔案及無效 workbook 均被拒絕。
 - 驗證重複 hash、相同 run 衝突、VPN 中斷、timeout、worker 重啟與資料庫部分失敗。
 - 端到端測試：Agent 產生 Excel -> MCP 上傳 -> task completed -> Neo4j 存在 TestRun/Metric -> Qdrant 存在 chunks。
-- 透過 `https://127.0.0.1:3030/chat.html` 實測單一結果、Anritsu/Amarisoft 比較、趨勢、Fail 案例與來源引用。
+- 透過 `https://61.216.9.52:3030/chat.html` 實測單一結果、Anritsu/Amarisoft 比較、趨勢、Fail 案例與來源引用。
 - 先以 Anritsu 單環境試行，再接 Amarisoft；舊報告不搬移，新產生的 canonical 報告開始使用新 schema。
 
 ## 已選定假設

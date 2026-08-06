@@ -4,7 +4,7 @@ import path from 'path'
 
 const buildDir = process.env.KB_FRONTEND_BUILD_DIR
   ? path.resolve(process.env.KB_FRONTEND_BUILD_DIR)
-  : '<project-root>/knowledge-base/.frontend-build-runtime-user8'
+  : path.resolve(process.cwd(), 'dist')
 
 export default defineConfig({
   plugins: [vue()],

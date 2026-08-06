@@ -167,9 +167,9 @@ COPY app/ ./
 
 RUN mkdir -p /opt/knowledge-base/runtime/openclaw \
     && mkdir -p /opt/knowledge-base/runtime/logs \
-    && mkdir -p <project-root> \
-    && ln -sfn /opt/knowledge-base/app <project-root>/knowledge-base \
-    && ln -sfn /opt/knowledge-base/runtime/openclaw <project-root>/.openclaw
+    && mkdir -p /home/da40_ai_gb10 \
+    && ln -sfn /opt/knowledge-base/app /home/da40_ai_gb10/knowledge-base \
+    && ln -sfn /opt/knowledge-base/runtime/openclaw /home/da40_ai_gb10/.openclaw
 
 ENV PYTHONPATH=/opt/knowledge-base/app
 ENV PYTHONUNBUFFERED=1

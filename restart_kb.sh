@@ -14,7 +14,7 @@
 
 set -e
 
-ROOT_DIR="<project-root>/knowledge-base"
+ROOT_DIR="/home/da40_ai_gb10/knowledge-base"
 cd "$ROOT_DIR"
 REPORT_ENV_FILE="$ROOT_DIR/config/report-ingest.env"
 REPORT_ENV_EXAMPLE="$ROOT_DIR/config/report-ingest.env.example"
@@ -244,7 +244,7 @@ docker rm -f kb-web kb-celery-search kb-celery-ingest kb-celery-beat kb-nginx kb
 
 echo ""
 echo "[1/4] 建置前端靜態檔..."
-export KB_FRONTEND_BUILD_DIR="<project-root>/knowledge-base/.frontend-build-runtime-user8"
+export KB_FRONTEND_BUILD_DIR="/home/da40_ai_gb10/knowledge-base/.frontend-build-runtime-user8"
 rm -rf "$KB_FRONTEND_BUILD_DIR"
 npm --prefix frontend run build
 mkdir -p "$KB_FRONTEND_BUILD_DIR/lib"
@@ -293,7 +293,7 @@ echo "   ✅ 系統啟動完成！"
 echo "=========================================="
 echo ""
 echo "📍 服務入口："
-echo "   - 對外前端:   https://127.0.0.1:3030"
+echo "   - 對外前端:   https://61.216.9.52:3030"
 echo "   - 本機 API:    https://127.0.0.1:3030/health"
 echo "   - Neo4j:       http://localhost:17474"
 echo "   - Nginx:       https://localhost:3030"

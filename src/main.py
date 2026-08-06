@@ -30,7 +30,7 @@ def load_config() -> dict:
         neo4j_config = config.setdefault("neo4j", {})
         neo4j_config["uri"] = resolve_neo4j_uri(neo4j_config.get("uri", "bolt://neo4j:7687"))
         neo4j_config["user"] = os.getenv("NEO4J_USER", neo4j_config.get("user", "neo4j"))
-        neo4j_config["password"] = os.getenv("NEO4J_PASSWORD", neo4j_config.get("password", "#*cda40da40"))
+        neo4j_config["password"] = os.getenv("NEO4J_PASSWORD", neo4j_config.get("password", "change-me"))
         return config
     return {}
 
@@ -59,7 +59,7 @@ class KnowledgeBaseSystem:
         })
         neo4j_config["uri"] = resolve_neo4j_uri(neo4j_config.get("uri", "bolt://neo4j:7687"))
         neo4j_config["user"] = os.getenv("NEO4J_USER", neo4j_config.get("user", "neo4j"))
-        neo4j_config["password"] = os.getenv("NEO4J_PASSWORD", neo4j_config.get("password", "#*cda40da40"))
+        neo4j_config["password"] = os.getenv("NEO4J_PASSWORD", neo4j_config.get("password", "change-me"))
         search_config = self.config.get("search", {})
         self.default_basic_top_k = int(search_config.get("basic_top_k", 3))
         self.default_deep_top_k = int(search_config.get("deep_top_k", 6))
@@ -78,7 +78,7 @@ class KnowledgeBaseSystem:
         self.search_engine = SearchEngine(
             neo4j_uri=neo4j_config.get("uri", "bolt://neo4j:7687"),
             neo4j_user=neo4j_config.get("user", "neo4j"),
-            neo4j_password=neo4j_config.get("password", "#*cda40da40"),
+            neo4j_password=neo4j_config.get("password", "change-me"),
             llm_client=self.llm_client,
             llm_model=ollama_config.get("model", "gemma4:12b")
         )
@@ -96,7 +96,7 @@ class KnowledgeBaseSystem:
             "llm_model": "gemma4:12b",
             "neo4j_uri": "bolt://neo4j:7687",
             "neo4j_user": "neo4j",
-            "neo4j_password": "#*cda40da40",
+            "neo4j_password": "change-me",
             "embedding_model": "sentence-transformers/all-MiniLM-L6-v2"
         }
 

@@ -63,7 +63,7 @@ FRONTEND_PORT=3000
 
 # Neo4j 設定
 NEO4J_USER="neo4j"
-NEO4J_PASSWORD="#*cda40da40"
+NEO4J_PASSWORD="change-me"
 NEO4J_AUTH="$NEO4J_USER/$NEO4J_PASSWORD"
 
 #===============================================================================

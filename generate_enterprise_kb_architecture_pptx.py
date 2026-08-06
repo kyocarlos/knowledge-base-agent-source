@@ -878,7 +878,7 @@ def add_deployment_topology(prs):
             "x": 0.48,
             "title": "CURRENT SITE · 原始站台",
             "badge": "VERIFIED ENTRY",
-            "badge_body": "https://127.0.0.1:3030/chat.html",
+            "badge_body": "https://61.216.9.52:3030/chat.html",
             "accent": COLORS["blue"],
             "external": ["Host Qdrant :6335", "Host Ollama :11434", "OpenClaw Gateway"],
             "internal": [

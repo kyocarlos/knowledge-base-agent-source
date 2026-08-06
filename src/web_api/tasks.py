@@ -168,7 +168,7 @@ def increment_search_count_sync(doc_name: str):
             neo4j_config.get("uri", "bolt://neo4j:7687"),
             auth=(
                 neo4j_config.get("user", "neo4j"),
-                neo4j_config.get("password", "#*cda40da40"),
+                neo4j_config.get("password", "change-me"),
             )
         )
         with driver.session() as session:
@@ -350,7 +350,7 @@ def preload_models(**kwargs):
         neo4j_config = config.get("neo4j", {})
         _preloaded_neo4j_driver = GraphDatabase.driver(
             neo4j_config.get("uri", "bolt://neo4j:7687"),
-            auth=(neo4j_config.get("user", "neo4j"), neo4j_config.get("password", "#*cda40da40"))
+            auth=(neo4j_config.get("user", "neo4j"), neo4j_config.get("password", "change-me"))
         )
         with _preloaded_neo4j_driver.session() as session:
             session.run("RETURN 1")
@@ -380,6 +380,8 @@ def preload_models(**kwargs):
 INGEST_TASK_PREFIX = "kb:ingest_task:"
 INGEST_TASK_INDEX_KEY = "kb:ingest_tasks:index"
 INGEST_FILE_HASH_INDEX_KEY = "kb:ingest_tasks:file_hash_index"
+INGEST_DOCUMENT_LOCK_PREFIX = "kb:ingest:document-lock:"
+INGEST_DOCUMENT_LOCK_TTL = int(os.getenv("KB_INGEST_DOCUMENT_LOCK_TTL", "3600"))
 INGEST_TASK_SUCCESS_TTL = 24 * 60 * 60
 INGEST_TASK_FAILED_TTL = 72 * 60 * 60
 INGEST_UPLOAD_ROOT = Path(os.getenv("KB_INGEST_UPLOAD_ROOT", "data/uploads"))
@@ -493,6 +495,24 @@ def get_ingest_task_state(task_id: str) -> dict | None:
         return None
 
 
+def acquire_document_lock(document_id: str, owner_token: str, ttl: int = INGEST_DOCUMENT_LOCK_TTL) -> bool:
+    """Acquire a Redis document lock without ever stealing another worker's lock."""
+    if not document_id or not owner_token:
+        return False
+    return bool(get_redis_client().set(f"{INGEST_DOCUMENT_LOCK_PREFIX}{document_id}", owner_token, nx=True, ex=ttl))
+
+
+def release_document_lock(document_id: str, owner_token: str) -> bool:
+    """Compare-and-delete: a late worker cannot release someone else's lock."""
+    if not document_id or not owner_token:
+        return False
+    script = """
+    if redis.call('GET', KEYS[1]) == ARGV[1] then
+        return redis.call('DEL', KEYS[1])
+    end
+    return 0
+    """
+    return bool(get_redis_client().eval(script, 1, f"{INGEST_DOCUMENT_LOCK_PREFIX}{document_id}", owner_token))
 def update_ingest_task_state(task_id: str, **updates) -> dict:
     """局部更新攝入任務狀態。"""
     current = get_ingest_task_state(task_id) or {"task_id": task_id, "created_at": _now_iso()}
@@ -596,7 +616,27 @@ def ingest_file_task(self, task_id: str):
         logger.error(f"找不到攝入任務狀態: {task_id}")
         return {"status": "failed", "error": "找不到任務狀態", "task_id": task_id}
 
+    document_id = state.get("document_id")
+    lock_owner = uuid.uuid4().hex
+    lock_acquired = False
     try:
+        if document_id:
+            lock_acquired = acquire_document_lock(document_id, lock_owner)
+            if not lock_acquired:
+                error = f"document_lock_busy: {document_id}"
+                update_ingest_task_state(task_id, status="failed", error=error, ingested=False)
+                try:
+                    from ..ingest_registry import IngestRegistry
+                    IngestRegistry().update_status(task_id, "rejected")
+                    IngestRegistry().record_event("document_lock_busy", task_id, document_id=document_id)
+                except Exception as registry_error:
+                    logger.error("記錄 document lock 衝突失敗: %s", registry_error)
+                return get_ingest_task_state(task_id) or {"task_id": task_id, "status": "failed", "error": error}
+            try:
+                from ..ingest_registry import IngestRegistry
+                IngestRegistry().record_event("document_lock_acquired", task_id, document_id=document_id)
+            except Exception as registry_error:
+                logger.error("記錄 document lock 取得事件失敗: %s", registry_error)
         update_ingest_task_state(task_id, status="upload_saved", started_at=_now_iso(), celery_task_id=self.request.id)
 
         original_path = Path(state["original_path"])
@@ -654,6 +694,7 @@ def ingest_file_task(self, task_id: str):
                 md_path=converted_path,
                 extraction_mode=extraction_mode,
                 image_refs=result.get("image_refs", []),
+                identity=state,
             )
         except Exception as meta_error:
             logger.warning(f"寫入來源中繼資料失敗，繼續攝入: {meta_error}")
@@ -697,6 +738,13 @@ def ingest_file_task(self, task_id: str):
             error=None,
             content=(converted_path.read_text(encoding="utf-8")[:5000] if converted_path.exists() else "")
         )
+        if state.get("document_id"):
+            try:
+                from ..ingest_registry import IngestRegistry
+                IngestRegistry().update_status(task_id, "completed")
+                IngestRegistry().record_event("ingest_completed", task_id, document_id=state["document_id"])
+            except Exception as registry_error:
+                logger.error("更新攝入 registry 完成狀態失敗: %s", registry_error)
         if state.get("submission_id"):
             try:
                 from ..test_reports.registry import SubmissionRegistry
@@ -704,17 +752,28 @@ def ingest_file_task(self, task_id: str):
             except Exception as registry_error:
                 logger.error("同步 report submission 完成狀態失敗: %s", registry_error)
         logger.info(f"攝入任務完成: {task_id} ({state.get('file_name')})")
+        if lock_acquired:
+            release_document_lock(document_id, lock_owner)
         return final_state
 
     except Exception as e:
         logger.error(f"攝入任務失敗 {task_id}: {e}")
         failed_state = update_ingest_task_state(task_id, status="failed", error=str(e))
+        if state.get("document_id"):
+            try:
+                from ..ingest_registry import IngestRegistry
+                IngestRegistry().update_status(task_id, "ingest_failed")
+                IngestRegistry().record_event("ingest_failed", task_id, document_id=state["document_id"], error=str(e))
+            except Exception as registry_error:
+                logger.error("更新攝入 registry 失敗狀態失敗: %s", registry_error)
         if state.get("submission_id"):
             try:
                 from ..test_reports.registry import SubmissionRegistry
                 SubmissionRegistry().sync_ingest_status(state["submission_id"], failed_state)
             except Exception as registry_error:
                 logger.error("同步 report submission 失敗狀態失敗: %s", registry_error)
+        if lock_acquired:
+            release_document_lock(document_id, lock_owner)
         return failed_state
 
 
@@ -1101,16 +1160,16 @@ def _load_beat_config():
         return {
             "enabled": auto_ingest.get("enabled", False),
             "interval_minutes": auto_ingest.get("interval_minutes", 5),
-            "watch_folder": auto_ingest.get("watch_folder", "<project-root>/knowledge-base/data/watch"),
-            "processed_folder": auto_ingest.get("processed_folder", "<project-root>/knowledge-base/data/processed")
+            "watch_folder": auto_ingest.get("watch_folder", "/home/da40_ai_gb10/knowledge-base/data/watch"),
+            "processed_folder": auto_ingest.get("processed_folder", "/home/da40_ai_gb10/knowledge-base/data/processed")
         }
     except Exception as e:
         logger.error(f"載入排程設定失敗: {e}")
         return {
             "enabled": False,
             "interval_minutes": 5,
-            "watch_folder": "<project-root>/knowledge-base/data/watch",
-            "processed_folder": "<project-root>/knowledge-base/data/processed"
+            "watch_folder": "/home/da40_ai_gb10/knowledge-base/data/watch",
+            "processed_folder": "/home/da40_ai_gb10/knowledge-base/data/processed"
         }
 
 def _save_beat_config(config: dict):
@@ -1122,8 +1181,8 @@ def _save_beat_config(config: dict):
         yaml_config["auto_ingest"] = {
             "enabled": config.get("enabled", False),
             "interval_minutes": config.get("interval_minutes", 5),
-            "watch_folder": config.get("watch_folder", "<project-root>/knowledge-base/data/watch"),
-            "processed_folder": config.get("processed_folder", "<project-root>/knowledge-base/data/processed")
+            "watch_folder": config.get("watch_folder", "/home/da40_ai_gb10/knowledge-base/data/watch"),
+            "processed_folder": config.get("processed_folder", "/home/da40_ai_gb10/knowledge-base/data/processed")
         }
         
         with open(_config_path, "w", encoding="utf-8") as f:
@@ -1226,6 +1285,7 @@ def _write_source_metadata(
     md_path: Path,
     extraction_mode: str | None = None,
     image_refs: list[str] | None = None,
+    identity: dict | None = None,
 ) -> None:
     payload = {
         "source_name": source_path.name,
@@ -1239,6 +1299,13 @@ def _write_source_metadata(
         "image_refs": list(image_refs or []),
         "updated_at": _now_iso(),
     }
+    for key in (
+        "source_system", "environment_id", "project_id", "run_id", "artifact_type",
+        "report_schema", "original_file_name", "source_file_hash", "ingest_file_hash",
+        "document_id", "idempotency_key", "generated_at",
+    ):
+        if identity and identity.get(key) not in (None, ""):
+            payload[key] = identity[key]
     try:
         _source_metadata_path(source_path).write_text(
             json.dumps(payload, ensure_ascii=False, indent=2),
@@ -1424,8 +1491,8 @@ def watch_folder_scan(self):
             logger.info("自動攝入已停用")
             return {"status": "skipped", "message": "自動攝入已停用"}
         
-        watch_folder = Path(config.get("watch_folder", "<project-root>/.n8n-files/watch"))
-        processed_folder = Path(config.get("processed_folder", "<project-root>/knowledge-base/data/processed"))
+        watch_folder = Path(config.get("watch_folder", "/home/da40_ai_gb10/.n8n-files/watch"))
+        processed_folder = Path(config.get("processed_folder", "/home/da40_ai_gb10/knowledge-base/data/processed"))
         
         processed_folder.mkdir(parents=True, exist_ok=True)
         

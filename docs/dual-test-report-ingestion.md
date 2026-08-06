@@ -51,7 +51,7 @@ flowchart LR
 測試電腦安裝相同 Python 相依套件與 `scripts/kb_report_uploader.py`，設定：
 
 ```bash
-export KB_BASE_URL=https://127.0.0.1:3030
+export KB_BASE_URL=https://61.216.9.52:3030
 export KB_AGENT_ID=anritsu-agent-01
 export KB_INGEST_TOKEN='<agent-token>'
 export KB_CA_CERT=/path/to/ca.pem

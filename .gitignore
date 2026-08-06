@@ -22,6 +22,7 @@ config/report-ingest.env
 data/cleaned/
 data/watch/
 data/uploads/*/ingest_*/
+data/ingestion-registry.sqlite3*
 release/.build/
 release/dist/
 
@@ -40,12 +41,12 @@ frontend/node_modules/
 Thumbs.db
 
 # Local backups and generated artifacts
+/PROJECT_MEMORY.md
 backups/
 .venv_playwright/
 final_runs/
 tmp_upload_check.txt
 upload_check*.png
-
 chat_stability_question_types.pptx
 confluence-api-doc.html
 kb_architecture_slide.pptx
@@ -53,3 +54,7 @@ manual_ingest_customer_intro.pptx
 neo4j_customer_intro.pptx
 qdrant_customer_intro.pptx
 query_examples_slide.pptx
+/8080
+/kb_*_state.png
+/kb_test_*.png
+/qa_*_latest.png

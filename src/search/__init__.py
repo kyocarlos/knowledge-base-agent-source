@@ -231,7 +231,7 @@ class SearchEngine:
         self,
         neo4j_uri: str = "bolt://neo4j:7687",
         neo4j_user: str = "neo4j",
-        neo4j_password: str = "#*cda40da40",
+        neo4j_password: str = "change-me",
         llm_client = None,
         llm_model: str = "gemma4:12b"
     ):
@@ -4256,7 +4256,7 @@ class SearchEngine:
                     "source_path": r.get("source_path", ""),
                     "storage_category": r.get("storage_category", ""),
                     "extraction_mode": r.get("extraction_mode", ""),
-                    **{key: r.get(key, "") for key in ("run_id", "environment", "project_code", "dut_model", "band", "protocol", "direction", "verdict", "started_at", "schema_version")},
+                    **{key: r.get(key, "") for key in ("run_id", "environment", "project_code", "dut_model", "band", "protocol", "direction", "verdict", "started_at", "schema_version", "source_system", "environment_id", "project_id", "artifact_type", "report_schema", "document_id", "idempotency_key")},
                 })
                 for r in results
             ]
@@ -4518,7 +4518,7 @@ class SearchEngine:
 
         logger.info(f"搜尋 Cleaned 資料夾: {query}")
         
-        cleaned_folder = Path("<project-root>/knowledge-base/data/cleaned")
+        cleaned_folder = Path("/home/da40_ai_gb10/knowledge-base/data/cleaned")
         
         if not cleaned_folder.exists():
             logger.info(f"Cleaned 資料夾不存在: {cleaned_folder}")
@@ -4613,7 +4613,7 @@ class SearchEngine:
                     "chunk_index": r.get("chunk_index", 0),
                     "section_title": r.get("section_title", ""),
                     "source_path": r.get("source_path", ""),
-                    **{key: r.get(key, "") for key in ("run_id", "environment", "project_code", "dut_model", "band", "protocol", "direction", "verdict", "started_at", "schema_version")},
+                    **{key: r.get(key, "") for key in ("run_id", "environment", "project_code", "dut_model", "band", "protocol", "direction", "verdict", "started_at", "schema_version", "source_system", "environment_id", "project_id", "artifact_type", "report_schema", "document_id", "idempotency_key")},
                 })
                 for r in results
             ]

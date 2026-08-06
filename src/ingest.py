@@ -24,7 +24,7 @@ def load_config():
     neo4j_config = config.setdefault("neo4j", {})
     neo4j_config["uri"] = resolve_neo4j_uri(neo4j_config.get("uri", "bolt://neo4j:7687"))
     neo4j_config["user"] = os.getenv("NEO4J_USER", neo4j_config.get("user", "neo4j"))
-    neo4j_config["password"] = os.getenv("NEO4J_PASSWORD", neo4j_config.get("password", "#*cda40da40"))
+    neo4j_config["password"] = os.getenv("NEO4J_PASSWORD", neo4j_config.get("password", "change-me"))
     return config
 
 
@@ -33,7 +33,7 @@ def _get_neo4j_connection_info(config: dict) -> tuple[str, str, str]:
     return (
         neo4j_config.get("uri", "bolt://neo4j:7687"),
         neo4j_config.get("user", "neo4j"),
-        neo4j_config.get("password", "#*cda40da40"),
+        neo4j_config.get("password", "change-me"),
     )
 
 
@@ -126,6 +126,22 @@ def _write_neo4j_document(
     from neo4j import GraphDatabase
 
     result = result or {}
+    identity = {}
+    metadata_path = Path(doc_path).with_name(f"{Path(doc_path).stem}.source.json")
+    if metadata_path.exists():
+        try:
+            source_metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+            identity = {
+                key: source_metadata[key]
+                for key in (
+                    "source_system", "environment_id", "project_id", "run_id", "artifact_type",
+                    "report_schema", "original_file_name", "source_file_hash", "ingest_file_hash",
+                    "document_id", "idempotency_key", "generated_at",
+                )
+                if source_metadata.get(key) not in (None, "")
+            }
+        except Exception as metadata_error:
+            logger.warning("讀取 Neo4j 文件身份 metadata 失敗: %s", metadata_error)
     driver = GraphDatabase.driver(
         neo4j_uri,
         auth=(neo4j_user, neo4j_password)
@@ -137,8 +153,9 @@ def _write_neo4j_document(
             SET d.content = $content,
                 d.source = $source,
                 d.extraction_mode = $mode,
-                d.storage_category = $storage_category
-        """, name=doc_name, content=content[:1000], source=doc_path, mode=extraction_mode, storage_category=storage_category or "")
+                d.storage_category = $storage_category,
+                d += $identity
+        """, name=doc_name, content=content[:1000], source=doc_path, mode=extraction_mode, storage_category=storage_category or "", identity=identity)
 
         session.run("""
             MATCH (d:Document {name: $name})
@@ -286,7 +303,14 @@ def ingest_document(
     system_prompt = get_extraction_prompt(extraction_mode)
     mode_name = EXTRACTION_MODES.get(extraction_mode, {}).get("name", extraction_mode)
     logger.info(f"使用萃取模式: {mode_name}")
-    doc_name = Path(doc_path).stem
+    source_metadata = {}
+    source_metadata_path = Path(doc_path).with_name(f"{Path(doc_path).stem}.source.json")
+    if source_metadata_path.exists():
+        try:
+            source_metadata = json.loads(source_metadata_path.read_text(encoding="utf-8"))
+        except Exception as metadata_error:
+            logger.warning(f"讀取文件身份 metadata 失敗: {metadata_error}")
+    doc_name = source_metadata.get("document_id") or Path(doc_path).stem
     content = Path(doc_path).read_text(encoding="utf-8")
     cleanup_existing_document(
         doc_name,
@@ -575,6 +599,7 @@ def ingest_vector(doc_path: str, storage_category: str | None = None):
         from src.chunker import chunk_document
 
         doc_name = Path(doc_path).stem
+        source_metadata = {}
 
         # 分塊
         chunks = chunk_document(doc_path)
@@ -595,13 +620,13 @@ def ingest_vector(doc_path: str, storage_category: str | None = None):
         elif resolved_category == "Simple":
             extraction_mode = "simple"
 
-        source_metadata = {}
         metadata_path = Path(doc_path).with_name(f"{Path(doc_path).stem}.source.json")
         if metadata_path.exists():
             try:
                 source_metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
             except Exception as metadata_error:
                 logger.warning(f"讀取向量 metadata 失敗: {metadata_error}")
+        doc_name = source_metadata.get("document_id") or doc_name
 
         for chunk in chunks:
             metadata = chunk.setdefault("metadata", {})
@@ -610,6 +635,9 @@ def ingest_vector(doc_path: str, storage_category: str | None = None):
             for key in (
                 "run_id", "environment", "project_code", "dut_model", "band",
                 "protocol", "direction", "verdict", "started_at", "schema_version",
+                "source_system", "environment_id", "project_id", "artifact_type", "report_schema",
+                "original_file_name", "source_file_hash", "ingest_file_hash", "document_id",
+                "idempotency_key", "generated_at",
             ):
                 if source_metadata.get(key) not in (None, ""):
                     metadata.setdefault(key, source_metadata[key])

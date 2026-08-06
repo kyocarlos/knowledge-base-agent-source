@@ -166,6 +166,17 @@ class VectorStore:
                     "verdict": metadata.get("verdict", ""),
                     "started_at": metadata.get("started_at", ""),
                     "schema_version": metadata.get("schema_version", ""),
+                    "source_system": metadata.get("source_system", ""),
+                    "environment_id": metadata.get("environment_id", ""),
+                    "project_id": metadata.get("project_id", ""),
+                    "artifact_type": metadata.get("artifact_type", ""),
+                    "report_schema": metadata.get("report_schema", ""),
+                    "original_file_name": metadata.get("original_file_name", ""),
+                    "source_file_hash": metadata.get("source_file_hash", ""),
+                    "ingest_file_hash": metadata.get("ingest_file_hash", ""),
+                    "document_id": metadata.get("document_id", ""),
+                    "idempotency_key": metadata.get("idempotency_key", ""),
+                    "generated_at": metadata.get("generated_at", ""),
                     "image_refs": image_refs,
                 }
 
@@ -242,6 +253,8 @@ class VectorStore:
             allowed_filters = {
                 "environment", "run_id", "project_code", "dut_model", "band",
                 "protocol", "direction", "verdict", "schema_version",
+                "source_system", "environment_id", "project_id", "artifact_type",
+                "report_schema", "document_id", "idempotency_key",
             }
             for key, value in (filters or {}).items():
                 if key not in allowed_filters or value in (None, "", []):
@@ -291,6 +304,17 @@ class VectorStore:
                     "verdict": result.payload.get("verdict", ""),
                     "started_at": result.payload.get("started_at", ""),
                     "schema_version": result.payload.get("schema_version", ""),
+                    "source_system": result.payload.get("source_system", ""),
+                    "environment_id": result.payload.get("environment_id", ""),
+                    "project_id": result.payload.get("project_id", ""),
+                    "artifact_type": result.payload.get("artifact_type", ""),
+                    "report_schema": result.payload.get("report_schema", ""),
+                    "original_file_name": result.payload.get("original_file_name", ""),
+                    "source_file_hash": result.payload.get("source_file_hash", ""),
+                    "ingest_file_hash": result.payload.get("ingest_file_hash", ""),
+                    "document_id": result.payload.get("document_id", ""),
+                    "idempotency_key": result.payload.get("idempotency_key", ""),
+                    "generated_at": result.payload.get("generated_at", ""),
                     "score": result.score,
                     "id": str(result.id)
                 })

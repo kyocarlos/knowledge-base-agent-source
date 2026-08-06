@@ -164,7 +164,7 @@ def _purge_all_data() -> None:
     qdrant = config.get("qdrant", {})
     neo4j_uri = neo4j.get("uri", "bolt://neo4j:7687")
     neo4j_user = neo4j.get("user", "neo4j")
-    neo4j_password = neo4j.get("password", "#*cda40da40")
+    neo4j_password = neo4j.get("password", "change-me")
     qdrant_url = resolve_qdrant_url(qdrant.get("url", "http://host.docker.internal:6333"))
 
     logger.info("清除 Neo4j 全部資料...")
@@ -232,7 +232,7 @@ def rebuild_knowledge_base(
     setup_neo4j_schema(
         neo4j.get("uri", "bolt://neo4j:7687"),
         neo4j.get("user", "neo4j"),
-        neo4j.get("password", "#*cda40da40"),
+        neo4j.get("password", "change-me"),
     )
 
     for index, entry in enumerate(entries, start=1):

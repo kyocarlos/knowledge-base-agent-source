@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "KB_FRONTEND_BUILD_DIR=<project-root>/knowledge-base/.frontend-build-runtime-user8 vite build",
+    "build": "vite build",
     "preview": "vite preview"
   },
   "dependencies": {

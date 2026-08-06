@@ -7,7 +7,7 @@ from pptx.enum.text import PP_ALIGN
 from pptx.util import Inches, Pt
 
 
-OUT = Path("<project-root>/knowledge-base/anritsu_amarisoft_kb_architecture.pptx")
+OUT = Path("/home/da40_ai_gb10/knowledge-base/anritsu_amarisoft_kb_architecture.pptx")
 prs = Presentation()
 prs.slide_width = Inches(13.333)
 prs.slide_height = Inches(7.5)
@@ -112,7 +112,7 @@ def slide4():
         text(s, 5.00, y+.08, 7.35, .42, body, 13, "475569")
         if no != "5": line(s, .99, y+.58, .99, y+1.03, "94A3B8", 2)
         y += 1.05
-    box(s, .70, 6.72, 11.70, .42, "驗收入口：使用 https://127.0.0.1:3030/chat.html 實測指定 run、Fail 案例、Anritsu／Amarisoft 比較與來源引用。", "ECFDF5", "10B981", 12, True, "065F46")
+    box(s, .70, 6.72, 11.70, .42, "驗收入口：使用 https://61.216.9.52:3030/chat.html 實測指定 run、Fail 案例、Anritsu／Amarisoft 比較與來源引用。", "ECFDF5", "10B981", 12, True, "065F46")
 
 
 slide1(); slide2(); slide3(); slide4()
