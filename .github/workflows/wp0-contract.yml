@@ -1,14 +1,11 @@
 name: WP0 Contract Baseline
 
 on:
-  workflow_dispatch:
   push:
     branches:
       - agent/wp0-fastapi-contract
-      - "agent/*-v2.6-acceptance"
   pull_request:
     branches:
-      - agent/km-plan-v2.6-anderson
       - agent/km-modify-codex-plan
       - dev-work
 
@@ -25,8 +22,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -80,8 +75,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
       - name: Check whitespace
         run: git diff --check "${{ github.event.pull_request.base.sha || github.event.before }}" "${{ github.sha }}"
