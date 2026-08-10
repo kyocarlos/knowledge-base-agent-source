@@ -13,13 +13,15 @@ from datetime import datetime
 from pathlib import Path
 from celery import Celery
 from celery.signals import worker_init
+from kombu import Queue
 from ..storage_paths import resolve_storage_category
+from app.core.job_config import JOB_CONFIG
 
 logger = logging.getLogger(__name__)
 
 # ===== 並發控制設定 =====
-MAX_CONCURRENT_PROCESSING = 2  # 最大同時處理檔案數
-PROCESSING_LOCK_TTL = 600  # 鎖的過期時間（秒）
+MAX_CONCURRENT_PROCESSING = JOB_CONFIG.max_concurrent_processing
+PROCESSING_LOCK_TTL = JOB_CONFIG.processing_lock_ttl_seconds
 REDIS_URL = os.getenv("REDIS_URL") or os.getenv("CELERY_BROKER_URL") or "redis://redis:6379/0"
 REPORT_QUERY_HINTS = (
     "report",
@@ -291,6 +293,14 @@ celery_app = Celery(
 )
 
 celery_app.conf.update(
+    task_default_queue=JOB_CONFIG.default_queue,
+    task_queues=tuple(Queue(queue) for queue in (
+        JOB_CONFIG.default_queue,
+        JOB_CONFIG.document_queue,
+        JOB_CONFIG.indexing_queue,
+        "search",
+        "ingest",
+    )),
     # 任務路由
     task_routes={
         "tasks.search_task": {"queue": "search"},
@@ -298,12 +308,12 @@ celery_app.conf.update(
         "tasks.ingest_task": {"queue": "search"},
     },
     # 結果過期時間
-    result_expires=3600,  # 1小時
+    result_expires=JOB_CONFIG.result_ttl_seconds,
     # worker 並發數
-    worker_concurrency=16,
+    worker_concurrency=JOB_CONFIG.max_concurrent_processing,
     # 任務超時
-    task_soft_time_limit=600,  # 10分鐘，避免大型萃取超時
-    task_time_limit=720,  # 12分鐘
+    task_soft_time_limit=JOB_CONFIG.soft_time_limit_seconds,
+    task_time_limit=JOB_CONFIG.time_limit_seconds,
     # 失敗重試
     task_acks_late=True,
     task_reject_on_worker_lost=True,
@@ -839,7 +849,7 @@ def _build_search_citation_distribution(sources: list[dict]) -> dict:
         "total_sources": len(sources or []),
     }
 
-@celery_app.task(name="tasks.search_task", bind=True, max_retries=3)
+@celery_app.task(name="tasks.search_task", bind=True, max_retries=JOB_CONFIG.max_retries)
 def search_task(self, query: str, mode: str, top_k: int | None = None, sources_only: bool = False, **kwargs):
     """
     搜尋任務本體
