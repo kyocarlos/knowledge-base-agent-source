@@ -240,7 +240,7 @@ start_fastapi() {
     log_step "啟動 FastAPI (Workers: $FASTAPI_WORKERS)"
     
     # 檢查程序是否已運行
-    if pgrep -f "uvicorn.*src.web_api:app" &> /dev/null; then
+    if pgrep -f "uvicorn.*app.main:app" &> /dev/null; then
         log_info "FastAPI 已在運行，跳過"
         return 0
     fi
@@ -253,7 +253,7 @@ start_fastapi() {
     
     # 啟動 FastAPI（背景執行，16 workers）
     log_info "啟動 FastAPI server (workers: $FASTAPI_WORKERS)..."
-    nohup uvicorn src.web_api:app \
+    nohup uvicorn app.main:app \
         --host 0.0.0.0 \
         --port $FASTAPI_PORT \
         --workers $FASTAPI_WORKERS \
@@ -361,7 +361,7 @@ stop_services() {
     
     # 停止 Python 程序
     log_info "停止 FastAPI 和 Celery..."
-    pkill -f "uvicorn.*src.web_api:app" 2>/dev/null || true
+    pkill -f "uvicorn.*app.main:app" 2>/dev/null || true
     pkill -f "celery.*worker" 2>/dev/null || true
     
     # 停止 Ollama 實例

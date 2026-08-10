@@ -92,7 +92,7 @@ services:
         condition: service_healthy
       report_registry:
         condition: service_healthy
-    command: uvicorn src.web_api:app --host 0.0.0.0 --port 8000 --workers 4
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 4
 
   # ===== Celery Workers - 背景任務處理 =====
   celery_search_worker:

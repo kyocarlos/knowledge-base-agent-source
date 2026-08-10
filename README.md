@@ -175,8 +175,18 @@ print(result["sources"])
 ## 🛠️ 開發
 
 ```bash
-# 執行測試
-python -c "from src import FileConverter, GraphRAGPipeline, SearchEngine; print('OK')"
+# 安裝可重現的測試依賴
+pip install -r requirements-dev.txt
+
+# 執行 repository 測試；pytest.ini 會限制收集範圍為 tests/
+python -m pytest
+
+# 啟動正式 API shell（舊路由由 compatibility layer 保留）
+uvicorn app.main:app --host 0.0.0.0 --port 8000
+
+# 新版 platform contract
+curl http://localhost:8000/api/v1/health
+curl http://localhost:8000/api/v1/version
 
 # 檢查 Docker 內 KB 服務的 Neo4j 連線
 python -c "from src.graphrag import GraphRAGPipeline; g = GraphRAGPipeline(); print('Neo4j connected' if g.graph else 'Failed')"
