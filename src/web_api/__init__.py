@@ -2803,6 +2803,7 @@ async def upload_and_ingest(request: Request, extraction_mode: str = "4g5g"):
         set_ingest_task_state,
         get_ingest_queue_position,
         ingest_file_task,
+        get_ingest_task_state,
         get_ingest_task_state_by_file_hash,
     )
     from ..ingest import detect_extraction_mode
