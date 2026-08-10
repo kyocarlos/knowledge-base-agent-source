@@ -87,9 +87,9 @@ services:
       - KB_REVIEWER_TOKEN_HASHES_JSON=${KB_REVIEWER_TOKEN_HASHES_JSON:-{}}
     volumes:
       - /home/da40_ai_gb10/.openclaw:/home/da40_ai_gb10/.openclaw:ro
-      - ./config:/app/config:ro
-      - ./data:/home/da40_ai_gb10/knowledge-base/data
-      - ./data/uploads:/app/data/uploads
+      - ${KB_CONFIG_ROOT:-./config}:/app/config:ro
+      - ${KB_DATA_ROOT:-./data}:/home/da40_ai_gb10/knowledge-base/data
+      - ${KB_UPLOAD_ROOT:-./data/uploads}:/app/data/uploads
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:
@@ -116,9 +116,9 @@ services:
       - NEO4J_PASSWORD=${NEO4J_PASSWORD:?NEO4J_PASSWORD must be set}
       - KB_INGEST_UPLOAD_ROOT=/app/data/uploads
     volumes:
-      - ./config:/app/config:ro
-      - ./data:/home/da40_ai_gb10/knowledge-base/data
-      - ./data/uploads:/app/data/uploads
+      - ${KB_CONFIG_ROOT:-./config}:/app/config:ro
+      - ${KB_DATA_ROOT:-./data}:/home/da40_ai_gb10/knowledge-base/data
+      - ${KB_UPLOAD_ROOT:-./data/uploads}:/app/data/uploads
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:
@@ -145,9 +145,9 @@ services:
       - KB_REPORT_REGISTRY_URL=postgresql://kb_report:${KB_REPORT_DB_PASSWORD}@report_registry:5432/kb_reports
       - KB_REPORT_STAGING_ROOT=/app/data/report-staging
     volumes:
-      - ./config:/app/config:ro
-      - ./data:/home/da40_ai_gb10/knowledge-base/data
-      - ./data/uploads:/app/data/uploads
+      - ${KB_CONFIG_ROOT:-./config}:/app/config:ro
+      - ${KB_DATA_ROOT:-./data}:/home/da40_ai_gb10/knowledge-base/data
+      - ${KB_UPLOAD_ROOT:-./data/uploads}:/app/data/uploads
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:
@@ -174,9 +174,9 @@ services:
       - NEO4J_PASSWORD=${NEO4J_PASSWORD:?NEO4J_PASSWORD must be set}
       - KB_INGEST_UPLOAD_ROOT=/app/data/uploads
     volumes:
-      - ./config:/app/config:ro
-      - ./data:/home/da40_ai_gb10/knowledge-base/data
-      - ./data/uploads:/app/data/uploads
+      - ${KB_CONFIG_ROOT:-./config}:/app/config:ro
+      - ${KB_DATA_ROOT:-./data}:/home/da40_ai_gb10/knowledge-base/data
+      - ${KB_UPLOAD_ROOT:-./data/uploads}:/app/data/uploads
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:

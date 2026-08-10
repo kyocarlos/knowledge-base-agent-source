@@ -1,6 +1,6 @@
 import pytest
 
-from app.core.job_config import JobConfig, JobStatus
+from app.core.job_config import JobConfig, JobStatus, celery_headers
 
 
 def test_job_status_contract_is_stable():
@@ -23,3 +23,8 @@ def test_job_config_rejects_invalid_values(monkeypatch):
     monkeypatch.setenv("KB_JOB_TIME_LIMIT_SECONDS", "0")
     with pytest.raises(ValueError, match="KB_JOB_TIME_LIMIT_SECONDS"):
         JobConfig.from_env()
+
+
+def test_celery_headers_only_propagates_trace_id():
+    assert celery_headers("trace-123") == {"trace_id": "trace-123"}
+    assert celery_headers(None) == {}

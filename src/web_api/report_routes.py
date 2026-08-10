@@ -16,6 +16,7 @@ from pydantic import BaseModel, Field
 from ..test_reports.auth import authenticate_agent, authenticate_reviewer
 from ..test_reports.excel_contract import ReportValidationError, parse_and_validate_report
 from ..test_reports.registry import SubmissionConflict, SubmissionRegistry
+from app.core.job_config import celery_headers
 
 
 router = APIRouter()
@@ -198,7 +199,11 @@ async def approve_report_submission(submission_id: str, decision: ReviewDecision
     }
     try:
         set_ingest_task_state(task_id, state)
-        async_result = ingest_file_task.apply_async(args=[task_id], queue="ingest")
+        async_result = ingest_file_task.apply_async(
+            args=[task_id],
+            queue="ingest",
+            headers=celery_headers(request.headers.get("x-trace-id")),
+        )
         state["celery_task_id"] = async_result.id
         set_ingest_task_state(task_id, state)
         item = registry.transition(submission_id, {"approved"}, "queued", ingest_task_id=task_id)

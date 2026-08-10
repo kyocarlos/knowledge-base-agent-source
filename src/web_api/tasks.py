@@ -473,7 +473,18 @@ def _normalise_task_state(state: dict) -> dict:
     state.setdefault("progress", progress)
     state.setdefault("status_text", status_text)
     state.setdefault("step", step)
+    state.setdefault("job_status", _job_status_for_ingest(status))
     return state
+
+
+def _job_status_for_ingest(status: str) -> str:
+    if status in {"queued", "upload_saved", "converting", "converted", "extracting", "writing_neo4j", "writing_qdrant", "refreshing_index"}:
+        return "running" if status != "queued" else "queued"
+    if status in {"completed", "success", "succeeded"}:
+        return "succeeded"
+    if status in {"cancelled", "canceled"}:
+        return "cancelled"
+    return "failed" if status in {"failed", "error"} else status
 
 
 def set_ingest_task_state(task_id: str, state: dict, ttl: int | None = None) -> dict:
@@ -533,6 +544,8 @@ def update_ingest_task_state(task_id: str, **updates) -> dict:
         current["progress"] = updates.get("progress", progress)
         current["status_text"] = updates.get("status_text", status_text)
         current["step"] = updates.get("step", step)
+    if "job_status" not in updates and status:
+        current["job_status"] = _job_status_for_ingest(status)
     ttl = None
     if status == "completed":
         ttl = INGEST_TASK_SUCCESS_TTL
@@ -618,7 +631,7 @@ def clear_ingest_task_history(statuses: list[str] | None = None) -> dict:
     }
 
 
-@celery_app.task(name="tasks.ingest_file_task", bind=True, max_retries=0)
+@celery_app.task(name="tasks.ingest_file_task", bind=True, max_retries=JOB_CONFIG.max_retries)
 def ingest_file_task(self, task_id: str):
     """背景處理單一上傳檔案：轉 Markdown → 攝入 Neo4j/QDrant → 更新 index.md。"""
     state = get_ingest_task_state(task_id)
@@ -647,7 +660,8 @@ def ingest_file_task(self, task_id: str):
                 IngestRegistry().record_event("document_lock_acquired", task_id, document_id=document_id)
             except Exception as registry_error:
                 logger.error("記錄 document lock 取得事件失敗: %s", registry_error)
-        update_ingest_task_state(task_id, status="upload_saved", started_at=_now_iso(), celery_task_id=self.request.id)
+        trace_id = (getattr(self.request, "headers", None) or {}).get("trace_id")
+        update_ingest_task_state(task_id, status="upload_saved", started_at=_now_iso(), celery_task_id=self.request.id, trace_id=trace_id)
 
         original_path = Path(state["original_path"])
         converted_path = Path(state["converted_path"])
@@ -1112,11 +1126,12 @@ def search_task(self, query: str, mode: str, top_k: int | None = None, sources_o
             }
 
     except Exception as e:
-        logger.error(f"搜尋任務失敗: {e}")
+        trace_id = (getattr(self.request, "headers", None) or {}).get("trace_id")
+        logger.error("搜尋任務失敗 trace_id=%s: %s", trace_id, e)
 
         # 重試機制
         try:
-            self.retry(exc=e, countdown=5)
+            self.retry(exc=e, countdown=JOB_CONFIG.retry_countdown_seconds)
         except self.MaxRetriesExceededError:
             return {
                 "status": "failed",

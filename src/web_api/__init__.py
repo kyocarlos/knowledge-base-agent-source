@@ -29,6 +29,7 @@ import yaml
 
 from ..compare_rules import is_compare_like_query
 from .tasks import search_task
+from app.core.job_config import celery_headers
 from .cache import cache_get, cache_set
 from ..storage_paths import resolve_storage_category
 
@@ -1851,7 +1852,8 @@ async def search(request: SearchRequest, background_tasks: BackgroundTasks, resp
             "top_k": request.top_k,
             "sources_only": request.sources_only,
             "filters": filters,
-        }
+        },
+        headers=celery_headers(request.headers.get("x-trace-id")),
     )
 
     logger.info(f"任務已提交: {task.id}")
@@ -2991,7 +2993,11 @@ async def upload_and_ingest(request: Request, extraction_mode: str = "4g5g"):
             registry.record_event("task_created", task_id, document_id=identity.document_id, idempotency_key=identity.idempotency_key)
         set_ingest_task_state(task_id, state)
         try:
-            async_result = ingest_file_task.apply_async(args=[task_id], queue="ingest")
+            async_result = ingest_file_task.apply_async(
+                args=[task_id],
+                queue="ingest",
+                headers=celery_headers(request.headers.get("x-trace-id")),
+            )
         except Exception:
             if registry:
                 registry.update_status(task_id, "ingest_failed")

@@ -62,3 +62,8 @@ class JobConfig:
 
 
 JOB_CONFIG = JobConfig.from_env()
+
+
+def celery_headers(trace_id: str | None = None) -> dict[str, str]:
+    """Return safe task headers; callers may add a correlation id without payload changes."""
+    return {"trace_id": trace_id} if trace_id else {}
