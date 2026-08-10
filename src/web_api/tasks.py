@@ -305,7 +305,7 @@ celery_app.conf.update(
     task_routes={
         "tasks.search_task": {"queue": "search"},
         "tasks.watch_folder_scan": {"queue": "search"},
-        "tasks.ingest_task": {"queue": "search"},
+        "tasks.ingest_task": {"queue": "ingest"},
     },
     # 結果過期時間
     result_expires=JOB_CONFIG.result_ttl_seconds,

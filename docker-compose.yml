@@ -6,6 +6,7 @@ services:
   redis:
     image: redis:7-alpine
     container_name: kb-redis
+    restart: unless-stopped
     volumes:
       - redis_data:/data
     command: redis-server --appendonly yes
@@ -19,6 +20,7 @@ services:
   report_registry:
     image: postgres:16-alpine
     container_name: kb-report-registry
+    restart: unless-stopped
     environment:
       - POSTGRES_DB=kb_reports
       - POSTGRES_USER=kb_report
@@ -35,6 +37,7 @@ services:
   neo4j:
     image: neo4j:latest
     container_name: kb-neo4j
+    restart: unless-stopped
     ports:
       # 改用非預設 host port，避免和主機上的 neo4j.service 衝突
       - "127.0.0.1:17474:7474"
@@ -57,6 +60,7 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: kb-web
+    restart: unless-stopped
     ports:
       - "8000:8000"
       - "3000:3000"
@@ -107,6 +111,7 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: kb-celery-search
+    restart: unless-stopped
     environment:
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
@@ -133,6 +138,7 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: kb-celery-ingest
+    restart: unless-stopped
     environment:
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
