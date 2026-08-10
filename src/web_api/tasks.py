@@ -15,7 +15,7 @@ from celery import Celery
 from celery.signals import worker_init
 from kombu import Queue
 from ..storage_paths import resolve_storage_category
-from app.core.job_config import JOB_CONFIG
+from app.core.job_config import JOB_CONFIG, classify_job_error
 
 logger = logging.getLogger(__name__)
 
@@ -781,7 +781,14 @@ def ingest_file_task(self, task_id: str):
         return final_state
 
     except Exception as e:
-        logger.error(f"攝入任務失敗 {task_id}: {e}")
+        decision = classify_job_error(e)
+        trace_id = (getattr(self.request, "headers", None) or {}).get("trace_id")
+        logger.error("攝入任務失敗 task_id=%s trace_id=%s retryable=%s: %s", task_id, trace_id, decision.retryable, e)
+        if decision.retryable and self.request.retries < JOB_CONFIG.max_retries:
+            update_ingest_task_state(task_id, status="retrying", error=decision.reason, trace_id=trace_id)
+            if lock_acquired:
+                release_document_lock(document_id, lock_owner)
+            raise self.retry(exc=e, countdown=JOB_CONFIG.retry_countdown_seconds)
         failed_state = update_ingest_task_state(task_id, status="failed", error=str(e))
         if state.get("document_id"):
             try:
@@ -1130,7 +1137,11 @@ def search_task(self, query: str, mode: str, top_k: int | None = None, sources_o
         logger.error("搜尋任務失敗 trace_id=%s: %s", trace_id, e)
 
         # 重試機制
+        decision = classify_job_error(e)
+        if not decision.retryable:
+            return {"status": "failed", "error": str(e), "mode": mode}
         try:
+            logger.warning("搜尋任務進行重試 trace_id=%s reason=%s", trace_id, decision.reason)
             self.retry(exc=e, countdown=JOB_CONFIG.retry_countdown_seconds)
         except self.MaxRetriesExceededError:
             return {

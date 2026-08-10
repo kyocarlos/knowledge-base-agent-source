@@ -67,3 +67,18 @@ JOB_CONFIG = JobConfig.from_env()
 def celery_headers(trace_id: str | None = None) -> dict[str, str]:
     """Return safe task headers; callers may add a correlation id without payload changes."""
     return {"trace_id": trace_id} if trace_id else {}
+
+
+@dataclass(frozen=True)
+class RetryDecision:
+    retryable: bool
+    reason: str
+
+
+def classify_job_error(error: BaseException) -> RetryDecision:
+    """Classify infrastructure failures without retrying bad input or business errors."""
+    if isinstance(error, (ValueError, TypeError, FileNotFoundError, PermissionError)):
+        return RetryDecision(False, "non_retryable_input_or_permission")
+    if isinstance(error, (TimeoutError, ConnectionError, OSError)):
+        return RetryDecision(True, "transient_infrastructure")
+    return RetryDecision(False, "unknown_requires_review")
