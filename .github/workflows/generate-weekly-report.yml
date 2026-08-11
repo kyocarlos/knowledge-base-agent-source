@@ -1,6 +1,22 @@
 name: Generate AI KM Weekly Report
 
 on:
+  push:
+    branches: [agent/km-weekly-reporting]
+    paths:
+      - ".github/workflows/generate-weekly-report.yml"
+      - "scripts/generate_weekly_pptx.mjs"
+      - "docs/km-modernization/progress/**"
+      - "package.json"
+      - "package-lock.json"
+  pull_request:
+    branches: [agent/km-modify-codex-plan]
+    paths:
+      - ".github/workflows/generate-weekly-report.yml"
+      - "scripts/generate_weekly_pptx.mjs"
+      - "docs/km-modernization/progress/**"
+      - "package.json"
+      - "package-lock.json"
   workflow_dispatch:
     inputs:
       week:
