@@ -1,6 +1,10 @@
 import pytest
+from fastapi.testclient import TestClient
 
 from app.core.job_config import JobConfig, JobStatus, celery_headers
+from app.main import create_app
+from app.core.config import AppSettings
+from src import web_api
 
 
 def test_job_status_contract_is_stable():
@@ -28,3 +32,28 @@ def test_job_config_rejects_invalid_values(monkeypatch):
 def test_celery_headers_only_propagates_trace_id():
     assert celery_headers("trace-123") == {"trace_id": "trace-123"}
     assert celery_headers(None) == {}
+
+
+def test_search_propagates_http_trace_header_to_celery(monkeypatch):
+    captured = {}
+
+    class SubmittedTask:
+        id = "search-task-1"
+
+    def fake_apply_async(*, args, kwargs, headers):
+        captured.update({"args": args, "kwargs": kwargs, "headers": headers})
+        return SubmittedTask()
+
+    monkeypatch.setattr(web_api, "cache_get", lambda _key: None)
+    monkeypatch.setattr(web_api.search_task, "apply_async", fake_apply_async)
+
+    with TestClient(create_app(AppSettings(environment="test"))) as client:
+        response = client.post(
+            "/search",
+            headers={"X-Trace-ID": "trace-http-123"},
+            json={"query": "trace propagation", "mode": "basic", "sources_only": True},
+        )
+
+    assert response.status_code == 200
+    assert response.json()["task_id"] == "search-task-1"
+    assert captured["headers"] == {"trace_id": "trace-http-123"}

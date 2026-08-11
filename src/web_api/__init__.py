@@ -1821,7 +1821,7 @@ async def websocket_chat_proxy(websocket: WebSocket):
 
 
 @app.post("/search", response_model=SearchResponse)
-async def search(request: SearchRequest, background_tasks: BackgroundTasks, response: Response):
+async def search(request: SearchRequest, background_tasks: BackgroundTasks, response: Response, http_request: Request):
     """
     提交搜尋任務
 
@@ -1853,7 +1853,7 @@ async def search(request: SearchRequest, background_tasks: BackgroundTasks, resp
             "sources_only": request.sources_only,
             "filters": filters,
         },
-        headers=celery_headers(request.headers.get("x-trace-id")),
+        headers=celery_headers(http_request.headers.get("x-trace-id")),
     )
 
     logger.info(f"任務已提交: {task.id}")
