@@ -12,7 +12,7 @@
 
 總分：**87/100**。不可宣稱完成，主要 Gate 缺口為 PR/review/merge 與正式環境故障演練。
 
-CI：[WP1 run 31449165822](https://github.com/kyocarlos/knowledge-base-agent-source/actions/runs/31449165822)。
+CI：原 WP1 分支 [run 31449165822](https://github.com/kyocarlos/knowledge-base-agent-source/actions/runs/31449165822)；v2.6 驗收分支 [run 31466582953](https://github.com/kyocarlos/knowledge-base-agent-source/actions/runs/31466582953)，兩者 backend、frontend、repository-hygiene 均成功。
 
 ## v2.6 歸類
 

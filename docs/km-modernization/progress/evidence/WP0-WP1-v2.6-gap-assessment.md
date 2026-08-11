@@ -9,7 +9,7 @@
 | WP0 | FastAPI shell、v1 router、response/error/trace/exception | A | `2c46c834`、PR #2 backend success | 保留程式與歷史 |
 | WP0 | legacy Portal/chat/search/report/review/ingest/A2A 相容層 | A | PR #2 tests 與相容性 test files | 保留，不重構 |
 | WP0 | Phase、REQ／ADR 與 Owner 追溯 | B | PR #2 舊編號；v2.6 `REQ-API-001` | 文件校正，不改寫 commit |
-| WP0 | CI overall、review、merge、正式 E2E | C | Actions `31405151388` 因 shallow checkout 導致 `fatal: bad object`；reviews 空；未 merge | hygiene checkout 改 `fetch-depth: 0`，重跑 CI、review 與驗收 artifact |
+| WP0 | CI overall、review、merge、正式 E2E | C | Actions `31405151388` 曾因 shallow checkout 導致 `fatal: bad object`；修正後 `31466582947` 三個 job 全部成功；reviews 空；未 merge | CI 缺口已關閉，仍須 review、merge 與正式 E2E artifact |
 | WP0 | CSIT Web／DB／Workflow／商業邏輯 | D | v2.6 responsibility baseline | 列 Patty／跨組依賴，不納入 WP0 |
 | WP0 | v2.6 原始 Excel | E | branch/tree 無該 `.xlsx` | Owner 提供後再關來源 Gate |
 | WP1 | typed config、queue、status、retry、trace、idempotency | A | `2a4ba2af`～`7cfa1d6e`、CI backend success | 保留程式與測試 |
@@ -40,3 +40,4 @@
 - W33 JSON schema／權重／Phase／program 計算與 Markdown token：通過。
 - PPTX 從同一 JSON 連續產生兩次；除 `docProps/core.xml` 產生時間外，解壓後內容一致。
 - LibreOffice 成功渲染為 7 頁、16:9 PDF；逐頁 PNG 人工檢查無文字溢出、遮蔽、空白頁或不可辨識小字。
+- v2.6 驗收分支 CI：WP0 run `31466582947` 與 WP1 run `31466582953` 的 backend、frontend、repository-hygiene 共六個 job 全部成功。
