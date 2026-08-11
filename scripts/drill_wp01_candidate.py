@@ -36,6 +36,16 @@ def request(url: str) -> tuple[int, str]:
         return exc.code, exc.read().decode(errors="replace")
 
 
+def post_json(url: str, payload: dict[str, object], headers: dict[str, str] | None = None) -> tuple[int, str]:
+    request_headers = {"Content-Type": "application/json", **(headers or {})}
+    req = urllib.request.Request(url, data=json.dumps(payload).encode(), headers=request_headers, method="POST")
+    try:
+        with urllib.request.urlopen(req, timeout=10) as response:
+            return response.status, response.read().decode(errors="replace")
+    except urllib.error.HTTPError as exc:
+        return exc.code, exc.read().decode(errors="replace")
+
+
 def wait_http(url: str, timeout: int = 180) -> None:
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
@@ -180,6 +190,13 @@ def main() -> int:
             }
             if any(probes[path]["status"] != status for path, status in expected.items()):
                 raise RuntimeError(f"candidate API contract mismatch: {probes}")
+            search_status, search_body = post_json(
+                f"http://127.0.0.1:{port}/search",
+                {"query": "WP01 shadow search submission", "mode": "basic", "sources_only": True},
+                {"X-Trace-ID": "wp01-shadow-trace"},
+            )
+            if search_status != 200 or not json.loads(search_body).get("task_id"):
+                raise RuntimeError(f"candidate search submission failed: {search_status} {search_body}")
             running = {}
             for service in ("web", "search_worker", "ingest_worker", "beat"):
                 container_id = subprocess.check_output([*command, "ps", "-q", service], text=True).strip()
@@ -188,7 +205,12 @@ def main() -> int:
                 ).strip() == "true"
             if not all(running.values()):
                 raise RuntimeError(f"candidate services are not all running: {running}")
-            evidence.update({"probes": probes, "services_running": running, "result": "passed"})
+            evidence.update({
+                "probes": probes,
+                "search_submission": {"status": search_status, "task_id_present": True},
+                "services_running": running,
+                "result": "passed",
+            })
         finally:
             subprocess.run([*command, "down", "--volumes", "--remove-orphans"], check=False)
         evidence["finished_at"] = datetime.now(timezone.utc).isoformat()
