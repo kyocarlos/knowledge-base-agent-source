@@ -1,6 +1,7 @@
 name: WP1 Job Reliability
 
 on:
+  workflow_dispatch:
   push:
     branches:
       - agent/wp1-job-config-reliability
