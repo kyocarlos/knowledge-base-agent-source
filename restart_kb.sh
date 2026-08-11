@@ -1,308 +1,510 @@
-#!/bin/bash
-#===============================================================================
-# Knowledge Base 一鍵重啟腳本
-# 用途: 只重啟 knowledge-base 自己的 Docker stack
-# 這支腳本只管理 knowledge-base，不碰 AnythingLLM：
-# - 不修改任何共用 nginx / 對外入口設定
-# - 不停止宿主機上的 nginx 或其他共用服務
-# - 不動 AnythingLLM 的服務、腳本、容器、QDrant 或 systemd
-# - web:8000: FastAPI 容器內服務，由容器內 nginx 反向代理
-# - redis / neo4j: 資料與任務服務
-# - host.docker.internal:11434: 容器連到宿主機 Ollama
-# - QDrant: 獨立容器 kb-qdrant，對外只在本機 6335
-#===============================================================================
+#!/usr/bin/env bash
+# Safe WP0/WP1 lifecycle helper for the knowledge-base production stack.
 
-set -e
+set -Eeuo pipefail
 
-ROOT_DIR="/home/da40_ai_gb10/knowledge-base"
+ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 cd "$ROOT_DIR"
-REPORT_ENV_FILE="$ROOT_DIR/config/report-ingest.env"
-REPORT_ENV_EXAMPLE="$ROOT_DIR/config/report-ingest.env.example"
 
-echo "=========================================="
-echo "   Knowledge Base 系統重啟中..."
-echo "=========================================="
+MODE="status"
+MODE_SET=false
+RUNTIME_ENV_FILE="${KB_RUNTIME_ENV_FILE:-}"
+CHECKPOINT=""
+CONFIRM_DEPLOY=""
+ALLOW_DIRTY=false
+WAIT_TIMEOUT="${KB_RESTART_WAIT_TIMEOUT_SECONDS:-120}"
+BASE_URL="${KB_INTERNAL_BASE_URL:-https://127.0.0.1:${KB_HTTPS_PORT:-3030}}"
+EXTERNAL_URL="${KB_EXTERNAL_URL:-$BASE_URL}"
+FRONTEND_BUILD_DIR="${KB_FRONTEND_BUILD_DIR:-$ROOT_DIR/.frontend-build-runtime-user8}"
+REPORT_ENV_FILE="${KB_REPORT_ENV_FILE:-$ROOT_DIR/config/report-ingest.env}"
+REPORT_ENV_EXAMPLE="${KB_REPORT_ENV_EXAMPLE:-$ROOT_DIR/config/report-ingest.env.example}"
+BACKUP_ROOT="${KB_BACKUP_ROOT:-$HOME/kb-pre-wp01-backups}"
+COMPOSE=(docker compose)
+APP_SERVICES=(web celery_search_worker celery_ingest_worker celery_beat nginx)
+APP_CONTAINERS=(kb-web kb-celery-search kb-celery-ingest kb-celery-beat kb-nginx)
 
-if ! command -v docker >/dev/null 2>&1; then
-    echo "Docker 未安裝，無法啟動容器服務。"
+usage() {
+    cat <<'EOF'
+Usage:
+  ./restart_kb.sh [--status]
+  ./restart_kb.sh --restart [--env-file FILE]
+  ./restart_kb.sh --deploy --confirm-deploy DEPLOY_WP01 [options]
+
+Modes:
+  --status       Read-only WP0/WP1 health, worker, queue and WebSocket checks.
+                 This is the default when no mode is supplied.
+  --restart      Restart application containers only. It never rebuilds images
+                 and never removes Redis, Neo4j, Qdrant or PostgreSQL.
+  --deploy       Create/use a rollback checkpoint, build a candidate image,
+                 recreate application containers and run WP0/WP1 gates.
+
+Deploy options:
+  --confirm-deploy DEPLOY_WP01  Required production deployment confirmation.
+  --checkpoint DIR              Reuse an existing verified checkpoint.
+  --allow-dirty                 Permit tracked source changes in the candidate.
+
+Common options:
+  --env-file FILE               Load an additional protected runtime env file.
+  --wait-timeout SECONDS        Readiness timeout (default: 120).
+  -h, --help                    Show this help.
+
+The script always aborts restart/deploy when Celery has active, reserved,
+scheduled or queued work. It does not provide a force option by design.
+EOF
+}
+
+fail() {
+    printf 'ERROR: %s\n' "$*" >&2
     exit 1
-fi
+}
 
-if ! command -v npm >/dev/null 2>&1; then
-    echo "npm 未安裝，無法建置前端。"
-    exit 1
-fi
+info() {
+    printf '\n== %s ==\n' "$*"
+}
 
-if docker compose version >/dev/null 2>&1; then
-    DC="docker compose"
-else
-    echo "找不到 docker compose。"
-    exit 1
-fi
+require_command() {
+    command -v "$1" >/dev/null 2>&1 || fail "required command is missing: $1"
+}
 
 load_env_file() {
     local env_file="$1"
-    if [[ -f "$env_file" ]]; then
-        echo "  • 載入 $(basename "$env_file")"
-        set -a
-        # shellcheck disable=SC1090
-        . "$env_file"
-        set +a
+    [[ -f "$env_file" ]] || return 0
+    printf 'Loading runtime environment: %s\n' "$env_file"
+    set -a
+    # shellcheck disable=SC1090
+    . "$env_file"
+    set +a
+}
+
+parse_args() {
+    while (($#)); do
+        case "$1" in
+            --status|--restart|--deploy)
+                [[ "$MODE_SET" == false ]] || fail "select exactly one mode"
+                MODE="${1#--}"
+                MODE_SET=true
+                ;;
+            --env-file)
+                (($# >= 2)) || fail "--env-file requires a value"
+                RUNTIME_ENV_FILE="$2"
+                shift
+                ;;
+            --checkpoint)
+                (($# >= 2)) || fail "--checkpoint requires a value"
+                CHECKPOINT="$2"
+                shift
+                ;;
+            --confirm-deploy)
+                (($# >= 2)) || fail "--confirm-deploy requires a value"
+                CONFIRM_DEPLOY="$2"
+                shift
+                ;;
+            --allow-dirty)
+                ALLOW_DIRTY=true
+                ;;
+            --wait-timeout)
+                (($# >= 2)) || fail "--wait-timeout requires a value"
+                WAIT_TIMEOUT="$2"
+                shift
+                ;;
+            -h|--help)
+                usage
+                exit 0
+                ;;
+            *)
+                fail "unknown argument: $1"
+                ;;
+        esac
+        shift
+    done
+
+    [[ "$WAIT_TIMEOUT" =~ ^[1-9][0-9]*$ ]] || fail "--wait-timeout must be a positive integer"
+    if [[ -n "$RUNTIME_ENV_FILE" && ! -f "$RUNTIME_ENV_FILE" ]]; then
+        fail "runtime env file does not exist: $RUNTIME_ENV_FILE"
     fi
 }
 
-ensure_report_env_file() {
+ensure_report_env() {
     if [[ -n "${KB_REPORT_DB_PASSWORD:-}" ]]; then
         return 0
     fi
-
     if [[ -f "$REPORT_ENV_FILE" ]]; then
-        echo "  ❌ $REPORT_ENV_FILE 存在，但未設定 KB_REPORT_DB_PASSWORD"
-        echo "     請修正該檔案，或刪除後重新執行讓腳本自動建立。"
-        exit 1
+        load_env_file "$REPORT_ENV_FILE"
     fi
-
-    if [[ ! -f "$REPORT_ENV_EXAMPLE" ]]; then
-        echo "  ❌ 缺少 KB_REPORT_DB_PASSWORD，且找不到 $REPORT_ENV_EXAMPLE"
-        echo "     請先手動建立 $REPORT_ENV_FILE 或 export KB_REPORT_DB_PASSWORD 後再執行。"
-        exit 1
-    fi
-
-    local generated_password
-    if command -v openssl >/dev/null 2>&1; then
-        generated_password=$(openssl rand -hex 24)
-    elif command -v python3 >/dev/null 2>&1; then
-        generated_password=$(python3 - <<'PY'
-import secrets
-print(secrets.token_hex(24))
-PY
-        )
-    else
-        echo "  ❌ 無法產生 KB_REPORT_DB_PASSWORD，請先安裝 openssl 或 python3，或手動設定環境變數。"
-        exit 1
-    fi
-
-    install -m 600 "$REPORT_ENV_EXAMPLE" "$REPORT_ENV_FILE"
-    sed -i "s|^KB_REPORT_DB_PASSWORD=.*|KB_REPORT_DB_PASSWORD='$generated_password'|" "$REPORT_ENV_FILE"
-    export KB_REPORT_DB_PASSWORD="$generated_password"
-    echo "  ✅ 已自動建立 $(basename "$REPORT_ENV_FILE")"
+    [[ -n "${KB_REPORT_DB_PASSWORD:-}" ]] || fail \
+        "KB_REPORT_DB_PASSWORD is missing; configure $REPORT_ENV_FILE from $REPORT_ENV_EXAMPLE"
 }
 
-load_env_file ".env"
-load_env_file "$REPORT_ENV_FILE"
-ensure_report_env_file
+compose_preflight() {
+    info "Configuration preflight"
+    load_env_file "$ROOT_DIR/.env"
+    [[ -z "$RUNTIME_ENV_FILE" ]] || load_env_file "$RUNTIME_ENV_FILE"
+    ensure_report_env
+    [[ -n "${NEO4J_PASSWORD:-}" ]] || fail \
+        "NEO4J_PASSWORD is missing; no container has been changed"
+    "${COMPOSE[@]}" config --quiet
+    printf 'Compose configuration: PASS\n'
+}
+
+container_running() {
+    [[ "$(docker inspect -f '{{.State.Running}}' "$1" 2>/dev/null || true)" == "true" ]]
+}
+
+show_containers() {
+    local failed=0 name
+    printf '%-24s %-12s %s\n' "CONTAINER" "STATE" "IMAGE"
+    for name in "${APP_CONTAINERS[@]}" kb-redis kb-neo4j kb-report-registry kb-qdrant; do
+        if docker inspect "$name" >/dev/null 2>&1; then
+            printf '%-24s %-12s %s\n' \
+                "$name" \
+                "$(docker inspect -f '{{.State.Status}}' "$name")" \
+                "$(docker inspect -f '{{.Config.Image}}' "$name")"
+            container_running "$name" || failed=1
+        else
+            printf '%-24s %-12s %s\n' "$name" "missing" "-"
+            failed=1
+        fi
+    done
+    return "$failed"
+}
+
+http_code() {
+    local code
+    code="$(curl -k -sS --max-time 10 -o /dev/null -w '%{http_code}' "$1" 2>/dev/null)" || code="000"
+    printf '%s' "$code"
+}
+
+wait_for_http_200() {
+    local url="$1" deadline=$((SECONDS + WAIT_TIMEOUT)) code
+    while ((SECONDS < deadline)); do
+        code="$(http_code "$url")"
+        [[ "$code" == "200" ]] && return 0
+        sleep 2
+    done
+    printf 'Timed out waiting for %s (last HTTP %s)\n' "$url" "$code" >&2
+    return 1
+}
+
+check_wp0_contract() {
+    local path code tmp trace
+    local failed=0
+    trace="restart-gate-$(date +%s)"
+    tmp="$(mktemp -d "${TMPDIR:-/tmp}/kb-wp0-gate.XXXXXX")"
+    for path in /health /api/v1/health /api/v1/health/live /api/v1/health/ready /api/v1/version; do
+        code="$(http_code "$BASE_URL$path")"
+        printf '%-32s HTTP %s\n' "$path" "$code"
+        [[ "$code" == "200" ]] || failed=1
+    done
+
+    code="$(curl -k -sS --max-time 10 -D "$tmp/headers" -o "$tmp/body" -w '%{http_code}' \
+        -H "X-Trace-ID: $trace" "$BASE_URL/api/v1/not-found" 2>/dev/null || true)"
+    if [[ "$code" == "404" ]] && grep -qi "^x-trace-id: $trace" "$tmp/headers" && \
+       python3 - "$tmp/body" "$trace" <<'PY'
+import json, sys
+payload = json.load(open(sys.argv[1], encoding="utf-8"))
+assert payload == {
+    "data": None,
+    "error": {"code": "http_404", "message": "Not Found"},
+    "trace_id": sys.argv[2],
+}
+PY
+    then
+        printf '%-32s PASS\n' "WP0 error/trace envelope"
+    else
+        printf '%-32s FAIL\n' "WP0 error/trace envelope"
+        failed=1
+    fi
+
+    code="$(http_code "$BASE_URL/api/agent/v1/health")"
+    printf '%-32s HTTP %s (expected 401)\n' "Agent auth boundary" "$code"
+    [[ "$code" == "401" ]] || failed=1
+    rm -rf -- "$tmp"
+    return "$failed"
+}
+
+celery_inspect() {
+    docker exec kb-celery-search celery -A src.web_api.tasks.celery_app inspect "$1" 2>&1
+}
+
+show_task_activity() {
+    local kind output busy=0 queue count
+    if ! container_running kb-celery-search || ! container_running kb-redis; then
+        printf 'Celery/Redis is not available for task inspection.\n' >&2
+        return 2
+    fi
+
+    for kind in active reserved scheduled; do
+        if ! output="$(celery_inspect "$kind")"; then
+            printf 'Celery inspect %s failed.\n' "$kind" >&2
+            return 2
+        fi
+        if grep -qE '^[[:space:]]+\* \{' <<<"$output"; then
+            printf '%-12s BUSY\n' "$kind"
+            busy=1
+        else
+            printf '%-12s empty\n' "$kind"
+        fi
+    done
+
+    for queue in search ingest default document indexing celery; do
+        count="$(docker exec kb-redis redis-cli --raw LLEN "$queue" 2>/dev/null || printf 'unknown')"
+        printf 'queue:%-6s %s\n' "$queue" "$count"
+        [[ "$count" =~ ^[0-9]+$ ]] || return 2
+        ((count == 0)) || busy=1
+    done
+    return "$busy"
+}
+
+require_idle_tasks() {
+    local task_rc=0
+    info "WP1 task drain gate"
+    show_task_activity || task_rc=$?
+    if ((task_rc == 0)); then
+        printf 'Task drain gate: PASS\n'
+        return 0
+    fi
+    case "$task_rc" in
+        1) fail "Celery work is active or queued; wait for completion before $MODE" ;;
+        *) fail "task state could not be verified; refusing to $MODE" ;;
+    esac
+}
+
+check_wp1_runtime() {
+    local ping queues config beat failed=0
+    if ping="$(celery_inspect ping)" && [[ "$(grep -c 'pong' <<<"$ping")" -ge 2 ]]; then
+        printf '%-32s PASS (2 nodes)\n' "WP1 Celery ping"
+    else
+        printf '%-32s FAIL\n' "WP1 Celery ping"
+        failed=1
+    fi
+
+    if queues="$(celery_inspect active_queues)" && grep -q "'name': 'search'" <<<"$queues" && \
+       grep -q "'name': 'ingest'" <<<"$queues"; then
+        printf '%-32s PASS\n' "WP1 search/ingest queues"
+    else
+        printf '%-32s FAIL\n' "WP1 search/ingest queues"
+        failed=1
+    fi
+
+    if config="$(docker exec kb-web python -c 'from app.core.job_config import JOB_CONFIG; print(JOB_CONFIG)' 2>&1)"; then
+        printf '%-32s PASS\n' "WP1 JobConfig"
+        printf '  %s\n' "$config"
+    else
+        printf '%-32s FAIL\n' "WP1 JobConfig"
+        failed=1
+    fi
+
+    beat="$(docker logs --since "${WAIT_TIMEOUT}s" kb-celery-beat 2>&1 || true)"
+    if container_running kb-celery-beat && grep -Eq 'beat: Starting|celery beat|Scheduler:' <<<"$beat"; then
+        printf '%-32s PASS\n' "WP1 Beat scheduler"
+    else
+        printf '%-32s FAIL\n' "WP1 Beat scheduler"
+        failed=1
+    fi
+    return "$failed"
+}
 
 check_websocket_proxy() {
     local auth_token
-    auth_token=$(docker exec kb-web python3 -c "from src.web_api import load_openclaw_chat_config; print(load_openclaw_chat_config().get('authToken', ''))" 2>/dev/null | tr -d '\r\n')
-
+    auth_token="$(docker exec kb-web python3 -c \
+        "from src.web_api import load_openclaw_chat_config; print(load_openclaw_chat_config().get('authToken', ''))" \
+        2>/dev/null | tr -d '\r\n')"
     if [[ -z "$auth_token" ]]; then
-        echo "  ⚠️  無法取得 WebSocket 驗證 token，略過 websocket smoke test"
+        printf '%-32s SKIP (token unavailable)\n' "Legacy WebSocket proxy"
         return 0
     fi
+    if docker exec -i kb-web python3 - "$auth_token" <<'PY'
+import asyncio, json, ssl, sys
+import websockets
 
-    if docker exec kb-web python3 - "$auth_token" <<'PY'
-import base64
-import hashlib
-import json
-import secrets
-import socket
-import ssl
-import struct
-import sys
+async def main():
+    context = ssl._create_unverified_context()
+    async with websockets.connect("wss://nginx/ws", ssl=context, open_timeout=10) as ws:
+        await ws.send(json.dumps({"type": "auth", "token": sys.argv[1]}))
+        payload = json.loads(await asyncio.wait_for(ws.recv(), timeout=10))
+        if not (payload.get("type") == "event" and payload.get("event") == "connect.challenge"):
+            raise RuntimeError(f"unexpected payload: {payload}")
 
-host = "nginx"
-port = 443
-path = "/ws"
-auth_token = sys.argv[1]
-
-def recv_exact(sock, size):
-    data = b""
-    while len(data) < size:
-        chunk = sock.recv(size - len(data))
-        if not chunk:
-            raise RuntimeError("socket closed unexpectedly")
-        data += chunk
-    return data
-
-def read_http_response(sock):
-    data = b""
-    while b"\r\n\r\n" not in data:
-        chunk = sock.recv(4096)
-        if not chunk:
-            break
-        data += chunk
-    return data.decode("utf-8", errors="replace")
-
-def send_ws_text(sock, text):
-    payload = text.encode("utf-8")
-    mask = secrets.token_bytes(4)
-    first = 0x81
-    length = len(payload)
-    header = bytearray([first])
-    if length < 126:
-        header.append(0x80 | length)
-    elif length < (1 << 16):
-        header.append(0x80 | 126)
-        header.extend(struct.pack("!H", length))
-    else:
-        header.append(0x80 | 127)
-        header.extend(struct.pack("!Q", length))
-    masked = bytes(b ^ mask[i % 4] for i, b in enumerate(payload))
-    sock.sendall(bytes(header) + mask + masked)
-
-def read_ws_message(sock):
-    while True:
-        first_two = recv_exact(sock, 2)
-        fin = first_two[0] & 0x80
-        opcode = first_two[0] & 0x0F
-        masked = first_two[1] & 0x80
-        length = first_two[1] & 0x7F
-        if length == 126:
-            length = struct.unpack("!H", recv_exact(sock, 2))[0]
-        elif length == 127:
-            length = struct.unpack("!Q", recv_exact(sock, 8))[0]
-        mask = recv_exact(sock, 4) if masked else b""
-        payload = recv_exact(sock, length) if length else b""
-        if masked:
-            payload = bytes(b ^ mask[i % 4] for i, b in enumerate(payload))
-        if opcode == 0x8:
-            raise RuntimeError("websocket closed by server")
-        if opcode == 0x9:
-            pong = bytearray([0x8A])
-            if len(payload) < 126:
-                pong.append(len(payload))
-            else:
-                pong.append(126)
-                pong.extend(struct.pack("!H", len(payload)))
-            sock.sendall(bytes(pong) + payload)
-            continue
-        if opcode == 0x1:
-            return payload.decode("utf-8", errors="replace")
-        if opcode == 0x2:
-            return payload
-        if not fin:
-            continue
-
-ctx = ssl._create_unverified_context()
-raw_sock = socket.create_connection((host, port), timeout=10)
-sock = ctx.wrap_socket(raw_sock, server_hostname=host)
-key = base64.b64encode(secrets.token_bytes(16)).decode("ascii")
-request = (
-    f"GET {path} HTTP/1.1\r\n"
-    f"Host: {host}\r\n"
-    "Upgrade: websocket\r\n"
-    "Connection: Upgrade\r\n"
-    f"Sec-WebSocket-Key: {key}\r\n"
-    "Sec-WebSocket-Version: 13\r\n"
-    "\r\n"
-)
-sock.sendall(request.encode("ascii"))
-response = read_http_response(sock)
-if "101 Switching Protocols" not in response:
-    raise RuntimeError(f"websocket handshake failed: {response.splitlines()[0] if response else 'empty response'}")
-
-send_ws_text(sock, json.dumps({"type": "auth", "token": auth_token}, ensure_ascii=False))
-message = read_ws_message(sock)
-try:
-    payload = json.loads(message)
-except Exception as exc:
-    raise RuntimeError(f"unexpected websocket payload: {message[:200]}") from exc
-
-if payload.get("type") == "event" and payload.get("event") == "connect.challenge":
-    print("WS OK")
-else:
-    raise RuntimeError(f"unexpected websocket payload: {payload}")
+asyncio.run(main())
 PY
     then
-        echo "  ✅ WebSocket proxy smoke test 通過"
+        printf '%-32s PASS\n' "Legacy WebSocket proxy"
     else
-        echo "  ⚠️  WebSocket proxy smoke test 失敗，請檢查 logs/fastapi.log 與 nginx 日誌"
+        printf '%-32s FAIL\n' "Legacy WebSocket proxy"
+        return 1
     fi
 }
 
-echo ""
-echo "[0/4] 檢查宿主機 Ollama..."
-if curl -fsS --max-time 3 http://127.0.0.1:11434/api/tags >/dev/null; then
-    echo "  ✅ Ollama 11434 正常"
-else
-    echo "  ⚠️  Ollama 11434 未回應；攝入流程的 LLM 萃取會失敗"
-fi
+run_acceptance_gates() {
+    local failed=0
+    info "Waiting for WP0 readiness"
+    wait_for_http_200 "$BASE_URL/api/v1/health/ready" || failed=1
 
-# QDrant 只給 knowledge-base 使用，名稱與 host port 都和 AnythingLLM 分開。
-if docker container inspect kb-qdrant >/dev/null 2>&1; then
-    echo "[0/4] 啟動既有 kb-qdrant 容器..."
-    docker start kb-qdrant >/dev/null 2>&1 || true
-    docker update --restart unless-stopped kb-qdrant >/dev/null 2>&1 || true
-else
-    echo "[0/4] 建立 kb-qdrant 容器..."
-    docker run -d --name kb-qdrant --restart unless-stopped -p 6335:6333 -p 6336:6334 qdrant/qdrant:latest >/dev/null
-fi
+    info "WP0 compatibility and contract gates"
+    check_wp0_contract || failed=1
 
-# 只清理 knowledge-base 自己的容器，不會碰 AnythingLLM 的任何容器。
-docker rm -f kb-web kb-celery-search kb-celery-ingest kb-celery-beat kb-nginx kb-redis kb-neo4j kb-celery 2>/dev/null || true
+    info "WP1 worker and scheduler gates"
+    check_wp1_runtime || failed=1
 
-echo ""
-echo "[1/4] 建置前端靜態檔..."
-export KB_FRONTEND_BUILD_DIR="/home/da40_ai_gb10/knowledge-base/.frontend-build-runtime-user8"
-rm -rf "$KB_FRONTEND_BUILD_DIR"
-npm --prefix frontend run build
-mkdir -p "$KB_FRONTEND_BUILD_DIR/lib"
-cp frontend/chat.html "$KB_FRONTEND_BUILD_DIR/chat.html"
-cp frontend/lib/marked.min.js "$KB_FRONTEND_BUILD_DIR/lib/marked.min.js"
-cp frontend/lib/compare-rules.js "$KB_FRONTEND_BUILD_DIR/lib/compare-rules.js"
-echo "  ✅ 前端已建置"
+    info "Legacy compatibility gates"
+    [[ "$(http_code "$BASE_URL/chat.html")" == "200" ]] || failed=1
+    check_websocket_proxy || failed=1
 
-echo ""
-echo "[2/4] 重啟 compose 服務..."
-$DC up -d --build redis neo4j web celery_search_worker celery_ingest_worker celery_beat nginx
-
-echo ""
-echo "[3/4] 等待服務穩定..."
-sleep 5
-
-echo ""
-echo "[4/4] 檢查服務狀態..."
-docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" | grep -E "kb-web|kb-celery-search|kb-celery-ingest|kb-celery-beat|kb-nginx|kb-redis|kb-neo4j" || true
-
-echo ""
-echo "[5/5] 檢查關鍵埠..."
-for port in 3030 6335 17474 17687 11434; do
-    if ss -ltn 2>/dev/null | grep -q ":$port "; then
-        echo "  ✅ Port $port 已監聽"
+    local qdrant_code
+    qdrant_code="$(http_code 'http://127.0.0.1:6335/healthz')"
+    printf '%-32s HTTP %s\n' "Qdrant health" "$qdrant_code"
+    [[ "$qdrant_code" == "200" ]] || failed=1
+    if curl -fsS --max-time 5 http://127.0.0.1:11434/api/tags >/dev/null 2>&1; then
+        printf '%-32s PASS\n' "Host Ollama"
     else
-        echo "  ⚠️  Port $port 未在本機監聽"
+        printf '%-32s FAIL\n' "Host Ollama"
+        failed=1
     fi
-done
+    ((failed == 0)) || return 1
+    printf '\nAll WP0/WP1 acceptance gates: PASS\n'
+}
 
-echo ""
-echo "驗證前端與 API..."
-curl -k -fsS https://127.0.0.1:3030/ >/dev/null && echo "  ✅ 首頁正常"
-curl -k -fsS https://127.0.0.1:3030/admin >/dev/null && echo "  ✅ 管理後台路由正常"
-curl -k -fsS https://127.0.0.1:3030/admin/graph-stats >/dev/null && echo "  ✅ 管理 API 正常"
-curl -k -fsS https://127.0.0.1:3030/chat.html >/dev/null && echo "  ✅ 前端入口正常"
-curl -k -fsS https://127.0.0.1:3030/health >/dev/null && echo "  ✅ API health 正常（nginx）" || echo "  ⚠️  API health 尚未就緒（nginx）"
-docker exec kb-web python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=5).read()" >/dev/null && echo "  ✅ API health 正常（容器內）" || echo "  ⚠️  API health 尚未就緒（容器內）"
-curl -fsS http://127.0.0.1:6335/healthz >/dev/null && echo "  ✅ QDrant health 正常" || echo "  ⚠️  QDrant health 尚未就緒"
-docker exec kb-web python -c "import urllib.request; urllib.request.urlopen('http://host.docker.internal:11434/api/tags', timeout=5).read()" >/dev/null && echo "  ✅ 容器可連到 Ollama" || echo "  ⚠️  容器無法連到 Ollama"
-check_websocket_proxy
+run_status() {
+    local failed=0
+    info "Knowledge-base runtime status"
+    show_containers || failed=1
+    run_acceptance_gates || failed=1
+    info "Current task activity (read-only)"
+    show_task_activity || true
+    printf '\nUser entry: %s/chat.html\n' "$EXTERNAL_URL"
+    ((failed == 0))
+}
 
-echo ""
-echo "=========================================="
-echo "   ✅ 系統啟動完成！"
-echo "=========================================="
-echo ""
-echo "📍 服務入口："
-echo "   - 對外前端:   https://61.216.9.52:3030"
-echo "   - 本機 API:    https://127.0.0.1:3030/health"
-echo "   - Neo4j:       http://localhost:17474"
-echo "   - Nginx:       https://localhost:3030"
-echo "   - Ollama:      http://127.0.0.1:11434"
-echo ""
-echo "📝 日誌位置："
-echo "   - docker compose logs -f web"
-echo "   - docker compose logs -f celery_search_worker"
-echo "   - docker compose logs -f celery_ingest_worker"
-echo "   - docker compose logs -f nginx"
-echo ""
-echo "=========================================="
+build_frontend() {
+    local target="$1"
+    require_command npm
+    case "$target" in
+        "$ROOT_DIR"/*) ;;
+        *) fail "frontend staging directory must be inside the project root" ;;
+    esac
+    rm -rf -- "$target"
+    KB_FRONTEND_BUILD_DIR="$target" npm --prefix frontend run build
+    install -d "$target/lib"
+    install -m 0644 frontend/chat.html "$target/chat.html"
+    install -m 0644 frontend/lib/marked.min.js "$target/lib/marked.min.js"
+    install -m 0644 frontend/lib/compare-rules.js "$target/lib/compare-rules.js"
+}
+
+run_restart() {
+    compose_preflight
+    require_idle_tasks
+    info "Restarting application services without rebuild"
+    "${COMPOSE[@]}" restart "${APP_SERVICES[@]}"
+    run_acceptance_gates || fail "restart completed but WP0/WP1 gates failed"
+}
+
+check_deploy_source() {
+    local dirty
+    dirty="$(git status --porcelain -- . \
+        ':!PROJECT_MEMORY.md' ':!config/**' ':!data/**' ':!**/__pycache__/**')"
+    if [[ -n "$dirty" && "$ALLOW_DIRTY" != true ]]; then
+        printf '%s\n' "$dirty" >&2
+        fail "tracked source changes exist; commit them or use --allow-dirty after review"
+    fi
+}
+
+validate_checkpoint() {
+    local checkpoint="$1"
+    [[ -f "$checkpoint/checkpoint.json" ]] || fail "checkpoint.json is missing: $checkpoint"
+    [[ -f "$checkpoint/SHA256SUMS" ]] || fail "SHA256SUMS is missing: $checkpoint"
+    (cd "$checkpoint" && sha256sum -c SHA256SUMS >/dev/null) || fail "checkpoint checksum validation failed"
+}
+
+prepare_checkpoint() {
+    if [[ -n "$CHECKPOINT" ]]; then
+        CHECKPOINT="$(realpath "$CHECKPOINT")"
+        validate_checkpoint "$CHECKPOINT"
+        printf 'Using verified checkpoint: %s\n' "$CHECKPOINT"
+        return 0
+    fi
+    local label output
+    label="pre-deploy-$(date +%Y%m%d-%H%M%S)"
+    output="$(python3 scripts/pre_wp01_backup.py \
+        --source-root "$ROOT_DIR" --backup-root "$BACKUP_ROOT" --label "$label")"
+    CHECKPOINT="$(tail -n 1 <<<"$output")"
+    validate_checkpoint "$CHECKPOINT"
+    printf 'Created verified checkpoint: %s\n' "$CHECKPOINT"
+}
+
+rollback_deploy() {
+    printf '\nDeployment gate failed; restoring application images from %s\n' "$CHECKPOINT" >&2
+    python3 scripts/rollback_pre_wp01.py \
+        --checkpoint "$CHECKPOINT" \
+        --execute \
+        --confirm-production PRE_WP01_ROLLBACK
+}
+
+restore_frontend() {
+    local previous="$1"
+    rm -rf -- "$FRONTEND_BUILD_DIR"
+    if [[ -d "$previous" ]]; then
+        mv -- "$previous" "$FRONTEND_BUILD_DIR"
+    fi
+}
+
+run_deploy() {
+    [[ "$CONFIRM_DEPLOY" == "DEPLOY_WP01" ]] || fail \
+        "--deploy requires --confirm-deploy DEPLOY_WP01"
+    compose_preflight
+    check_deploy_source
+    require_idle_tasks
+
+    info "Creating or validating rollback checkpoint"
+    prepare_checkpoint
+
+    local candidate_id release_tag frontend_staging frontend_previous
+    release_tag="$(git rev-parse --short=12 HEAD)-$(date +%Y%m%d%H%M%S)"
+    frontend_staging="$ROOT_DIR/.frontend-build-candidate-$release_tag"
+    frontend_previous="$ROOT_DIR/.frontend-build-previous-$release_tag"
+
+    info "Building staged frontend and WP0/WP1 candidate image"
+    build_frontend "$frontend_staging"
+    "${COMPOSE[@]}" build web celery_search_worker celery_ingest_worker celery_beat
+
+    candidate_id="$("${COMPOSE[@]}" images -q web)"
+    [[ -n "$candidate_id" ]] || fail "candidate web image was not produced"
+    docker image tag "$candidate_id" "kb-wp01-candidate:$release_tag"
+
+    rm -rf -- "$frontend_previous"
+    if [[ -d "$FRONTEND_BUILD_DIR" ]]; then
+        mv -- "$FRONTEND_BUILD_DIR" "$frontend_previous"
+    fi
+    mv -- "$frontend_staging" "$FRONTEND_BUILD_DIR"
+
+    info "Recreating application services; data services remain running"
+    if ! "${COMPOSE[@]}" up -d --no-deps --force-recreate "${APP_SERVICES[@]}"; then
+        restore_frontend "$frontend_previous"
+        rollback_deploy
+        fail "candidate containers failed to start; rollback completed"
+    fi
+    if ! run_acceptance_gates; then
+        restore_frontend "$frontend_previous"
+        rollback_deploy
+        fail "candidate failed WP0/WP1 gates; rollback completed"
+    fi
+    rm -rf -- "$frontend_previous"
+    docker image tag "$candidate_id" "kb-wp01-live:$release_tag"
+    printf '\nDeployment completed.\nCandidate: kb-wp01-candidate:%s\nLive: kb-wp01-live:%s\nCheckpoint: %s\n' \
+        "$release_tag" "$release_tag" "$CHECKPOINT"
+}
+
+main() {
+    parse_args "$@"
+    require_command docker
+    require_command curl
+    require_command python3
+
+    case "$MODE" in
+        status) run_status ;;
+        restart) run_restart ;;
+        deploy) run_deploy ;;
+        *) fail "unsupported mode: $MODE" ;;
+    esac
+}
+
+main "$@"
