@@ -16,4 +16,3 @@ def test_ingest_job_state_adds_canonical_status_without_breaking_legacy_status()
     assert state["job_status"] == JobStatus.RUNNING
     assert _normalise_task_state({"status": "completed"})["job_status"] == JobStatus.SUCCEEDED
     assert _normalise_task_state({"status": "queued"})["job_status"] == JobStatus.QUEUED
-
