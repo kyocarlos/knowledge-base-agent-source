@@ -20,6 +20,11 @@
 - pre-WP01 checkpoint、shadow rollback、production rollback 與第二次部署均記錄於 `docs/pre-wp01-deployment-record-20260811.md`。
 - GitHub rollout branch head：`10706a5780d105427b1dc1e38b701023336fe26f`。
 
+## 截止後 CI
+
+- rollout commit `dce63ae6` 的 WP0 run `31475084397`：backend、frontend、repository-hygiene 全部成功。
+- Weekly run `31475084373`：v2.6 source／JSON 驗證與 Phase 1 PPTX candidate artifact 產生成功。
+
 ## v2.6 歸類
 
 - `A`：FastAPI shell、versioned router、統一 response／error／trace、secret-safe exception、legacy compatibility 與測試可保留。

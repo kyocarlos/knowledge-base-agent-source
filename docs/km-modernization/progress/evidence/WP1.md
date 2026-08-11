@@ -21,6 +21,11 @@
 - Web、search worker、ingest worker、Beat 使用相同 application image ID；兩個 Celery nodes pong，Beat scheduler 持續派送。
 - Application rollback 保留 `--execute` 與 production confirmation 雙重保護；dry-run 不需確認碼且已由測試固定。
 
+## 截止後 CI
+
+- rollout commit `dce63ae6` 的 WP1 run `31475084385`：backend 與 frontend 成功。
+- repository-hygiene 在 `actions/checkout@v4` 階段因 GitHub runner TLS CA 驗證失敗而未執行；annotation 為 `server certificate verification failed`／git exit 128，不是 whitespace 或 credential scan 失敗。需以後續重跑結果關閉 CI Gate。
+
 ## v2.6 歸類
 
 - `A`：typed config、queue routing、canonical status、trace、retry、idempotency、worker restart／health、backup／application rollback 可直接保留。
