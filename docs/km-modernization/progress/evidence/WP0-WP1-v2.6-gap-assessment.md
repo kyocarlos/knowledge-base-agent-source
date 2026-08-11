@@ -9,15 +9,15 @@
 | WP0 | FastAPI shell、v1 router、response/error/trace/exception | A | `2c46c834`、PR #2 backend success | 保留程式與歷史 |
 | WP0 | legacy Portal/chat/search/report/review/ingest/A2A 相容層 | A | PR #2 tests 與相容性 test files | 保留，不重構 |
 | WP0 | Phase、REQ／ADR 與 Owner 追溯 | B | PR #2 舊編號；v2.6 `REQ-API-001` | 文件校正，不改寫 commit |
-| WP0 | CI overall、review、merge、正式 E2E | C | Actions `31405151388` 曾因 shallow checkout 導致 `fatal: bad object`；修正後 `31466582947` 三個 job 全部成功；reviews 空；未 merge | CI 缺口已關閉，仍須 review、merge 與正式 E2E artifact |
+| WP0 | CI overall、review、merge、正式 E2E | C | Actions `31466582947` 三個 job成功；production legacy/v1 health、Webwright chat 與 search smoke 通過；仍無 review／merge | E2E 缺口已大幅補正，仍須 durable artifact、review 與 merge |
 | WP0 | CSIT Web／DB／Workflow／商業邏輯 | D | v2.6 responsibility baseline | 列 Patty／跨組依賴，不納入 WP0 |
-| WP0 | v2.6 原始 Excel | E | branch/tree 無該 `.xlsx` | Owner 提供後再關來源 Gate |
+| WP0 | v2.6 原始 Excel | A | Git 納管 SHA-256 `4c5a4782...fba46`，八個工作表已核對 | 關閉來源缺失 Gate；保留內部 `v2.4` 標題待確認 |
 | WP1 | typed config、queue、status、retry、trace、idempotency | A | `2a4ba2af`～`7cfa1d6e`、CI backend success | 保留程式與測試 |
 | WP1 | worker restart、持久化與 health 修正 | A | `0dad72bd`、`7cfa1d6e`、CI success | 保留，不重做 |
 | WP1 | Phase、REQ 與責任歸類 | B | v2.6 `REQ-JOB-001` | 改列 Phase 1 前置 |
-| WP1 | PR／review／merge、正式故障與 backup/restore | C | GitHub 查無 WP1 PR；無正式演練 artifact | 建 PR 並補驗收 |
+| WP1 | PR／review／merge、正式故障與 backup/restore | C | shadow rollback、candidate gate、一次 production rollback 與 maintenance checkpoint dry-run 通過；同步分支已 push，但無 rollout PR／review／merge | 建 stacked Draft PR，保存 durable artifact 並完成 Review／Merge |
 | WP1 | CSIT Schema／Workflow／商業狀態 | D | v2.6 responsibility baseline | 由 Patty 提供 Contract |
-| WP1 | 隔離 runtime 原始紀錄與 v2.6 Excel | E | GitHub 無 run artifact；tree 無 Excel | 不以文字聲明替代正式證據 |
+| WP1 | 隔離 runtime 原始紀錄 | E | 部署紀錄已進 Git，但原始 shadow/Webwright run artifact 仍只在部署主機 | 後續上傳受控 artifact，不把 secrets／database dump 放入 Git |
 
 ## 保全與整合決策
 
@@ -25,7 +25,7 @@
 2. 另外保留 WP0 workflow commit `19d0751e`，避免因 WP1 分支較早分叉而遺失。
 3. 不修改已通過測試的 runtime 程式；補正集中在追溯、Evidence、週報、PPTX 與 Gate。
 4. 不採用只綁定舊分支名稱的 weekly push／PR trigger；候選簡報使用現有 `workflow_dispatch`／schedule artifact 流程。
-5. 不建立、猜測或反向產生缺失的 v2.6 Excel；由規劃 Owner 提供原檔後另行核對。
+5. v2.6 Excel 已由現有原檔納管並核對 SHA；兩個工作表的 `v2.4` 標題差異只列風險，不自行修改二進位來源。
 
 ## 驗證中發現的殘餘風險
 

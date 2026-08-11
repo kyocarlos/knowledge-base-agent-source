@@ -11,4 +11,12 @@
 
 正式流程與計分規則見 [`../05-weekly-reporting-and-pptx.md`](../05-weekly-reporting-and-pptx.md)。
 
-目前 Git tree 尚未包含 `01_AI_KM_Phase規劃_v2.6.xlsx`。在原始 Excel 經 Owner 核對並提交前，v2.6 文件可用於差異補正，但正式規劃來源 Gate 維持阻塞，不得以衍生 Markdown 反向重建 Excel。
+原始 [`01_AI_KM_Phase規劃_v2.6.xlsx`](../01_AI_KM_Phase規劃_v2.6.xlsx) 已納入 Git，SHA-256=`4c5a4782e727b5675add29027a5a09192966f126baa5ca648d89b22c333fba46`，來源缺失 Gate 已解除。兩個分工工作表標題殘留 `v2.4`，列為文件品質待確認，不影響 v2.6 檔案作為唯一規劃基準。
+
+`2026-W33` 原始週報保留為歷史快照；本週取得 Excel 並完成 production rollback／再部署後，以 `2026-W33-phase1-v2.6` 修訂資料鏈呈現最新 Phase 1 進度，不覆蓋舊檔。
+
+本週 Phase 1 修訂版：
+
+- 數字來源：[`data/2026-W33-phase1-v2.6.json`](data/2026-W33-phase1-v2.6.json)
+- 文字週報：[`weekly/2026-W33-phase1-v2.6.md`](weekly/2026-W33-phase1-v2.6.md)
+- 主管簡報：[`presentations/AI-KM-Phase1-Weekly-2026-W33-v2.6.pptx`](presentations/AI-KM-Phase1-Weekly-2026-W33-v2.6.pptx)

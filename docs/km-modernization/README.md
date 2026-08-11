@@ -1,6 +1,6 @@
 # AI KM 正式化規劃入口
 
-本目錄以 `01_AI_KM_Phase規劃_v2.6.xlsx` 為最新規劃基準，聚焦 Anderson 負責的 AI KM 實作。所有舊版 Phase 規劃已退役，不得再作為 Phase、工期、範圍或責任分工依據。
+本目錄以 [`01_AI_KM_Phase規劃_v2.6.xlsx`](01_AI_KM_Phase規劃_v2.6.xlsx) 為最新規劃基準，聚焦 Anderson 負責的 AI KM 實作。所有舊版 Phase 規劃已退役，不得再作為 Phase、工期、範圍或責任分工依據。納管原檔 SHA-256 為 `4c5a4782e727b5675add29027a5a09192966f126baa5ca648d89b22c333fba46`。
 
 ## 文件閱讀順序
 
@@ -22,6 +22,8 @@
 | Phase 5 | Enterprise AI Evolution | Workflow、Multi-Agent、Predictive AI、Trend、Auto Benchmark／補測建議 | 12～24+ 週，條件式 |
 
 Phase 1 已明確包含設備預約與系統驗證申請單的 AI KM 查詢／填單入口；正式資料、Web、DB、Workflow 與審核仍由 CSIT／Patty 負責。Benchmark 基礎功能位於 Phase 2，AI 自動分析位於 Phase 4。
+
+工作簿的「實際工作分工」與「分工摘要」工作表標題仍顯示 `v2.4`，但其內容已整合在 v2.6 檔案內。此處以檔名、SHA-256 與八個工作表內容為準，標題差異列為文件品質待確認，不另建立第二套規劃。
 
 ## Anderson 的責任界線
 

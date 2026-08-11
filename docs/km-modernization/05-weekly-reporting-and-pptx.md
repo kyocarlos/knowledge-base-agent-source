@@ -38,7 +38,13 @@ Issue 定義需求與驗收；PR 連結 Issue、commit、測試與回滾；`prog
 npm ci
 node scripts/generate_weekly_pptx.mjs --week 2026-W33 --validate
 node scripts/generate_weekly_pptx.mjs --week 2026-W33
+
+# Phase 1 聚焦版
+node scripts/generate_phase1_weekly_pptx.mjs --week 2026-W33 --validate
+node scripts/generate_phase1_weekly_pptx.mjs --week 2026-W33
 ```
+
+同一週若因來源文件或 production evidence 新增而需要修訂，不覆蓋既有週報；使用 `YYYY-Www-phase1-v2.6` JSON／Markdown 與 `AI-KM-Phase1-Weekly-YYYY-Www-v2.6.pptx` 另存。Phase 1 聚焦版固定七頁：封面、主管摘要、範圍與時程、WP0、WP1、Gate／風險／決策、下週承諾。
 
 排程 `10 9 * * 3` 等於台北時間星期三 17:10。Actions 只上傳 artifact，不直接 commit。JSON／Markdown 不一致、PPTX 空檔、渲染溢出或 GitHub 證據未核對時必須停止，不得沿用舊簡報冒充本週。若來源 Excel 缺失，必須在 JSON、Markdown、Evidence 與 PPTX 風險頁一致標示。
 

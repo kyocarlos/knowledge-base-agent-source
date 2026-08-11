@@ -2,18 +2,24 @@ name: Generate AI KM Weekly Report
 
 on:
   push:
-    branches: ["agent/*-v2.6-acceptance"]
+    branches:
+      - "agent/*-v2.6-acceptance"
+      - agent/wp01-production-rollout
     paths:
       - ".github/workflows/generate-weekly-report.yml"
       - "scripts/generate_weekly_pptx.mjs"
+      - "scripts/generate_phase1_weekly_pptx.mjs"
       - "docs/km-modernization/progress/**"
       - "package.json"
       - "package-lock.json"
   pull_request:
-    branches: [agent/km-plan-v2.6-anderson]
+    branches:
+      - agent/km-plan-v2.6-anderson
+      - agent/wp0-wp1-v2.6-acceptance
     paths:
       - ".github/workflows/generate-weekly-report.yml"
       - "scripts/generate_weekly_pptx.mjs"
+      - "scripts/generate_phase1_weekly_pptx.mjs"
       - "docs/km-modernization/progress/**"
       - "package.json"
       - "package-lock.json"
@@ -55,9 +61,22 @@ jobs:
         run: node scripts/generate_weekly_pptx.mjs --week "${{ steps.week.outputs.value }}" --output "$RUNNER_TEMP/AI-KM-Weekly-${{ steps.week.outputs.value }}.pptx"
       - name: Verify non-empty PPTX
         run: test -s "$RUNNER_TEMP/AI-KM-Weekly-${{ steps.week.outputs.value }}.pptx"
+      - name: Validate and generate Phase 1 candidate when data exists
+        shell: bash
+        run: |
+          DATA="docs/km-modernization/progress/data/${{ steps.week.outputs.value }}-phase1-v2.6.json"
+          if [ -f "$DATA" ]; then
+            node scripts/generate_phase1_weekly_pptx.mjs --week "${{ steps.week.outputs.value }}" --validate
+            node scripts/generate_phase1_weekly_pptx.mjs \
+              --week "${{ steps.week.outputs.value }}" \
+              --output "$RUNNER_TEMP/AI-KM-Phase1-Weekly-${{ steps.week.outputs.value }}-v2.6.pptx"
+            test -s "$RUNNER_TEMP/AI-KM-Phase1-Weekly-${{ steps.week.outputs.value }}-v2.6.pptx"
+          fi
       - uses: actions/upload-artifact@v4
         with:
           name: AI-KM-Weekly-${{ steps.week.outputs.value }}-candidate
-          path: ${{ runner.temp }}/AI-KM-Weekly-${{ steps.week.outputs.value }}.pptx
+          path: |
+            ${{ runner.temp }}/AI-KM-Weekly-${{ steps.week.outputs.value }}.pptx
+            ${{ runner.temp }}/AI-KM-Phase1-Weekly-${{ steps.week.outputs.value }}-v2.6.pptx
           if-no-files-found: error
           retention-days: 30

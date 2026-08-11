@@ -1,23 +1,29 @@
 # WP1 Evidence — Docker／Redis／Celery／Config 正式化
 
-統計截止：2026-08-12 17:00 Asia/Taipei
+本週證據截止：2026-08-11 16:42 Asia/Taipei
 
 | 類別 | 得分／權重 | 證據與限制 |
 |---|---:|---|
-| 規格與 Contract | 15/15 | REQ-JOB-001、REQ-JOB-002、REQ-OPS-001；typed config、Job status、queue/retry contract。 |
-| 程式實作 | 35/35 | branch `agent/wp1-job-config-reliability`，head `cfe5eb0d6a463aa4ddfc6e3a936e2f4a8974109a`。 |
-| 測試 | 25/25 | 本地 83 passed；GitHub Actions backend、frontend、repository-hygiene 全部成功。 |
-| E2E／驗收 | 10/15 | 隔離 Compose 實測 worker restart、Redis persistence、真實 ingest idempotency；未完成正式部署長時間故障注入與 backup/restore。 |
-| PR／合併／文件／回滾 | 2/10 | 有規劃簡報與本地驗證記錄，但 GitHub 查無 WP1 PR、review 或 merge。 |
+| 規格與 Contract | 15/15 | v2.6 Excel「Docker／Redis／Celery／環境設定」由 Anderson 主實作；typed config、Job status、queue／retry／timeout／idempotency contract。 |
+| 程式實作 | 35/35 | 原 WP1 `2a4ba2af`～`cfe5eb0d`；live integration 加入 scheduler、secret boundary、search trace fix 與 rollback tooling。 |
+| 測試 | 25/25 | rollout 分支 pytest `90 passed`；queue/retry/non-retry、trace、idempotency、worker contract、Compose 與 credential scan 通過。 |
+| E2E／驗收 | 15/15 | 隔離 worker restart／Redis persistence／ingest idempotency、shadow rollback、candidate search、一次 production rollback、修正後再部署與真實 maintenance checkpoint dry-run均通過。 |
+| PR／合併／文件／回滾 | 6/10 | backup／rollback script、操作規格、部署紀錄與 GitHub rollout branch 已交付；仍無 rollout PR review／merge。 |
 
-總分：**87/100**。不可宣稱完成，主要 Gate 缺口為 PR/review/merge 與正式環境故障演練。
+總分：**96/100**。真實故障與回退 Gate 已演練，但 PR／Review／Merge Gate 尚未關閉，不得宣稱 100%。
 
-CI：原 WP1 分支 [run 31449165822](https://github.com/kyocarlos/knowledge-base-agent-source/actions/runs/31449165822)；v2.6 驗收分支 [run 31466582953](https://github.com/kyocarlos/knowledge-base-agent-source/actions/runs/31466582953)，兩者 backend、frontend、repository-hygiene 均成功。
+## 本週新增證據
+
+- 兩份約 9.6 GB checkpoint 已建立並完成 SHA、archive、PostgreSQL、SQLite、Neo4j 與 Qdrant 可讀性檢查。
+- Shadow drill：baseline 200 → injected 503 → rollback 200，image ID 完全恢復。
+- 第一次 production cutover 的 `/search` 500 觸發真實 Level 1 rollback，五個 application image ID 恢復且資料 volumes 未重建。
+- 修正 FastAPI HTTP Request trace propagation，加入 regression test；第二次 candidate 與 production cutover 通過。
+- Web、search worker、ingest worker、Beat 使用相同 application image ID；兩個 Celery nodes pong，Beat scheduler 持續派送。
+- Application rollback 保留 `--execute` 與 production confirmation 雙重保護；dry-run 不需確認碼且已由測試固定。
 
 ## v2.6 歸類
 
-- `A`：typed job config、queue routing、canonical job status、trace header、retry taxonomy、Redis idempotency、worker restart/health 修正及 CI 可直接保留。
-- `B`：原工作包的 Phase 0、REQ-JOB-002／REQ-OPS-001 命名改按 v2.6 歸入 Phase 1 前置與 `REQ-JOB-001`；保留原 commit 歷史。
-- `C`：尚無 WP1 PR／review／merge；缺正式環境長時間故障注入與 backup/restore 驗收。
-- `D`：CSIT Workflow、正式商業狀態與 Schema 由 Patty 負責，不由 WP1 擴張實作。
-- `E`：隔離 runtime 驗證已有提交紀錄，但沒有可下載的原始 run artifact；來源 v2.6 Excel 也未存在於 Git，兩者不能當成正式 Gate 完成證據。
+- `A`：typed config、queue routing、canonical status、trace、retry、idempotency、worker restart／health、backup／application rollback 可直接保留。
+- `B`：舊 Phase 0 命名改列 Phase 1 前置；CSIT 正式狀態不得移入本地 Job status。
+- `C`：缺 rollout PR review／merge，以及原始 shadow／Webwright artifact 的 GitHub 持久化。
+- `D`：CSIT Schema、Workflow 與商業狀態由 Patty 提供 Contract，不由 WP1 擴張。

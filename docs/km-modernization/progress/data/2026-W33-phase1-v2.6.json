@@ -1,0 +1,103 @@
+{
+  "schema_version": "1.0",
+  "report_id": "2026-W33-phase1-v2.6",
+  "week": "2026-W33",
+  "report_date": "2026-08-13",
+  "period": {
+    "start": "2026-08-10",
+    "cutoff": "2026-08-11 16:42",
+    "timezone": "Asia/Taipei",
+    "status": "週中更新；週三 17:00 前新增證據須另建修訂版"
+  },
+  "source": {
+    "name": "01_AI_KM_Phase規劃_v2.6.xlsx",
+    "path": "docs/km-modernization/01_AI_KM_Phase規劃_v2.6.xlsx",
+    "sha256": "4c5a4782e727b5675add29027a5a09192966f126baa5ca648d89b22c333fba46",
+    "status": "present_sha_verified",
+    "notes": [
+      "八個工作表已解析核對",
+      "實際工作分工與分工摘要的工作表標題殘留 v2.4，待規劃 Owner 澄清"
+    ]
+  },
+  "phase": {
+    "id": "Phase 1",
+    "name": "AI KM MVP（Production Ready）",
+    "duration": "12～16 週",
+    "planned_end": "2027-01-14",
+    "progress": 21.1,
+    "program_progress": 12.7
+  },
+  "weights": {
+    "contract": 15,
+    "implementation": 35,
+    "tests": 25,
+    "e2e": 15,
+    "delivery": 10
+  },
+  "work_packages": [
+    {
+      "id": "WP0",
+      "title": "FastAPI／REST API 與測試基線",
+      "owner": "Anderson",
+      "excel_target": "2026-08-14",
+      "scores": {"contract": 15, "implementation": 35, "tests": 25, "e2e": 13, "delivery": 6},
+      "progress": 94,
+      "status": "已部署；待 rollout PR／Review／Merge",
+      "evidence": [
+        "legacy 與 v1 health/version contract 通過",
+        "正式 chat Webwright 通過，console/network errors=0",
+        "rollout 分支 pytest 90 passed 與 frontend build 通過"
+      ]
+    },
+    {
+      "id": "WP1",
+      "title": "Docker／Redis／Celery／環境正式化",
+      "owner": "Anderson",
+      "excel_target": "2026-08-21",
+      "scores": {"contract": 15, "implementation": 35, "tests": 25, "e2e": 15, "delivery": 6},
+      "progress": 96,
+      "status": "已部署並完成真實回退；待 rollout PR／Review／Merge",
+      "evidence": [
+        "shadow rollback 與 candidate gate 通過",
+        "第一次 production cutover 異常後成功回退，修正後第二次部署通過",
+        "checkpoint、workers、Beat、search 與 rollback dry-run 通過"
+      ]
+    },
+    {"id": "WP2", "title": "CSIT Adapter／Booking／Validation Request 入口", "owner": "Patty Contract／Anderson Client", "excel_target": "2026-10-09", "progress": 0, "status": "未開始；等待 CSIT Contract"},
+    {"id": "WP3", "title": "OpenClaw／Report Workflow Adapter", "owner": "共同", "excel_target": "2026-10-29", "progress": 0, "status": "未開始"},
+    {"id": "WP4", "title": "Excel Parser／基本 RAG 正式化", "owner": "Anderson", "excel_target": "2026-11-09", "progress": 0, "status": "未開始"},
+    {"id": "WP5", "title": "Qdrant／Neo4j 基本檢索", "owner": "Anderson", "excel_target": "2026-11-27", "progress": 0, "status": "未開始"},
+    {"id": "WP6", "title": "TimescaleDB 基礎", "owner": "Anderson", "excel_target": "2026-12-08", "progress": 0, "status": "未開始"},
+    {"id": "WP7", "title": "RBAC／Citation／Audit／Portal", "owner": "共同／Anderson Portal", "excel_target": "2026-12-31", "progress": 0, "status": "未開始"},
+    {"id": "WP8", "title": "Phase 1 整合與驗收", "owner": "共同", "excel_target": "2027-01-14", "progress": 0, "status": "未開始"}
+  ],
+  "weekly_outcomes": [
+    "v2.6 原始 Excel 已納管並核對 SHA，來源缺失 Gate 解除",
+    "WP0 FastAPI contract 已部署至真實系統，legacy 與 v1 API 並存",
+    "WP1 完成 checkpoint、shadow rollback、真實 production rollback 與修正後再部署",
+    "乾淨 GitHub rollout 分支已推送，未上傳 secrets、database dumps 或 image archives"
+  ],
+  "quality_gates": [
+    {"id": "G0", "name": "API baseline", "status": "技術通過／流程待關", "detail": "正式 API 與 Webwright 通過；缺 rollout PR review／merge 與 durable E2E artifact"},
+    {"id": "G1", "name": "Job reliability", "status": "技術通過／流程待關", "detail": "真實回退、worker、Beat、search 與 checkpoint 通過；缺 rollout PR review／merge"},
+    {"id": "G2", "name": "CSIT／Booking／Request", "status": "阻塞", "detail": "等待 Patty 提供正式 API、Booking collision、Validation Request 與權限 Contract"}
+  ],
+  "risks": [
+    "rollout 分支尚無 Draft PR／Review／Merge，不能宣稱 WP0/WP1 100%",
+    "原始 Webwright 與 shadow run artifact 仍在部署主機，GitHub 只有摘要",
+    "Excel 兩個分工工作表標題殘留 v2.4，需 Owner 確認文件標籤",
+    "WP2 依賴 Patty 的 CSIT API、Booking、Validation Request 與 ACL Contract"
+  ],
+  "decisions": [
+    "指定 reviewer，先處理 PR #5，再審查 stacked rollout branch",
+    "確認 v2.6 工作簿內部 v2.4 標題是否只需文件更正",
+    "確認是否將去識別化 Webwright／shadow evidence 上傳為 PR artifact",
+    "Patty 提供 WP2 Contract 與可開始日期；未提供前不猜測 CSIT 欄位"
+  ],
+  "next_week": [
+    "建立並 Review rollout Draft PR，關閉 WP0/WP1 delivery Gate",
+    "保存去識別化 E2E／rollback artifact，讓驗收證據可下載",
+    "由 Patty 核對 v2.6 原檔與提供 WP2 CSIT Contract",
+    "只有 G0/G1 流程 Gate 與 WP2 前置條件滿足後才開始 WP2"
+  ]
+}

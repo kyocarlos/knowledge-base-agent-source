@@ -6,12 +6,14 @@ on:
     branches:
       - agent/wp1-job-config-reliability
       - "agent/*-v2.6-acceptance"
+      - agent/wp01-production-rollout
   pull_request:
     branches:
       - agent/km-plan-v2.6-anderson
       - agent/wp0-fastapi-contract
       - agent/km-modify-codex-plan
       - dev-work
+      - agent/wp0-wp1-v2.6-acceptance
 
 permissions:
   contents: read
