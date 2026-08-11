@@ -13,13 +13,15 @@ from datetime import datetime
 from pathlib import Path
 from celery import Celery
 from celery.signals import worker_init
+from kombu import Queue
 from ..storage_paths import resolve_storage_category
+from app.core.job_config import JOB_CONFIG, classify_job_error
 
 logger = logging.getLogger(__name__)
 
 # ===== 並發控制設定 =====
-MAX_CONCURRENT_PROCESSING = 2  # 最大同時處理檔案數
-PROCESSING_LOCK_TTL = 600  # 鎖的過期時間（秒）
+MAX_CONCURRENT_PROCESSING = JOB_CONFIG.max_concurrent_processing
+PROCESSING_LOCK_TTL = JOB_CONFIG.processing_lock_ttl_seconds
 REDIS_URL = os.getenv("REDIS_URL") or os.getenv("CELERY_BROKER_URL") or "redis://redis:6379/0"
 REPORT_QUERY_HINTS = (
     "report",
@@ -291,19 +293,27 @@ celery_app = Celery(
 )
 
 celery_app.conf.update(
+    task_default_queue=JOB_CONFIG.default_queue,
+    task_queues=tuple(Queue(queue) for queue in (
+        JOB_CONFIG.default_queue,
+        JOB_CONFIG.document_queue,
+        JOB_CONFIG.indexing_queue,
+        "search",
+        "ingest",
+    )),
     # 任務路由
     task_routes={
         "tasks.search_task": {"queue": "search"},
         "tasks.watch_folder_scan": {"queue": "search"},
-        "tasks.ingest_task": {"queue": "search"},
+        "tasks.ingest_task": {"queue": "ingest"},
     },
     # 結果過期時間
-    result_expires=3600,  # 1小時
+    result_expires=JOB_CONFIG.result_ttl_seconds,
     # worker 並發數
-    worker_concurrency=16,
+    worker_concurrency=JOB_CONFIG.max_concurrent_processing,
     # 任務超時
-    task_soft_time_limit=600,  # 10分鐘，避免大型萃取超時
-    task_time_limit=720,  # 12分鐘
+    task_soft_time_limit=JOB_CONFIG.soft_time_limit_seconds,
+    task_time_limit=JOB_CONFIG.time_limit_seconds,
     # 失敗重試
     task_acks_late=True,
     task_reject_on_worker_lost=True,
@@ -463,7 +473,18 @@ def _normalise_task_state(state: dict) -> dict:
     state.setdefault("progress", progress)
     state.setdefault("status_text", status_text)
     state.setdefault("step", step)
+    state.setdefault("job_status", _job_status_for_ingest(status))
     return state
+
+
+def _job_status_for_ingest(status: str) -> str:
+    if status in {"queued", "upload_saved", "converting", "converted", "extracting", "writing_neo4j", "writing_qdrant", "refreshing_index"}:
+        return "running" if status != "queued" else "queued"
+    if status in {"completed", "success", "succeeded"}:
+        return "succeeded"
+    if status in {"cancelled", "canceled"}:
+        return "cancelled"
+    return "failed" if status in {"failed", "error"} else status
 
 
 def set_ingest_task_state(task_id: str, state: dict, ttl: int | None = None) -> dict:
@@ -523,6 +544,8 @@ def update_ingest_task_state(task_id: str, **updates) -> dict:
         current["progress"] = updates.get("progress", progress)
         current["status_text"] = updates.get("status_text", status_text)
         current["step"] = updates.get("step", step)
+    if "job_status" not in updates and status:
+        current["job_status"] = _job_status_for_ingest(status)
     ttl = None
     if status == "completed":
         ttl = INGEST_TASK_SUCCESS_TTL
@@ -608,7 +631,7 @@ def clear_ingest_task_history(statuses: list[str] | None = None) -> dict:
     }
 
 
-@celery_app.task(name="tasks.ingest_file_task", bind=True, max_retries=0)
+@celery_app.task(name="tasks.ingest_file_task", bind=True, max_retries=JOB_CONFIG.max_retries)
 def ingest_file_task(self, task_id: str):
     """背景處理單一上傳檔案：轉 Markdown → 攝入 Neo4j/QDrant → 更新 index.md。"""
     state = get_ingest_task_state(task_id)
@@ -637,7 +660,8 @@ def ingest_file_task(self, task_id: str):
                 IngestRegistry().record_event("document_lock_acquired", task_id, document_id=document_id)
             except Exception as registry_error:
                 logger.error("記錄 document lock 取得事件失敗: %s", registry_error)
-        update_ingest_task_state(task_id, status="upload_saved", started_at=_now_iso(), celery_task_id=self.request.id)
+        trace_id = (getattr(self.request, "headers", None) or {}).get("trace_id")
+        update_ingest_task_state(task_id, status="upload_saved", started_at=_now_iso(), celery_task_id=self.request.id, trace_id=trace_id)
 
         original_path = Path(state["original_path"])
         converted_path = Path(state["converted_path"])
@@ -757,7 +781,14 @@ def ingest_file_task(self, task_id: str):
         return final_state
 
     except Exception as e:
-        logger.error(f"攝入任務失敗 {task_id}: {e}")
+        decision = classify_job_error(e)
+        trace_id = (getattr(self.request, "headers", None) or {}).get("trace_id")
+        logger.error("攝入任務失敗 task_id=%s trace_id=%s retryable=%s: %s", task_id, trace_id, decision.retryable, e)
+        if decision.retryable and self.request.retries < JOB_CONFIG.max_retries:
+            update_ingest_task_state(task_id, status="retrying", error=decision.reason, trace_id=trace_id)
+            if lock_acquired:
+                release_document_lock(document_id, lock_owner)
+            raise self.retry(exc=e, countdown=JOB_CONFIG.retry_countdown_seconds)
         failed_state = update_ingest_task_state(task_id, status="failed", error=str(e))
         if state.get("document_id"):
             try:
@@ -839,7 +870,7 @@ def _build_search_citation_distribution(sources: list[dict]) -> dict:
         "total_sources": len(sources or []),
     }
 
-@celery_app.task(name="tasks.search_task", bind=True, max_retries=3)
+@celery_app.task(name="tasks.search_task", bind=True, max_retries=JOB_CONFIG.max_retries)
 def search_task(self, query: str, mode: str, top_k: int | None = None, sources_only: bool = False, **kwargs):
     """
     搜尋任務本體
@@ -1102,11 +1133,16 @@ def search_task(self, query: str, mode: str, top_k: int | None = None, sources_o
             }
 
     except Exception as e:
-        logger.error(f"搜尋任務失敗: {e}")
+        trace_id = (getattr(self.request, "headers", None) or {}).get("trace_id")
+        logger.error("搜尋任務失敗 trace_id=%s: %s", trace_id, e)
 
         # 重試機制
+        decision = classify_job_error(e)
+        if not decision.retryable:
+            return {"status": "failed", "error": str(e), "mode": mode}
         try:
-            self.retry(exc=e, countdown=5)
+            logger.warning("搜尋任務進行重試 trace_id=%s reason=%s", trace_id, decision.reason)
+            self.retry(exc=e, countdown=JOB_CONFIG.retry_countdown_seconds)
         except self.MaxRetriesExceededError:
             return {
                 "status": "failed",

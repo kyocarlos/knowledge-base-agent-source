@@ -6,6 +6,7 @@ services:
   redis:
     image: redis:7-alpine
     container_name: kb-redis
+    restart: unless-stopped
     volumes:
       - redis_data:/data
     command: redis-server --appendonly yes
@@ -19,6 +20,7 @@ services:
   report_registry:
     image: postgres:16-alpine
     container_name: kb-report-registry
+    restart: unless-stopped
     environment:
       - POSTGRES_DB=kb_reports
       - POSTGRES_USER=kb_report
@@ -35,18 +37,19 @@ services:
   neo4j:
     image: neo4j:latest
     container_name: kb-neo4j
+    restart: unless-stopped
     ports:
       # 改用非預設 host port，避免和主機上的 neo4j.service 衝突
       - "127.0.0.1:17474:7474"
       - "127.0.0.1:17687:7687"
     environment:
-      - NEO4J_AUTH=neo4j/${NEO4J_PASSWORD:-change-me}
+      - NEO4J_AUTH=neo4j/${NEO4J_PASSWORD:?NEO4J_PASSWORD must be set}
       - NEO4J_PLUGINS=["apoc"]
     volumes:
       - neo4j_data:/data
       - neo4j_logs:/logs
     healthcheck:
-      test: ["CMD", "cypher-shell", "-u", "neo4j", "-p", "change-me", "RETURN 1"]
+      test: ["CMD-SHELL", "/var/lib/neo4j/bin/cypher-shell -u neo4j -p \"$${NEO4J_AUTH#neo4j/}\" 'RETURN 1'"]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -57,6 +60,7 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: kb-web
+    restart: unless-stopped
     ports:
       - "8000:8000"
       - "3000:3000"
@@ -70,7 +74,14 @@ services:
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
       - NEO4J_URI=bolt://neo4j:7687
       - NEO4J_USER=neo4j
-      - NEO4J_PASSWORD=${NEO4J_PASSWORD:-change-me}
+      - NEO4J_PASSWORD=${NEO4J_PASSWORD:?NEO4J_PASSWORD must be set}
+      - KB_MAX_CONCURRENT_PROCESSING=${KB_MAX_CONCURRENT_PROCESSING:-2}
+      - KB_PROCESSING_LOCK_TTL_SECONDS=${KB_PROCESSING_LOCK_TTL_SECONDS:-600}
+      - KB_JOB_RESULT_TTL_SECONDS=${KB_JOB_RESULT_TTL_SECONDS:-3600}
+      - KB_JOB_SOFT_TIME_LIMIT_SECONDS=${KB_JOB_SOFT_TIME_LIMIT_SECONDS:-600}
+      - KB_JOB_TIME_LIMIT_SECONDS=${KB_JOB_TIME_LIMIT_SECONDS:-720}
+      - KB_JOB_MAX_RETRIES=${KB_JOB_MAX_RETRIES:-3}
+      - KB_JOB_RETRY_COUNTDOWN_SECONDS=${KB_JOB_RETRY_COUNTDOWN_SECONDS:-5}
       - REDIS_HOST=redis
       - LLM_MODEL=gpt-4o
       - CHAT_GLOBAL_CONCURRENCY_LIMIT=1
@@ -80,9 +91,9 @@ services:
       - KB_REVIEWER_TOKEN_HASHES_JSON=${KB_REVIEWER_TOKEN_HASHES_JSON:-{}}
     volumes:
       - /home/da40_ai_gb10/.openclaw:/home/da40_ai_gb10/.openclaw:ro
-      - ./config:/app/config:ro
-      - ./data:/home/da40_ai_gb10/knowledge-base/data
-      - ./data/uploads:/app/data/uploads
+      - ${KB_CONFIG_ROOT:-./config}:/app/config:ro
+      - ${KB_DATA_ROOT:-./data}:/home/da40_ai_gb10/knowledge-base/data
+      - ${KB_UPLOAD_ROOT:-./data/uploads}:/app/data/uploads
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:
@@ -92,7 +103,7 @@ services:
         condition: service_healthy
       report_registry:
         condition: service_healthy
-    command: uvicorn src.web_api:app --host 0.0.0.0 --port 8000 --workers 4
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 4
 
   # ===== Celery Workers - 背景任務處理 =====
   celery_search_worker:
@@ -100,18 +111,19 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: kb-celery-search
+    restart: unless-stopped
     environment:
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
       - REDIS_URL=redis://redis:6379/0
       - NEO4J_URI=bolt://neo4j:7687
       - NEO4J_USER=neo4j
-      - NEO4J_PASSWORD=${NEO4J_PASSWORD:-change-me}
+      - NEO4J_PASSWORD=${NEO4J_PASSWORD:?NEO4J_PASSWORD must be set}
       - KB_INGEST_UPLOAD_ROOT=/app/data/uploads
     volumes:
-      - ./config:/app/config:ro
-      - ./data:/home/da40_ai_gb10/knowledge-base/data
-      - ./data/uploads:/app/data/uploads
+      - ${KB_CONFIG_ROOT:-./config}:/app/config:ro
+      - ${KB_DATA_ROOT:-./data}:/home/da40_ai_gb10/knowledge-base/data
+      - ${KB_UPLOAD_ROOT:-./data/uploads}:/app/data/uploads
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:
@@ -126,21 +138,22 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: kb-celery-ingest
+    restart: unless-stopped
     environment:
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
       - REDIS_URL=redis://redis:6379/0
       - NEO4J_URI=bolt://neo4j:7687
       - NEO4J_USER=neo4j
-      - NEO4J_PASSWORD=${NEO4J_PASSWORD:-change-me}
+      - NEO4J_PASSWORD=${NEO4J_PASSWORD:?NEO4J_PASSWORD must be set}
       - KB_INGEST_UPLOAD_ROOT=/app/data/uploads
       - KB_INGEST_REGISTRY_URL=sqlite:////home/da40_ai_gb10/knowledge-base/data/ingestion-registry.sqlite3
       - KB_REPORT_REGISTRY_URL=postgresql://kb_report:${KB_REPORT_DB_PASSWORD}@report_registry:5432/kb_reports
       - KB_REPORT_STAGING_ROOT=/app/data/report-staging
     volumes:
-      - ./config:/app/config:ro
-      - ./data:/home/da40_ai_gb10/knowledge-base/data
-      - ./data/uploads:/app/data/uploads
+      - ${KB_CONFIG_ROOT:-./config}:/app/config:ro
+      - ${KB_DATA_ROOT:-./data}:/home/da40_ai_gb10/knowledge-base/data
+      - ${KB_UPLOAD_ROOT:-./data/uploads}:/app/data/uploads
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:
@@ -153,6 +166,7 @@ services:
     command: celery -A src.web_api.tasks:celery_app worker --loglevel=info --concurrency=1 -Q ingest
 
   celery_beat:
+    profiles: ["scheduler"]
     build:
       context: .
       dockerfile: Dockerfile
@@ -163,12 +177,12 @@ services:
       - REDIS_URL=redis://redis:6379/0
       - NEO4J_URI=bolt://neo4j:7687
       - NEO4J_USER=neo4j
-      - NEO4J_PASSWORD=${NEO4J_PASSWORD:-change-me}
+      - NEO4J_PASSWORD=${NEO4J_PASSWORD:?NEO4J_PASSWORD must be set}
       - KB_INGEST_UPLOAD_ROOT=/app/data/uploads
     volumes:
-      - ./config:/app/config:ro
-      - ./data:/home/da40_ai_gb10/knowledge-base/data
-      - ./data/uploads:/app/data/uploads
+      - ${KB_CONFIG_ROOT:-./config}:/app/config:ro
+      - ${KB_DATA_ROOT:-./data}:/home/da40_ai_gb10/knowledge-base/data
+      - ${KB_UPLOAD_ROOT:-./data/uploads}:/app/data/uploads
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:

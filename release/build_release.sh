@@ -176,7 +176,7 @@ ENV PYTHONUNBUFFERED=1
 ENV OPENCLAW_HOME=/opt/knowledge-base/runtime/openclaw
 ENV KB_RELEASE_MODE=1
 
-CMD ["uvicorn", "src.web_api:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "2"]
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "2"]
 EOF
 }
 
@@ -255,7 +255,7 @@ services:
         condition: service_healthy
       qdrant:
         condition: service_started
-    command: uvicorn src.web_api:app --host 0.0.0.0 --port 8000 --workers ${KB_FASTAPI_WORKERS}
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers ${KB_FASTAPI_WORKERS}
 
   celery_search_worker:
     build:
@@ -375,18 +375,16 @@ build_frontend_runtime() {
   log "building frontend runtime"
   KB_FRONTEND_BUILD_DIR="$RUNTIME_DIR/frontend" npm --prefix "$APP_DIR/frontend" run build
 
-  local frontend_build_dir="$PROJECT_ROOT/.frontend-build-runtime-user8"
-  if [[ ! -d "$frontend_build_dir" ]]; then
-    die "Frontend build output is missing: $frontend_build_dir"
+  if [[ ! -f "$RUNTIME_DIR/frontend/index.html" ]]; then
+    printf '[release] frontend build output is missing: %s\n' "$RUNTIME_DIR/frontend/index.html" >&2
+    exit 1
   fi
-
-  rm -rf "$RUNTIME_DIR/frontend"
-  mkdir -p "$RUNTIME_DIR/frontend"
-  cp -a "$frontend_build_dir"/. "$RUNTIME_DIR/frontend"/
   cp "$APP_DIR/frontend/chat.html" "$RUNTIME_DIR/frontend/chat.html"
-  mkdir -p "$RUNTIME_DIR/frontend/lib"
-  cp "$APP_DIR/frontend/lib/marked.min.js" "$RUNTIME_DIR/frontend/lib/marked.min.js"
-  cp "$APP_DIR/frontend/lib/compare-rules.js" "$RUNTIME_DIR/frontend/lib/compare-rules.js"
+  if [[ -f "$APP_DIR/frontend/lib/marked.min.js" || -f "$APP_DIR/frontend/lib/compare-rules.js" ]]; then
+    mkdir -p "$RUNTIME_DIR/frontend/lib"
+    [[ ! -f "$APP_DIR/frontend/lib/marked.min.js" ]] || cp "$APP_DIR/frontend/lib/marked.min.js" "$RUNTIME_DIR/frontend/lib/marked.min.js"
+    [[ ! -f "$APP_DIR/frontend/lib/compare-rules.js" ]] || cp "$APP_DIR/frontend/lib/compare-rules.js" "$RUNTIME_DIR/frontend/lib/compare-rules.js"
+  fi
 }
 
 write_install_script() {
@@ -1487,6 +1485,7 @@ main() {
   mkdir -p "$APP_DIR" "$RUNTIME_DIR" "$DATA_DIR" "$CONFIG_DIR" "$DIST_ROOT"
 
   log "copying source bundle"
+  copy_source_dir app "$APP_DIR"
   copy_source_dir src "$APP_DIR"
   copy_source_dir frontend "$APP_DIR"
   copy_source_dir requirements.txt "$APP_DIR"
