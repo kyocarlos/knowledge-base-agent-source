@@ -1,6 +1,6 @@
 # AI KM 正式化規劃入口
 
-本目錄以 `01_AI_KM_Phase規劃_v2.6.xlsx` 為最新規劃基準，聚焦 Anderson 負責的 AI KM 實作。舊版 `01_AI_KM_Phase規劃_v2.2` 已退役，不得再作為 Phase、工期、範圍或責任分工依據。
+本目錄以 `01_AI_KM_Phase規劃_v2.6.xlsx` 為最新規劃基準，聚焦 Anderson 負責的 AI KM 實作。所有舊版 Phase 規劃已退役，不得再作為 Phase、工期、範圍或責任分工依據。
 
 ## 文件閱讀順序
 
