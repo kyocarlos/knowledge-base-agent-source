@@ -28,7 +28,7 @@ const round1 = (value) => Math.round(value * 10) / 10;
 const data = JSON.parse(fs.readFileSync(dataPath, "utf8"));
 
 function validate() {
-  for (const key of ["schema_version", "week", "report_date", "period", "positioning", "current_phase", "weights", "work_packages", "phase_progress", "program_progress", "weekly_outcomes", "quality", "risks", "decisions", "next_week"]) required(data[key], key);
+  for (const key of ["schema_version", "source_baseline", "week", "report_date", "period", "positioning", "current_phase", "weights", "work_packages", "phase_progress", "program_progress", "weekly_outcomes", "quality", "risks", "decisions", "next_week"]) required(data[key], key);
   if (data.week !== week) throw new Error(`week 不一致: ${data.week}`);
   const expectedWeights = { contract: 15, implementation: 35, tests: 25, e2e: 15, delivery: 10 };
   for (const [key, value] of Object.entries(expectedWeights)) if (data.weights[key] !== value) throw new Error(`權重錯誤: ${key}`);
@@ -44,7 +44,7 @@ function validate() {
     } else if (wp.progress !== 0) throw new Error(`${wp.id} 無 scores 卻有進度`);
     if (wp.progress === 100 && (!wp.pr || !wp.tests || !wp.acceptance || !wp.merged)) throw new Error(`${wp.id} 缺 PR/測試/驗收/合併證據，不得為 100`);
   }
-  for (let phase = 0; phase <= 5; phase += 1) {
+  for (let phase = 1; phase <= 5; phase += 1) {
     const members = data.work_packages.filter((wp) => wp.phase === phase);
     const calculated = round1(members.reduce((sum, wp) => sum + wp.progress, 0) / members.length);
     if (calculated !== data.phase_progress[String(phase)]) throw new Error(`Phase ${phase} 計算錯誤: ${calculated}`);
@@ -52,7 +52,7 @@ function validate() {
   const program = round1(data.work_packages.reduce((sum, wp) => sum + wp.progress, 0) / data.work_packages.length);
   if (program !== data.program_progress) throw new Error(`全計畫進度錯誤: ${program}`);
   const weekly = fs.readFileSync(weeklyPath, "utf8");
-  for (const token of [`**${data.program_progress}%**`, `**${data.phase_progress["0"]}%**`, `| WP0 | ${data.work_packages[0].progress}%`, `| WP1 | ${data.work_packages[1].progress}%`]) {
+  for (const token of [`**${data.program_progress}%**`, `**${data.phase_progress["1"]}%**`, `| WP0 | ${data.work_packages[0].progress}%`, `| WP1 | ${data.work_packages[1].progress}%`]) {
     if (!weekly.includes(token)) throw new Error(`Markdown 與 JSON 不一致，缺少: ${token}`);
   }
   return true;
@@ -116,21 +116,21 @@ s.addText(`${data.current_phase}\n報告日期：${data.report_date}\n統計期�
 s.addText(`全計畫 ${data.program_progress}%`,{x:9.8,y:4.7,w:2.5,h:0.55,fontFace:"Microsoft JhengHei",fontSize:24,bold:true,color:"78D6DA",align:"right",margin:0});
 s.addText("1 / 7",{x:11.8,y:6.95,w:0.7,h:0.25,fontFace:"Aptos",fontSize:10,color:"AFC1CD",align:"right",margin:0});
 
-s = pptx.addSlide("WEEKLY"); title(s,"主管摘要","本週結論：Phase 0 有實作成果，但 Gate 尚未正式關閉");
-box(s,0.65,1.55,3.8,2.0,"全計畫",`${data.program_progress}%\nPhase 1～5 尚無實作證據`,C.navy);
-box(s,4.75,1.55,3.8,2.0,"Phase 0",`${data.phase_progress["0"]}%\nWP0 ${data.work_packages[0].progress}%｜WP1 ${data.work_packages[1].progress}%`,C.teal);
+s = pptx.addSlide("WEEKLY"); title(s,"主管摘要","本週結論：Phase 1 已有前置實作成果，但 Gate 尚未正式關閉");
+box(s,0.65,1.55,3.8,2.0,"全計畫",`${data.program_progress}%\nv2.6 是唯一規劃基準`,C.navy);
+box(s,4.75,1.55,3.8,2.0,"Phase 1",`${data.phase_progress["1"]}%\nWP0 ${data.work_packages[0].progress}%｜WP1 ${data.work_packages[1].progress}%`,C.teal);
 box(s,8.85,1.55,3.8,2.0,"主管關注","WP0 CI overall failure\nWP1 尚無 PR／Review／Merge",C.amber);
 bullets(s,data.weekly_outcomes,0.9,4.15,11.6,1.95,16);
 
-s = pptx.addSlide("WEEKLY"); title(s,"Phase 0～5 總進度","規劃完成不等於實作完成；Phase 分數由所屬 WP 平均");
-const phaseNames=["Phase 0 正式化基座","Phase 1 Production-ready MVP","Phase 2 Compile-Time RAG","Phase 3 Agentic RAG","Phase 4 AI Analysis","Phase 5 Enterprise Evolution"];
-phaseNames.forEach((name,index)=>progress(s,name,data.phase_progress[String(index)],0.9,1.55+index*0.73,11.5,index===0?C.teal:C.muted));
+s = pptx.addSlide("WEEKLY"); title(s,"Phase 1～5 總進度","規劃完成不等於實作完成；Phase 分數由所屬 WP 平均");
+const phaseNames=["Phase 1 AI KM MVP","Phase 2 Compile-Time RAG","Phase 3 Agentic RAG","Phase 4 AI Analysis","Phase 5 Enterprise Evolution"];
+phaseNames.forEach((name,index)=>progress(s,name,data.phase_progress[String(index+1)],0.9,1.55+index*0.82,11.5,index===0?C.teal:C.muted));
 s.addText(`全計畫進度 ${data.program_progress}%（15 個 WP 等權平均）`,{x:0.9,y:6.15,w:11.5,h:0.42,fontFace:"Microsoft JhengHei",fontSize:18,bold:true,color:C.navy,align:"center",margin:0});
 
 s = pptx.addSlide("WEEKLY"); title(s,"本週 WP 成果","只呈現有 commit、PR、CI 或驗收證據的工作");
 box(s,0.7,1.5,5.8,3.55,"WP0｜82%","FastAPI contract 與測試基線\n• head 19d0751e\n• PR #2 open，無 review／merge\n• backend、frontend 成功\n• hygiene whitespace failure",C.amber);
 box(s,6.83,1.5,5.8,3.55,"WP1｜87%","Job/config reliability\n• head cfe5eb0d\n• CI 三個 job 全部成功\n• 隔離 runtime restart/idempotency\n• 無 PR／review／merge",C.teal);
-s.addText("WP2～WP13：0%｜無實作證據，標示尚未開始",{x:1.0,y:5.55,w:11.3,h:0.48,fontFace:"Microsoft JhengHei",fontSize:19,bold:true,color:C.muted,align:"center",margin:0});
+s.addText("WP2～WP13：0%｜依 v2.6 新 WP 對應，無實作證據",{x:1.0,y:5.55,w:11.3,h:0.48,fontFace:"Microsoft JhengHei",fontSize:19,bold:true,color:C.muted,align:"center",margin:0});
 
 s = pptx.addSlide("WEEKLY"); title(s,"Gate 與品質狀態","Gate 未通過，不以程式存在或單一測試成功替代");
 data.quality.forEach((item,index)=>box(s,0.75,1.5+index*1.55,11.8,1.18,`${item.gate}｜${item.status}`,item.detail,item.status==="阻塞"?C.red:(item.status==="條件通過"?C.amber:C.muted)));
