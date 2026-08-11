@@ -1,0 +1,12 @@
+{
+  "name": "ai-km-weekly-reporting",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "weekly:validate": "node scripts/generate_weekly_pptx.mjs --week 2026-W33 --validate",
+    "weekly:generate": "node scripts/generate_weekly_pptx.mjs --week 2026-W33"
+  },
+  "dependencies": {
+    "pptxgenjs": "4.0.1"
+  }
+}

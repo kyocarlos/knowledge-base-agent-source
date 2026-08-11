@@ -1,0 +1,63 @@
+name: Generate AI KM Weekly Report
+
+on:
+  push:
+    branches: [agent/km-weekly-reporting]
+    paths:
+      - ".github/workflows/generate-weekly-report.yml"
+      - "scripts/generate_weekly_pptx.mjs"
+      - "docs/km-modernization/progress/**"
+      - "package.json"
+      - "package-lock.json"
+  pull_request:
+    branches: [agent/km-modify-codex-plan]
+    paths:
+      - ".github/workflows/generate-weekly-report.yml"
+      - "scripts/generate_weekly_pptx.mjs"
+      - "docs/km-modernization/progress/**"
+      - "package.json"
+      - "package-lock.json"
+  workflow_dispatch:
+    inputs:
+      week:
+        description: "ISO week，例如 2026-W33"
+        required: true
+        type: string
+  schedule:
+    # UTC Wednesday 09:10 = Asia/Taipei Wednesday 17:10 (UTC+8, no DST)
+    - cron: "10 9 * * 3"
+
+permissions:
+  contents: read
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Resolve week
+        id: week
+        shell: bash
+        run: |
+          if [ -n "${{ inputs.week }}" ]; then
+            echo "value=${{ inputs.week }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "value=$(TZ=Asia/Taipei date +%G-W%V)" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Validate source data
+        run: node scripts/generate_weekly_pptx.mjs --week "${{ steps.week.outputs.value }}" --validate
+      - name: Generate candidate presentation
+        run: node scripts/generate_weekly_pptx.mjs --week "${{ steps.week.outputs.value }}" --output "$RUNNER_TEMP/AI-KM-Weekly-${{ steps.week.outputs.value }}.pptx"
+      - name: Verify non-empty PPTX
+        run: test -s "$RUNNER_TEMP/AI-KM-Weekly-${{ steps.week.outputs.value }}.pptx"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: AI-KM-Weekly-${{ steps.week.outputs.value }}-candidate
+          path: ${{ runner.temp }}/AI-KM-Weekly-${{ steps.week.outputs.value }}.pptx
+          if-no-files-found: error
+          retention-days: 30

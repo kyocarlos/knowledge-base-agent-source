@@ -9,6 +9,7 @@
 2. [`02-current-state-gap-analysis.md`](02-current-state-gap-analysis.md)：目前程式可沿用能力與缺口。
 3. [`03-codex-implementation-plan.md`](03-codex-implementation-plan.md)：逐工作包、逐檔案、逐 Gate 的執行計畫。
 4. [`04-requirements-traceability.md`](04-requirements-traceability.md)：需求到工作包與驗收證據的追溯矩陣。
+5. [`05-weekly-reporting-and-pptx.md`](05-weekly-reporting-and-pptx.md)：每週進度、Evidence、主管版 PPTX 與 GitHub Actions 交接規格。
 
 ## 基準與範圍
 

@@ -28,6 +28,7 @@ release/dist/
 
 # Node (frontend)
 frontend/node_modules/
+node_modules/
 .frontend-build-runtime-*/
 
 # IDE
@@ -45,6 +46,7 @@ Thumbs.db
 backups/
 .venv_playwright/
 final_runs/
+.render-check/
 tmp_upload_check.txt
 upload_check*.png
 chat_stability_question_types.pptx

@@ -1,0 +1,37 @@
+{
+  "schema_version": "1.0",
+  "week": "2026-W33",
+  "report_date": "2026-08-13",
+  "period": {"start": "2026-08-10", "cutoff": "2026-08-12 17:00", "timezone": "Asia/Taipei"},
+  "positioning": "進度管理基準週",
+  "current_phase": "Phase 0 正式化基座",
+  "weights": {"contract": 15, "implementation": 35, "tests": 25, "e2e": 15, "delivery": 10},
+  "work_packages": [
+    {"id":"WP0","phase":0,"title":"FastAPI contract 與測試基線","scores":{"contract":15,"implementation":35,"tests":22,"e2e":7,"delivery":3},"progress":82,"status":"Gate 未通過","evidence":"progress/evidence/WP0.md"},
+    {"id":"WP1","phase":0,"title":"Docker／Redis／Celery／Config 正式化","scores":{"contract":15,"implementation":35,"tests":25,"e2e":10,"delivery":2},"progress":87,"status":"待 PR／Review／Merge","evidence":"progress/evidence/WP1.md"},
+    {"id":"WP2","phase":1,"title":"Knowledge Package 1.0／Validation／Routing","progress":0,"status":"尚未開始"},
+    {"id":"WP3","phase":1,"title":"Qdrant projection v1","progress":0,"status":"尚未開始"},
+    {"id":"WP4","phase":1,"title":"CSIT Adapter 與 API Contract","progress":0,"status":"尚未開始"},
+    {"id":"WP5","phase":1,"title":"Report Publish Workflow／Ledger","progress":0,"status":"尚未開始"},
+    {"id":"WP6","phase":1,"title":"TimescaleDB foundation","progress":0,"status":"尚未開始"},
+    {"id":"WP7","phase":1,"title":"Neo4j ontology 與 Graph Service","progress":0,"status":"尚未開始"},
+    {"id":"WP8","phase":1,"title":"RBAC／Citation／Audit","progress":0,"status":"尚未開始"},
+    {"id":"WP9","phase":1,"title":"Portal／OpenClaw MVP 整合","progress":0,"status":"尚未開始"},
+    {"id":"WP10A","phase":2,"title":"Document Intelligence","progress":0,"status":"尚未開始"},
+    {"id":"WP10B","phase":2,"title":"Entity normalization／rebuild","progress":0,"status":"尚未開始"},
+    {"id":"WP11","phase":3,"title":"受控五 Tool 與 Orchestrator","progress":0,"status":"尚未開始"},
+    {"id":"WP12","phase":4,"title":"Root Cause／Benchmark／Recommendation","progress":0,"status":"尚未開始"},
+    {"id":"WP13","phase":5,"title":"Multi-Agent／Predictive Workflow","progress":0,"status":"尚未開始"}
+  ],
+  "phase_progress": {"0":84.5,"1":0,"2":0,"3":0,"4":0,"5":0},
+  "program_progress": 11.3,
+  "weekly_outcomes": ["完成 Phase 0 實作證據盤點與保守計分","WP0 PR #2 存在但 CI overall failure、無 review、未合併","WP1 CI 三個 job 成功，但無 PR、review 或 merge","Phase 1～5 與 WP0～WP13 規劃完成；WP10 拆為 WP10A、WP10B"],
+  "quality": [
+    {"gate":"G0 API baseline","status":"阻塞","detail":"WP0 whitespace CI failure；PR 無 review/merge"},
+    {"gate":"G1 Job reliability","status":"條件通過","detail":"CI green 與隔離 runtime 證據；缺 PR/merge、正式環境故障演練"},
+    {"gate":"G2～G8","status":"未開始","detail":"WP2～WP13 無實作證據"}
+  ],
+  "risks": ["WP0 CI 整體失敗，不能關閉 G0","WP1 無 PR，變更尚未進入正式 review","正式環境 backup/restore 與長時間故障注入尚未驗證"],
+  "decisions": ["是否要求 WP0 修正 whitespace 後才允許 WP1 PR review","確認 WP1 PR 的 reviewer 與 merge gate owner","確認 Phase 1 CSIT API/ACL 未決事項 owner"],
+  "next_week": ["修正 WP0 repository-hygiene 並重跑 CI","建立並審查 WP1 PR，不直接合併 main/dev-work","啟動 WP2 Knowledge Package contract，先完成 schema 與 negative tests","建立 W34 JSON、Evidence、Markdown 與候選 PPTX"]
+}
