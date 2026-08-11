@@ -52,3 +52,12 @@ python3 scripts/rollback_pre_wp01.py \
 ```
 
 Level 2 data restore 仍需 maintenance 與人工雙重確認，不由 application rollback script 自動執行。
+
+## GitHub 同步摘要
+
+- 同步分支：`agent/wp01-production-rollout`。
+- 基準：`agent/wp0-wp1-v2.6-acceptance` / `d39f9f790eb0cd0ebaf4a992b2664bd1d8b3143e`，保留 PR #5 的 WP0／WP1 與 v2.6 驗收歷史。
+- 同步內容：pre-WP01 backup／rollback scripts、shadow rollback 與 candidate gate、正式環境相容性修正、`/search` trace regression、範例 deployment env，以及本文件。
+- 分支驗證：pytest `90 passed`、frontend production build、Python compile、Compose config、shell syntax、whitespace 與 credential scan 全部通過；maintenance checkpoint dry-run 驗證成功。
+- 未同步內容：checkpoint archives、database dumps、Qdrant snapshots、application image tar、正式 `.env`、token、密碼及其他 runtime secrets。這些只保存在權限受控的部署主機。
+- 本分支只建立審查用 Draft PR，不直接合併 `main` 或規劃分支；正式環境已部署的 image 與 checkpoint 不因 GitHub push 被重建或變更。
