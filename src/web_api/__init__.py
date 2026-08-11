@@ -2263,7 +2263,7 @@ async def get_system_stats():
                 neo4j_config.get("uri", "bolt://neo4j:7687"),
                 auth=(
                     neo4j_config.get("user", "neo4j"),
-                    neo4j_config.get("password", "change-me"),
+                    neo4j_config.get("password") or os.getenv("NEO4J_PASSWORD", ""),
                 ),
             )
             with driver.session() as session:
@@ -3262,7 +3262,7 @@ async def get_category_stats():
             neo4j_config.get("uri", "bolt://neo4j:7687"),
             auth=(
                 neo4j_config.get("user", "neo4j"),
-                neo4j_config.get("password", "change-me"),
+                neo4j_config.get("password") or os.getenv("NEO4J_PASSWORD", ""),
             ),
         )
         with driver.session() as session:
@@ -3446,7 +3446,7 @@ async def increment_search_count(doc_name: str):
             neo4j_config.get("uri", "bolt://neo4j:7687"),
             auth=(
                 neo4j_config.get("user", "neo4j"),
-                neo4j_config.get("password", "change-me"),
+                neo4j_config.get("password") or os.getenv("NEO4J_PASSWORD", ""),
             ),
         )
         with driver.session() as session:

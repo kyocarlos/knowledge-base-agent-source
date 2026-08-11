@@ -170,7 +170,7 @@ def increment_search_count_sync(doc_name: str):
             neo4j_config.get("uri", "bolt://neo4j:7687"),
             auth=(
                 neo4j_config.get("user", "neo4j"),
-                neo4j_config.get("password", "change-me"),
+                neo4j_config.get("password") or os.getenv("NEO4J_PASSWORD", ""),
             )
         )
         with driver.session() as session:
@@ -360,7 +360,7 @@ def preload_models(**kwargs):
         neo4j_config = config.get("neo4j", {})
         _preloaded_neo4j_driver = GraphDatabase.driver(
             neo4j_config.get("uri", "bolt://neo4j:7687"),
-            auth=(neo4j_config.get("user", "neo4j"), neo4j_config.get("password", "change-me"))
+            auth=(neo4j_config.get("user", "neo4j"), neo4j_config.get("password") or os.getenv("NEO4J_PASSWORD", ""))
         )
         with _preloaded_neo4j_driver.session() as session:
             session.run("RETURN 1")

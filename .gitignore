@@ -7,6 +7,9 @@ build/
 
 # Virtual environment
 .venv/
+.env
+.env.*
+!.env.example
 
 # Logs
 *.log
@@ -20,6 +23,7 @@ data/markdown/
 *.xls
 !docs/km-modernization/01_AI_KM_Phase規劃_v2.6.xlsx
 config/report-ingest.env
+config/wp01-deployment.env
 data/cleaned/
 data/watch/
 data/uploads/*/ingest_*/

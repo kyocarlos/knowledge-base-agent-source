@@ -62,8 +62,8 @@ FASTAPI_PORT=8000
 FRONTEND_PORT=3000
 
 # Neo4j 設定
-NEO4J_USER="neo4j"
-NEO4J_PASSWORD="change-me"
+NEO4J_USER="${NEO4J_USER:-neo4j}"
+NEO4J_PASSWORD="${NEO4J_PASSWORD:?NEO4J_PASSWORD must be set}"
 NEO4J_AUTH="$NEO4J_USER/$NEO4J_PASSWORD"
 
 #===============================================================================
@@ -213,7 +213,7 @@ start_neo4j() {
     
     log_success "Neo4j 已啟動 (HTTP: $NEO4J_HTTP_PORT, Bolt: $NEO4J_BOLT_PORT)"
     log_info "請訪問 http://localhost:$NEO4J_HTTP_PORT 登入"
-    log_info "帳號: $NEO4J_USER / 密碼: $NEO4J_PASSWORD"
+    log_info "Neo4j 帳號: $NEO4J_USER（密碼不顯示）"
 }
 
 init_neo4j_schema() {
@@ -546,7 +546,7 @@ show_help() {
     echo "  6 個實例运行在 ports $OLLAMA_BASE_PORT - $((OLLAMA_BASE_PORT + OLLAMA_INSTANCE_COUNT - 1))"
     echo ""
     echo -e "${YELLOW}預設帳號：${NC}"
-    echo "  Neo4j:  neo4j / $NEO4J_PASSWORD"
+    echo "  Neo4j:  $NEO4J_USER（密碼不顯示）"
     echo ""
 }
 

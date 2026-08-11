@@ -166,7 +166,6 @@ services:
     command: celery -A src.web_api.tasks:celery_app worker --loglevel=info --concurrency=1 -Q ingest
 
   celery_beat:
-    profiles: ["scheduler"]
     build:
       context: .
       dockerfile: Dockerfile
