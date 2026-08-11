@@ -31,3 +31,11 @@ def test_shadow_drill_uses_isolated_names_and_failure_injection():
     assert "kb-wp01-shadow" in source
     assert "wp01-candidate-failed" in source
     assert '"--volumes"' in source
+
+
+def test_candidate_drill_uses_isolated_dependencies_and_contract_probes():
+    source = (ROOT / "scripts/drill_wp01_candidate.py").read_text()
+    assert "kb-wp01-candidate" in source
+    assert '"/api/v1/health"' in source
+    assert '"/api/agent/v1/health"' in source
+    assert '"down", "--volumes"' in source

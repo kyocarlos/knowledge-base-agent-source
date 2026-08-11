@@ -60,6 +60,18 @@ python3 scripts/rollback_pre_wp01.py \
 
 成功條件：`/health` 通過，且 Portal、chat/WebSocket、search、Excel ingest、report review、Beat、worker 與 A2A dry-run 均完成驗收。腳本成功只代表 application containers 與 health 回復，不代表完整業務驗收完成。
 
+## WP0／WP1 candidate shadow gate
+
+建立候選 image 後，必須在隔離 Redis、Neo4j、Qdrant、PostgreSQL 與資料目錄執行：
+
+```bash
+python3 scripts/drill_wp01_candidate.py \
+  --image kb-wp01-candidate:<commit> \
+  --source-root /path/to/integration-worktree
+```
+
+Gate 會驗證 legacy health、v1 health/live/ready/version、既有 agent auth error contract，以及 web、search worker、ingest worker、Beat 全部維持 running。所有 shadow containers、network 與 volumes 在結束時清理。
+
 ## Level 2 data restore
 
 只有資料污染、重複寫入或 registry 不一致時才進行。停止所有 writers，確認 checkpoint 是 maintenance checkpoint，再依序還原 PostgreSQL、Redis／SQLite、Neo4j、Qdrant 與 uploads。不同 checkpoint 的資料不得混用；完成節點、關係、point、report、task 與 citation 抽樣核對後才能解除 maintenance。
