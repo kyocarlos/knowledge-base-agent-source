@@ -24,7 +24,8 @@
 ## 截止後 CI
 
 - rollout commit `dce63ae6` 的 WP1 run `31475084385`：backend 與 frontend 成功。
-- repository-hygiene 在 `actions/checkout@v4` 階段因 GitHub runner TLS CA 驗證失敗而未執行；annotation 為 `server certificate verification failed`／git exit 128，不是 whitespace 或 credential scan 失敗。需以後續重跑結果關閉 CI Gate。
+- 第一次 repository-hygiene 在 `actions/checkout@v4` 階段因 GitHub runner TLS CA 驗證失敗而未執行；annotation 為 `server certificate verification failed`／git exit 128，不是 whitespace 或 credential scan 失敗。
+- Evidence 更新 commit `83484a62` 的 WP1 run `31475433719`：backend、frontend、repository-hygiene 全部成功，重跑已關閉該偶發 CI 缺口。
 
 ## v2.6 歸類
 

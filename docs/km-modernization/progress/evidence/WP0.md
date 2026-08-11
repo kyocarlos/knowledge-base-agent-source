@@ -24,6 +24,7 @@
 
 - rollout commit `dce63ae6` 的 WP0 run `31475084397`：backend、frontend、repository-hygiene 全部成功。
 - Weekly run `31475084373`：v2.6 source／JSON 驗證與 Phase 1 PPTX candidate artifact 產生成功。
+- Evidence 更新 commit `83484a62` 的 WP0 run `31475433750` 與 Weekly run `31475433771` 再次全部成功。
 
 ## v2.6 歸類
 
