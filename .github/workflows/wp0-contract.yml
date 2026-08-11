@@ -6,6 +6,7 @@ on:
       - agent/wp0-fastapi-contract
   pull_request:
     branches:
+      - agent/km-plan-v2.6-anderson
       - agent/km-modify-codex-plan
       - dev-work
 
@@ -22,6 +23,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@v5

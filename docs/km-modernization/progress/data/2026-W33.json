@@ -1,6 +1,8 @@
 {
   "schema_version": "1.1",
   "source_baseline": "01_AI_KM_Phase規劃_v2.6.xlsx",
+  "source_baseline_path": "docs/km-modernization/01_AI_KM_Phase規劃_v2.6.xlsx",
+  "source_baseline_status": "missing_from_git",
   "week": "2026-W33",
   "report_date": "2026-08-13",
   "period": {"start": "2026-08-10", "cutoff": "2026-08-12 17:00", "timezone": "Asia/Taipei"},
@@ -8,8 +10,8 @@
   "current_phase": "Phase 1 AI KM MVP（Production Ready）",
   "weights": {"contract": 15, "implementation": 35, "tests": 25, "e2e": 15, "delivery": 10},
   "work_packages": [
-    {"id":"WP0","phase":1,"owner":"Anderson","title":"FastAPI／REST API 與測試基線","scores":{"contract":15,"implementation":35,"tests":22,"e2e":7,"delivery":3},"progress":82,"status":"Gate 未通過","evidence":"progress/evidence/WP0.md"},
-    {"id":"WP1","phase":1,"owner":"Anderson","title":"Docker／Redis／Celery／環境正式化","scores":{"contract":15,"implementation":35,"tests":25,"e2e":10,"delivery":2},"progress":87,"status":"待 PR／Review／Merge","evidence":"progress/evidence/WP1.md"},
+    {"id":"WP0","phase":1,"owner":"Anderson","title":"FastAPI／REST API 與測試基線","scores":{"contract":15,"implementation":35,"tests":22,"e2e":7,"delivery":3},"progress":82,"status":"Gate 未通過","evidence":"progress/evidence/WP0.md","branch":"agent/wp0-fastapi-contract","head_sha":"19d0751e9dda6f7d9ebf3128ff3aa7b945be3b0e","slide_evidence":["PR #2 open，無 review／merge","backend、frontend 成功","hygiene shallow checkout failure"]},
+    {"id":"WP1","phase":1,"owner":"Anderson","title":"Docker／Redis／Celery／環境正式化","scores":{"contract":15,"implementation":35,"tests":25,"e2e":10,"delivery":2},"progress":87,"status":"待 PR／Review／Merge","evidence":"progress/evidence/WP1.md","branch":"agent/wp1-job-config-reliability","head_sha":"cfe5eb0d6a463aa4ddfc6e3a936e2f4a8974109a","slide_evidence":["CI 三個 job 全部成功","隔離 runtime restart/idempotency","無 PR／review／merge"]},
     {"id":"WP2","phase":1,"owner":"Patty Contract／Anderson Client","title":"CSIT Adapter／Booking／Validation Request 入口","progress":0,"status":"尚未開始"},
     {"id":"WP3","phase":1,"owner":"共同","title":"OpenClaw／Report Workflow Adapter","progress":0,"status":"尚未開始"},
     {"id":"WP4","phase":1,"owner":"Anderson","title":"Excel Parser／基本 RAG 正式化","progress":0,"status":"尚未開始"},
@@ -28,11 +30,11 @@
   "program_progress": 11.3,
   "weekly_outcomes": ["v2.6 取代舊版 Phase 規劃並鎖定 Anderson／Patty 責任切線","WP0 PR #2 存在但 CI overall failure、無 review、未合併","WP1 CI 三個 job 成功，但無 PR、review 或 merge","設備預約與驗證申請入口納入 Phase 1；Benchmark 基礎移至 Phase 2"],
   "quality": [
-    {"gate":"G0 API baseline","status":"阻塞","detail":"WP0 whitespace CI failure；PR 無 review/merge"},
+    {"gate":"G0 API baseline","status":"阻塞","detail":"WP0 hygiene shallow checkout failure；PR 無 review/merge"},
     {"gate":"G1 Job reliability","status":"條件通過","detail":"CI green 與隔離 runtime 證據；缺 PR/merge、正式環境故障演練"},
     {"gate":"G2～G8","status":"未開始","detail":"WP2～WP13 無實作證據"}
   ],
-  "risks": ["WP0 CI 整體失敗，不能關閉 G0","WP1 無 PR，尚未進入正式 review","WP2 依賴 CSIT API、Booking、Validation Request Contract；Anderson 不得猜測"],
-  "decisions": ["確認 WP0 修正與 merge gate owner","確認 WP1 reviewer 與 PR 時程","由 Patty 提供 WP2 的 CSIT API／Booking／Validation Request Contract"],
+  "risks": ["v2.6 原始 Excel 尚未存在於 Git，規劃來源 Gate 阻塞","WP0 CI 因 shallow checkout 失敗，需以新 run 驗證修正","WP1 無 PR，尚未進入正式 review","WP2 依賴 CSIT API、Booking、Validation Request Contract；Anderson 不得猜測"],
+  "decisions": ["由規劃 Owner 提供並核對 v2.6 原始 Excel","確認 WP0 修正與 merge gate owner","確認 WP1 reviewer 與 PR 時程","由 Patty 提供 WP2 的 CSIT API／Booking／Validation Request Contract"],
   "next_week": ["修正 WP0 repository-hygiene 並重跑 CI","建立並審查 WP1 PR","取得 Contract 後啟動 WP2 Client／Adapter 與兩項入口；未取得時只做 fake adapter／contract test","建立 W34 JSON、Evidence、Markdown 與候選 PPTX"]
 }

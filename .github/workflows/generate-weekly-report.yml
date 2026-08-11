@@ -1,6 +1,14 @@
 name: Generate AI KM Weekly Report
 
 on:
+  pull_request:
+    branches: [agent/km-plan-v2.6-anderson]
+    paths:
+      - ".github/workflows/generate-weekly-report.yml"
+      - "scripts/generate_weekly_pptx.mjs"
+      - "docs/km-modernization/progress/**"
+      - "package.json"
+      - "package-lock.json"
   workflow_dispatch:
     inputs:
       week:

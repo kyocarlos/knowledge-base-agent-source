@@ -6,6 +6,7 @@ on:
       - agent/wp1-job-config-reliability
   pull_request:
     branches:
+      - agent/km-plan-v2.6-anderson
       - agent/wp0-fastapi-contract
       - agent/km-modify-codex-plan
       - dev-work
