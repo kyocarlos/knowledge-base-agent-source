@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - agent/wp1-job-config-reliability
+      - "agent/*-v2.6-acceptance"
   pull_request:
     branches:
       - agent/km-plan-v2.6-anderson

@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - agent/wp0-fastapi-contract
+      - "agent/*-v2.6-acceptance"
   pull_request:
     branches:
       - agent/km-plan-v2.6-anderson
