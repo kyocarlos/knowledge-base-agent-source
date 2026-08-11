@@ -1,3 +1,7 @@
+import hashlib
+import json
+import subprocess
+import sys
 from pathlib import Path
 
 
@@ -8,6 +12,28 @@ def test_rollback_requires_explicit_production_confirmation():
     source = (ROOT / "scripts/rollback_pre_wp01.py").read_text()
     assert "PRE_WP01_ROLLBACK" in source
     assert "--confirm-production" in source
+
+
+def test_rollback_dry_run_does_not_require_production_confirmation(tmp_path):
+    manifest = tmp_path / "checkpoint.json"
+    manifest.write_text(json.dumps({"source_root": str(ROOT)}))
+    digest = hashlib.sha256(manifest.read_bytes()).hexdigest()
+    (tmp_path / "SHA256SUMS").write_text(f"{digest}  checkpoint.json\n")
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(ROOT / "scripts/rollback_pre_wp01.py"),
+            "--checkpoint",
+            str(tmp_path),
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert "DRY RUN" in result.stdout
 
 
 def test_rollback_never_deletes_volumes_or_restores_data_implicitly():

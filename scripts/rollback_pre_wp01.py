@@ -82,12 +82,12 @@ def main() -> int:
     project_directory = (args.project_directory or Path(manifest["source_root"])).resolve()
     services = [item.strip() for item in args.services.split(",") if item.strip()]
 
-    if args.project_name == "knowledge-base" and args.confirm_production != "PRE_WP01_ROLLBACK":
-        raise RuntimeError("production rollback requires --confirm-production PRE_WP01_ROLLBACK")
     if not args.execute:
         print("DRY RUN: checkpoint verified; add --execute to recreate application containers")
         print("services:", ", ".join(services))
         return 0
+    if args.project_name == "knowledge-base" and args.confirm_production != "PRE_WP01_ROLLBACK":
+        raise RuntimeError("production rollback requires --confirm-production PRE_WP01_ROLLBACK")
 
     tags = json.loads((checkpoint / "images/image-tags.json").read_text())
     missing = [tags[name] for name in services if name in tags and not image_exists(tags[name])]
