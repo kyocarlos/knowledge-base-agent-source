@@ -10,18 +10,21 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from .config import BridgeConfig
 
-_IDENTIFIER = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]*$")
+_IDENTIFIER = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$")
+_REQUESTER = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:@-]{0,127}$")
 
 
 class TestJob(BaseModel):
     model_config = ConfigDict(extra="forbid")
+    job_schema_version: Literal["1.0"] = "1.0"
+    dry_run: Literal[True] = True
     job_type: Literal["run_iperf_test"]
     environment: Literal["anritsu", "amarisoft"]
     profile_id: str
     run_id: str
     requested_by: str
     duration_seconds: int = Field(ge=1, le=3600)
-    test_cases: list[str] = Field(min_length=1)
+    test_cases: list[str] = Field(min_length=1, max_length=2)
 
     @field_validator("profile_id", "run_id")
     @classmethod
@@ -33,8 +36,8 @@ class TestJob(BaseModel):
     @field_validator("requested_by")
     @classmethod
     def _nonblank_requester(cls, value: str) -> str:
-        if not value.strip():
-            raise ValueError("must not be blank")
+        if not _REQUESTER.fullmatch(value):
+            raise ValueError("must use a safe requester identifier")
         return value
 
     @field_validator("test_cases")
@@ -44,6 +47,8 @@ class TestJob(BaseModel):
             raise ValueError("test_cases must not be empty")
         if any(not isinstance(v, str) or not _IDENTIFIER.fullmatch(v) for v in values):
             raise ValueError("test_cases must use safe identifiers")
+        if len(values) != len(set(values)):
+            raise ValueError("test_cases must not contain duplicates")
         return values
 
 
@@ -54,6 +59,10 @@ class A2ATaskCorrelation(BaseModel):
     run_id: str
     ingest_task_id: str | None = None
     file_hash: str | None = None
+    openclaw_forward_status: str | None = None
+    openclaw_receiver: str | None = None
+    openclaw_audit_id: str | None = None
+    dry_run_side_effect_counts: dict[str, int] = Field(default_factory=dict)
 
     @field_validator("run_id", "context_id", "a2a_task_id", "ingest_task_id", "file_hash")
     @classmethod
@@ -137,6 +146,9 @@ def validate_dispatch(config: BridgeConfig, job: TestJob) -> None:
     allowed = config.allowed_profiles.get(job.environment, frozenset())
     if job.profile_id not in allowed:
         raise BridgeDispatchError(RejectionReason.PROFILE_NOT_ALLOWED, "profile is not allowed")
+    allowed_cases = config.allowed_test_cases.get(job.profile_id)
+    if allowed_cases is not None and not set(job.test_cases) <= allowed_cases:
+        raise BridgeDispatchError(RejectionReason.INVALID_REQUEST, "test case is not allowed for profile")
 
 
 # Short public name retained for callers that refer to the domain concept directly.

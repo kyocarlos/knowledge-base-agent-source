@@ -44,6 +44,10 @@ class MockA2ATransport:
             context_id=f"ctx-{uuid4().hex}",
             a2a_task_id=f"task-{uuid4().hex}",
             run_id=job.run_id,
+            openclaw_forward_status="accepted",
+            openclaw_receiver="anritsu-openclaw",
+            openclaw_audit_id=f"audit-{uuid4().hex}",
+            dry_run_side_effect_counts={"instrument_lock": 0, "iperf_process": 0, "scpi_command": 0, "excel_report": 0, "km_ingest": 0},
         )
         return TransportResult(
             state=A2ATaskState.COMPLETED,

@@ -109,6 +109,79 @@ def test_enabled_config_accepts_only_mock_or_sdk_dry_run_transport():
         )
 
 
+def test_http_endpoint_requires_explicit_dry_run_poc_flag():
+    with pytest.raises(ValidationError):
+        BridgeConfig(
+            enabled=True,
+            transport_mode="sdk-dry-run",
+            control_token_sha256=CONTROL_HASH,
+            agent_endpoints={"anritsu": "http://100.100.100.51:8790"},
+            agent_credentials={"anritsu": "secret"},
+        )
+    config = BridgeConfig(
+        enabled=True,
+        transport_mode="sdk-dry-run",
+        allow_insecure_http_poc=True,
+        control_token_sha256=CONTROL_HASH,
+        agent_endpoints={"anritsu": "http://100.100.100.51:8790"},
+        agent_credentials={"anritsu": "secret"},
+    )
+    assert config.allow_insecure_http_poc is True
+
+
+def test_http_poc_cannot_be_combined_with_mock_transport():
+    with pytest.raises(ValidationError):
+        BridgeConfig(
+            enabled=True,
+            transport_mode="mock",
+            allow_insecure_http_poc=True,
+            control_token_sha256=CONTROL_HASH,
+            agent_endpoints={"anritsu": "http://100.100.100.51:8790"},
+            agent_credentials={"anritsu": "secret"},
+        )
+
+
+def test_credential_file_loader_requires_private_regular_file(tmp_path, monkeypatch):
+    token_file = tmp_path / "token"
+    token_file.write_text("poc-secret\n")
+    token_file.chmod(0o600)
+    monkeypatch.setenv("KM_A2A_ENABLED", "true")
+    monkeypatch.setenv("KM_A2A_TRANSPORT", "sdk-dry-run")
+    monkeypatch.setenv("KM_A2A_ALLOW_INSECURE_HTTP_POC", "true")
+    monkeypatch.setenv("KM_A2A_CONTROL_TOKEN_SHA256", CONTROL_HASH)
+    monkeypatch.setenv("KM_A2A_ALLOWED_PROFILES", '{"anritsu":["profile-1"]}')
+    monkeypatch.setenv("KM_A2A_AGENT_ENDPOINTS", '{"anritsu":"http://100.100.100.51:8790"}')
+    monkeypatch.setenv("KM_A2A_AGENT_CREDENTIAL_FILES", '{"anritsu":"%s"}' % token_file)
+    config = BridgeConfig.from_env()
+    assert config.agent_credentials["anritsu"].get_secret_value() == "poc-secret"
+
+    token_file.chmod(0o644)
+    with pytest.raises(ValueError, match="group or others"):
+        BridgeConfig.from_env()
+
+
+def test_dispatch_enforces_profile_test_case_allowlist():
+    config = BridgeConfig(
+        enabled=True,
+        control_token_sha256=CONTROL_HASH,
+        allowed_profiles={"anritsu": {"profile-1"}},
+        allowed_test_cases={"profile-1": {"sa_dl_tcp", "sa_ul_tcp"}},
+        agent_endpoints={"anritsu": "https://agent.example"},
+        agent_credentials={"anritsu": "secret"},
+    )
+    validate_dispatch(config, valid_job(test_cases=["sa_dl_tcp"]))
+    with pytest.raises(BridgeDispatchError) as caught:
+        validate_dispatch(config, valid_job(test_cases=["unknown_case"]))
+    assert caught.value.reason is RejectionReason.INVALID_REQUEST
+
+
+def test_job_forbids_duplicate_or_more_than_two_test_cases():
+    with pytest.raises(ValidationError):
+        valid_job(test_cases=["sa_dl_tcp", "sa_dl_tcp"])
+    with pytest.raises(ValidationError):
+        valid_job(test_cases=["a", "b", "c"])
+
+
 def test_config_rejects_unknown_environment_keys():
     with pytest.raises(ValidationError):
         BridgeConfig(allowed_profiles={"unknown": {"p1"}})

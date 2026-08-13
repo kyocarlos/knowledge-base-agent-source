@@ -29,13 +29,33 @@ from km_a2a_bridge.transport import TransportRejected
 class MockAnritsuA2AServer:
     def __init__(self, state=TaskState.TASK_STATE_COMPLETED, metadata=None, interface_url="https://anritsu.test/a2a"):
         self.state = state
-        self.metadata = metadata or {"runId": "run-wire-1"}
+        self.metadata = metadata or {
+            "run_id": "run-wire-1",
+            "context_id": "context-wire-1",
+            "a2a_task_id": "a2a-task-wire-1",
+            "test_status": "pending",
+            "report_status": "pending",
+            "ingest_status": "pending",
+            "openclaw_forward_status": "accepted",
+            "openclaw_receiver": "anritsu-openclaw",
+            "openclaw_audit_id": "audit-wire-1",
+            "dry_run_side_effect_counts": {
+                "instrument_lock": 0,
+                "instrument_connect": 0,
+                "scpi_commands": 0,
+                "iperf_processes": 0,
+                "excel_reports": 0,
+                "km_ingest_calls": 0,
+                "file_writes": 0,
+            },
+        }
         self.interface_url = interface_url
         self.requests = []
 
     def __call__(self, request: httpx.Request) -> httpx.Response:
         self.requests.append(request)
         assert request.headers["authorization"] == "Bearer outbound-a2a-secret"
+        assert request.headers["a2a-version"] == "1.0"
         if request.method == "GET":
             assert request.url.path == "/.well-known/agent-card.json"
             card = AgentCard(
@@ -96,6 +116,13 @@ def dispatch(server):
     ))
 
 
+def dispatch_http(server):
+    transport = SdkA2ATransport(http_transport=httpx.MockTransport(server))
+    return asyncio.run(transport.dispatch(
+        "http://100.100.100.51:8790", SecretStr("outbound-a2a-secret"), job()
+    ))
+
+
 def test_official_sdk_discovers_card_and_sends_structured_dry_run_task():
     server = MockAnritsuA2AServer()
     result = dispatch(server)
@@ -103,6 +130,10 @@ def test_official_sdk_discovers_card_and_sends_structured_dry_run_task():
     assert result.correlation.context_id == "context-wire-1"
     assert result.correlation.a2a_task_id == "a2a-task-wire-1"
     assert result.correlation.run_id == "run-wire-1"
+    assert result.correlation.openclaw_forward_status == "accepted"
+    assert result.correlation.openclaw_receiver == "anritsu-openclaw"
+    assert result.correlation.openclaw_audit_id == "audit-wire-1"
+    assert all(value == 0 for value in result.correlation.dry_run_side_effect_counts.values())
     assert [request.method for request in server.requests] == ["GET", "POST"]
 
 
@@ -124,12 +155,50 @@ def test_mismatched_run_id_is_rejected():
     assert caught.value.reason is RejectionReason.INVALID_REQUEST
 
 
+def test_completed_dry_run_requires_zero_side_effect_evidence():
+    metadata = dict(MockAnritsuA2AServer().metadata)
+    metadata["dry_run_side_effect_counts"] = {"iperf_processes": 1}
+    with pytest.raises(TransportRejected) as caught:
+        dispatch(MockAnritsuA2AServer(metadata=metadata))
+    assert caught.value.reason is RejectionReason.INVALID_REQUEST
+
+
+def test_completed_dry_run_requires_three_pending_business_statuses():
+    metadata = dict(MockAnritsuA2AServer().metadata)
+    metadata["test_status"] = "completed"
+    with pytest.raises(TransportRejected) as caught:
+        dispatch(MockAnritsuA2AServer(metadata=metadata))
+    assert caught.value.reason is RejectionReason.INVALID_REQUEST
+
+
+@pytest.mark.parametrize("field", ["openclaw_forward_status", "openclaw_receiver", "openclaw_audit_id"])
+def test_completed_dry_run_requires_openclaw_receiver_evidence(field):
+    metadata = dict(MockAnritsuA2AServer().metadata)
+    metadata.pop(field)
+    with pytest.raises(TransportRejected) as caught:
+        dispatch(MockAnritsuA2AServer(metadata=metadata))
+    assert caught.value.reason is RejectionReason.INVALID_REQUEST
+
+
 def test_agent_card_cannot_redirect_bearer_credential_to_another_origin():
     server = MockAnritsuA2AServer(interface_url="https://evil.example/a2a")
     with pytest.raises(TransportRejected) as caught:
         dispatch(server)
     assert caught.value.reason is RejectionReason.POLICY_DENIED
     assert [request.method for request in server.requests] == ["GET"]
+
+
+def test_http_poc_card_and_interface_must_use_same_origin_and_port():
+    server = MockAnritsuA2AServer(interface_url="http://100.100.100.51:8790/a2a")
+    result = dispatch_http(server)
+    assert result.state is A2ATaskState.COMPLETED
+
+
+def test_http_poc_card_cannot_redirect_to_https_or_another_port():
+    for interface in ("https://100.100.100.51:8790/a2a", "http://100.100.100.51:8791/a2a"):
+        with pytest.raises(TransportRejected) as caught:
+            dispatch_http(MockAnritsuA2AServer(interface_url=interface))
+        assert caught.value.reason is RejectionReason.POLICY_DENIED
 
 
 def test_sdk_dry_run_persists_wire_correlation_through_bridge_service(tmp_path):

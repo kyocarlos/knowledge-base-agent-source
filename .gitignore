@@ -7,6 +7,13 @@ build/
 
 # Virtual environment
 .venv/
+.env
+.env.*
+!.env.example
+*.clixml
+*.age
+.anritsu-a2a-*-token
+.km-a2a-*-token
 
 # Logs
 *.log
@@ -19,6 +26,7 @@ data/markdown/
 *.xlsx
 *.xls
 config/report-ingest.env
+config/wp01-deployment.env
 data/cleaned/
 data/watch/
 data/uploads/*/ingest_*/
@@ -41,7 +49,6 @@ frontend/node_modules/
 Thumbs.db
 
 # Local backups and generated artifacts
-/PROJECT_MEMORY.md
 backups/
 .venv_playwright/
 final_runs/

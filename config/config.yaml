@@ -1,0 +1,80 @@
+auto_ingest:
+  enabled: true
+  interval_minutes: 1
+  processed_folder: /home/da40_ai_gb10/knowledge-base/data/processed
+  watch_folder: /home/da40_ai_gb10/knowledge-base/data/watch
+celery:
+  broker_url: redis://localhost:6379/0
+  result_backend: redis://localhost:6379/0
+  result_expires: 3600
+  task_soft_time_limit: 600
+  task_time_limit: 720
+  worker_concurrency: 16
+  worker_prefetch_multiplier: 1
+converter:
+  chunk_overlap: 200
+  chunk_size: 1000
+  supported_formats:
+  - .pdf
+  - .docx
+  - .pptx
+  - .xlsx
+  - .xls
+  - .txt
+  - .md
+  - .html
+  - .csv
+  - .json
+  - .xml
+  - .epub
+  - .msg
+embedding_model: sentence-transformers/all-MiniLM-L6-v2
+llm_model: qwen3-coder-next
+llm_provider: ollama
+logging:
+  backup_count: 5
+  file: logs/app.log
+  format: '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+  level: INFO
+  max_bytes: 10485760
+neo4j:
+  connection_timeout: 30
+  max_connection_pool_size: 100
+  password: '#*cda40da40'
+  uri: bolt://neo4j:7687
+  user: neo4j
+qdrant:
+  url: http://host.docker.internal:6335
+ollama:
+  instances:
+  - http://host.docker.internal:11434
+  model: qwen3-coder-next
+  num_predict: 4096
+  strategy: round_robin
+  timeout: 300
+production:
+  cache_enabled: true
+  compression_enabled: true
+  high_performance: true
+  max_request_size: 10
+redis:
+  cache_ttl: 3600
+  db: 0
+  host: localhost
+  hot_query_ttl: 43200
+  port: 6379
+search:
+  auto_mode_keywords:
+  - 為什麼
+  - 如何
+  - 怎麼
+  - 比較
+  - 關係
+  - 原因
+  - 哪些
+  - 兩者
+  - 差異
+  - 什麼是
+  basic_top_k: 3
+  deep_top_k: 6
+  min_similarity: 0.7

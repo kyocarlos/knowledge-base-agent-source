@@ -331,3 +331,91 @@ Agent／Windows service 重啟後：
 - KM 主 Agent 尚未核准單一真實 profile
 
 遇到上述情況，Anritsu Agent 應停止並回報：已完成項目、證據、阻塞原因、待 KM 決定事項與已知風險，不得自行開啟真實儀器控制。
+
+## 20. Anritsu OpenClaw 接收 Adapter（本次 KM 目標的必要補件）
+
+目前 `:8790` 是 A2A sidecar，不是 Anritsu OpenClaw。要達成「KM OpenClaw 命令 Anritsu OpenClaw」，Anritsu 必須在 sidecar 與現有 OpenClaw runtime 之間增加一個本機、受控的 adapter。不得把 Anritsu OpenClaw Gateway 直接暴露到 Tailscale 或公網。
+
+### 20.1 邊界與設定
+
+```text
+KM OpenClaw
+  -> KM bridge
+  -> Tailscale :8790 A2A sidecar
+  -> Anritsu loopback OpenClaw adapter
+  -> Anritsu OpenClaw skill/tool
+  -> 既有 instrument/MCP adapter
+```
+
+Adapter 的 listener 必須只綁 `127.0.0.1` 或 Windows named pipe；實際位置由受保護設定提供，例如：
+
+```text
+ANRITSU_OPENCLAW_ADAPTER_URL=http://127.0.0.1:<approved-port>/v1/a2a/jobs
+ANRITSU_OPENCLAW_ADAPTER_TOKEN_FILE=<ACL-restricted-file>
+ANRITSU_A2A_DELEGATION_MODE=sidecar-to-openclaw
+```
+
+KM 不應猜測或直接連線這個 loopback URL；只有 Anritsu sidecar 可以使用它。Adapter token 必須與 KM→Anritsu A2A Bearer 分離。
+
+### 20.2 固定請求
+
+Sidecar 轉交給 adapter 時只能送出已驗證的固定 JSON，不得附加自然語言、shell、PowerShell、SCPI、檔案路徑、URL 或 arbitrary tool arguments：
+
+```json
+{
+  "adapter_schema_version": "1.0",
+  "operation": "run_iperf_test",
+  "dry_run": true,
+  "environment": "anritsu",
+  "profile_id": "ncq2200b2v-throughput-v1",
+  "run_id": "run-20260813-001",
+  "requested_by": "km-openclaw-session",
+  "context_id": "ctx-...",
+  "a2a_task_id": "task-...",
+  "duration_seconds": 60,
+  "test_cases": ["sa_dl_tcp"]
+}
+```
+
+Adapter 必須拒絕：`dry_run=false`（在 real Gate 尚未核准前）、未知 profile、未知 test case、重複 test case、額外欄位、任意命令與重複 `run_id` 的不同 payload。
+
+### 20.3 固定回應與 audit
+
+Adapter 回應必須包含：
+
+```json
+{
+  "adapter_schema_version": "1.0",
+  "state": "completed",
+  "run_id": "run-20260813-001",
+  "context_id": "ctx-...",
+  "a2a_task_id": "task-...",
+  "execution_owner": "anritsu-openclaw",
+  "dry_run": true,
+  "test_status": "pending",
+  "report_status": "pending",
+  "ingest_status": "pending",
+  "side_effect_counts": {
+    "instrument_lock": 0,
+    "iperf_process": 0,
+    "scpi_command": 0,
+    "excel_report": 0,
+    "km_ingest": 0
+  }
+}
+```
+
+Anritsu OpenClaw 與 adapter 必須在本機 audit journal 保存相同三個 correlation：`run_id`、`context_id`、`a2a_task_id`。log 不得包含任何 token。KM 端以這三個值對查 bridge journal 與遠端 audit。
+
+### 20.4 必須交付的證據
+
+- [ ] Anritsu OpenClaw adapter source、啟動與停止命令。
+- [ ] adapter 只接受 loopback／named pipe 的證據。
+- [ ] Anritsu OpenClaw skill/tool 名稱與固定 schema mapping。
+- [ ] dry-run 轉交測試：sidecar → adapter → Anritsu OpenClaw，三個 correlation 一致。
+- [ ] 無效 schema、錯誤 token、重複 run、不同 payload conflict 測試。
+- [ ] adapter／OpenClaw audit log 範例，移除秘密後交付。
+- [ ] adapter 失敗不影響原有手動測試、MCP、Excel 與 uploader 的回歸結果。
+- [ ] 一鍵停用與 rollback；停用後 `:8790` 必須 fail-closed。
+
+在上述證據完成前，KM 只能宣稱「KM OpenClaw → Anritsu sidecar dry-run」；不能宣稱「KM OpenClaw → Anritsu OpenClaw」已完成，也不能開放真實儀器。

@@ -25,6 +25,33 @@ loads `/.well-known/agent-card.json`; the Agent Card selects the actual JSON-RPC
 Do not add this service to the production KM Compose or expose it through Nginx until mock and dry-run
 acceptance tests pass and the main Agent approves the Anritsu endpoint, Agent Card and A2A credential.
 
+## HTTP 8790 POC
+
+The temporary Anritsu POC endpoint is supplied by an isolated Docker userspace Tailscale node and is
+allowed only when all of these settings are explicitly present:
+
+```text
+KM_A2A_ENABLED=true
+KM_A2A_TRANSPORT=sdk-dry-run
+KM_A2A_PROTOCOL_VERSION=1.0
+KM_A2A_ALLOW_INSECURE_HTTP_POC=true
+```
+
+The outbound Bearer credential must be stored in a regular file with mode `0600` and referenced through
+`KM_A2A_AGENT_CREDENTIAL_FILES`. The bridge adds `A2A-Version: 1.0`, discovers the Agent Card, enforces
+same-origin JSON-RPC, and accepts a completed POC task only when test/report/ingest remain `pending` and
+every reported dry-run side-effect counter is zero.
+
+This exception never enables real instrument access. Remove the HTTP flag and rotate the POC token when
+the Anritsu endpoint moves to trusted HTTPS.
+
+The POC HTTP endpoint must be carried only over the approved Tailscale tailnet. Because the Anritsu Windows
+gateway/DNS uses Quad100 space, do not run Tailscale on the Windows host. The isolated Docker userspace node
+must have `tag:anritsu-a2a-poc`, and the tailnet policy must grant only KM `100.65.63.58` access to that tag
+on `tcp:8790`. Do not enable an exit node, subnet routes, Tailscale SSH, Funnel, public port publishing, or
+all-source access. Update `KM_A2A_AGENT_ENDPOINTS` only after Anritsu reports the Docker peer IP and KM
+confirms it with `tailscale status` and `tailscale ping`.
+
 ## SDK wire dry-run
 
 `KM_A2A_TRANSPORT=sdk-dry-run` enables the official A2A SDK client, but every outbound job still contains
