@@ -47,6 +47,12 @@ WP2 以後：本次不執行、不宣稱有進度
 
 `docs/km-modernization/progress/presentations/AI-KM-Weekly-2026-W33.pptx`
 
+本週 v2.6 主管版正式簡報：
+
+`docs/AI-KM-Phase1-Weekly-2026-W33-v2.6.pptx`
+
+下載連結：[AI-KM-Phase1-Weekly-2026-W33-v2.6.pptx](AI-KM-Phase1-Weekly-2026-W33-v2.6.pptx)
+
 ## 本次明確不應作出的結論
 
 1. 不得因 CI green 宣稱 WP0/WP1 已 100% 完成。
@@ -63,6 +69,10 @@ WP2 以後：本次不執行、不宣稱有進度
 3. WP0 PR #2 與 WP1 PR/review/merge Gate 是否關閉。
 4. 既有 Portal、chat、search、report、review、ingest 是否維持相容。
 5. 後續是否應先補 PR 與正式驗收，再開始 WP2。
+
+## 每週固定更新方式
+
+每週四報告前，週三 17:00 統計截止，17:10 由 GitHub Actions 產生候選 artifact。人工核對通過後，將該週簡報以新檔名提交到 `docs/AI-KM-Phase1-Weekly-YYYY-Www-v2.6.pptx`；同一 commit 更新該週 `progress/data`、`progress/weekly` 與 Evidence。歷史週次不覆蓋，候選失敗不影響前週正式簡報。
 
 ## 本次本機重跑
 
