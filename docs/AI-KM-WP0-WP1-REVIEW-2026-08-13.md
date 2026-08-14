@@ -57,6 +57,8 @@ WP2 以後：本次不執行、不宣稱有進度
 
 下載連結：[AI-KM-Phase1-Weekly-2026-W33-v2.6.pptx](AI-KM-Phase1-Weekly-2026-W33-v2.6.pptx)
 
+正式簡報發布規則：以 `/home/da40_ai_gb10/knowledge-base/AI-KM-Phase1-Weekly-YYYY-Www-v2.6.pptx` 為來源，確認可開啟與 SHA-256 後複製至本分支 `docs/` 再提交；每週建立新檔名，不覆蓋歷史週次。W33 主機檔與 GitHub 檔案 SHA-256 均為 `c5ceb4093dd7dc1b3b44fad7e24ee7b85b6bcba75b3a553269f27a028d017979`。
+
 ## 本次明確不應作出的結論
 
 1. 不得因 CI green 宣稱 WP0/WP1 已 100% 完成。

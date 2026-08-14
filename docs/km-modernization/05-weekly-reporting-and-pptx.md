@@ -48,6 +48,20 @@ node scripts/generate_weekly_pptx.mjs --week 2026-W33 --validate
 node scripts/generate_weekly_pptx.mjs --week 2026-W33
 ```
 
+正式主管簡報以主機上已完成審查的 PPTX 為發布來源，直接複製到 repository 根目錄的 `docs/`，每個週次使用新檔名，不覆蓋前週：
+
+```bash
+WEEK=2026-W34
+SOURCE="/home/da40_ai_gb10/knowledge-base/AI-KM-Phase1-Weekly-${WEEK}-v2.6.pptx"
+cp "$SOURCE" "docs/AI-KM-Phase1-Weekly-${WEEK}-v2.6.pptx"
+sha256sum "docs/AI-KM-Phase1-Weekly-${WEEK}-v2.6.pptx"
+git add "docs/AI-KM-Phase1-Weekly-${WEEK}-v2.6.pptx"
+git commit -m "docs: publish ${WEEK} v2.6 weekly presentation"
+git push agent-source HEAD:agent/km-wp0-wp1-progress-review-20260813
+```
+
+發布前必須確認 PPTX 可開啟、非空檔，並保存 SHA-256；本週正式檔案為 `docs/AI-KM-Phase1-Weekly-2026-W33-v2.6.pptx`。若主機檔案與 GitHub 已有檔案的 SHA-256 相同，代表已完成上傳，不需建立無內容差異的重複 commit。
+
 排程 `10 9 * * 3` 等於台北時間星期三 17:10。Actions 只上傳 artifact，不直接 commit。JSON／Markdown 不一致、PPTX 空檔、渲染溢出或 GitHub 證據未核對時必須停止，不得沿用舊簡報冒充本週。若來源 Excel 缺失，必須在 JSON、Markdown、Evidence 與 PPTX 風險頁一致標示。
 
 正式發布採人工核准，避免排程工作流直接覆蓋歷史：
