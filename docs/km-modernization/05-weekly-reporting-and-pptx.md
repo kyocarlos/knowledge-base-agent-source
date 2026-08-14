@@ -10,7 +10,7 @@
 docs/AI-KM-Phase1-Weekly-YYYY-Www-v2.6.pptx
 ```
 
-例如：`docs/AI-KM-Phase1-Weekly-2026-W33-v2.6.pptx`。`progress/presentations/` 保存流程用週報版本；兩者必須來自同一份 JSON，內容數字一致。
+例如：`docs/AI-KM-Phase1-Weekly-2026-W33-v2.6.pptx`。正式主管簡報只保存於 `docs/` 根目錄；不再發布另一份不同頁數的流程版 PPTX。
 
 - 週一：確認本週 Issue、WP、Gate、Owner、承諾與風險。
 - 週二：更新 PR、測試、E2E、回滾與 Evidence。

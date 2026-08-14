@@ -42,14 +42,11 @@ WP2 以後：本次不執行、不宣稱有進度
 - `docs/km-modernization/progress/evidence/WP0-WP1-v2.6-gap-assessment.md`
 - `docs/km-modernization/progress/weekly/2026-W33.md`
 - `docs/km-modernization/progress/data/2026-W33.json`
-- `docs/km-modernization/progress/presentations/AI-KM-Weekly-2026-W33.pptx`
 - `docs/km-modernization/06-v2.6-anderson-scope.md`
 - `docs/km-modernization/07-v2.6-source-index.md`
 - `docs/km-modernization/source/KM_Modify/`（5 份規劃 Excel、5 份技術規格 DOCX、2 張原始圖）
 
 主管若要看簡報，可下載：
-
-`docs/km-modernization/progress/presentations/AI-KM-Weekly-2026-W33.pptx`
 
 本週 v2.6 主管版正式簡報：
 
