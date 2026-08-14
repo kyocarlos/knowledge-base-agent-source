@@ -17,6 +17,9 @@ nohup.out
 data/raw/
 data/markdown/
 *.xlsx
+!docs/km-modernization/source/
+!docs/km-modernization/source/KM_Modify/
+!docs/km-modernization/source/KM_Modify/*.xlsx
 *.xls
 !docs/km-modernization/01_AI_KM_Phase規劃_v2.6.xlsx
 config/report-ingest.env

@@ -38,7 +38,7 @@ docs/AI-KM-Phase1-Weekly-YYYY-Www-v2.6.pptx
 
 Issue 定義需求與驗收；PR 連結 Issue、commit、測試與回滾；`progress/evidence/WP*.md` 保存證據；`progress/data/YYYY-Www.json` 是數字唯一來源；Markdown 與 PPTX 必須一致。JSON 應保存 `source_baseline: 01_AI_KM_Phase規劃_v2.6.xlsx` 與 Owner／dependency。
 
-`source_baseline` 指向的原始檔也必須存在於 Git，且由規劃 Owner 核對。若原始 Excel 缺失，週報仍可產生標示阻塞的候選 artifact，但不得宣稱規劃來源 Gate 或 WP 正式驗收完成，也不得從 Markdown／JSON 反向猜測或重建原始 Excel。
+`source_baseline_path` 指向的原始檔必須存在於 Git，且由規劃 Owner 核對；本專案的來源索引與 SHA-256 見 [`07-v2.6-source-index.md`](07-v2.6-source-index.md)。若來源檔缺失，週報仍可產生標示阻塞的候選 artifact，但不得宣稱規劃來源 Gate 或 WP 正式驗收完成，也不得從 Markdown／JSON 反向猜測或重建原始檔。
 
 ## 5. 產生、發布、失敗與驗收
 

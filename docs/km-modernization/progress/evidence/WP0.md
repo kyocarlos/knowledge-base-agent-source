@@ -20,4 +20,4 @@ CI：原始失敗證據 [WP0 run 31405151388](https://github.com/kyocarlos/knowl
 - `B`：原 PR 使用的 REQ／ADR 編號沿用舊規劃；後續驗收以 v2.6 `REQ-API-001` 與 Phase 1 前置工作重新追溯，不改寫既有 commit。
 - `C`：原 repository-hygiene 使用 shallow checkout，對 base SHA 執行 diff 時發生 `fatal: bad object`；驗收分支改用 `fetch-depth: 0` 後 CI 已成功。仍無 review／merge，且未完成正式入口 E2E 與可下載驗收 artifact。
 - `D`：CSIT Web、DB Schema、Workflow 與商業邏輯不屬於 WP0／Anderson，不納入完成率。
-- `E`：`01_AI_KM_Phase規劃_v2.6.xlsx` 尚未存在於 Git，不能認定規劃來源 Gate 已完成。
+- `A`：`01_AI_KM_Phase規劃_v2.6.xlsx` 已納入 `docs/km-modernization/source/KM_Modify/`，SHA-256 已由來源索引登錄；這只代表規劃來源可核對，不代表 WP0 已完成。

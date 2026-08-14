@@ -1,8 +1,23 @@
 {
   "schema_version": "1.1",
   "source_baseline": "01_AI_KM_Phase規劃_v2.6.xlsx",
-  "source_baseline_path": "docs/km-modernization/01_AI_KM_Phase規劃_v2.6.xlsx",
-  "source_baseline_status": "missing_from_git",
+  "source_baseline_path": "docs/km-modernization/source/KM_Modify/01_AI_KM_Phase規劃_v2.6.xlsx",
+  "source_baseline_status": "verified_in_git",
+  "source_index": "docs/km-modernization/07-v2.6-source-index.md",
+  "source_inventory": [
+    {"path":"docs/km-modernization/source/KM_Modify/01_AI_KM_Phase規劃_v2.6.xlsx","sha256":"4c5a4782e727b5675add29027a5a09192966f126baa5ca648d89b22c333fba46","role":"唯一 Phase/WP/Owner/時程基準"},
+    {"path":"docs/km-modernization/source/KM_Modify/02_Enterprise_AI_KM_Compile-Time_RAG_plus_Agentic_RAG（AI 架構核心）.xlsx","sha256":"383e5cf81feb22a9f7afa7b4ab35494616cbeb41923208c86794bc0ecac6079e","role":"Compile-Time RAG 與 Agentic RAG 架構依據"},
+    {"path":"docs/km-modernization/source/KM_Modify/03_AI_KM_Document_Intelligence_Pipeline_v2.1（知識建構流程）.xlsx","sha256":"9a6ed1c1ec76f1661145d7875b68581fc4de7ef365c2bb61cbffcc583f8a9680","role":"Document Intelligence 與知識建構流程依據"},
+    {"path":"docs/km-modernization/source/KM_Modify/04_AI_KM_Enterprise_Knowledge_Graph_v2.1（知識圖譜設計）.xlsx","sha256":"2de6a102bc5547ffcb4d1eb885b6a258cbc70f06f0fb9a055f518b3b50b1ccec","role":"Neo4j Enterprise Knowledge Graph 依據"},
+    {"path":"docs/km-modernization/source/KM_Modify/05_AI_KM_Qdrant_TimescaleDB_正式化設計_v1.0.xlsx","sha256":"cf0c03e8c245c49034818a0ad34c4dd79179ab0bbd4e37d7897dd802cdddf5d2","role":"Qdrant 與 TimescaleDB 正式化依據"},
+    {"path":"docs/km-modernization/source/KM_Modify/AI_KM_Docker_Redis_Celery_環境設定規範_v1.0.docx","sha256":"7462aa6114623f4f256bb022004443275e7fc52c78c91c61d509e123050ecf15","role":"WP1 runtime、queue、retry、idempotency 與部署規格"},
+    {"path":"docs/km-modernization/source/KM_Modify/AI_KM_FastAPI_基礎架構與_REST_API_規範_v1.0.docx","sha256":"013090d0eae37b39b4c8dadafa925fae74237161d7b1c4df26d9bd8a5afee291","role":"WP0 FastAPI、REST、錯誤與追蹤規格"},
+    {"path":"docs/km-modernization/source/KM_Modify/AI_KM_Knowledge_Package_Schema_規範_v1.0.docx","sha256":"298be180ab75f90c78fea45395996fe11c4aa26c00261d6c5267009f0acd37d4","role":"Phase 2 Knowledge Package Schema 依據"},
+    {"path":"docs/km-modernization/source/KM_Modify/AI_KM_Neo4j_Ontology_Node_Relationship_Source_規範_v1.0.docx","sha256":"eb54befb495158749533fb0a277d95c1e76d343a6c6a47a92af67f89a69fb44e","role":"Neo4j ontology、node、relationship 與 source 規格"},
+    {"path":"docs/km-modernization/source/KM_Modify/AI_KM_Qdrant_Payload_Chunk_Filter_Version_ACL_規範_v1.0.docx","sha256":"0cacd9b90efe21d1b3d0e7fe414f285177677484170fb4de1b238d731441b737","role":"Qdrant payload、chunk、filter、version、ACL 規格"},
+    {"path":"docs/km-modernization/source/KM_Modify/系統架構圖.png","sha256":"d6ac914f1ed1c174d121371f542fe9b211131ebe80adc38cabc575346c4536c5","role":"原始系統架構圖"},
+    {"path":"docs/km-modernization/source/KM_Modify/系統流程圖.png","sha256":"bcaeb3a30b4f8863451eaf079b51ac9698eca28645d614af4e5bd73406400817","role":"原始系統流程圖"}
+  ],
   "week": "2026-W33",
   "report_date": "2026-08-13",
   "period": {"start": "2026-08-10", "cutoff": "2026-08-12 17:00", "timezone": "Asia/Taipei"},
@@ -34,7 +49,7 @@
     {"gate":"G1 Job reliability","status":"條件通過","detail":"CI green 與隔離 runtime 證據；缺 PR/merge、正式環境故障演練"},
     {"gate":"G2～G8","status":"未開始","detail":"WP2～WP13 無實作證據"}
   ],
-  "risks": ["v2.6 原始 Excel 尚未存在於 Git，規劃來源 Gate 阻塞","WP0 無 review／merge 與正式入口 E2E artifact","WP1 無 PR，尚未進入正式 review","WP2 依賴 CSIT API、Booking、Validation Request Contract；Anderson 不得猜測"],
-  "decisions": ["由規劃 Owner 提供並核對 v2.6 原始 Excel","確認 WP0 修正與 merge gate owner","確認 WP1 reviewer 與 PR 時程","由 Patty 提供 WP2 的 CSIT API／Booking／Validation Request Contract"],
+  "risks": ["WP0 無 review／merge 與正式入口 E2E artifact","WP1 無 PR，尚未進入正式 review","WP2 依賴 CSIT API、Booking、Validation Request Contract；Anderson 不得猜測","原始規劃與技術規格已納入 Git，但仍需 Owner 確認其版本與責任邊界"],
+  "decisions": ["由規劃 Owner 核對已納入 Git 的 v2.6 原始資料與 SHA-256","確認 WP0 修正與 merge gate owner","確認 WP1 reviewer 與 PR 時程","由 Patty 提供 WP2 的 CSIT API／Booking／Validation Request Contract"],
   "next_week": ["完成 WP0 review／merge 與正式入口 E2E artifact","建立並審查 WP1 PR","取得 Contract 且前置 Gate 關閉後才啟動 WP2 Client／Adapter 與兩項入口；未取得時只做 fake adapter／contract test","建立 W34 JSON、Evidence、Markdown 與候選 PPTX"]
 }

@@ -20,4 +20,4 @@ CI：原 WP1 分支 [run 31449165822](https://github.com/kyocarlos/knowledge-bas
 - `B`：原工作包的 Phase 0、REQ-JOB-002／REQ-OPS-001 命名改按 v2.6 歸入 Phase 1 前置與 `REQ-JOB-001`；保留原 commit 歷史。
 - `C`：尚無 WP1 PR／review／merge；缺正式環境長時間故障注入與 backup/restore 驗收。
 - `D`：CSIT Workflow、正式商業狀態與 Schema 由 Patty 負責，不由 WP1 擴張實作。
-- `E`：隔離 runtime 驗證已有提交紀錄，但沒有可下載的原始 run artifact；來源 v2.6 Excel 也未存在於 Git，兩者不能當成正式 Gate 完成證據。
+- `B`：來源 v2.6 Excel 已納入 `docs/km-modernization/source/KM_Modify/` 並可核對；隔離 runtime 驗證仍沒有可下載的原始 run artifact，不能當成正式 Gate 完成證據。

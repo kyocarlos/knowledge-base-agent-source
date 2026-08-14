@@ -11,13 +11,13 @@
 | WP0 | Phase、REQ／ADR 與 Owner 追溯 | B | PR #2 舊編號；v2.6 `REQ-API-001` | 文件校正，不改寫 commit |
 | WP0 | CI overall、review、merge、正式 E2E | C | Actions `31405151388` 曾因 shallow checkout 導致 `fatal: bad object`；修正後 `31466582947` 三個 job 全部成功；reviews 空；未 merge | CI 缺口已關閉，仍須 review、merge 與正式 E2E artifact |
 | WP0 | CSIT Web／DB／Workflow／商業邏輯 | D | v2.6 responsibility baseline | 列 Patty／跨組依賴，不納入 WP0 |
-| WP0 | v2.6 原始 Excel | E | branch/tree 無該 `.xlsx` | Owner 提供後再關來源 Gate |
+| WP0 | v2.6 原始 Excel | A | 已納入 `source/KM_Modify/`，SHA-256 已登錄 | 可直接核對規格來源；不等同 WP0 已完成 |
 | WP1 | typed config、queue、status、retry、trace、idempotency | A | `2a4ba2af`～`7cfa1d6e`、CI backend success | 保留程式與測試 |
 | WP1 | worker restart、持久化與 health 修正 | A | `0dad72bd`、`7cfa1d6e`、CI success | 保留，不重做 |
 | WP1 | Phase、REQ 與責任歸類 | B | v2.6 `REQ-JOB-001` | 改列 Phase 1 前置 |
 | WP1 | PR／review／merge、正式故障與 backup/restore | C | GitHub 查無 WP1 PR；無正式演練 artifact | 建 PR 並補驗收 |
 | WP1 | CSIT Schema／Workflow／商業狀態 | D | v2.6 responsibility baseline | 由 Patty 提供 Contract |
-| WP1 | 隔離 runtime 原始紀錄與 v2.6 Excel | E | GitHub 無 run artifact；tree 無 Excel | 不以文字聲明替代正式證據 |
+| WP1 | 隔離 runtime 原始紀錄與 v2.6 Excel | B | v2.6 Excel 已納入；隔離 runtime 仍缺可下載原始 run artifact | 保留既有提交與測試，補齊 artifact 後再關 Gate |
 
 ## 保全與整合決策
 

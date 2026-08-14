@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import crypto from "node:crypto";
 import path from "node:path";
 import process from "node:process";
 import PptxGenJS from "pptxgenjs";
@@ -33,6 +34,16 @@ function validate() {
   const expectedWeights = { contract: 15, implementation: 35, tests: 25, e2e: 15, delivery: 10 };
   for (const [key, value] of Object.entries(expectedWeights)) if (data.weights[key] !== value) throw new Error(`權重錯誤: ${key}`);
   if (data.work_packages.length !== 15) throw new Error("WP 必須為 15 個（WP10A/WP10B 分開）");
+  if (data.source_baseline_status !== "verified_in_git") throw new Error("source_baseline_status 必須為 verified_in_git");
+  if (!Array.isArray(data.source_inventory) || data.source_inventory.length !== 12) throw new Error("source_inventory 必須包含 12 份 v2.6 原始資料");
+  for (const source of data.source_inventory) {
+    required(source.path, "source_inventory.path");
+    required(source.sha256, "source_inventory.sha256");
+    const sourcePath = path.join(ROOT, source.path);
+    if (!fs.existsSync(sourcePath)) throw new Error(`來源檔不存在: ${source.path}`);
+    const actualHash = crypto.createHash("sha256").update(fs.readFileSync(sourcePath)).digest("hex");
+    if (actualHash !== source.sha256) throw new Error(`來源 SHA-256 不一致: ${source.path}`);
+  }
   const ids = data.work_packages.map((wp) => wp.id);
   const expectedIds = ["WP0","WP1","WP2","WP3","WP4","WP5","WP6","WP7","WP8","WP9","WP10A","WP10B","WP11","WP12","WP13"];
   if (JSON.stringify(ids) !== JSON.stringify(expectedIds)) throw new Error("WP 清單或順序錯誤");
@@ -122,7 +133,7 @@ s.addText(`全計畫 ${data.program_progress}%`,{x:9.8,y:4.7,w:2.5,h:0.55,fontFa
 s.addText("1 / 7",{x:11.8,y:6.95,w:0.7,h:0.25,fontFace:"Aptos",fontSize:10,color:"AFC1CD",align:"right",margin:0});
 
 s = pptx.addSlide("WEEKLY"); title(s,"主管摘要","本週結論：Phase 1 已有前置實作成果，但 Gate 尚未正式關閉");
-box(s,0.65,1.55,3.8,2.0,"全計畫",`${data.program_progress}%\n${data.source_baseline}`,C.navy);
+box(s,0.65,1.55,3.8,2.0,"全計畫",`${data.program_progress}%\n${data.source_baseline}\n來源：${data.source_baseline_status}`,C.navy);
 box(s,4.75,1.55,3.8,2.0,"Phase 1",`${data.phase_progress["1"]}%\nWP0 ${data.work_packages[0].progress}%｜WP1 ${data.work_packages[1].progress}%`,C.teal);
 box(s,8.85,1.55,3.8,2.0,"主管關注",data.risks.slice(0,2).join("\n"),C.amber);
 bullets(s,data.weekly_outcomes,0.9,4.15,11.6,1.95,16);

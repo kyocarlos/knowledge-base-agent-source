@@ -88,8 +88,8 @@ def main():
     card(s, "根因修正", "發現 duplicate path 缺少 import\n發現 Neo4j healthcheck 硬編碼密碼與錯誤 PATH\n均已修正並推送", 8.9, 1.7, 3.7, 2.1, AMBER)
     add_text(s, "剩餘：CI/PR gate、長時間故障注入、正式部署環境 restore/recovery 演練", 1, 5.2, 11.3, .55, 19, AMBER, True, PP_ALIGN.CENTER)
 
-    s = base(prs, "Phase 0：WP2–WP4", "資料契約與後端投影的唯一入口")
-    bullets(s, ["WP2 Knowledge Package：source/version/ACL/citation/processing/routing/publish；invalid package 不得產生 DB mutation。", "WP3 Qdrant projection：deterministic point ID、版本、ACL、published/current filter、rebuild 與 shadow validation。", "WP4 CSIT adapter：文件、報告、版本、審核與權限由 CSIT 作 SOR；AI KM 不直連 CSIT DB。", "Gate：19 個 Package 案例、Qdrant permission/idempotency golden set、CSIT contract tests。"])
+    s = base(prs, "歷史規劃草稿（不作 v2.6 基準）", "本頁僅保留歷史內容；目前 Phase/WP 請以 v2.6 source index 為準")
+    bullets(s, ["本頁原為舊版 WP2–WP4 草稿，不能用來判定目前 Phase 或 WP 進度。", "目前唯一有效規劃為 01_AI_KM_Phase規劃_v2.6.xlsx，正式對照見 docs/km-modernization/07-v2.6-source-index.md。", "v2.6 使用 Phase 1～5、WP0～WP13，WP10 拆為 WP10A／WP10B；不使用正式商業 Phase 0。", "原始規格、Evidence、PR、CI 與驗收證據必須分開核對，不因設計文件存在而增加程式完成率。"])
 
     s = base(prs, "Phase 1：WP5–WP9", "正式報告 workflow、時序資料、Graph、治理與 Portal")
     bullets(s, ["WP5 Report Publish Ledger：draft → validated → review → approved → publishing → published。", "WP6 TimescaleDB：iPerf／PHY／RF／KPI 明細與 summary；bulk ingest、trend、compare、ACL。", "WP7 Neo4j ontology：固定節點、canonical ID、MERGE、source/lineage、受控 query template。", "WP8 RBAC/Citation/Audit：deny-by-default、citation completeness、query/tool/upload/review/publish audit。", "WP9 Portal/OpenClaw MVP：upload → review → approve → publish → authorized search；A2A 仍隔離、disabled、dry-run。"])

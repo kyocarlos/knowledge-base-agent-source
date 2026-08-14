@@ -11,4 +11,4 @@
 
 正式流程與計分規則見 [`../05-weekly-reporting-and-pptx.md`](../05-weekly-reporting-and-pptx.md)。
 
-目前 Git tree 尚未包含 `01_AI_KM_Phase規劃_v2.6.xlsx`。在原始 Excel 經 Owner 核對並提交前，v2.6 文件可用於差異補正，但正式規劃來源 Gate 維持阻塞，不得以衍生 Markdown 反向重建 Excel。
+完整原始規劃與技術規格已納入 [`../source/KM_Modify/`](../source/KM_Modify/)，其檔名、SHA-256、Phase/WP 對應與用途記錄於 [`../07-v2.6-source-index.md`](../07-v2.6-source-index.md)。原始檔案只作為版本化來源保存，不以衍生 Markdown 反向重建或修改。

@@ -1,7 +1,7 @@
 # AI KM WP0／WP1 主管 Review Index
 
 日期：2026-08-13  
-本次發布範圍：只更新 WP0 與 WP1。  
+本次發布範圍：只更新 WP0 與 WP1，並補齊 v2.6 原始規劃與進度依據。
 本次不納入：A2A 新功能、R0/R1/R2 real-run、Anritsu OpenClaw 延伸功能及其他後續 WP。
 
 ## 目前結論
@@ -11,6 +11,8 @@ WP0：85%，CI green；尚未完成 review、merge、正式入口 E2E artifact
 WP1：87%，CI green；尚未完成 PR、review、merge、正式環境故障與 backup/restore 證據
 WP2 以後：本次不執行、不宣稱有進度
 ```
+
+完整 v2.6 原始資料已納入 `docs/km-modernization/source/KM_Modify/`，來源檔案、SHA-256、用途與 Phase/WP 對應見 [`docs/km-modernization/07-v2.6-source-index.md`](km-modernization/07-v2.6-source-index.md)。
 
 進度採既有加權規則：規格與 Contract 15%、程式實作 35%、測試 25%、E2E/驗收 15%、PR/review/merge/文件/回滾 10%。沒有證據的項目不計入完成率。
 
@@ -42,6 +44,8 @@ WP2 以後：本次不執行、不宣稱有進度
 - `docs/km-modernization/progress/data/2026-W33.json`
 - `docs/km-modernization/progress/presentations/AI-KM-Weekly-2026-W33.pptx`
 - `docs/km-modernization/06-v2.6-anderson-scope.md`
+- `docs/km-modernization/07-v2.6-source-index.md`
+- `docs/km-modernization/source/KM_Modify/`（5 份規劃 Excel、5 份技術規格 DOCX、2 張原始圖）
 
 主管若要看簡報，可下載：
 
