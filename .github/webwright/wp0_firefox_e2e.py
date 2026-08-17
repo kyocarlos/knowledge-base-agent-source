@@ -138,26 +138,29 @@ def main() -> int:
                     failures.append(label)
             request.dispose()
 
-            page = playwright.firefox.launch(
-                headless=True,
-                args=["--ignore-certificate-errors"],
-            ).new_page()
-            attach_observers(page)
+            action("tls_mode", "INFO", "tls_mode=self_signed_test_endpoint")
+            browser = playwright.firefox.launch(headless=True)
+            context = browser.new_context(ignore_https_errors=True)
+            page = context.new_page()
+            try:
+                attach_observers(page)
 
-            open_route(page, "chat", "/chat.html")
-            if not websocket_events:
-                action("websocket", "SKIP", "no lifecycle event observed without sending payload")
-            else:
-                action("websocket", "PASS", "lifecycle metadata only; payloads not recorded")
+                open_route(page, "chat", "/chat.html")
+                if not websocket_events:
+                    action("websocket", "SKIP", "no lifecycle event observed without sending payload")
+                else:
+                    action("websocket", "PASS", "lifecycle metadata only; payloads not recorded")
 
-            open_route(page, "search", "/")
-            action("chat_submit", "SKIP", "production-safe synthetic submit fixture not provided")
-            action("search_submit", "SKIP", "production-safe synthetic submit fixture not provided")
-            open_route(page, "upload", "/upload")
-            action("upload_ingest", "SKIP_WRITE_PATH", "no disposable fixture and cleanup contract")
-            open_route(page, "report_review", "/admin/report-reviews")
-            action("report_decision", "SKIP_WRITE_PATH", "no scoped fixture token; approve/reject forbidden")
-            page.context.browser.close()
+                open_route(page, "search", "/")
+                action("chat_submit", "SKIP", "production-safe synthetic submit fixture not provided")
+                action("search_submit", "SKIP", "production-safe synthetic submit fixture not provided")
+                open_route(page, "upload", "/upload")
+                action("upload_ingest", "SKIP_WRITE_PATH", "no disposable fixture and cleanup contract")
+                open_route(page, "report_review", "/admin/report-reviews")
+                action("report_decision", "SKIP_WRITE_PATH", "no scoped fixture token; approve/reject forbidden")
+            finally:
+                context.close()
+                browser.close()
     except Exception:
         action("browser_runtime", "FAIL", "Firefox/Playwright runtime could not start")
         failures.append("browser_runtime")
@@ -179,6 +182,7 @@ def main() -> int:
             json.dumps(console, indent=2, sort_keys=True) + "\n",
             encoding="utf-8",
         )
+        print((OUT / "action.log").read_text(encoding="utf-8"), end="")
         (OUT / "result.json").write_text(
             json.dumps(
                 {
