@@ -102,7 +102,7 @@ jobs:
           fi
 
   e2e-firefox:
-    if: github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/agent/wp0-fastapi-contract')
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
