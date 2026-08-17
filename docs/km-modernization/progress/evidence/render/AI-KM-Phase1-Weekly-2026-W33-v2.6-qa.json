@@ -1,0 +1,18 @@
+{
+  "slides": 17,
+  "changed_paragraphs": 8,
+  "metrics": {
+    "WP0": 85,
+    "WP1": 87,
+    "Phase 1": 19.1,
+    "program": 11.5
+  },
+  "cutoff": "2026-08-12 17:00 Asia/Taipei",
+  "out_of_bounds_shapes": 0,
+  "forbidden_unverified_metrics": [],
+  "program_metric_in_deck": "not displayed; canonical value remains 11.5% in JSON and Markdown",
+  "cutoff_in_deck": "not displayed; canonical cutoff remains 2026-08-12 17:00 Asia/Taipei in Evidence, JSON and Markdown",
+  "render_check": "passed",
+  "rendered_pages": 17,
+  "blank_pages": 0
+}
