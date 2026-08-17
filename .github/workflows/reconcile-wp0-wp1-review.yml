@@ -1,0 +1,125 @@
+name: Reconcile WP0 WP1 Supervisor Deck
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - agent/km-wp0-wp1-review-consistency-fix
+    paths:
+      - .github/workflows/reconcile-wp0-wp1-review.yml
+      - scripts/reconcile_phase1_weekly_pptx.py
+
+permissions:
+  contents: write
+
+concurrency:
+  group: reconcile-wp0-wp1-review-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  reconcile-and-render:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/km-wp0-wp1-review-consistency-fix
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install PPTX and render dependencies
+        run: |
+          python -m pip install --disable-pip-version-check python-pptx pillow
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libreoffice-impress poppler-utils fonts-noto-cjk
+
+      - name: Reconcile evidence-backed metrics
+        run: |
+          mkdir -p /tmp/wp01-deck docs/km-modernization/progress/evidence/render
+          python scripts/reconcile_phase1_weekly_pptx.py \
+            --input docs/AI-KM-Phase1-Weekly-2026-W33-v2.6.pptx \
+            --output /tmp/wp01-deck/AI-KM-Phase1-Weekly-2026-W33-v2.6.pptx \
+            --text-output docs/km-modernization/progress/evidence/render/AI-KM-Phase1-Weekly-2026-W33-v2.6.txt \
+            --qa-output docs/km-modernization/progress/evidence/render/AI-KM-Phase1-Weekly-2026-W33-v2.6-qa.json
+          mv /tmp/wp01-deck/AI-KM-Phase1-Weekly-2026-W33-v2.6.pptx \
+            docs/AI-KM-Phase1-Weekly-2026-W33-v2.6.pptx
+
+      - name: Render all 17 slides
+        run: |
+          mkdir -p /tmp/wp01-render
+          libreoffice --headless --convert-to pdf --outdir /tmp/wp01-render \
+            docs/AI-KM-Phase1-Weekly-2026-W33-v2.6.pptx
+          test "$(pdfinfo /tmp/wp01-render/AI-KM-Phase1-Weekly-2026-W33-v2.6.pdf | awk '/^Pages:/ {print $2}')" = "17"
+          pdftoppm -png -r 100 \
+            /tmp/wp01-render/AI-KM-Phase1-Weekly-2026-W33-v2.6.pdf \
+            /tmp/wp01-render/slide
+          test "$(find /tmp/wp01-render -name 'slide-*.png' | wc -l)" = "17"
+
+      - name: Build visual contact sheet and finish QA record
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          from PIL import Image, ImageDraw
+
+          paths = sorted(Path("/tmp/wp01-render").glob("slide-*.png"))
+          if len(paths) != 17:
+              raise SystemExit(f"expected 17 rendered pages, found {len(paths)}")
+          thumbs = []
+          for index, path in enumerate(paths, 1):
+              image = Image.open(path).convert("RGB")
+              extrema = image.getextrema()
+              if all(low == high for low, high in extrema):
+                  raise SystemExit(f"rendered slide {index} is blank")
+              image.thumbnail((320, 180))
+              tile = Image.new("RGB", (340, 210), "white")
+              tile.paste(image, ((340 - image.width) // 2, 20))
+              ImageDraw.Draw(tile).text((8, 5), f"Slide {index}", fill="black")
+              thumbs.append(tile)
+
+          sheet = Image.new("RGB", (340 * 4, 210 * 5), "#d9dde3")
+          for index, tile in enumerate(thumbs):
+              sheet.paste(tile, ((index % 4) * 340, (index // 4) * 210))
+          out = Path("docs/km-modernization/progress/evidence/render/AI-KM-Phase1-Weekly-2026-W33-v2.6-contact-sheet.png")
+          sheet.save(out, optimize=True)
+
+          qa_path = Path("docs/km-modernization/progress/evidence/render/AI-KM-Phase1-Weekly-2026-W33-v2.6-qa.json")
+          qa = json.loads(qa_path.read_text(encoding="utf-8"))
+          qa.update({"render_check": "passed", "rendered_pages": 17, "blank_pages": 0})
+          qa_path.write_text(json.dumps(qa, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+          PY
+
+      - name: Verify text sources and repository hygiene
+        run: |
+          python scripts/reconcile_phase1_weekly_pptx.py --help >/dev/null
+          grep -F '"WP0": 85' docs/km-modernization/progress/evidence/render/AI-KM-Phase1-Weekly-2026-W33-v2.6-qa.json
+          grep -F '"WP1": 87' docs/km-modernization/progress/evidence/render/AI-KM-Phase1-Weekly-2026-W33-v2.6-qa.json
+          grep -F '"Phase 1": 19.1' docs/km-modernization/progress/evidence/render/AI-KM-Phase1-Weekly-2026-W33-v2.6-qa.json
+          grep -F '"program": 11.5' docs/km-modernization/progress/evidence/render/AI-KM-Phase1-Weekly-2026-W33-v2.6-qa.json
+          git diff --check
+
+      - name: Commit reviewed candidate artifacts
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add \
+            docs/AI-KM-Phase1-Weekly-2026-W33-v2.6.pptx \
+            docs/km-modernization/progress/evidence/render/
+          if git diff --cached --quiet; then
+            echo "No artifact changes"
+          else
+            git commit -m "docs: reconcile and render 17-slide W33 deck [skip ci]"
+            git push
+          fi
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wp0-wp1-w33-17-slide-review
+          path: |
+            docs/AI-KM-Phase1-Weekly-2026-W33-v2.6.pptx
+            docs/km-modernization/progress/evidence/render/
+          if-no-files-found: error
+          retention-days: 90
