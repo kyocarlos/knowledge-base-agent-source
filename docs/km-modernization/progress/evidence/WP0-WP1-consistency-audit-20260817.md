@@ -13,7 +13,7 @@
 - 全計畫：**11.5%**，計算為 `(85 + 87) / 15`
 - `94%／96%` 不採用：production deployment、rollback、Webwright E2E 與 `90 passed` 的敘述雖已寫入 GitHub 部署紀錄，但原始證據仍引用主機 `$HOME`／`/tmp` 路徑，沒有可下載的 GitHub 或去識別化 artifact。
 - GitHub 可重現的 Draft acceptance PR #5 backend 證據為 **83 passed**，WP0、WP1 workflow 皆成功。
-- `18 passed, 1 failed` 沒有對應的 GitHub workflow log、JUnit artifact、commit 或失敗測試名稱，不能作為完成率證據，也不能在缺少原始輸出的情況下推測失敗原因。後續須在乾淨 checkout 重新執行並保存 JUnit／log artifact。
+- `18 passed, 1 failed` 是早期本機執行摘要；原始 console 輸出可能曾包含失敗測試名稱，但該輸出、JUnit、對應 commit 與執行環境未保存於 PR #6，因此現有 GitHub 證據無法獨立核對 nodeid、traceback 或根因。該摘要不納入完成率；PR #6 已以乾淨 checkout 的可下載 JUnit 結果取代。
 
 ## GitHub 證據
 
