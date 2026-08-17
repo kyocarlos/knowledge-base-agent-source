@@ -103,6 +103,8 @@ def replace_percentages(value: str, replacements: list[str]) -> str:
 
 
 def reconcile_text(value: str, metrics: ProgressMetrics) -> str:
+    if "不能宣稱" in value:
+        return value
     has_wp0 = re.search(r"\bWP0\b", value, re.IGNORECASE) is not None
     has_wp1 = re.search(r"\bWP1\b", value, re.IGNORECASE) is not None
     if has_wp0 and has_wp1:
@@ -170,6 +172,8 @@ def assert_displayed_metrics(rendered_text: str, metrics: ProgressMetrics) -> No
             raise SystemExit(f"required JSON-backed metric missing from deck: {value}")
 
     for line in rendered_text.splitlines():
+        if "不能宣稱" in line:
+            continue
         has_wp0 = re.search(r"\bWP0\b", line, re.IGNORECASE) is not None
         has_wp1 = re.search(r"\bWP1\b", line, re.IGNORECASE) is not None
         values = PERCENT_PATTERN.findall(line)
