@@ -110,19 +110,11 @@ jobs:
           grep -F '"program": 11.5' docs/km-modernization/progress/evidence/render/AI-KM-Phase1-Weekly-2026-W33-v2.6-qa.json
           git diff --check
 
-      - name: Commit reviewed candidate artifacts
+      - name: Confirm generated artifacts are reproducible
         run: |
-          git config user.name github-actions[bot]
-          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git add \
+          git diff --exit-code -- \
             docs/AI-KM-Phase1-Weekly-2026-W33-v2.6.pptx \
             docs/km-modernization/progress/evidence/render/
-          if git diff --cached --quiet; then
-            echo "No artifact changes"
-          else
-            git commit -m "docs: reconcile and render 17-slide W33 deck [skip ci]"
-            git push
-          fi
 
       - uses: actions/upload-artifact@v4
         with:
