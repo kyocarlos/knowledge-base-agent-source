@@ -117,7 +117,7 @@ def main() -> None:
     for pattern in FORBIDDEN:
         if pattern.search(rendered_text):
             raise SystemExit(f"forbidden unverified metric remains: {pattern.pattern}")
-    for required in ("85%", "87%", "19.1%", "2026-08-12 17:00"):
+    for required in ("85%", "87%", "19.1%"):
         if required not in rendered_text:
             raise SystemExit(f"required reconciled value missing: {required}")
     if out_of_bounds:
@@ -138,6 +138,7 @@ def main() -> None:
                 "out_of_bounds_shapes": 0,
                 "forbidden_unverified_metrics": [],
                 "program_metric_in_deck": "not displayed; canonical value remains 11.5% in JSON and Markdown",
+                "cutoff_in_deck": "not displayed; canonical cutoff remains 2026-08-12 17:00 Asia/Taipei in Evidence, JSON and Markdown",
                 "render_check": "pending",
             },
             ensure_ascii=False,
