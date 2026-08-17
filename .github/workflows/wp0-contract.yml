@@ -8,6 +8,13 @@ on:
     branches:
       - agent/km-modify-codex-plan
       - dev-work
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: "Read-only portal base URL"
+        required: false
+        default: "https://61.216.9.52:3030"
+        type: string
 
 permissions:
   contents: read
@@ -90,3 +97,62 @@ jobs:
             echo "Potential credential pattern found"
             exit 1
           fi
+
+  e2e-firefox:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Prepare redacted artifact directory
+        run: |
+          mkdir -p .e2e-artifacts
+          printf '%s\n' 'runner_not_started FAIL' > .e2e-artifacts/action.log
+          printf '%s\n' '[]' > .e2e-artifacts/network-summary.json
+          printf '%s\n' '[]' > .e2e-artifacts/console-summary.json
+          printf '%s\n' '{"gate_status":"FAIL","failure_areas":["runner_not_started"]}' > .e2e-artifacts/result.json
+
+      - name: Install Playwright fallback
+        continue-on-error: true
+        run: python -m pip install "playwright==1.51.0"
+
+      - name: Install Firefox
+        continue-on-error: true
+        run: python -m playwright install --with-deps firefox
+
+      - name: Run read-only Firefox E2E evidence
+        continue-on-error: true
+        env:
+          BASE_URL: "${{ inputs.base_url || 'https://61.216.9.52:3030' }}"
+          E2E_ARTIFACT_DIR: .e2e-artifacts
+        run: python .github/webwright/wp0_firefox_e2e.py
+
+      - name: Upload redacted E2E artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: wp0-firefox-e2e-evidence
+          path: .e2e-artifacts
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Apply E2E gate
+        if: always()
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          result = json.loads(Path(".e2e-artifacts/result.json").read_text())
+          status = result.get("gate_status")
+          failures = result.get("failure_areas", [])
+          print(f"gate_status={status}")
+          if status != "PASS":
+              raise SystemExit("E2E gate failed: " + ",".join(failures))
+          PY
