@@ -35,6 +35,10 @@ FORBIDDEN = (
 
 def reconcile_text(value: str) -> str:
     value = value.replace("2026-08-12 17:00（Asia/Taipei）", "2026-08-12 17:00 Asia/Taipei")
+    if re.search(r"(?:全計畫|整體計畫|全案).*進度", value) and "%" in value:
+        value = re.sub(r"\d+(?:\.\d+)?\s*%", "11.5%", value)
+    if re.search(r"Phase\s*1.*進度", value, re.IGNORECASE) and "%" in value:
+        value = re.sub(r"\d+(?:\.\d+)?\s*%", "19.1%", value)
     for pattern, replacement in METRIC_REPLACEMENTS:
         value = pattern.sub(replacement, value)
     return value
