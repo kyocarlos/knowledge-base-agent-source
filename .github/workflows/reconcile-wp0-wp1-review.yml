@@ -132,3 +132,35 @@ jobs:
             docs/km-modernization/progress/evidence/render/
           if-no-files-found: error
           retention-days: 90
+
+  repository-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/km-wp0-wp1-review-consistency-fix
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
+
+      - name: Install reproducible test dependencies
+        run: python -m pip install -r requirements-dev.txt
+
+      - name: Run repository tests with durable failure evidence
+        run: python -m pytest -q --junitxml=/tmp/wp01-review-pytest.xml
+
+      - name: Compile Python sources
+        run: python -m compileall -q app src km_a2a_bridge tests
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: wp0-wp1-review-pytest
+          path: /tmp/wp01-review-pytest.xml
+          if-no-files-found: warn
+          retention-days: 90
