@@ -2,6 +2,15 @@ name: Reconcile WP0 WP1 Supervisor Deck
 
 on:
   workflow_dispatch:
+  pull_request:
+    branches:
+      - agent/km-wp0-wp1-progress-review-20260813
+    paths:
+      - .github/workflows/reconcile-wp0-wp1-review.yml
+      - scripts/reconcile_phase1_weekly_pptx.py
+      - docs/km-modernization/progress/evidence/**
+      - docs/km-modernization/progress/data/2026-W33.json
+      - docs/km-modernization/progress/weekly/2026-W33.md
   push:
     branches:
       - agent/km-wp0-wp1-review-consistency-fix
