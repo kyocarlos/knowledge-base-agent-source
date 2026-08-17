@@ -7,8 +7,8 @@
 | 規格與 Contract | 15/15 | REQ-API-001、REQ-API-002、REQ-OPS-001；PR #2 描述具 ADR、相容與回滾。 |
 | 程式實作 | 35/35 | branch `agent/wp0-fastapi-contract`，head `19d0751e9dda6f7d9ebf3128ff3aa7b945be3b0e`；主要實作 commit `2c46c834d8d1aef170dc4862101db02cb536e3ca`。 |
 | 測試 | 25/25 | PR 記錄 76 passed；驗收分支 Actions backend、frontend、repository-hygiene 全部成功，包含 credential scan 與完整 Git 歷史差異檢查。 |
-| E2E／驗收 | 7/15 | PR 記錄本機 Uvicorn、release package、Webwright Portal smoke；未部署正式 `61.216.9.52:3030`，無 GitHub artifact。 |
-| PR／合併／文件／回滾 | 3/10 | [PR #2](https://github.com/kyocarlos/knowledge-base-agent-source/pull/2) open、非 draft、無 review、未合併；PR 有 rollback 說明。 |
+| E2E／驗收 | 7/15 | 部署紀錄敘述正式入口與 Webwright smoke 已執行，但其原始證據位於 `$HOME`／`/tmp`，未提交 GitHub 或去識別化 artifact；本週仍只採計 7/15。 |
+| PR／合併／文件／回滾 | 3/10 | [PR #2](https://github.com/kyocarlos/knowledge-base-agent-source/pull/2) open、非 draft、無 review、未合併；[Draft acceptance PR #5](https://github.com/kyocarlos/knowledge-base-agent-source/pull/5) 存在但無 review／merge。回滾 runbook 已入庫，production rollback 原始 artifact 未入庫。 |
 
 總分：**85/100**。不可宣稱完成，主要 Gate 缺口為 review、merge、正式入口 E2E 與可下載驗收 artifact。
 
