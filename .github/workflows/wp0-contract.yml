@@ -75,6 +75,11 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          # The whitespace check compares against the PR base SHA. A full fetch
+          # is required because the default checkout is shallow and may not
+          # contain that commit.
+          fetch-depth: 0
 
       - name: Check whitespace
         run: git diff --check "${{ github.event.pull_request.base.sha || github.event.before }}" "${{ github.sha }}"
