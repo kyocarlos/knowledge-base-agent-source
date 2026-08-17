@@ -116,7 +116,8 @@ jobs:
 
       - name: Prepare redacted artifact directory
         run: |
-          mkdir -p .e2e-artifacts
+          mkdir -p .e2e-artifacts/screenshots
+          printf '%s' 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=' | base64 --decode > .e2e-artifacts/screenshots/runner-not-started.png
           printf '%s\n' 'runner_not_started FAIL' > .e2e-artifacts/action.log
           printf '%s\n' '[]' > .e2e-artifacts/network-summary.json
           printf '%s\n' '[]' > .e2e-artifacts/console-summary.json
