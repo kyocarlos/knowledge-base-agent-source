@@ -22,6 +22,7 @@
 | Draft acceptance PR | [PR #5](https://github.com/kyocarlos/knowledge-base-agent-source/pull/5) | Open、Draft、未 review、未 merge |
 | WP0 CI | [run 31467770046](https://github.com/kyocarlos/knowledge-base-agent-source/actions/runs/31467770046) | backend／frontend／repository-hygiene success；backend 83 passed |
 | WP1 CI | [run 31467770179](https://github.com/kyocarlos/knowledge-base-agent-source/actions/runs/31467770179) | backend／frontend／repository-hygiene success；backend 83 passed |
+| PR #6 修正後 CI | [run 31989957185](https://github.com/kyocarlos/knowledge-base-agent-source/actions/runs/31989957185) | 觸發 SHA checkout 驗證、JSON 驅動 PPTX、17 頁 render 與乾淨 checkout 83 passed 全部 success；JUnit／render artifact 可下載 |
 | 週報產生 CI | [run 31467770024](https://github.com/kyocarlos/knowledge-base-agent-source/actions/runs/31467770024) | success；只驗證既有 7 頁 candidate，不構成 17 頁主管版 QA |
 | Production rollout 敘述 | [deployment record](../../pre-wp01-deployment-record-20260811.md) | 有敘述，原始 rollback／Webwright artifact 未入庫 |
 | Rollback 規格 | [backup and rollback runbook](../../pre-wp01-backup-and-rollback.md) | runbook 已入庫，不等同 production execution artifact |
