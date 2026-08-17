@@ -9,9 +9,9 @@
   },
   "cutoff": "2026-08-12 17:00 Asia/Taipei",
   "out_of_bounds_shapes": 0,
-  "forbidden_unverified_metrics": [],
-  "program_metric_in_deck": "not displayed; canonical value remains 11.5% in JSON and Markdown",
-  "cutoff_in_deck": "not displayed; canonical cutoff remains 2026-08-12 17:00 Asia/Taipei in Evidence, JSON and Markdown",
+  "metric_source": "docs/km-modernization/progress/data/2026-W33.json",
+  "program_metric_in_deck": "not displayed; canonical value is recorded in JSON and Markdown",
+  "cutoff_in_deck": "not displayed; canonical cutoff is recorded in Evidence, JSON and Markdown",
   "render_check": "passed",
   "rendered_pages": 17,
   "blank_pages": 0
