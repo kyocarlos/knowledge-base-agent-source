@@ -46,6 +46,9 @@ jobs:
       - name: Compile Python sources
         run: python -m compileall -q app src km_a2a_bridge tests
 
+      - name: Validate E2E runner syntax
+        run: python -m py_compile .github/webwright/wp0_firefox_e2e.py
+
       - name: Validate Compose configuration
         env:
           KB_REPORT_DB_PASSWORD: ci-only-report-password
