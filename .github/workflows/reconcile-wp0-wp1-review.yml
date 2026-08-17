@@ -19,7 +19,7 @@ on:
       - scripts/reconcile_phase1_weekly_pptx.py
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: reconcile-wp0-wp1-review-${{ github.ref }}
@@ -32,8 +32,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: agent/km-wp0-wp1-review-consistency-fix
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
+
+      - name: Verify checkout matches triggering SHA
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
 
       - uses: actions/setup-python@v5
         with:
@@ -49,6 +54,7 @@ jobs:
         run: |
           mkdir -p /tmp/wp01-deck docs/km-modernization/progress/evidence/render
           python scripts/reconcile_phase1_weekly_pptx.py \
+            --data docs/km-modernization/progress/data/2026-W33.json \
             --input docs/AI-KM-Phase1-Weekly-2026-W33-v2.6.pptx \
             --output /tmp/wp01-deck/AI-KM-Phase1-Weekly-2026-W33-v2.6.pptx \
             --text-output docs/km-modernization/progress/evidence/render/AI-KM-Phase1-Weekly-2026-W33-v2.6.txt \
@@ -101,13 +107,30 @@ jobs:
           qa_path.write_text(json.dumps(qa, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
           PY
 
-      - name: Verify text sources and repository hygiene
+      - name: Verify JSON-backed metrics and repository hygiene
         run: |
           python scripts/reconcile_phase1_weekly_pptx.py --help >/dev/null
-          grep -F '"WP0": 85' docs/km-modernization/progress/evidence/render/AI-KM-Phase1-Weekly-2026-W33-v2.6-qa.json
-          grep -F '"WP1": 87' docs/km-modernization/progress/evidence/render/AI-KM-Phase1-Weekly-2026-W33-v2.6-qa.json
-          grep -F '"Phase 1": 19.1' docs/km-modernization/progress/evidence/render/AI-KM-Phase1-Weekly-2026-W33-v2.6-qa.json
-          grep -F '"program": 11.5' docs/km-modernization/progress/evidence/render/AI-KM-Phase1-Weekly-2026-W33-v2.6-qa.json
+          python - <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+
+          sys.path.insert(0, "scripts")
+          from reconcile_phase1_weekly_pptx import load_metrics
+
+          data_path = Path("docs/km-modernization/progress/data/2026-W33.json")
+          qa_path = Path("docs/km-modernization/progress/evidence/render/AI-KM-Phase1-Weekly-2026-W33-v2.6-qa.json")
+          metrics = load_metrics(data_path)
+          qa = json.loads(qa_path.read_text(encoding="utf-8"))
+          assert qa["metrics"] == {
+              "WP0": metrics.wp0,
+              "WP1": metrics.wp1,
+              "Phase 1": metrics.phase1,
+              "program": metrics.program,
+          }
+          assert qa["cutoff"] == metrics.cutoff
+          assert qa["metric_source"] == str(data_path)
+          PY
           git diff --check
 
       - name: Confirm generated artifacts are reproducible
@@ -131,8 +154,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: agent/km-wp0-wp1-review-consistency-fix
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
+
+      - name: Verify checkout matches triggering SHA
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
 
       - uses: actions/setup-python@v5
         with:
