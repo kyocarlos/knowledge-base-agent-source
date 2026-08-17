@@ -75,3 +75,20 @@ git push agent-source HEAD:agent/km-wp0-wp1-progress-review-20260813
 下一週只建立新的 `YYYY-Www` JSON、Markdown、Evidence 與 PPTX；禁止覆蓋 W33 或其他歷史版本。若候選失敗，保留前週正式版本，修正後重新產生同一週候選，不可把前週檔案改名冒充新週。
 
 驗收需確認：v2.6 Phase／Owner 正確、JSON 計算通過、固定 7 頁繁中、LibreOffice 可渲染、無溢出、歷史檔未被覆蓋。下一週複製前週 JSON 後，只更新新證據與承諾，不回寫歷史週數字。
+
+## 6. Solo Development Owner Acceptance
+
+本專案允許個人開發。Solo Development Owner Acceptance 是由同一位開發 Owner 在 GitHub PR 上留下可追溯的 acceptance checklist；不要求第二個 GitHub 帳號，也不要求獨立的 `APPROVED` review。它不能以口頭確認或 Owner 對自己的 PR 按下 `APPROVE` 取代。
+
+Owner Acceptance comment/review checklist 必須逐項寫出：
+
+- exact head SHA 與目標 base ref／SHA；
+- CI run 與所有必要 job 的結果；
+- E2E artifact、其 head SHA 及保存期限或永久保存方案；
+- rollback 證據與可執行的回滾方式；
+- 尚未完成的 Gate、SKIP／NO-GO 項目與風險。
+
+只有所有必要 Gate 都是 PASS，且 checklist 已完整留下時，才能標記 `ACCEPTED`。任何 `NO-GO` comment 都不是 acceptance，不能標記或推導為 `ACCEPTED`。Owner Acceptance 不放寬 CI、E2E、rollback、正確整合目標或不得直接推送 `main` 的要求；未滿足必要 Gate 時必須維持未接受狀態。
+
+驗收記錄應與 PR head 一致；若 head、base、CI 或 artifact 改變，必須重新留下 checklist，不得沿用舊 acceptance。
+
