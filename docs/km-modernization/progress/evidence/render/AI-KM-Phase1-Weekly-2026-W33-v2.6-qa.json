@@ -1,0 +1,18 @@
+{
+  "slides": 17,
+  "reconciliation": "passed",
+  "metrics": {
+    "WP0": 85,
+    "WP1": 87,
+    "Phase 1": 19.1,
+    "program": 11.5
+  },
+  "cutoff": "2026-08-12 17:00 Asia/Taipei",
+  "out_of_bounds_shapes": 0,
+  "metric_source": "docs/km-modernization/progress/data/2026-W33.json",
+  "program_metric_in_deck": "not displayed; canonical value is recorded in JSON and Markdown",
+  "cutoff_in_deck": "not displayed; canonical cutoff is recorded in Evidence, JSON and Markdown",
+  "render_check": "passed",
+  "rendered_pages": 17,
+  "blank_pages": 0
+}

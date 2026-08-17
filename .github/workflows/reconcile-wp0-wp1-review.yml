@@ -1,0 +1,186 @@
+name: Reconcile WP0 WP1 Supervisor Deck
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches:
+      - agent/km-wp0-wp1-progress-review-20260813
+    paths:
+      - .github/workflows/reconcile-wp0-wp1-review.yml
+      - scripts/reconcile_phase1_weekly_pptx.py
+      - docs/km-modernization/progress/evidence/**
+      - docs/km-modernization/progress/data/2026-W33.json
+      - docs/km-modernization/progress/weekly/2026-W33.md
+  push:
+    branches:
+      - agent/km-wp0-wp1-review-consistency-fix
+    paths:
+      - .github/workflows/reconcile-wp0-wp1-review.yml
+      - scripts/reconcile_phase1_weekly_pptx.py
+
+permissions:
+  contents: read
+
+concurrency:
+  group: reconcile-wp0-wp1-review-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  reconcile-and-render:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+
+      - name: Verify checkout matches triggering SHA
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install PPTX and render dependencies
+        run: |
+          python -m pip install --disable-pip-version-check python-pptx pillow
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libreoffice-impress poppler-utils fonts-noto-cjk
+
+      - name: Reconcile evidence-backed metrics
+        run: |
+          mkdir -p /tmp/wp01-deck docs/km-modernization/progress/evidence/render
+          python scripts/reconcile_phase1_weekly_pptx.py \
+            --data docs/km-modernization/progress/data/2026-W33.json \
+            --input docs/AI-KM-Phase1-Weekly-2026-W33-v2.6.pptx \
+            --output /tmp/wp01-deck/AI-KM-Phase1-Weekly-2026-W33-v2.6.pptx \
+            --text-output docs/km-modernization/progress/evidence/render/AI-KM-Phase1-Weekly-2026-W33-v2.6.txt \
+            --qa-output docs/km-modernization/progress/evidence/render/AI-KM-Phase1-Weekly-2026-W33-v2.6-qa.json
+          mv /tmp/wp01-deck/AI-KM-Phase1-Weekly-2026-W33-v2.6.pptx \
+            docs/AI-KM-Phase1-Weekly-2026-W33-v2.6.pptx
+
+      - name: Render all 17 slides
+        run: |
+          mkdir -p /tmp/wp01-render
+          libreoffice --headless --convert-to pdf --outdir /tmp/wp01-render \
+            docs/AI-KM-Phase1-Weekly-2026-W33-v2.6.pptx
+          test "$(pdfinfo /tmp/wp01-render/AI-KM-Phase1-Weekly-2026-W33-v2.6.pdf | awk '/^Pages:/ {print $2}')" = "17"
+          pdftoppm -png -r 100 \
+            /tmp/wp01-render/AI-KM-Phase1-Weekly-2026-W33-v2.6.pdf \
+            /tmp/wp01-render/slide
+          test "$(find /tmp/wp01-render -name 'slide-*.png' | wc -l)" = "17"
+
+      - name: Build visual contact sheet and finish QA record
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          from PIL import Image, ImageDraw
+
+          paths = sorted(Path("/tmp/wp01-render").glob("slide-*.png"))
+          if len(paths) != 17:
+              raise SystemExit(f"expected 17 rendered pages, found {len(paths)}")
+          thumbs = []
+          for index, path in enumerate(paths, 1):
+              image = Image.open(path).convert("RGB")
+              extrema = image.getextrema()
+              if all(low == high for low, high in extrema):
+                  raise SystemExit(f"rendered slide {index} is blank")
+              image.thumbnail((320, 180))
+              tile = Image.new("RGB", (340, 210), "white")
+              tile.paste(image, ((340 - image.width) // 2, 20))
+              ImageDraw.Draw(tile).text((8, 5), f"Slide {index}", fill="black")
+              thumbs.append(tile)
+
+          sheet = Image.new("RGB", (340 * 4, 210 * 5), "#d9dde3")
+          for index, tile in enumerate(thumbs):
+              sheet.paste(tile, ((index % 4) * 340, (index // 4) * 210))
+          out = Path("docs/km-modernization/progress/evidence/render/AI-KM-Phase1-Weekly-2026-W33-v2.6-contact-sheet.png")
+          sheet.save(out, optimize=True)
+
+          qa_path = Path("docs/km-modernization/progress/evidence/render/AI-KM-Phase1-Weekly-2026-W33-v2.6-qa.json")
+          qa = json.loads(qa_path.read_text(encoding="utf-8"))
+          qa.update({"render_check": "passed", "rendered_pages": 17, "blank_pages": 0})
+          qa_path.write_text(json.dumps(qa, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+          PY
+
+      - name: Verify JSON-backed metrics and repository hygiene
+        run: |
+          python scripts/reconcile_phase1_weekly_pptx.py --help >/dev/null
+          python - <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+
+          sys.path.insert(0, "scripts")
+          from reconcile_phase1_weekly_pptx import load_metrics
+
+          data_path = Path("docs/km-modernization/progress/data/2026-W33.json")
+          qa_path = Path("docs/km-modernization/progress/evidence/render/AI-KM-Phase1-Weekly-2026-W33-v2.6-qa.json")
+          metrics = load_metrics(data_path)
+          qa = json.loads(qa_path.read_text(encoding="utf-8"))
+          assert qa["metrics"] == {
+              "WP0": metrics.wp0,
+              "WP1": metrics.wp1,
+              "Phase 1": metrics.phase1,
+              "program": metrics.program,
+          }
+          assert qa["cutoff"] == metrics.cutoff
+          assert qa["metric_source"] == str(data_path)
+          PY
+          git diff --check
+
+      - name: Confirm generated artifacts are reproducible
+        run: |
+          git diff --exit-code -- \
+            docs/AI-KM-Phase1-Weekly-2026-W33-v2.6.pptx \
+            docs/km-modernization/progress/evidence/render/
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wp0-wp1-w33-17-slide-review
+          path: |
+            docs/AI-KM-Phase1-Weekly-2026-W33-v2.6.pptx
+            docs/km-modernization/progress/evidence/render/
+          if-no-files-found: error
+          retention-days: 90
+
+  repository-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+
+      - name: Verify checkout matches triggering SHA
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
+
+      - name: Install reproducible test dependencies
+        run: python -m pip install -r requirements-dev.txt
+
+      - name: Run repository tests with durable failure evidence
+        run: python -m pytest -q --junitxml=/tmp/wp01-review-pytest.xml
+
+      - name: Compile Python sources
+        run: python -m compileall -q app src km_a2a_bridge tests
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: wp0-wp1-review-pytest
+          path: /tmp/wp01-review-pytest.xml
+          if-no-files-found: warn
+          retention-days: 90
