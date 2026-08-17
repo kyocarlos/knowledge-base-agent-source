@@ -20,6 +20,8 @@ from playwright.sync_api import Page, sync_playwright
 BASE_URL = os.environ.get("BASE_URL", "https://61.216.9.52:3030").rstrip("/")
 OUT = Path(os.environ.get("E2E_ARTIFACT_DIR", ".e2e-artifacts"))
 OUT.mkdir(parents=True, exist_ok=True)
+SCREENSHOTS = OUT / "screenshots"
+SCREENSHOTS.mkdir(parents=True, exist_ok=True)
 
 actions: list[dict[str, str]] = []
 network: list[dict[str, str]] = []
@@ -101,7 +103,7 @@ def open_route(page: Page, label: str, path: str) -> None:
     try:
         page.goto(f"{BASE_URL}{path}", wait_until="domcontentloaded", timeout=30000)
         redact_page_for_screenshot(page)
-        page.screenshot(path=str(OUT / f"{label}.png"), animations="disabled")
+        page.screenshot(path=str(SCREENSHOTS / f"{label}.png"), animations="disabled")
         action(label, "PASS")
     except PlaywrightError:
         action(label, "FAIL", "browser navigation or screenshot failed")
