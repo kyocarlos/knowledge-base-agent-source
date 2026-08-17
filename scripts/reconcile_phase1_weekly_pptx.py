@@ -173,7 +173,7 @@ def assert_displayed_metrics(rendered_text: str, metrics: ProgressMetrics) -> No
         has_wp0 = re.search(r"\bWP0\b", line, re.IGNORECASE) is not None
         has_wp1 = re.search(r"\bWP1\b", line, re.IGNORECASE) is not None
         values = PERCENT_PATTERN.findall(line)
-        if has_wp0 and has_wp1 and values and values[:2] != [percent(metrics.wp0), percent(metrics.wp1)]:
+        if has_wp0 and has_wp1 and len(values) >= 2 and values[:2] != [percent(metrics.wp0), percent(metrics.wp1)]:
             raise SystemExit(f"combined WP metric line differs from W33 JSON: {line}")
         if has_wp0 and not has_wp1 and values and values[0] != percent(metrics.wp0):
             raise SystemExit(f"WP0 metric line differs from W33 JSON: {line}")
