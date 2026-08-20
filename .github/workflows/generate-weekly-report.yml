@@ -46,8 +46,12 @@ jobs:
         run: |
           if [ -n "${{ inputs.week }}" ]; then
             echo "value=${{ inputs.week }}" >> "$GITHUB_OUTPUT"
-          else
+          elif [ "${{ github.event_name }}" = "schedule" ]; then
             echo "value=$(TZ=Asia/Taipei date +%G-W%V)" >> "$GITHUB_OUTPUT"
+          else
+            latest=$(find docs/km-modernization/progress/data -maxdepth 1 -type f -name '20??-W??.json' -printf '%f\n' | sed 's/\.json$//' | sort | tail -n 1)
+            test -n "$latest"
+            echo "value=$latest" >> "$GITHUB_OUTPUT"
           fi
       - name: Validate source data
         run: node scripts/generate_weekly_pptx.mjs --week "${{ steps.week.outputs.value }}" --validate

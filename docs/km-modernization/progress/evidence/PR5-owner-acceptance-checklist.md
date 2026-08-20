@@ -1,9 +1,9 @@
 # PR #5 Owner Acceptance Checklist
 
-PR: https://github.com/kyocarlos/knowledge-base-agent-source/pull/5  
-Base branch: `agent/km-plan-v2.6-anderson`  
-Base SHA at evidence sync: `55c1b08b08870705bd471ab63f070ce39b1360be`  
-Head SHA: `7e563fcd3999a69447e1933a8d4185300eeeecb5`
+PR: https://github.com/kyocarlos/knowledge-base-agent-source/pull/5
+Base branch: `agent/km-plan-v2.6-anderson`
+Base SHA at evidence sync: `55c1b08b08870705bd471ab63f070ce39b1360be`
+Evidence sync head SHA: `a43b2337ed341f5202ed09f95f4e1120ea9589b6`
 
 ## Evidence
 
