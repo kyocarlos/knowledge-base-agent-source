@@ -38,6 +38,7 @@ app.conf.task_reject_on_worker_lost = True
 @app.task(bind=True, acks_late=True, reject_on_worker_lost=True)
 def in_flight_job(self):
     client = redis.Redis.from_url(broker)
+    client.set("wp1:inflight:visibility_timeout", str(app.connection().transport_options.get("visibility_timeout")), ex=300)
     attempt = client.incr("wp1:inflight:attempts")
     client.set("wp1:inflight:started", str(attempt), ex=300)
     time.sleep(30)
@@ -45,6 +46,10 @@ def in_flight_job(self):
         client.incr("wp1:inflight:side_effect_count")
     client.set("wp1:inflight:completed", "true", ex=300)
     return {"attempt": attempt, "side_effect": "completed"}
+
+@app.task
+def recovery_kick():
+    return "recovery-kick"
 '''
 
 
@@ -140,8 +145,18 @@ def main() -> int:
             evidence["unacked_before_recovery"] = {
                 "queue_length": docker(*base[1:], "exec", "redis", "redis-cli", "LLEN", "celery", check=False).stdout.strip(),
                 "unacked_keys": docker(*base[1:], "exec", "redis", "redis-cli", "KEYS", "unacked*", check=False).stdout.strip(),
+                "unacked_index": docker(*base[1:], "exec", "redis", "redis-cli", "ZRANGE", "unacked_index", "0", "-1", "WITHSCORES", check=False).stdout.strip(),
+                "effective_visibility_timeout": docker(*base[1:], "exec", "redis", "redis-cli", "GET", "wp1:inflight:visibility_timeout", check=False).stdout.strip(),
             }
             docker(*base[1:], "up", "-d", "worker")
+            kick_ids = []
+            for _ in range(12):
+                kick = docker(
+                    *base[1:], "run", "--rm", "sender", "python", "-c",
+                    "from task_app import recovery_kick; print(recovery_kick.delay().id)",
+                )
+                kick_ids.append(kick.stdout.strip())
+            evidence["recovery_kick_task_ids"] = kick_ids
             completed = False
             for _ in range(60):
                 value = docker(*base[1:], "exec", "redis", "redis-cli", "GET", "wp1:inflight:completed", check=False).stdout.strip()
