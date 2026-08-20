@@ -15,9 +15,9 @@ Evidence sync head SHA: `a43b2337ed341f5202ed09f95f4e1120ea9589b6`
 - [x] GitHub Actions runs for exact head `53730d2d57cdaacbf4a693cf9cf346b9be0130c6` are successful; Firefox E2E is skipped by workflow condition.
 - [x] Owner review completed by the repository owner for this personal-development repository; no independent reviewer is represented.
 - [x] Owner Acceptance decision changed from `NO-GO` to `ACCEPTED` by explicit owner confirmation.
-- [ ] PR #5 merged into `agent/km-plan-v2.6-anderson`.
-- [ ] Merge commit recorded in WP0/WP1 evidence and weekly report.
+- [x] PR #5 merged into `agent/km-plan-v2.6-anderson`.
+- [x] Merge commit `eb1eb9253dd689eac8cd7796646f98321ad454af` recorded in WP0/WP1 evidence and weekly report.
 
 ## Decision
 
-Current decision is **ACCEPTED / pending merge**. The production synthetic E2E is evidence for the write and cleanup path; the merge target remains `agent/km-plan-v2.6-anderson`, not `main`.
+Current decision is **ACCEPTED / merged**. The production synthetic E2E is evidence for the write and cleanup path; PR #5 was merged to `agent/km-plan-v2.6-anderson`, not `main`.
