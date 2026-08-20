@@ -21,3 +21,11 @@ CI：原始失敗證據 [WP0 run 31405151388](https://github.com/kyocarlos/knowl
 - `C`：原 repository-hygiene 使用 shallow checkout，對 base SHA 執行 diff 時發生 `fatal: bad object`；驗收分支改用 `fetch-depth: 0` 後 CI 已成功。仍無 review／merge，且未完成正式入口 E2E 與可下載驗收 artifact。
 - `D`：CSIT Web、DB Schema、Workflow 與商業邏輯不屬於 WP0／Anderson，不納入完成率。
 - `E`：`01_AI_KM_Phase規劃_v2.6.xlsx` 尚未存在於 Git，不能認定規劃來源 Gate 已完成。
+
+## 2026-08-20 cutoff 後補充證據
+
+- Production synthetic write E2E 已完成，使用 pinned image `kb-wp01-e2e:20260820-cleanup-fix`，run `TR-E2E-WP0-20260820-PROD-CLEANUP-FIX-001`。
+- Upload `202`、approve `200`、ingest `completed`；Neo4j TestRun/TestCase/Measurement `1/1/1`；Qdrant scoped points `4`，cleanup 刪除 `4`；cleanup 後 submission `404`，Qdrant post-check 剩餘 `0`。
+- Production synthetic window 結束後已 rollback 至 pre-WP01 checkpoint，Health PASS，E2E flags disabled。未使用真實使用者資料，未操作真實儀器。
+- Evidence：[production E2E](../../../outputs/wp0-write-e2e-20260819/production-write-e2e-cleanup-fix-20260820.json)、[Qdrant diagnosis](../../../outputs/wp0-write-e2e-20260819/production-qdrant-resolution-diagnosis-20260820.json)、[rollback](../../../outputs/wp0-write-e2e-20260819/rollback-shadow-evidence-20260819.json)。
+- 此證據產生於 W33 cutoff 之後；W33 基準分數仍維持 **85/100**，直到 PR #5 Owner Acceptance checklist、Review、merge 與 GitHub branch 上的 artifact 完成。

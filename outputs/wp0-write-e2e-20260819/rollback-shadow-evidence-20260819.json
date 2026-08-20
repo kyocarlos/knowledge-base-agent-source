@@ -1,0 +1,27 @@
+{
+  "evidence_type": "shadow_pre_wp01_rollback_drill",
+  "executed_at": "2026-08-19T08:20:21Z",
+  "result": "passed",
+  "production_services_touched": false,
+  "shadow_project": "kb-wp01-shadow-20260819-161944",
+  "checkpoint": {
+    "source": "backups/kb-pre-wp01-backups-20260819/pre-wp01-write-e2e-20260819-1605",
+    "verification": "passed",
+    "persistent_storage": true,
+    "retention_warning": "checkpoint is retained under the repository host's restricted backups directory and is ignored by Git"
+  },
+  "checks": {
+    "baseline_before_status": 200,
+    "candidate_failure_status": 503,
+    "rollback_status": 200,
+    "baseline_marker_restored": true,
+    "image_id_matches": true,
+    "shadow_resources_removed": true
+  },
+  "formal_write_gate": "NO-GO",
+  "remaining_gate_conditions": [
+    "move or recreate the checkpoint in restricted persistent backup storage",
+    "execute controlled production deployment and write E2E only after approval"
+  ],
+  "source_report": "/tmp/kb-pre-wp01-rollback-evidence-20260819/20260819_161944/rollback-drill.json"
+}

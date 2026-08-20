@@ -1,0 +1,38 @@
+{
+  "evidence_type": "production_qdrant_cleanup_endpoint_diagnosis",
+  "observed_at": "2026-08-20T03:20:00Z",
+  "production_write_gate": "NO-GO",
+  "workflow": {
+    "test_run_id": "TR-E2E-WP0-20260820-PROD-QDRANT-FIX-001",
+    "terminal_status": "completed",
+    "worker_log_qdrant_write_points": 4,
+    "cleanup_dry_run_qdrant_points_before_fix": 0,
+    "neo4j_cleanup": {
+      "TestRun": 1,
+      "TestCase": 1,
+      "Measurement": 1
+    },
+    "submission_after_cleanup": 404
+  },
+  "root_cause": {
+    "vector_writer": "config/config.yaml -> http://host.docker.internal:6335",
+    "cleanup_before_fix": "hard-coded fallback http://host.docker.internal:6333 when QDRANT_URL was absent",
+    "impact": "Qdrant write succeeded but cleanup queried a different Qdrant service and reported zero"
+  },
+  "remediation": {
+    "file": "src/test_reports/e2e_cleanup.py",
+    "change": "cleanup now selects QDRANT_URL first, then config.yaml qdrant.url, then the legacy fallback",
+    "test": "test_qdrant_cleanup_uses_configured_kb_endpoint"
+  },
+  "residual_cleanup": {
+    "known_synthetic_run_ids": [
+      "TR-E2E-WP0-20260820-PROD-QDRANT-FIX-001",
+      "TR-E2E-WP0-20260820-RETRY3-PROD-0900"
+    ],
+    "target_collection": "knowledge_base",
+    "endpoint": "127.0.0.1:6335",
+    "remaining_points_after_exact_cleanup": 0
+  },
+  "rollback": "PASS",
+  "next_gate": "Build fresh pinned image, pass shadow write E2E, then obtain explicit approval for a new production synthetic write E2E."
+}

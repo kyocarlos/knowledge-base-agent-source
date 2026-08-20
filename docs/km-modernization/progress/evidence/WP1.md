@@ -21,3 +21,10 @@ CI：原 WP1 分支 [run 31449165822](https://github.com/kyocarlos/knowledge-bas
 - `C`：尚無 WP1 PR／review／merge；缺正式環境長時間故障注入與 backup/restore 驗收。
 - `D`：CSIT Workflow、正式商業狀態與 Schema 由 Patty 負責，不由 WP1 擴張實作。
 - `E`：隔離 runtime 驗證已有提交紀錄，但沒有可下載的原始 run artifact；來源 v2.6 Excel 也未存在於 Git，兩者不能當成正式 Gate 完成證據。
+
+## 2026-08-20 cutoff 後補充證據
+
+- 共用 production synthetic write E2E 已完成並安全 rollback；這證明目前正式部署的 report／ingest／Neo4j／Qdrant cleanup path 可受控執行，但不取代 WP1 專屬的 worker restart、Redis idempotency、長時間故障注入與 backup/restore 驗收。
+- Production synthetic run：`TR-E2E-WP0-20260820-PROD-CLEANUP-FIX-001`；Qdrant `4/4`、Neo4j `1/1/1`、cleanup 後 submission `404`，Health 與 rollback PASS。
+- Evidence：[production E2E](../../../outputs/wp0-write-e2e-20260819/production-write-e2e-cleanup-fix-20260820.json)、[rollback diagnosis](../../../outputs/wp0-write-e2e-20260819/production-qdrant-resolution-diagnosis-20260820.json)。
+- 此證據產生於 W33 cutoff 之後，且不包含 WP1 獨立 PR、Review、Merge 或完整故障恢復 Gate；W33 基準分數維持 **87/100**。

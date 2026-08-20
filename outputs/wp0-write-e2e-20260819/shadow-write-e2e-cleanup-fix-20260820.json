@@ -1,0 +1,41 @@
+{
+  "evidence_type": "shadow_write_e2e_cleanup_endpoint_fix",
+  "executed_at": "2026-08-20T03:16:34.650712+00:00",
+  "result": "passed",
+  "production_services_touched": false,
+  "test_run_id": "TR-E2E-WP0-20260820-SHADOW-CLEANUP-FIX-001",
+  "image": "kb-wp01-e2e:20260820-cleanup-fix",
+  "image_id": "sha256:afb9b8bfccd1fb2feb0f6cb66b0fdf2ec78199631a9ea83badef27cfd3a5c83b",
+  "checks": {
+    "report_upload": "HTTP 202",
+    "review_approve_and_queue": "HTTP 200",
+    "worker_terminal_state": "completed",
+    "cleanup_dry_run": "HTTP 200",
+    "cleanup_apply": "HTTP 200",
+    "submission_after_cleanup": "HTTP 404",
+    "neo4j_scoped_counts_before_cleanup": {
+      "TestRun": 1,
+      "TestCase": 1,
+      "Measurement": 1
+    },
+    "neo4j_deleted_counts": {
+      "Measurement": 1,
+      "TestCase": 1,
+      "TestRun": 1
+    },
+    "qdrant_scoped_points_before_cleanup": 4,
+    "qdrant_deleted_points": 4,
+    "files_deleted": 2,
+    "reports_deleted": 1,
+    "redis_tasks_deleted": 1
+  },
+  "services_running_before_teardown": {
+    "web": true,
+    "search_worker": true,
+    "ingest_worker": true,
+    "beat": true
+  },
+  "real_instrument_accessed": false,
+  "production_write_executed": false,
+  "source_report": "/tmp/kb-e2e-shadow-cleanup-fix-20260820/candidate-20260820_111532/candidate-drill.json"
+}

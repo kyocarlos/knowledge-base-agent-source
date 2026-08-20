@@ -36,5 +36,23 @@
   ],
   "risks": ["v2.6 原始 Excel 尚未存在於 Git，規劃來源 Gate 阻塞","WP0 無 review／merge 與正式入口 E2E artifact","WP1 無 PR，尚未進入正式 review","WP2 依賴 CSIT API、Booking、Validation Request Contract；Anderson 不得猜測"],
   "decisions": ["由規劃 Owner 提供並核對 v2.6 原始 Excel","確認 WP0 修正與 merge gate owner","確認 WP1 reviewer 與 PR 時程","由 Patty 提供 WP2 的 CSIT API／Booking／Validation Request Contract"],
-  "next_week": ["完成 WP0 review／merge 與正式入口 E2E artifact","建立並審查 WP1 PR","取得 Contract 且前置 Gate 關閉後才啟動 WP2 Client／Adapter 與兩項入口；未取得時只做 fake adapter／contract test","建立 W34 JSON、Evidence、Markdown 與候選 PPTX"]
+  "next_week": ["完成 WP0 review／merge 與正式入口 E2E artifact","建立並審查 WP1 PR","取得 Contract 且前置 Gate 關閉後才啟動 WP2 Client／Adapter 與兩項入口；未取得時只做 fake adapter／contract test","建立 W34 JSON、Evidence、Markdown 與候選 PPTX"],
+  "post_cutoff_evidence": {
+    "recorded_at": "2026-08-20",
+    "does_not_rewrite_w33_scores": true,
+    "production_synthetic_write_e2e": {
+      "run_id": "TR-E2E-WP0-20260820-PROD-CLEANUP-FIX-001",
+      "status": "completed",
+      "qdrant_scoped_points": 4,
+      "qdrant_deleted_points": 4,
+      "neo4j_scoped_counts": {"TestRun": 1, "TestCase": 1, "Measurement": 1},
+      "cleanup_post_submission": 404,
+      "rollback": "PASS",
+      "real_instrument_accessed": false,
+      "real_user_data_used": false,
+      "evidence": "outputs/wp0-write-e2e-20260819/production-write-e2e-cleanup-fix-20260820.json"
+    },
+    "acceptance_status": "NO-GO",
+    "acceptance_blockers": ["PR #5 Owner Acceptance checklist absent", "PR #5 review absent", "PR #5 merge absent"]
+  }
 }

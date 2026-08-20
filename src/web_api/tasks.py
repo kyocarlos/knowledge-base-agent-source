@@ -43,6 +43,17 @@ REPORT_FOCUS_HINTS = ("throughput", "latency", "bler", "rtt")
 REPORT_PERFORMANCE_SECTION_HINTS = ("performance test",)
 
 
+def _attachment_hashes_from_state(state: dict) -> dict[str, str]:
+    """Rebuild the validated RawArtifacts hash mapping for worker re-validation."""
+    hashes: dict[str, str] = {}
+    for attachment in state.get("attachments", []) or []:
+        name = Path(str(attachment.get("name", ""))).name
+        digest = str(attachment.get("sha256", "")).strip().lower()
+        if name and re.fullmatch(r"[0-9a-f]{64}", digest):
+            hashes[name] = digest
+    return hashes
+
+
 def _is_report_like_query(query: str) -> bool:
     text = (query or "").lower()
     if any(hint in text for hint in REPORT_QUERY_HINTS):
@@ -170,7 +181,7 @@ def increment_search_count_sync(doc_name: str):
             neo4j_config.get("uri", "bolt://neo4j:7687"),
             auth=(
                 neo4j_config.get("user", "neo4j"),
-                neo4j_config.get("password", "change-me"),
+                neo4j_config.get("password") or os.getenv("NEO4J_PASSWORD", ""),
             )
         )
         with driver.session() as session:
@@ -360,7 +371,7 @@ def preload_models(**kwargs):
         neo4j_config = config.get("neo4j", {})
         _preloaded_neo4j_driver = GraphDatabase.driver(
             neo4j_config.get("uri", "bolt://neo4j:7687"),
-            auth=(neo4j_config.get("user", "neo4j"), neo4j_config.get("password", "change-me"))
+            auth=(neo4j_config.get("user", "neo4j"), neo4j_config.get("password") or os.getenv("NEO4J_PASSWORD", ""))
         )
         with _preloaded_neo4j_driver.session() as session:
             session.run("RETURN 1")
@@ -683,22 +694,29 @@ def ingest_file_task(self, task_id: str):
         canonical_report = None
         if state.get("canonical_test_report"):
             from ..test_reports.excel_contract import parse_and_validate_report, render_report_markdown
-            canonical_report = parse_and_validate_report(original_path)
+            canonical_report = parse_and_validate_report(
+                original_path,
+                _attachment_hashes_from_state(state),
+            )
             converted_path.parent.mkdir(parents=True, exist_ok=True)
             converted_path.write_text(render_report_markdown(canonical_report), encoding="utf-8")
             manifest = canonical_report["manifest"]
+            # Keep the converted sidecar authoritative for downstream Neo4j/Qdrant
+            # writers.  The upload state is also persisted separately, but the
+            # vector writer reads metadata next to the converted document.
+            canonical_identity = {
+                "run_id": manifest["run_id"],
+                "environment": manifest["environment"],
+                "project_code": manifest["project_code"],
+                "dut_model": manifest["dut_model"],
+                "verdict": manifest["overall_verdict"],
+                "started_at": manifest["started_at"],
+                "schema_version": manifest["schema_version"],
+                "storage_category": "Report",
+                "extraction_mode": "report",
+            }
             converted_path.with_name(f"{converted_path.stem}.source.json").write_text(
-                json.dumps({
-                    "run_id": manifest["run_id"],
-                    "environment": manifest["environment"],
-                    "project_code": manifest["project_code"],
-                    "dut_model": manifest["dut_model"],
-                    "verdict": manifest["overall_verdict"],
-                    "started_at": manifest["started_at"],
-                    "schema_version": manifest["schema_version"],
-                    "storage_category": "Report",
-                    "extraction_mode": "report",
-                }, ensure_ascii=False, indent=2),
+                json.dumps(canonical_identity, ensure_ascii=False, indent=2),
                 encoding="utf-8",
             )
             result = {"status": "success", "image_refs": []}
@@ -1336,7 +1354,7 @@ def _write_source_metadata(
         "updated_at": _now_iso(),
     }
     for key in (
-        "source_system", "environment_id", "project_id", "run_id", "artifact_type",
+        "source_system", "environment", "environment_id", "project_id", "run_id", "artifact_type",
         "report_schema", "original_file_name", "source_file_hash", "ingest_file_hash",
         "document_id", "idempotency_key", "generated_at",
     ):
