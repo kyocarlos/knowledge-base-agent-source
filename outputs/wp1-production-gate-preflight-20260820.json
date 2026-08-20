@@ -1,0 +1,17 @@
+{
+  "schema": "km.wp1.production-gate-preflight.v1",
+  "date": "2026-08-20",
+  "mode": "preflight-only",
+  "decision": "NO-GO",
+  "production_touched": false,
+  "shell_syntax": "pass",
+  "candidate_image": "kb-wp01-e2e:20260820-cleanup-fix",
+  "candidate_image_id": "sha256:afb9b8bfccd1fb2feb0f6cb66b0fdf2ec78199631a9ea83badef27cfd3a5c83b",
+  "pinned_procedure": "present",
+  "rollback_evidence": "present",
+  "production_write_approval": "not-provided",
+  "runtime_credentials": "not-available-in-branch",
+  "pinned_helpers": "not-available-in-branch",
+  "execution": "not-run",
+  "reason": "Required explicit production write window and runtime-only deployment artifacts are not available; no production mutation was attempted."
+}
