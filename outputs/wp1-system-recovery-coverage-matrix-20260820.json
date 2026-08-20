@@ -1,0 +1,62 @@
+{
+  "schema": "km.wp1.system-recovery-coverage-matrix.v1",
+  "date": "2026-08-20",
+  "timezone": "Asia/Taipei",
+  "mode": "isolated-shadow-evidence-review",
+  "production_touched": false,
+  "overall_status": "PENDING",
+  "items": [
+    {
+      "component": "filesystem/data",
+      "status": "PASS",
+      "reason": "Synthetic filesystem backup bundle was restored and scoped source/restored hashes matched.",
+      "evidence": [
+        "outputs/backup-restore-shadow-20260820.json",
+        "docs/km-modernization/progress/evidence/WP1-backup-restore-shadow-20260820.md"
+      ],
+      "evidence_sha256": "46af1131c909f0c1f030dd0da6bed1e7574bb335dd28055a9da4f345e84ac1c4"
+    },
+    {
+      "component": "application registry/database",
+      "status": "PENDING",
+      "reason": "Application lease and business idempotency shadow evidence passes, but no independent restore evidence exists for the application registry/database used by the deployed system.",
+      "evidence": [
+        "outputs/wp1-application-idempotency-shadow-20260820/application-idempotency-shadow-20260820.json",
+        "docs/km-modernization/progress/evidence/WP1-application-idempotency-shadow-20260820.md"
+      ]
+    },
+    {
+      "component": "Neo4j",
+      "status": "PENDING",
+      "reason": "No isolated Neo4j backup/restore or consistency evidence was executed in this WP1 closure stage.",
+      "evidence": []
+    },
+    {
+      "component": "Qdrant",
+      "status": "PENDING",
+      "reason": "No isolated Qdrant snapshot/restore or point-count and payload consistency evidence was executed in this WP1 closure stage.",
+      "evidence": []
+    },
+    {
+      "component": "Redis",
+      "status": "PENDING",
+      "reason": "Redis restart and SETNX idempotency shadow passed, but this is not a Redis persistence restore, backup retention, or production recovery proof.",
+      "evidence": [
+        "outputs/redis-reconnect-idempotency-shadow-20260820.json",
+        "docs/km-modernization/progress/evidence/WP1-redis-reconnect-idempotency-shadow-20260820.md"
+      ],
+      "evidence_sha256": "cd6324c8cf5191c2770e02f7991c400e5fe64ba772ba90d46b0d8160bdae086e"
+    },
+    {
+      "component": "configuration",
+      "status": "PENDING",
+      "reason": "The synthetic filesystem bundle included config/config.yaml, but no independent runtime configuration, secret reference, deployment pin, or restore validation was executed.",
+      "evidence": [
+        "outputs/backup-restore-shadow-20260820.json",
+        "docs/km-modernization/progress/evidence/WP1-backup-restore-shadow-20260820.md"
+      ]
+    }
+  ],
+  "production_gate": "NO-GO",
+  "next_action": "Obtain separately approved, isolated recovery evidence for pending components; do not modify production to close this matrix."
+}
