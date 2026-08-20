@@ -1,0 +1,14 @@
+{
+  "schema": "km.wp1.backup-restore-shadow.v1",
+  "mode": "isolated-shadow",
+  "production_touched": false,
+  "data_write_scope": "temporary filesystem only",
+  "backup_command_output": "Created backup bundle:\n  /tmp/kb-wp1-backup-4ge4pgqr/backups/knowledge-base-data-20260820_152935.tar.gz\nManifest:\n  /tmp/kb-wp1-backup-4ge4pgqr/backups/knowledge-base-data-20260820_152935.manifest.txt\n",
+  "bundle_sha256": "f7ea184678405bceb53009bdc3a4f656819ddefbbcada3921771ef0b1d24836a",
+  "manifest_sha256": "4c513704b121811a5f76e819f70375fa273bc3c245aed12e894f906d1b3267fe",
+  "manifest": "project_dir=/tmp/kb-wp1-backup-4ge4pgqr/project\ngit_commit=unknown\ncreated_at=20260820_152935\nincluded_paths:\n  - data/raw\n  - data/processed\n  - data/assets\n  - data/uploads\n  - config/config.yaml\nf7ea184678405bceb53009bdc3a4f656819ddefbbcada3921771ef0b1d24836a  /tmp/kb-wp1-backup-4ge4pgqr/backups/knowledge-base-data-20260820_152935.tar.gz\n",
+  "source_tree_hash": "49f0341af74e3690f6a62ec9315980f9574792be11f6576aad01a7a21711b125",
+  "restored_tree_hash": "49f0341af74e3690f6a62ec9315980f9574792be11f6576aad01a7a21711b125",
+  "restore_verified": true,
+  "cleanup_verified": true
+}
