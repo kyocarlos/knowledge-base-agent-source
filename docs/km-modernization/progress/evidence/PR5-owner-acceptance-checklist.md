@@ -12,12 +12,12 @@ Evidence sync head SHA: `a43b2337ed341f5202ed09f95f4e1120ea9589b6`
 - [x] Production synthetic write E2E: `production-write-e2e-cleanup-fix-20260820.json`.
 - [x] Rollback evidence: `rollback-shadow-evidence-20260819.json` and production rollback recorded in the production E2E evidence.
 - [x] PPTX ZIP and LibreOffice render check: 17 slides.
-- [ ] GitHub Actions run for this exact head SHA is successful.
-- [ ] Independent review completed.
-- [ ] Owner Acceptance decision changed from `NO-GO` to `ACCEPTED`.
+- [x] GitHub Actions runs for exact head `53730d2d57cdaacbf4a693cf9cf346b9be0130c6` are successful; Firefox E2E is skipped by workflow condition.
+- [x] Owner review completed by the repository owner for this personal-development repository; no independent reviewer is represented.
+- [x] Owner Acceptance decision changed from `NO-GO` to `ACCEPTED` by explicit owner confirmation.
 - [ ] PR #5 merged into `agent/km-plan-v2.6-anderson`.
 - [ ] Merge commit recorded in WP0/WP1 evidence and weekly report.
 
 ## Decision
 
-Current decision remains **NO-GO / pending review**. The production synthetic E2E is evidence for the write and cleanup path; it does not substitute for PR review, merge, or Owner Acceptance.
+Current decision is **ACCEPTED / pending merge**. The production synthetic E2E is evidence for the write and cleanup path; the merge target remains `agent/km-plan-v2.6-anderson`, not `main`.
