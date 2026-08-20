@@ -187,7 +187,7 @@ async def approve_report_submission(submission_id: str, decision: ReviewDecision
     except SubmissionConflict as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
 
-    from .tasks import INGEST_UPLOAD_ROOT, create_ingest_task_id, ingest_file_task, set_ingest_task_state
+    from .tasks import INGEST_UPLOAD_ROOT, JOB_LEASE_STORE, create_ingest_task_id, ingest_file_task, set_ingest_task_state
     task_id = create_ingest_task_id()
     converted_path = INGEST_UPLOAD_ROOT / "Report" / task_id / "converted" / f"{Path(item['report_name']).stem}.md"
     try:
@@ -206,6 +206,8 @@ async def approve_report_submission(submission_id: str, decision: ReviewDecision
     }
     try:
         set_ingest_task_state(task_id, state)
+        lease_key = f"{state.get('submission_id', task_id)}:{state['file_hash']}"
+        JOB_LEASE_STORE.register(task_id, idempotency_key=lease_key)
         async_result = ingest_file_task.apply_async(
             args=[task_id],
             queue="ingest",

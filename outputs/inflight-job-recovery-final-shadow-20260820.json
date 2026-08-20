@@ -1,0 +1,41 @@
+{
+  "schema": "km.wp1.inflight-job-recovery-shadow.v1",
+  "mode": "isolated-shadow",
+  "project": "kb-wp1-inflight-bff119d487",
+  "image": "kb-wp01-e2e:20260820-cleanup-fix",
+  "production_touched": false,
+  "side_effect_policy": "Redis SETNX, exactly one completion side effect",
+  "task_id": "07a1e375-efc8-4b2a-b851-ef8c790c91a2",
+  "first_attempt": "1",
+  "worker_killed_during_job": true,
+  "unacked_before_recovery": {
+    "queue_length": "0",
+    "unacked_keys": "unacked_index\nunacked",
+    "unacked_index": "2b7df6df-786d-4cfb-a3bf-ebfc631f9b98\n1.7872166324789724e+9",
+    "effective_visibility_timeout": "5"
+  },
+  "recovery_kick_task_ids": [
+    "e8fac18b-ac44-4632-be4c-44eab772c1c2",
+    "312876af-0f11-4534-80cd-ca134b33b248",
+    "22ecb892-b62c-4fdb-8b33-794cf2057597",
+    "cdec64ec-94f2-47cd-b400-9bf71caaf420",
+    "225e6563-663c-4f91-ac02-bd0e563a82ca",
+    "ca092144-f05b-42b3-82ca-38a5d0557a2b",
+    "98e4a0a7-c47b-4348-89ec-74fc28729e10",
+    "370def54-e6d1-4104-9f7a-c8a3bea033e4",
+    "6b549aac-9abe-41c4-a993-bf9685ab73fd",
+    "feeca978-2ee2-418b-a1bf-a15045b62887",
+    "d7752a6f-05bc-4c5b-98ab-c56bddae3a6b",
+    "ea31d9ee-2466-4f55-afc4-b17059b467c8"
+  ],
+  "recovery_sweep_task_id": "595bed45-ce2d-4314-974b-1789275d45b5",
+  "completed_after_recovery": true,
+  "attempts": "2",
+  "side_effect_count": "1",
+  "ledger": "{'job_id': 'job-1', 'idempotency_key': 'job-1', 'status': 'succeeded', 'owner': None, 'attempt': 2, 'lease_until': 0.0, 'recovery_count': 1, 'created_at': 1787216632.438034, 'updated_at': 1787216677.6330712, 'completed_at': 1787216677.6330712}",
+  "redelivery_verified": true,
+  "duplicate_side_effect_prevented": true,
+  "recovery_verified": true,
+  "worker_logs_tail": "rker-1  |                 \nworker-1  | \nworker-1  | [tasks]\nworker-1  |   . task_app.in_flight_job\nworker-1  |   . task_app.recovery_kick\nworker-1  |   . task_app.recovery_sweep\nworker-1  | \nworker-1  | [2026-08-20 09:03:54,102: INFO/MainProcess] Connected to redis://redis:6379/0\nworker-1  | [2026-08-20 09:03:54,105: INFO/MainProcess] mingle: searching for neighbors\nworker-1  | [2026-08-20 09:03:55,110: INFO/MainProcess] mingle: all alone\nworker-1  | [2026-08-20 09:03:55,117: INFO/MainProcess] wp1-inflight@425d2721d606 ready.\nworker-1  | [2026-08-20 09:03:55,118: INFO/MainProcess] Task task_app.recovery_kick[e8fac18b-ac44-4632-be4c-44eab772c1c2] received\nworker-1  | [2026-08-20 09:03:55,122: INFO/ForkPoolWorker-1] Task task_app.recovery_kick[e8fac18b-ac44-4632-be4c-44eab772c1c2] succeeded in 0.003045482560992241s: 'recovery-kick'\nworker-1  | [2026-08-20 09:03:55,806: INFO/MainProcess] Task task_app.recovery_kick[312876af-0f11-4534-80cd-ca134b33b248] received\nworker-1  | [2026-08-20 09:03:55,807: INFO/ForkPoolWorker-1] Task task_app.recovery_kick[312876af-0f11-4534-80cd-ca134b33b248] succeeded in 0.000716411042958498s: 'recovery-kick'\nworker-1  | [2026-08-20 09:03:56,913: INFO/MainProcess] Task task_app.recovery_kick[22ecb892-b62c-4fdb-8b33-794cf2057597] received\nworker-1  | [2026-08-20 09:03:56,914: INFO/ForkPoolWorker-1] Task task_app.recovery_kick[22ecb892-b62c-4fdb-8b33-794cf2057597] succeeded in 0.0009130816906690598s: 'recovery-kick'\nworker-1  | [2026-08-20 09:03:57,968: INFO/MainProcess] Task task_app.recovery_kick[cdec64ec-94f2-47cd-b400-9bf71caaf420] received\nworker-1  | [2026-08-20 09:03:57,969: INFO/ForkPoolWorker-1] Task task_app.recovery_kick[cdec64ec-94f2-47cd-b400-9bf71caaf420] succeeded in 0.0006420919671654701s: 'recovery-kick'\nworker-1  | [2026-08-20 09:03:59,047: INFO/MainProcess] Task task_app.recovery_kick[225e6563-663c-4f91-ac02-bd0e563a82ca] received\nworker-1  | [2026-08-20 09:03:59,048: INFO/ForkPoolWorker-1] Task task_app.recovery_kick[225e6563-663c-4f91-ac02-bd0e563a82ca] succeeded in 0.00038054073229432106s: 'recovery-kick'\nworker-1  | [2026-08-20 09:04:00,094: INFO/MainProcess] Task task_app.recovery_kick[ca092144-f05b-42b3-82ca-38a5d0557a2b] received\nworker-1  | [2026-08-20 09:04:00,095: INFO/ForkPoolWorker-1] Task task_app.recovery_kick[ca092144-f05b-42b3-82ca-38a5d0557a2b] succeeded in 0.0005568130873143673s: 'recovery-kick'\nworker-1  | [2026-08-20 09:04:01,143: INFO/MainProcess] Task task_app.recovery_kick[98e4a0a7-c47b-4348-89ec-74fc28729e10] received\nworker-1  | [2026-08-20 09:04:01,145: INFO/ForkPoolWorker-1] Task task_app.recovery_kick[98e4a0a7-c47b-4348-89ec-74fc28729e10] succeeded in 0.0005345889367163181s: 'recovery-kick'\nworker-1  | [2026-08-20 09:04:02,215: INFO/MainProcess] Task task_app.recovery_kick[370def54-e6d1-4104-9f7a-c8a3bea033e4] received\nworker-1  | [2026-08-20 09:04:02,216: INFO/ForkPoolWorker-1] Task task_app.recovery_kick[370def54-e6d1-4104-9f7a-c8a3bea033e4] succeeded in 0.0005309879779815674s: 'recovery-kick'\nworker-1  | [2026-08-20 09:04:03,309: INFO/MainProcess] Task task_app.recovery_kick[6b549aac-9abe-41c4-a993-bf9685ab73fd] received\nworker-1  | [2026-08-20 09:04:03,311: INFO/ForkPoolWorker-1] Task task_app.recovery_kick[6b549aac-9abe-41c4-a993-bf9685ab73fd] succeeded in 0.0005593402311205864s: 'recovery-kick'\nworker-1  | [2026-08-20 09:04:04,378: INFO/MainProcess] Task task_app.recovery_kick[feeca978-2ee2-418b-a1bf-a15045b62887] received\nworker-1  | [2026-08-20 09:04:04,379: INFO/ForkPoolWorker-1] Task task_app.recovery_kick[feeca978-2ee2-418b-a1bf-a15045b62887] succeeded in 0.0003680461086332798s: 'recovery-kick'\nworker-1  | [2026-08-20 09:04:05,429: INFO/MainProcess] Task task_app.recovery_kick[d7752a6f-05bc-4c5b-98ab-c56bddae3a6b] received\nworker-1  | [2026-08-20 09:04:05,431: INFO/ForkPoolWorker-1] Task task_app.recovery_kick[d7752a6f-05bc-4c5b-98ab-c56bddae3a6b] succeeded in 0.0010616732761263847s: 'recovery-kick'\nworker-1  | [2026-08-20 09:04:06,489: INFO/MainProcess] Task task_app.recovery_kick[ea31d9ee-2466-4f55-afc4-b17059b467c8] received\nworker-1  | [2026-08-20 09:04:06,490: INFO/ForkPoolWorker-1] Task task_app.recovery_kick[ea31d9ee-2466-4f55-afc4-b17059b467c8] succeeded in 0.0003436780534684658s: 'recovery-kick'\nworker-1  | [2026-08-20 09:04:07,594: INFO/MainProcess] Task task_app.recovery_sweep[595bed45-ce2d-4314-974b-1789275d45b5] received\nworker-1  | [2026-08-20 09:04:07,615: INFO/ForkPoolWorker-1] Task task_app.recovery_sweep[595bed45-ce2d-4314-974b-1789275d45b5] succeeded in 0.020604487974196672s: {'recovered_job_ids': ['job-1'], 'task_ids': ['d3eaeed5-b50a-4cdc-9305-576f104b95df']}\nworker-1  | [2026-08-20 09:04:07,617: INFO/MainProcess] Task task_app.in_flight_job[d3eaeed5-b50a-4cdc-9305-576f104b95df] received\nworker-1  | [2026-08-20 09:04:37,652: INFO/ForkPoolWorker-1] Task task_app.in_flight_job[d3eaeed5-b50a-4cdc-9305-576f104b95df] succeeded in 30.034555714111775s: {'attempt': 2, 'side_effect': 'completed', 'job_id': 'job-1'}\n",
+  "cleanup_verified": true
+}

@@ -11,14 +11,12 @@ import tempfile
 import time
 from pathlib import Path
 
-import redis
-
-
 TASK_SOURCE = r'''
 import os
 import time
 import redis
 from celery import Celery
+from job_lease import JobLeaseStore
 
 broker = os.environ["CELERY_BROKER_URL"]
 app = Celery("wp1_inflight", broker=broker, backend=broker)
@@ -34,9 +32,13 @@ app.conf.update(
 app.conf.broker_transport_options = {"visibility_timeout": 5, "unacked_restore_limit": 10}
 app.conf.task_acks_late = True
 app.conf.task_reject_on_worker_lost = True
+store = JobLeaseStore("/runtime/job-ledger.sqlite3")
 
 @app.task(bind=True, acks_late=True, reject_on_worker_lost=True)
-def in_flight_job(self):
+def in_flight_job(self, job_id):
+    lease = store.claim(job_id, self.request.id, lease_seconds=5)
+    if not lease:
+        return {"status": "already-completed-or-owned", "job_id": job_id}
     client = redis.Redis.from_url(broker)
     client.set("wp1:inflight:visibility_timeout", str(app.connection().transport_options.get("visibility_timeout")), ex=300)
     attempt = client.incr("wp1:inflight:attempts")
@@ -45,11 +47,18 @@ def in_flight_job(self):
     if client.setnx("wp1:inflight:side_effect", "completed"):
         client.incr("wp1:inflight:side_effect_count")
     client.set("wp1:inflight:completed", "true", ex=300)
-    return {"attempt": attempt, "side_effect": "completed"}
+    store.complete(job_id, self.request.id)
+    return {"attempt": attempt, "side_effect": "completed", "job_id": job_id}
 
 @app.task
 def recovery_kick():
     return "recovery-kick"
+
+@app.task
+def recovery_sweep():
+    job_ids = store.recover_expired()
+    task_ids = [in_flight_job.delay(job_id).id for job_id in job_ids]
+    return {"recovered_job_ids": job_ids, "task_ids": task_ids}
 '''
 
 
@@ -92,8 +101,10 @@ def main() -> int:
     command: celery -A task_app:app worker --loglevel=INFO --concurrency=1 --hostname=wp1-inflight@%h
     environment:
       CELERY_BROKER_URL: redis://redis:6379/0
+      PYTHONDONTWRITEBYTECODE: "1"
     volumes:
-      - {root}:/runtime:ro
+      - {root}:/runtime:rw
+      - {Path(__file__).parent.parent / 'app/core/job_lease.py'}:/runtime/job_lease.py:ro
     working_dir: /runtime
     depends_on:
       redis: {{condition: service_healthy}}
@@ -101,8 +112,10 @@ def main() -> int:
     image: {args.image}
     environment:
       CELERY_BROKER_URL: redis://redis:6379/0
+      PYTHONDONTWRITEBYTECODE: "1"
     volumes:
-      - {root}:/runtime:ro
+      - {root}:/runtime:rw
+      - {Path(__file__).parent.parent / 'app/core/job_lease.py'}:/runtime/job_lease.py:ro
     working_dir: /runtime
     depends_on:
       redis: {{condition: service_healthy}}
@@ -124,10 +137,9 @@ def main() -> int:
 
             sender = docker(
                 *base[1:], "run", "--rm", "sender", "python", "-c",
-                "from task_app import in_flight_job; print(in_flight_job.delay().id)",
+                "from task_app import store, in_flight_job; store.register('job-1'); print(in_flight_job.delay('job-1').id)",
             )
             evidence["task_id"] = sender.stdout.strip()
-            client = redis.Redis(host="127.0.0.1", port=6379)
             # Redis is not published; use compose exec for assertions instead.
             started = False
             for _ in range(45):
@@ -157,6 +169,11 @@ def main() -> int:
                 )
                 kick_ids.append(kick.stdout.strip())
             evidence["recovery_kick_task_ids"] = kick_ids
+            sweep = docker(
+                *base[1:], "run", "--rm", "sender", "python", "-c",
+                "from task_app import recovery_sweep; print(recovery_sweep.delay().id)",
+            )
+            evidence["recovery_sweep_task_id"] = sweep.stdout.strip()
             completed = False
             for _ in range(60):
                 value = docker(*base[1:], "exec", "redis", "redis-cli", "GET", "wp1:inflight:completed", check=False).stdout.strip()
@@ -166,14 +183,16 @@ def main() -> int:
                 time.sleep(1)
             attempts = docker(*base[1:], "exec", "redis", "redis-cli", "GET", "wp1:inflight:attempts", check=False).stdout.strip()
             side_effects = docker(*base[1:], "exec", "redis", "redis-cli", "GET", "wp1:inflight:side_effect_count", check=False).stdout.strip()
+            ledger = docker(*base[1:], "exec", "worker", "python", "-c", "from job_lease import JobLeaseStore; print(JobLeaseStore('/runtime/job-ledger.sqlite3').get('job-1'))", check=False).stdout.strip()
             evidence.update({
                 "completed_after_recovery": completed,
                 "attempts": attempts,
                 "side_effect_count": side_effects,
+                "ledger": ledger,
                 "redelivery_verified": int(attempts or "0") >= 2,
                 "duplicate_side_effect_prevented": side_effects == "1",
             })
-            if not completed or not evidence["redelivery_verified"] or not evidence["duplicate_side_effect_prevented"]:
+            if not completed or not evidence["redelivery_verified"] or not evidence["duplicate_side_effect_prevented"] or 'succeeded' not in ledger:
                 raise RuntimeError(f"in-flight recovery assertion failed: {evidence}")
             evidence["recovery_verified"] = True
             evidence["worker_logs_tail"] = docker(*base[1:], "logs", "--no-color", "--tail", "120", "worker", check=False).stdout[-5000:]

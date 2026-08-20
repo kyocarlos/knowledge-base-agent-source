@@ -12,10 +12,11 @@ import uuid
 from datetime import datetime
 from pathlib import Path
 from celery import Celery
-from celery.signals import worker_init
+from celery.signals import worker_init, worker_ready
 from kombu import Queue
 from ..storage_paths import resolve_storage_category
 from app.core.job_config import JOB_CONFIG, classify_job_error
+from app.core.job_lease import JobLeaseStore
 
 logger = logging.getLogger(__name__)
 
@@ -41,6 +42,8 @@ REPORT_QUERY_HINTS = (
 REPORT_RECALL_TOP_K = 60
 REPORT_FOCUS_HINTS = ("throughput", "latency", "bler", "rtt")
 REPORT_PERFORMANCE_SECTION_HINTS = ("performance test",)
+JOB_LEASE_SECONDS = int(os.getenv("KB_JOB_LEASE_SECONDS", "900"))
+JOB_LEASE_STORE = JobLeaseStore()
 
 
 def _attachment_hashes_from_state(state: dict) -> dict[str, str]:
@@ -645,9 +648,17 @@ def clear_ingest_task_history(statuses: list[str] | None = None) -> dict:
 @celery_app.task(name="tasks.ingest_file_task", bind=True, max_retries=JOB_CONFIG.max_retries)
 def ingest_file_task(self, task_id: str):
     """背景處理單一上傳檔案：轉 Markdown → 攝入 Neo4j/QDrant → 更新 index.md。"""
+    lease = JOB_LEASE_STORE.claim(task_id, self.request.id, JOB_LEASE_SECONDS)
+    if not lease:
+        current = get_ingest_task_state(task_id)
+        if current and current.get("status") == "completed":
+            return current
+        logger.warning("攝入任務未取得 lease，避免重複副作用: %s", task_id)
+        return current or {"task_id": task_id, "status": "queued", "job_status": "queued"}
     state = get_ingest_task_state(task_id)
     if not state:
         logger.error(f"找不到攝入任務狀態: {task_id}")
+        JOB_LEASE_STORE.fail(task_id, self.request.id)
         return {"status": "failed", "error": "找不到任務狀態", "task_id": task_id}
 
     document_id = state.get("document_id")
@@ -780,6 +791,8 @@ def ingest_file_task(self, task_id: str):
             error=None,
             content=(converted_path.read_text(encoding="utf-8")[:5000] if converted_path.exists() else "")
         )
+        if not JOB_LEASE_STORE.complete(task_id, self.request.id):
+            logger.warning("攝入任務完成 lease 更新失敗，保留狀態供 recovery 審查: %s", task_id)
         if state.get("document_id"):
             try:
                 from ..ingest_registry import IngestRegistry
@@ -804,10 +817,12 @@ def ingest_file_task(self, task_id: str):
         logger.error("攝入任務失敗 task_id=%s trace_id=%s retryable=%s: %s", task_id, trace_id, decision.retryable, e)
         if decision.retryable and self.request.retries < JOB_CONFIG.max_retries:
             update_ingest_task_state(task_id, status="retrying", error=decision.reason, trace_id=trace_id)
+            JOB_LEASE_STORE.mark_retrying(task_id, self.request.id)
             if lock_acquired:
                 release_document_lock(document_id, lock_owner)
             raise self.retry(exc=e, countdown=JOB_CONFIG.retry_countdown_seconds)
         failed_state = update_ingest_task_state(task_id, status="failed", error=str(e))
+        JOB_LEASE_STORE.fail(task_id, self.request.id)
         if state.get("document_id"):
             try:
                 from ..ingest_registry import IngestRegistry
@@ -824,6 +839,18 @@ def ingest_file_task(self, task_id: str):
         if lock_acquired:
             release_document_lock(document_id, lock_owner)
         return failed_state
+
+
+@worker_ready.connect
+def recover_expired_job_leases(sender=None, **kwargs):
+    """Requeue expired application leases once per worker service startup."""
+    recovered = JOB_LEASE_STORE.recover_expired()
+    for task_id in recovered:
+        try:
+            ingest_file_task.apply_async(args=[task_id], queue="ingest")
+            logger.warning("已由 lease recovery 重新排程攝入任務: %s", task_id)
+        except Exception:
+            logger.exception("lease recovery 重新排程失敗: %s", task_id)
 
 
 # ===== 任務定義 =====
