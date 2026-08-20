@@ -1,0 +1,43 @@
+{
+  "schema_version": "1.1",
+  "source_baseline": "01_AI_KM_Phase規劃_v2.6.xlsx",
+  "source_baseline_path": "docs/km-modernization/01_AI_KM_Phase規劃_v2.6.xlsx",
+  "source_baseline_status": "missing_from_git",
+  "week": "2026-W34",
+  "report_date": "2026-08-20",
+  "period": {"start": "2026-08-17", "cutoff": "2026-08-19 17:00", "timezone": "Asia/Taipei"},
+  "positioning": "WP1 Final Closure evidence synchronization",
+  "current_phase": "Phase 1 AI KM MVP（Production Ready）",
+  "weights": {"contract": 15, "implementation": 35, "tests": 25, "e2e": 15, "delivery": 10},
+  "work_packages": [
+    {"id":"WP0","phase":1,"owner":"Anderson","title":"FastAPI／REST API 與測試基線","scores":{"contract":15,"implementation":35,"tests":25,"e2e":14,"delivery":5},"progress":94,"status":"Owner Accepted／已合併至 v2.6 base","evidence":"progress/evidence/WP0.md","branch":"agent/wp0-wp1-v2.6-acceptance","head_sha":"2b60cfb10aca41ef7c29bd63c461544800c0aa97","slide_evidence":["PR #5 Owner Acceptance","exact-head CI 全部成功","merge eb1eb925；production synthetic E2E／rollback evidence"]},
+    {"id":"WP1","phase":1,"owner":"Anderson","title":"Docker／Redis／Celery／環境正式化","scores":{"contract":15,"implementation":35,"tests":25,"e2e":15,"delivery":6},"progress":96,"status":"Conditional Accept／Final Review Pending","evidence":"progress/evidence/WP1.md","branch":"agent/wp1-reliability-closure","head_sha":"79393183a0156f1bc878cd24c18f0c8a948fd93a","slide_evidence":["PR #9 Draft/open","application idempotency shadow PASS","system recovery matrix overall PENDING","production gate NO-GO"]},
+    {"id":"WP2","phase":1,"owner":"Patty Contract／Anderson Client","title":"CSIT Adapter／Booking／Validation Request 入口","progress":0,"status":"尚未開始"},
+    {"id":"WP3","phase":1,"owner":"共同","title":"OpenClaw／Report Workflow Adapter","progress":0,"status":"尚未開始"},
+    {"id":"WP4","phase":1,"owner":"Anderson","title":"Excel Parser／基本 RAG 正式化","progress":0,"status":"尚未開始"},
+    {"id":"WP5","phase":1,"owner":"Anderson","title":"Qdrant／Neo4j 基本檢索","progress":0,"status":"尚未開始"},
+    {"id":"WP6","phase":1,"owner":"Anderson","title":"TimescaleDB 基礎","progress":0,"status":"尚未開始"},
+    {"id":"WP7","phase":1,"owner":"共同／Anderson Portal","title":"RBAC／Citation／Audit／Portal","progress":0,"status":"尚未開始"},
+    {"id":"WP8","phase":1,"owner":"共同","title":"Phase 1 整合與驗收","progress":0,"status":"尚未開始"},
+    {"id":"WP9","phase":2,"owner":"共同／Anderson Implementation","title":"WiFi Benchmark 基礎轉檔／繪圖／查詢","progress":0,"status":"尚未開始"},
+    {"id":"WP10A","phase":2,"owner":"Anderson","title":"Document Intelligence","progress":0,"status":"尚未開始"},
+    {"id":"WP10B","phase":2,"owner":"Patty Spec／Anderson Implementation","title":"Knowledge Package／Validation／Routing／Rebuild","progress":0,"status":"尚未開始"},
+    {"id":"WP11","phase":3,"owner":"Anderson／共同","title":"受控 Agentic RAG","progress":0,"status":"尚未開始"},
+    {"id":"WP12","phase":4,"owner":"共同","title":"AI Analysis／Review／Evaluation","progress":0,"status":"尚未開始"},
+    {"id":"WP13","phase":5,"owner":"共同","title":"Workflow／Multi-Agent／Predictive","progress":0,"status":"尚未開始"}
+  ],
+  "phase_progress": {"1":21.1,"2":0,"3":0,"4":0,"5":0},
+  "program_progress": 12.7,
+  "weekly_outcomes": ["完成 WP1 application/business-flow idempotency shadow：並行重送只有一個 owner，recovery 後 side effect 維持一筆","建立 WP1 system recovery coverage matrix：filesystem/data PASS，其餘未有完整 restore evidence 的項目保留 PENDING","PR #9 維持 Draft/open，exact-head CI 全部成功；Production Gate 維持 NO-GO","W33 歷史資料保留不覆寫，W34 獨立保存本次 closure evidence"],
+  "quality": [
+    {"gate":"G0 API baseline","status":"通過（保留限制）","detail":"既有 WP0 Owner Acceptance、CI、synthetic E2E 與 rollback 證據保留。"},
+    {"gate":"G1 Job reliability","status":"條件通過／Final Review Pending","detail":"worker recovery、application idempotency shadow PASS；system recovery matrix overall PENDING，PR #9 尚未 merge。"},
+    {"gate":"G2～G8","status":"未開始","detail":"WP2～WP13 無實作證據。"}
+  ],
+  "risks": ["v2.6 原始 Excel 尚未存在於 Git，規劃來源 Gate 仍阻塞","WP1 application shadow 不等於 Neo4j、Qdrant、Redis 完整 restore；matrix 有 PENDING","PR #9 尚未 review/merge，不能宣稱 WP1 final closure","WP2 依賴 Patty CSIT API、Booking、Validation Request Contract；未取得前不得正式實作"],
+  "decisions": ["保留 W33 歷史，不覆寫既有週報數字","接受 WP1 shadow evidence 但保留 system recovery matrix PENDING","由 Patty 提供 WP2 prerequisite contracts 後再規劃 WP2","production write、migration、live restore 仍需另行核准"],
+  "next_week": ["完成 WP1 pending recovery evidence 的可行性評估，不執行未核准 production restore","完成 PR #9 Final Review 前的 evidence cross-reference 檢查","取得 Patty Contract 並確認 WP2 boundary；未取得時維持 WP2=0%","若有主管核准的正式 PPTX，依既有流程另存 W34 歷史版本並逐頁渲染"],
+  "coverage_matrix": {"status":"PENDING","evidence":"progress/evidence/WP1-system-recovery-coverage-matrix-20260820.md","json":"outputs/wp1-system-recovery-coverage-matrix-20260820.json","json_sha256":"944e700643425279a41894de59a11f8c96c69f3775050025abb990768a2b65c2"},
+  "production_gate": "NO-GO",
+  "formal_pptx": {"status":"not_updated","reason":"本階段沒有新的主管核准 17 頁 PPTX；不得以 7 頁候選產物取代正式簡報。"}
+}
