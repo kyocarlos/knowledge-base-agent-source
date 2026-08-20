@@ -1,0 +1,163 @@
+name: WP0 Contract Baseline
+
+on:
+  push:
+    branches:
+      - agent/wp0-fastapi-contract
+  pull_request:
+    branches:
+      - agent/km-modify-codex-plan
+      - agent/km-plan-v2.6-anderson
+      - dev-work
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: "Read-only portal base URL"
+        required: false
+        default: "https://61.216.9.52:3030"
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: wp0-contract-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
+
+      - name: Install Python dependencies
+        run: python -m pip install -r requirements-dev.txt
+
+      - name: Run tests
+        run: python -m pytest -q tests
+
+      - name: Compile Python sources
+        run: python -m compileall -q app src km_a2a_bridge tests
+
+      - name: Validate E2E runner syntax
+        run: python -m py_compile .github/webwright/wp0_firefox_e2e.py
+
+      - name: Validate Compose configuration
+        env:
+          KB_REPORT_DB_PASSWORD: ci-only-report-password
+          NEO4J_PASSWORD: ci-only-neo4j-password
+        run: docker compose config --quiet
+
+      - name: Check shell syntax
+        run: bash -n start.sh restart_kb.sh release/build_release.sh
+
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Build frontend
+        run: npm run build
+
+  repository-hygiene:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # The whitespace check compares against the PR base SHA. A full fetch
+          # is required because the default checkout is shallow and may not
+          # contain that commit.
+          fetch-depth: 0
+
+      - name: Check whitespace
+        run: git diff --check "${{ github.event.pull_request.base.sha || github.event.before }}" "${{ github.sha }}"
+
+      - name: Check common credential patterns
+        run: |
+          if git grep -n -E '(^|[^A-Za-z])(sk-[A-Za-z0-9]{20,}|gh[pousr]_[A-Za-z0-9_]{20,}|-----BEGIN ([A-Z ]+ )?PRIVATE KEY-----)' -- .; then
+            echo "Potential credential pattern found"
+            exit 1
+          fi
+
+  e2e-firefox:
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/agent/wp0-fastapi-contract')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Prepare redacted artifact directory
+        run: |
+          mkdir -p e2e-artifacts/screenshots
+          printf '%s' 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=' | base64 --decode > e2e-artifacts/screenshots/runner-not-started.png
+          printf '%s\n' 'runner_not_started FAIL' > e2e-artifacts/action.log
+          printf '%s\n' '[]' > e2e-artifacts/network-summary.json
+          printf '%s\n' '[]' > e2e-artifacts/console-summary.json
+          printf '%s\n' '{"gate_status":"FAIL","failure_areas":["runner_not_started"]}' > e2e-artifacts/result.json
+
+      - name: Install Playwright fallback
+        continue-on-error: true
+        run: python -m pip install "playwright==1.51.0"
+
+      - name: Install Firefox
+        continue-on-error: true
+        run: python -m playwright install --with-deps firefox
+
+      - name: Run read-only Firefox E2E evidence
+        continue-on-error: true
+        env:
+          BASE_URL: "${{ inputs.base_url || 'https://61.216.9.52:3030' }}"
+          E2E_ARTIFACT_DIR: e2e-artifacts
+        run: python .github/webwright/wp0_firefox_e2e.py
+
+      - name: Upload redacted E2E artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: wp0-firefox-e2e-evidence
+          path: e2e-artifacts
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Apply E2E gate
+        if: always()
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          result = json.loads(Path("e2e-artifacts/result.json").read_text())
+          status = result.get("gate_status")
+          failures = result.get("failure_areas", [])
+          print(f"gate_status={status}")
+          if status != "PASS":
+              raise SystemExit("E2E gate failed: " + ",".join(failures))
+          PY

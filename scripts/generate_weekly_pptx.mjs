@@ -28,7 +28,7 @@ const round1 = (value) => Math.round(value * 10) / 10;
 const data = JSON.parse(fs.readFileSync(dataPath, "utf8"));
 
 function validate() {
-  for (const key of ["schema_version", "source_baseline", "week", "report_date", "period", "positioning", "current_phase", "weights", "work_packages", "phase_progress", "program_progress", "weekly_outcomes", "quality", "risks", "decisions", "next_week"]) required(data[key], key);
+  for (const key of ["schema_version", "source_baseline", "source_baseline_path", "source_baseline_status", "week", "report_date", "period", "positioning", "current_phase", "weights", "work_packages", "phase_progress", "program_progress", "weekly_outcomes", "quality", "risks", "decisions", "next_week"]) required(data[key], key);
   if (data.week !== week) throw new Error(`week 不一致: ${data.week}`);
   const expectedWeights = { contract: 15, implementation: 35, tests: 25, e2e: 15, delivery: 10 };
   for (const [key, value] of Object.entries(expectedWeights)) if (data.weights[key] !== value) throw new Error(`權重錯誤: ${key}`);
@@ -36,6 +36,11 @@ function validate() {
   const ids = data.work_packages.map((wp) => wp.id);
   const expectedIds = ["WP0","WP1","WP2","WP3","WP4","WP5","WP6","WP7","WP8","WP9","WP10A","WP10B","WP11","WP12","WP13"];
   if (JSON.stringify(ids) !== JSON.stringify(expectedIds)) throw new Error("WP 清單或順序錯誤");
+  for (const wp of data.work_packages.slice(0, 2)) {
+    for (const key of ["branch", "head_sha", "slide_evidence"]) required(wp[key], `${wp.id}.${key}`);
+    if (!/^[0-9a-f]{40}$/.test(wp.head_sha)) throw new Error(`${wp.id}.head_sha 格式錯誤`);
+    if (!Array.isArray(wp.slide_evidence) || wp.slide_evidence.length === 0) throw new Error(`${wp.id}.slide_evidence 必須為非空陣列`);
+  }
   for (const wp of data.work_packages) {
     if (wp.scores) {
       const score = Object.values(wp.scores).reduce((sum, value) => sum + value, 0);
@@ -117,9 +122,9 @@ s.addText(`全計畫 ${data.program_progress}%`,{x:9.8,y:4.7,w:2.5,h:0.55,fontFa
 s.addText("1 / 7",{x:11.8,y:6.95,w:0.7,h:0.25,fontFace:"Aptos",fontSize:10,color:"AFC1CD",align:"right",margin:0});
 
 s = pptx.addSlide("WEEKLY"); title(s,"主管摘要","本週結論：Phase 1 已有前置實作成果，但 Gate 尚未正式關閉");
-box(s,0.65,1.55,3.8,2.0,"全計畫",`${data.program_progress}%\nv2.6 是唯一規劃基準`,C.navy);
+box(s,0.65,1.55,3.8,2.0,"全計畫",`${data.program_progress}%\n${data.source_baseline}`,C.navy);
 box(s,4.75,1.55,3.8,2.0,"Phase 1",`${data.phase_progress["1"]}%\nWP0 ${data.work_packages[0].progress}%｜WP1 ${data.work_packages[1].progress}%`,C.teal);
-box(s,8.85,1.55,3.8,2.0,"主管關注","WP0 CI overall failure\nWP1 尚無 PR／Review／Merge",C.amber);
+box(s,8.85,1.55,3.8,2.0,"主管關注",data.risks.slice(0,2).join("\n"),C.amber);
 bullets(s,data.weekly_outcomes,0.9,4.15,11.6,1.95,16);
 
 s = pptx.addSlide("WEEKLY"); title(s,"Phase 1～5 總進度","規劃完成不等於實作完成；Phase 分數由所屬 WP 平均");
@@ -128,8 +133,10 @@ phaseNames.forEach((name,index)=>progress(s,name,data.phase_progress[String(inde
 s.addText(`全計畫進度 ${data.program_progress}%（15 個 WP 等權平均）`,{x:0.9,y:6.15,w:11.5,h:0.42,fontFace:"Microsoft JhengHei",fontSize:18,bold:true,color:C.navy,align:"center",margin:0});
 
 s = pptx.addSlide("WEEKLY"); title(s,"本週 WP 成果","只呈現有 commit、PR、CI 或驗收證據的工作");
-box(s,0.7,1.5,5.8,3.55,"WP0｜82%","FastAPI contract 與測試基線\n• head 19d0751e\n• PR #2 open，無 review／merge\n• backend、frontend 成功\n• hygiene whitespace failure",C.amber);
-box(s,6.83,1.5,5.8,3.55,"WP1｜87%","Job/config reliability\n• head cfe5eb0d\n• CI 三個 job 全部成功\n• 隔離 runtime restart/idempotency\n• 無 PR／review／merge",C.teal);
+const wp0 = data.work_packages[0];
+const wp1 = data.work_packages[1];
+box(s,0.7,1.5,5.8,3.55,`${wp0.id}｜${wp0.progress}%`,`${wp0.title}\n• head ${wp0.head_sha.slice(0,8)}\n• ${wp0.slide_evidence.join("\n• ")}`,C.amber);
+box(s,6.83,1.5,5.8,3.55,`${wp1.id}｜${wp1.progress}%`,`${wp1.title}\n• head ${wp1.head_sha.slice(0,8)}\n• ${wp1.slide_evidence.join("\n• ")}`,C.teal);
 s.addText("WP2～WP13：0%｜依 v2.6 新 WP 對應，無實作證據",{x:1.0,y:5.55,w:11.3,h:0.48,fontFace:"Microsoft JhengHei",fontSize:19,bold:true,color:C.muted,align:"center",margin:0});
 
 s = pptx.addSlide("WEEKLY"); title(s,"Gate 與品質狀態","Gate 未通過，不以程式存在或單一測試成功替代");

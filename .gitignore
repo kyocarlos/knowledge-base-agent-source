@@ -18,6 +18,7 @@ data/raw/
 data/markdown/
 *.xlsx
 *.xls
+!docs/km-modernization/01_AI_KM_Phase規劃_v2.6.xlsx
 config/report-ingest.env
 data/cleaned/
 data/watch/

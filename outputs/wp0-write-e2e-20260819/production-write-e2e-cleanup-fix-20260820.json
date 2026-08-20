@@ -1,0 +1,66 @@
+{
+  "evidence_type": "production_synthetic_write_e2e_cleanup_fix",
+  "executed_at": "2026-08-20T03:26:25Z",
+  "base_url": "local_tls_127.0.0.1:3030",
+  "test_run_id": "TR-E2E-WP0-20260820-PROD-CLEANUP-FIX-001",
+  "fixture": "TR-E2E-WP0-20260820-PROD-CLEANUP-FIX-001.xlsx",
+  "image": "kb-wp01-e2e:20260820-cleanup-fix",
+  "image_id": "sha256:afb9b8bfccd1fb2feb0f6cb66b0fdf2ec78199631a9ea83badef27cfd3a5c83b",
+  "real_instrument_accessed": false,
+  "real_user_data_used": false,
+  "production_services_touched": true,
+  "steps": {
+    "upload": {
+      "status": 202
+    },
+    "approve": {
+      "status": 200
+    },
+    "terminal": {
+      "status": 200,
+      "submission_status": "completed",
+      "ingest_task_id_present": true,
+      "error_present": false
+    },
+    "cleanup_dry_run": {
+      "status": 200
+    },
+    "cleanup_apply": {
+      "status": 200
+    },
+    "post_cleanup_submission": {
+      "status": 404
+    }
+  },
+  "submission_id": "report_20260820_032625_7b84bb25",
+  "cleanup_plan": {
+    "active_task_count": 0,
+    "counts": {
+      "reports": 1,
+      "neo4j": {
+        "TestRun": 1,
+        "TestCase": 1,
+        "Measurement": 1
+      },
+      "qdrant": {
+        "points": 4
+      }
+    }
+  },
+  "cleanup_deleted": {
+    "files": 2,
+    "redis_tasks": 1,
+    "reports": 1,
+    "ingest_records": 0,
+    "neo4j": {
+      "Measurement": 1,
+      "TestCase": 1,
+      "TestRun": 1
+    },
+    "qdrant_points": 4
+  },
+  "cleanup_reconciled": true,
+  "workflow_result": "completed",
+  "formal_write_gate": "PASS",
+  "result": "passed"
+}
