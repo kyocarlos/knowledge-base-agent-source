@@ -1,0 +1,12 @@
+{
+  "schema": "km.wp1.release-candidate-build.v1",
+  "release_candidate_commit": "d44485540427f180950997831aa8c3cd789a5f0f",
+  "release_id": "wp1-convergence-20260821",
+  "build_timestamp": "2026-08-21T12:09:25+08:00",
+  "image_tag": "kb-wp1-release:wp1-convergence-20260821",
+  "image_id": "sha256:aae454ffe5caf1a0b562ac9e6ec34b289ea14836c4941e962bf9d061796eae29",
+  "image_digest_source": "local docker image ID; registry digest requires a separately approved registry push",
+  "production_touched": false,
+  "deployed": false,
+  "secrets_included": false
+}

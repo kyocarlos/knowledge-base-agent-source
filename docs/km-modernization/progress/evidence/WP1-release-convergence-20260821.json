@@ -1,0 +1,70 @@
+{
+  "schema": "km.wp1.release-convergence.v1",
+  "reviewed_at": "2026-08-21T12:09:25+08:00",
+  "release_candidate": {
+    "branch": "agent/wp1-release-convergence",
+    "source_commit": "d44485540427f180950997831aa8c3cd789a5f0f",
+    "review_head_after_evidence_commit": null,
+    "build_evidence": "outputs/wp1-release-candidate-build-20260821.json",
+    "production_deployed": false
+  },
+  "comparisons": {
+    "pr9_reviewed_source": {
+      "commit": "fefcc857ee3d3e8531154b5f3b98f38878c93423",
+      "changed_file_count_to_candidate": 10,
+      "patch_sha256": "5e2d54b7043a050f63e0cb13b8c49d29a272aa4d936d9ba95e7d66407ca2f728"
+    },
+    "production_deployed_source": {
+      "commit": "5c7ea2dac186bd906a4d7df64db25d55133674cc",
+      "changed_file_count_to_candidate": 96,
+      "patch_sha256": "2da0de894117e8aa04c65fd731e76c96d75507eb8652e37c456e9796a8e05853"
+    }
+  },
+  "changed_file_classification": {
+    "rollout_and_build_support": [
+      "restart_kb.sh",
+      "frontend/lib/marked.min.js",
+      "frontend/lib/compare-rules.js",
+      "data/.gitkeep",
+      "scripts/build_wp1_release_candidate.sh"
+    ],
+    "release_identity_only": [
+      "app/api/v1/router.py",
+      "app/core/config.py",
+      "app/schemas/common.py",
+      "docker-compose.yml"
+    ],
+    "verification_only": [
+      "tests/test_wp0_api_contract.py"
+    ],
+    "wp2_or_real_instrument_changes": [],
+    "unreviewed_business_logic_changes": [],
+    "functional_behavior_change": {
+      "present": true,
+      "scope": "controlled operational lifecycle gates and additive /api/v1/version release metadata only",
+      "business_workflow_changed": false
+    }
+  },
+  "image": {
+    "tag": "kb-wp1-release:wp1-convergence-20260821",
+    "local_image_id": "sha256:aae454ffe5caf1a0b562ac9e6ec34b289ea14836c4941e962bf9d061796eae29",
+    "immutable_registry_digest": null,
+    "build_timestamp": "2026-08-21T12:09:25+08:00",
+    "registry_push": "not performed"
+  },
+  "acceptance": {
+    "production_gate": "NO-GO",
+    "accepted_for_pr9": false,
+    "production_redeploy_authorized": false,
+    "synthetic_e2e_run_id": null,
+    "cleanup_result": "not executed",
+    "remaining_deferred_recovery_gates": [
+      "application registry/database restore",
+      "Neo4j disaster restore",
+      "Qdrant disaster restore",
+      "Redis full persistence restore",
+      "runtime configuration restore"
+    ]
+  },
+  "secrets_included": false
+}
