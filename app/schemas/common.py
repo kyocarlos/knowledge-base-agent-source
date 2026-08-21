@@ -40,3 +40,6 @@ class VersionData(BaseModel):
     version: str
     environment: str
     commit: str | None
+    release_id: str | None = None
+    image_digest: str | None = None
+    build_timestamp: str | None = None

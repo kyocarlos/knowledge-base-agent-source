@@ -46,7 +46,20 @@ def test_health_live_ready_and_version_use_the_v1_envelope():
         "version": "9.8.7",
         "environment": "test",
         "commit": "abc123",
+        "release_id": None,
+        "image_digest": None,
+        "build_timestamp": None,
     }
+
+
+def test_version_exposes_release_identity_from_environment(monkeypatch):
+    monkeypatch.setenv("KM_RELEASE_ID", "wp1-release-20260821")
+    monkeypatch.setenv("KM_IMAGE_DIGEST", "sha256:" + "a" * 64)
+    monkeypatch.setenv("KM_BUILD_TIMESTAMP", "2026-08-21T12:00:00+08:00")
+    settings = AppSettings.from_env()
+    assert settings.release_id == "wp1-release-20260821"
+    assert settings.image_digest == "sha256:" + "a" * 64
+    assert settings.build_timestamp == "2026-08-21T12:00:00+08:00"
 
 
 def test_invalid_trace_header_is_replaced_and_same_id_is_logged(caplog):
