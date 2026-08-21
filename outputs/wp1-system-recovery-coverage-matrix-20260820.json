@@ -4,6 +4,9 @@
   "timezone": "Asia/Taipei",
   "mode": "isolated-shadow-evidence-review",
   "production_touched": false,
+  "reviewed_commit": "fefcc857ee3d3e8531154b5f3b98f38878c93423",
+  "ci_commit": "fefcc857ee3d3e8531154b5f3b98f38878c93423",
+  "evidence_commit": "fefcc857ee3d3e8531154b5f3b98f38878c93423",
   "overall_status": "PENDING",
   "items": [
     {
@@ -58,5 +61,6 @@
     }
   ],
   "production_gate": "NO-GO",
-  "next_action": "Obtain separately approved, isolated recovery evidence for pending components; do not modify production to close this matrix."
+  "next_action": "Obtain separately approved, isolated recovery evidence for pending components; do not modify production to close this matrix.",
+  "production_deployment_boundary": "Observed deployment source differs from PR #9 reviewed source; it is recorded separately and does not change this matrix or the NO-GO gate."
 }

@@ -1,0 +1,54 @@
+{
+  "schema": "km.wp1.production-deployment-boundary.v1",
+  "captured_at": "2026-08-21T11:35:17+08:00",
+  "timezone": "Asia/Taipei",
+  "production_touched": true,
+  "production_gate": "NO-GO",
+  "status": "observed_but_not_attributable_to_pr9",
+  "pr": {
+    "number": 9,
+    "branch": "agent/wp1-reliability-closure",
+    "reviewed_commit": "fefcc857ee3d3e8531154b5f3b98f38878c93423",
+    "ci_commit": "fefcc857ee3d3e8531154b5f3b98f38878c93423",
+    "evidence_commit": "fefcc857ee3d3e8531154b5f3b98f38878c93423",
+    "state": "OPEN",
+    "draft": true
+  },
+  "deployed_release": {
+    "source_commit": "5c7ea2dac186bd906a4d7df64db25d55133674cc",
+    "source_branch": "agent/wp01-production-rollout-fix",
+    "live_tag": "kb-wp01-live:65b490df126a-20260821110939",
+    "container_start_observed_at": "2026-08-21T11:09:44+08:00",
+    "deployment_end": null,
+    "deployment_end_status": "not_recorded_in_machine_readable_deployment_artifact",
+    "previous_known_good_checkpoint": "/home/da40_ai_gb10/kb-pre-wp01-backups/pre-deploy-wp01-maintenance-20260821-102314",
+    "previous_checkpoint_sha256": "65e167878d88bfddb7dd1655d485ed5fcbbac0a5883bdc550d14d4bcf42b0327",
+    "rollback_drill": "/home/da40_ai_gb10/kb-pre-wp01-drills/20260821_100839/rollback-drill.json",
+    "rollback_result": "PASS"
+  },
+  "image_digests": {
+    "web": "sha256:a3220ec33ab80c588f289d8560af96c447c6f573da3145fe66ffa2cd719b16ec",
+    "celery_search_worker": "sha256:af2948686fe51e24cb0cf83eda97e6371ddb1bb19d4ec6568ae38fd89420195e",
+    "celery_ingest_worker": "sha256:ecf5d163fa3f8f48afe2b585bb9d8894e6e4c6501712e5663ba0b900a64991a0",
+    "celery_beat": "sha256:a4a9d69cadf3f6d48a3dc282899b3e3a172af557046a25df57eb77d45d6a53e1"
+  },
+  "checks": {
+    "health": "PASS",
+    "version": "PASS_HTTP_200_BUT_COMMIT_FIELD_NULL",
+    "chat_read_only": "PASS",
+    "search": "PASS_STATUS_GATE_ONLY",
+    "upload_ingest": "PENDING_NOT_EXECUTED_IN_THIS_DEPLOYMENT_RECORD",
+    "report_review": "PENDING_NOT_EXECUTED_IN_THIS_DEPLOYMENT_RECORD",
+    "websocket": "PASS",
+    "worker_recovery": "PASS_EXISTING_ISOLATED_SHADOW_EVIDENCE",
+    "application_idempotency": "PASS_EXISTING_ISOLATED_SHADOW_EVIDENCE",
+    "synthetic_e2e_run_id": null,
+    "cleanup": "PENDING_DEPLOYMENT_SPECIFIC_CLEANUP_NOT_RECORDED"
+  },
+  "acceptance": {
+    "accepted_for_pr9": false,
+    "reason": "The observed deployed release source differs from PR #9 reviewed head, and the deployment-specific write-path evidence is incomplete.",
+    "next_action": "Keep PR #9 Draft and Production Gate NO-GO; obtain separately authorized deployment evidence or redeploy the exact PR #9 reviewed source before acceptance review."
+  },
+  "secrets_included": false
+}

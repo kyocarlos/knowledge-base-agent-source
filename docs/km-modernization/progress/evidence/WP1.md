@@ -39,5 +39,14 @@ CI：原 WP1 分支 [run 31449165822](https://github.com/kyocarlos/knowledge-bas
 - In-flight recovery：isolated shadow PASS；worker 中止後由 application lease recovery 接手 attempt 2，side effect count=`1`，無重複完成。
 - Application/business-flow idempotency：isolated shadow PASS；四個 concurrent duplicate submissions 只有一個 live owner，recovery attempt=`2`，late duplicate claim=`false`，final ledger=`succeeded`。
 - Evidence：`outputs/inflight-job-recovery-final-shadow-20260820.json` SHA-256=`5db86c8016c75ca4880e0825d67ff08ef8f9871723a770b4882ef5f5280f9f8a`；`outputs/wp1-application-idempotency-shadow-20260820/application-idempotency-shadow-20260820.json` SHA-256=`d11cec9a796ec091c5e5b7d21751b2baa6e937b2f87d82bc8d01cd0dc8b1c6fc`。
-- System recovery coverage matrix：overall=`PENDING`。filesystem/data=`PASS`；application registry/database、Neo4j、Qdrant、Redis 完整 restore、configuration=`PENDING`。完整矩陣見 `docs/km-modernization/progress/evidence/WP1-system-recovery-coverage-matrix-20260820.md`，JSON SHA-256=`944e700643425279a41894de59a11f8c96c69f3775050025abb990768a2b65c2`。
-- PR #9：`agent/wp1-reliability-closure`，head=`79393183a0156f1bc878cd24c18f0c8a948fd93a`，Draft/open，未合併。Production Gate=`NO-GO`。
+- System recovery coverage matrix：overall=`PENDING`。filesystem/data=`PASS`；application registry/database、Neo4j、Qdrant、Redis 完整 restore、configuration=`PENDING`。完整矩陣見 `docs/km-modernization/progress/evidence/WP1-system-recovery-coverage-matrix-20260820.md`，JSON SHA-256=`05e347a3b6cc471343ceacadde434f4a33afae7eada5c294edefb966b5e4d63f`。
+- PR #9：`agent/wp1-reliability-closure`，Final Review source head=`fefcc857ee3d3e8531154b5f3b98f38878c93423`，Draft/open，未合併。Production Gate=`NO-GO`。
+- Source-of-truth identities：`reviewed commit = CI commit = evidence commit = fefcc857ee3d3e8531154b5f3b98f38878c93423`。本次文件修正的 Git commit 另由 Git history 保存，不取代該 Final Review source identity。
+
+## 2026-08-21 deployment evidence boundary
+
+- 主機曾完成一次 WP0/WP1 release deployment，實際 release source=`5c7ea2dac186bd906a4d7df64db25d55133674cc`，live tag=`kb-wp01-live:65b490df126a-20260821110939`；該 source 不是 PR #9 head，因此不能宣稱 PR #9 已完成 production acceptance。
+- Web image digest=`sha256:a3220ec33ab80c588f289d8560af96c447c6f573da3145fe66ffa2cd719b16ec`；search worker=`sha256:af2948686fe51e24cb0cf83eda97e6371ddb1bb19d4ec6568ae38fd89420195e`；ingest worker=`sha256:ecf5d163fa3f8f48afe2b585bb9d8894e6e4c6501712e5663ba0b900a64991a0`；beat=`sha256:a4a9d69cadf3f6d48a3dc282899b3e3a172af557046a25df57eb77d45d6a53e1`。
+- Backup checkpoint=`/home/da40_ai_gb10/kb-pre-wp01-backups/pre-deploy-wp01-maintenance-20260821-102314`；checkpoint SHA-256=`65e167878d88bfddb7dd1655d485ed5fcbbac0a5883bdc550d14d4bcf42b0327`；rollback drill=`/home/da40_ai_gb10/kb-pre-wp01-drills/20260821_100839/rollback-drill.json`，結果 PASS。
+- Health／Version、Celery worker/queue、JobConfig、Beat、WebSocket、Qdrant、Ollama gates 已觀測 PASS；Chat read-only flow 已完成。Upload/Ingest、Report Review、synthetic production run_id、deployment-specific cleanup 及本次 deployment 的精確結束時間沒有形成完整可下載 evidence，故標示為 `PENDING`，不推升 WP1 或關閉 Production Gate。
+- 完整 machine-readable deployment boundary record：[WP1-production-deployment-20260821.json](WP1-production-deployment-20260821.json)。

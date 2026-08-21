@@ -6,6 +6,9 @@
 from the remaining system recovery areas. It does not claim that a filesystem
 restore is a complete KM system restore.
 
+Source-of-truth identities: `reviewed commit = CI commit = evidence commit =
+fefcc857ee3d3e8531154b5f3b98f38878c93423`.
+
 | Component | Status | Reason | Evidence |
 |---|---|---|---|
 | filesystem/data | PASS | Synthetic backup bundle restored with matching scoped source/restored hashes. | `outputs/backup-restore-shadow-20260820.json` |
@@ -28,6 +31,10 @@ restore is a complete KM system restore.
 `production_gate=NO-GO`. This matrix does not authorize production writes,
 migrations, credential bypass, deployment, or live database restore. The
 pending items require separately approved, isolated validation windows.
+
+An observed host deployment is documented separately in
+[`WP1-production-deployment-20260821.md`](WP1-production-deployment-20260821.md)
+because its release source is not the PR #9 reviewed source.
 
 Machine-readable source:
 `outputs/wp1-system-recovery-coverage-matrix-20260820.json`
