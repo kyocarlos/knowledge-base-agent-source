@@ -1,0 +1,53 @@
+{
+  "schema": "km.wp1.production-attribution-review.v1",
+  "reviewed_at": "2026-08-21T11:45:00+08:00",
+  "pr": {
+    "number": 9,
+    "reviewed_commit": "fefcc857ee3d3e8531154b5f3b98f38878c93423",
+    "current_head": "5447c4b302f6c0b0a063a3eeec02e6926e9211a6",
+    "branch": "agent/wp1-reliability-closure",
+    "base": "agent/km-plan-v2.6-anderson"
+  },
+  "deployed_release": {
+    "commit": "5c7ea2dac186bd906a4d7df64db25d55133674cc",
+    "branch": "agent/wp01-production-rollout-fix",
+    "common_ancestor": "d39f9f790eb0cd0ebaf4a992b2664bd1d8b3143e"
+  },
+  "comparison": {
+    "same_commit": false,
+    "deployed_commit_contains_pr_reviewed_commit": false,
+    "changed_file_count": 93,
+    "diff_sha256": "1785abf7503e00c560d09078fac439926aaca46c5fad463a6b21b5c9332cf549",
+    "deployment_only_change_set": false,
+    "unreviewed_application_or_runtime_changes": true,
+    "representative_non_deployment_changes": [
+      "app/core/job_lease.py deleted",
+      "src/ingest_registry.py modified",
+      "src/test_reports/auth.py modified",
+      "src/web_api/__init__.py modified",
+      "src/web_api/report_routes.py modified",
+      "src/web_api/tasks.py modified",
+      "docker-compose.yml modified",
+      "restart_kb.sh modified",
+      ".github/workflows/wp0-contract.yml modified",
+      "tests/test_job_lease.py deleted",
+      "tests/test_write_e2e_gate.py deleted"
+    ]
+  },
+  "decision": {
+    "option_a": "not executed; no immutable image built from PR #9 reviewed source",
+    "option_b": "rejected; diff is not limited to deployment/production fixes",
+    "accepted_for_pr9": false,
+    "production_gate": "NO-GO",
+    "wp1_progress": 96,
+    "next_action": "Do not redeploy or perform production write. Obtain a separately reviewed release branch or explicit new approval before any attribution or acceptance attempt."
+  },
+  "safety": {
+    "production_write_performed_by_this_review": false,
+    "migration_performed": false,
+    "destructive_restore_performed": false,
+    "real_instrument_access": false,
+    "wp2_started": false,
+    "secrets_included": false
+  }
+}
