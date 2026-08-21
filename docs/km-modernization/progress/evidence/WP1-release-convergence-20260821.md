@@ -3,12 +3,25 @@
 ## Candidate
 
 - Branch: `agent/wp1-release-convergence`
-- Code source commit: `d44485540427f180950997831aa8c3cd789a5f0f`
+- Release source commit: `38dda63f4ba53762d926d9874bdf310e3a0eb324`
+- CI source commit: `38dda63f4ba53762d926d9874bdf310e3a0eb324`
+- Evidence record commit: recorded by the evidence update commit and intentionally distinct from the release source.
 - Based on PR #9 latest reviewed package; no production deployment performed.
-- Local image: `kb-wp1-release:wp1-convergence-20260821`
+- Local image: `kb-wp1-release:wp1-final-20260821`
 - Local image ID: `sha256:aae454ffe5caf1a0b562ac9e6ec34b289ea14836c4941e962bf9d061796eae29`
-- Build time: `2026-08-21T12:09:25+08:00`
+- Build time: `2026-08-21T12:27:40+08:00`
+- Build result: `PASS` (exact-head source verified; cache-reused local build).
+- Local image ID: `sha256:aae454ffe5caf1a0b562ac9e6ec34b289ea14836c4941e962bf9d061796eae29`
 - Registry push/digest: not performed; requires separate approval.
+
+## Runtime Version Validation
+
+An isolated container returned `GET /api/v1/version` with HTTP 200. The
+response reported commit `38dda63f4ba53762d926d9874bdf310e3a0eb324`, release ID
+`wp1-final-20260821`, image identity
+`sha256:aae454ffe5caf1a0b562ac9e6ec34b289ea14836c4941e962bf9d061796eae29`,
+and build time `2026-08-21T12:27:40+08:00`. The container was removed after the
+check.
 
 ## Scope
 
