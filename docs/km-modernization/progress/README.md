@@ -12,4 +12,4 @@
 
 正式流程與計分規則見 [`../05-weekly-reporting-and-pptx.md`](../05-weekly-reporting-and-pptx.md)。
 
-目前 Git tree 尚未包含 `01_AI_KM_Phase規劃_v2.6.xlsx`。在原始 Excel 經 Owner 核對並提交前，v2.6 文件可用於差異補正，但正式規劃來源 Gate 維持阻塞，不得以衍生 Markdown 反向重建 Excel。
+唯一正式規劃基準為 [`01_AI_KM_Phase規劃_v2.6.xlsx`](../01_AI_KM_Phase規劃_v2.6.xlsx)，SHA-256=`4c5a4782e727b5675add29027a5a09192966f126baa5ca648d89b22c333fba46`。週報、JSON、Evidence 與 PPTX 的 Phase/WP 數字必須回溯此 Excel；不得以衍生 Markdown 反向重建或取代 Excel。

@@ -1,6 +1,11 @@
 {
   "schema": "km.wp1.release-convergence.v1",
   "reviewed_at": "2026-08-21T12:09:25+08:00",
+  "planning_baseline": {
+    "path": "docs/km-modernization/01_AI_KM_Phase規劃_v2.6.xlsx",
+    "sha256": "4c5a4782e727b5675add29027a5a09192966f126baa5ca648d89b22c333fba46",
+    "authority": "唯一正式規劃基準"
+  },
   "release_candidate": {
     "branch": "agent/wp1-release-convergence",
     "source_commit": "d44485540427f180950997831aa8c3cd789a5f0f",
