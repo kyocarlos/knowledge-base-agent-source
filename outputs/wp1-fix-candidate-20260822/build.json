@@ -1,0 +1,12 @@
+{
+  "schema": "km.wp1.release-candidate-build.v1",
+  "release_candidate_commit": "12328e19a089b62a15a2a31582b8f05e9ceaa503",
+  "release_id": "wp1-fix-20260822",
+  "build_timestamp": "2026-08-22T12:53:13+08:00",
+  "image_tag": "kb-wp1-release:wp1-fix-20260822",
+  "image_id": "sha256:9ee779ae089ce6ab5080697caf069910fa29e19c22f3faaf785a0e10591f376a",
+  "image_digest_source": "local docker image ID; registry digest requires a separately approved registry push",
+  "production_touched": false,
+  "deployed": false,
+  "secrets_included": false
+}

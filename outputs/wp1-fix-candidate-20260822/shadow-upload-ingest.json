@@ -1,0 +1,82 @@
+{
+  "schema": "km.wp1.shadow-upload-ingest-e2e.v1",
+  "mode": "isolated-shadow",
+  "project": "kb-wp1-fix-e2e-21f2c40c37",
+  "image": "kb-wp1-release:wp1-fix-20260822",
+  "test_run_id": "TR-E2E-WP1-FIX-20260822-ababfe786265",
+  "production_touched": false,
+  "real_instrument_access": false,
+  "checks": {
+    "health_before": "HTTP 200",
+    "report_upload": "HTTP 202",
+    "duplicate_upload": "HTTP 202",
+    "duplicate_submission": true,
+    "review_approve": "HTTP 200",
+    "worker_terminal_state": "completed",
+    "report_review_read": "HTTP 200",
+    "cleanup": "PASS"
+  },
+  "task_id": "ingest_20260822_045947_7621a09e",
+  "submission_id": "report_20260822_045947_cfe45cde",
+  "cleanup": {
+    "before": {
+      "test_run_id": "TR-E2E-WP1-FIX-20260822-ababfe786265",
+      "environment": "anritsu",
+      "reports": [
+        {
+          "submission_id": "report_20260822_045947_cfe45cde",
+          "status": "completed",
+          "environment": "anritsu"
+        }
+      ],
+      "ingest_records": [],
+      "task_ids": [
+        "ingest_20260822_045947_7621a09e"
+      ],
+      "active_task_count": 0,
+      "file_target_count": 1,
+      "neo4j": {
+        "TestRun": 1,
+        "TestCase": 1,
+        "Measurement": 1
+      },
+      "qdrant": {
+        "points": 0
+      }
+    },
+    "apply": {
+      "test_run_id": "TR-E2E-WP1-FIX-20260822-ababfe786265",
+      "environment": "anritsu",
+      "deleted": {
+        "files": 1,
+        "redis_tasks": 1,
+        "reports": 1,
+        "ingest_records": 0,
+        "neo4j": {
+          "Measurement": 1,
+          "TestCase": 1,
+          "TestRun": 1
+        },
+        "qdrant_points": 0
+      }
+    },
+    "after": {
+      "test_run_id": "TR-E2E-WP1-FIX-20260822-ababfe786265",
+      "environment": "anritsu",
+      "reports": [],
+      "ingest_records": [],
+      "task_ids": [],
+      "active_task_count": 0,
+      "file_target_count": 0,
+      "neo4j": {
+        "TestRun": 0,
+        "TestCase": 0,
+        "Measurement": 0
+      },
+      "qdrant": {
+        "points": 0
+      }
+    }
+  },
+  "result": "PASS"
+}

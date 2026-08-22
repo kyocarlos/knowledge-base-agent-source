@@ -1,0 +1,51 @@
+{
+  "schema": "km.wp1.blocker-fix-candidate-shadow-summary.v1",
+  "source_commit": "12328e19a089b62a15a2a31582b8f05e9ceaa503",
+  "release_id": "wp1-fix-20260822",
+  "build_timestamp": "2026-08-22T12:53:13+08:00",
+  "image_tag": "kb-wp1-release:wp1-fix-20260822",
+  "image_id": "sha256:9ee779ae089ce6ab5080697caf069910fa29e19c22f3faaf785a0e10591f376a",
+  "image_digest_type": "local image ID; registry digest not created",
+  "production_touched": false,
+  "deployed": false,
+  "version_validation": {
+    "http": 200,
+    "commit": "12328e19a089b62a15a2a31582b8f05e9ceaa503",
+    "release_id": "wp1-fix-20260822",
+    "image_digest": "sha256:9ee779ae089ce6ab5080697caf069910fa29e19c22f3faaf785a0e10591f376a",
+    "build_timestamp": "2026-08-22T12:53:13+08:00"
+  },
+  "report_api_regression": "PASS",
+  "shared_job_ledger_preflight": "PASS",
+  "shadow_upload_ingest": {
+    "result": "PASS",
+    "evidence": "shadow-upload-ingest.json",
+    "run_id_prefix": "TR-E2E-WP1-FIX-20220822-",
+    "duplicate_submission_prevented": true,
+    "worker_terminal_state": "completed",
+    "report_review_read": "HTTP 200",
+    "cleanup": "PASS",
+    "production_side_effects": 0
+  },
+  "worker_recovery": "PASS",
+  "inflight_job_recovery": "PASS",
+  "application_idempotency": "PASS",
+  "health_and_queue": "PASS in isolated shadow; production not touched",
+  "evidence_files": {
+    "build_sha256": "68a55c76138c4fb295dd65c9a4389ecba7af211c258867c4e6e1bb26603fdb76",
+    "shadow_upload_ingest_sha256": "dd6741b028246204ebba4ca5de8c19cdfb72ff89810b660cbd65930af05eeea2",
+    "worker_recovery_sha256": "fbe62d621b8ebbbf30d91d004c41ac7dd3f4bbab8680b0efc605e69bce97749a",
+    "inflight_recovery_sha256": "c1e555feb92d81b4f8b3b97939c62fa1f66757933ae86686ec350174528469a9",
+    "application_idempotency_sha256": "40082d4cb715ccdc4d40bb3289dfa8b2317e9f2f11bf97bbebf989c0a23037"
+  },
+  "ci": {
+    "wp0_run": "32551783542",
+    "wp1_run": "32551785025",
+    "head": "12328e19a089b62a15a2a31582b8f05e9ceaa503",
+    "result": "PASS"
+  },
+  "production_redeploy_review_ready": true,
+  "production_redeploy_authorized": false,
+  "pr_10_merge_allowed": false,
+  "pr_11_merge_allowed": false
+}
