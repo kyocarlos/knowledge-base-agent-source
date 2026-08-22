@@ -1,0 +1,84 @@
+{
+  "schema": "km.wp1.production-redeployment-acceptance.v1",
+  "evidence_record_commit": "PENDING_COMMIT",
+  "operator": "codex",
+  "authorization": {
+    "source": "supervisor Production GO Review",
+    "frozen_release_source_commit": "38dda63f4ba53762d926d9874bdf310e3a0eb324",
+    "approved_release_image": "sha256:aae454ffe5caf1a0b562ac9e6ec34b289ea14836c4941e962bf9d061796eae29",
+    "checkpoint": "/home/da40_ai_gb10/kb-pre-wp01-backups/pre-deploy-current-production-20260822-110946",
+    "checkpoint_sha256": "18f0f3ff7f5652ad72b45d8ddc497ef8f7ece34b2de9a822ed7436fe0d719d3f"
+  },
+  "deployment": {
+    "production_touched": true,
+    "deployment_start": "2026-08-22T12:00:40+08:00",
+    "deployment_end": "2026-08-22T12:11:16+08:00",
+    "release_identity_verified": true,
+    "deployed_commit": "38dda63f4ba53762d926d9874bdf310e3a0eb324",
+    "deployed_image": "sha256:aae454ffe5caf1a0b562ac9e6ec34b289ea14836c4941e962bf9d061796eae29",
+    "release_id": "wp1-final-20260821",
+    "version_response": {
+      "http": 200,
+      "commit": "38dda63f4ba53762d926d9874bdf310e3a0eb324",
+      "release_id": "wp1-final-20260821",
+      "image_digest": "sha256:aae454ffe5caf1a0b562ac9e6ec34b289ea14836c4941e962bf9d061796eae29",
+      "build_timestamp": "2026-08-21T12:27:40+08:00"
+    },
+    "rollback": {
+      "performed": true,
+      "reason": "controlled Upload/Ingest acceptance failed; frozen release source was not modified",
+      "command": "python3 scripts/rollback_pre_wp01.py --checkpoint /home/da40_ai_gb10/kb-pre-wp01-backups/pre-deploy-current-production-20260822-110946 --execute --confirm-production PRE_WP01_ROLLBACK",
+      "target_image": "sha256:a3220ec33ab80c588f289d8560af96c447c6f573da3145fe66ffa2cd719b16ec",
+      "target_matches_checkpoint": true,
+      "result": "PASS",
+      "final_image": "sha256:a3220ec33ab80c588f289d8560af96c447c6f573da3145fe66ffa2cd719b16ec"
+    }
+  },
+  "acceptance": {
+    "production_gate": "NO-GO",
+    "health_before": {"http": 200, "status": "healthy"},
+    "health_after_rollback": {"http": 200, "status": "healthy"},
+    "wp0_gates_after_rollback": "PASS",
+    "wp1_worker_and_scheduler_gates_after_rollback": "PASS",
+    "celery_nodes": 2,
+    "queue_state": "empty",
+    "chat": "NOT_ACCEPTED",
+    "search": "NOT_ACCEPTED",
+    "websocket": "NOT_ACCEPTED",
+    "upload_ingest": "FAIL",
+    "report_review": "BLOCKED_BY_INGEST_FAILURE",
+    "worker_recovery": "NOT_ACCEPTED_FOR_PRODUCTION",
+    "application_idempotency": "NOT_ACCEPTED_FOR_PRODUCTION",
+    "synthetic_e2e": {
+      "run_id": "TR-E2E-WP0-20260822-prod-001",
+      "synthetic_only": true,
+      "upload_submission_id": "report_20260822_040508_a137aa0e",
+      "ingest_task_id": "ingest_20260822_040547_d6745974",
+      "result": "FAIL",
+      "observed": "worker reported no lease and left the submission queued; no ingest side effects occurred",
+      "frozen_release_blocker": "src/web_api/report_routes.py references undefined authenticate_agent during report retrieval",
+      "instrument_access": false
+    },
+    "cleanup": {
+      "result": "PASS",
+      "artifact_sha256": "46b667abbc7ff7f04c49b83b7e8b2f50ab5b69d11f440521b6bd631a7dcc3c5b",
+      "deleted_files": 1,
+      "deleted_redis_tasks": 1,
+      "deleted_reports": 1,
+      "deleted_ingest_records": 0,
+      "neo4j_deleted": {"Measurement": 0, "TestCase": 0, "TestRun": 0},
+      "qdrant_deleted_points": 0,
+      "post_cleanup_residuals": 0
+    }
+  },
+  "production_write_performed": true,
+  "migration_performed": false,
+  "restore_performed": false,
+  "final_status": "rolled_back_to_previous_known_good_runtime",
+  "remaining_blockers": [
+    "frozen release Upload/Ingest acceptance failed",
+    "frozen release report route has undefined authenticate_agent",
+    "new source fix/review cycle required before another deployment"
+  ],
+  "wp1_recommendation": "99% Conditional Accept; production acceptance not accepted"
+}
