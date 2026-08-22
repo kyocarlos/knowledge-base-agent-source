@@ -1,6 +1,6 @@
 {
   "schema": "km.wp1.production-redeployment-acceptance.v1",
-  "evidence_record_commit": "PENDING_COMMIT",
+  "evidence_record_commit": "ba7dd55ea913f3a0c51f4686546e7dc30eb7bec7",
   "operator": "codex",
   "authorization": {
     "source": "supervisor Production GO Review",
