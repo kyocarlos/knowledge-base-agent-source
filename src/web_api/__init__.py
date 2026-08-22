@@ -1186,6 +1186,8 @@ app = FastAPI(
 
 from .report_routes import router as report_router
 app.include_router(report_router)
+from .e2e_cleanup_routes import router as e2e_cleanup_router
+app.include_router(e2e_cleanup_router)
 
 # CORS 允許前端跨域
 app.add_middleware(
