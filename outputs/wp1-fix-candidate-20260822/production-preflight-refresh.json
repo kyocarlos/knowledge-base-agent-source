@@ -1,0 +1,42 @@
+{
+  "schema": "km.wp1.production-redeployment-preflight-refresh.v1",
+  "executed_at": "2026-08-22T13:12:42+08:00",
+  "authorization": "read-only preflight refresh only; production redeploy not authorized",
+  "production_touched": false,
+  "current_production": {
+    "web_image": "sha256:a3220ec33ab80c588f289d8560af96c447c6f573da3145fe66ffa2cd719b16ec",
+    "service_images_match_checkpoint_tags": true,
+    "version_http": 200,
+    "version_commit": null,
+    "health_http": 200,
+    "health_status": "healthy",
+    "celery_nodes": 2,
+    "queues": "empty",
+    "runtime_gates": "PASS"
+  },
+  "checkpoint": {
+    "path": "/home/da40_ai_gb10/kb-pre-wp01-backups/pre-deploy-current-production-20260822-110946",
+    "sha256sums_sha256": "18f0f3ff7f5652ad72b45d8ddc497ef8f7ece34b2de9a822ed7436fe0d719d3f",
+    "verification": "PASS",
+    "checksum_files_verified": 23,
+    "rollback_target": "sha256:a3220ec33ab80c588f289d8560af96c447c6f573da3145fe66ffa2cd719b16ec",
+    "rollback_target_matches_current_runtime": true,
+    "rollback_readiness": "PASS",
+    "drift_since_checkpoint": false
+  },
+  "candidate": {
+    "source_commit": "12328e19a089b62a15a2a31582b8f05e9ceaa503",
+    "release_id": "wp1-fix-20260822",
+    "image": "sha256:9ee779ae089ce6ab5080697caf069910fa29e19c22f3faaf785a0e10591f376a",
+    "exists_locally": true,
+    "identity_consistent": true
+  },
+  "decision": {
+    "production_gate": "PENDING_SUPERVISOR_GO",
+    "recommend_production_go_review": true,
+    "redeploy_performed": false,
+    "migration_performed": false,
+    "production_write_performed": false,
+    "restore_performed": false
+  }
+}

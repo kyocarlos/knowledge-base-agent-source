@@ -1,0 +1,10 @@
+{
+  "schema": "km.wp1.synthetic-run-id-audit-note.v1",
+  "actual_execution_date": "2026-08-22",
+  "run_id_pattern_used": "TR-E2E-WP1-FIX-20220822-ababfe786265",
+  "run_id_contains_20220822_due_to_naming_typo": true,
+  "run_id_was_not_reused": true,
+  "original_evidence_unchanged": true,
+  "explanation": "The synthetic run ID prefix was generated with the year/month/day literal 20220822 while the execution date was 2026-08-22. The original evidence is retained unchanged; this note records the naming discrepancy only.",
+  "corrective_action": "Future generated prefixes must use the actual execution date and be checked before submission."
+}
