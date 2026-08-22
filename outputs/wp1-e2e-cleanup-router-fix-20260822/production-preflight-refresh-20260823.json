@@ -1,0 +1,45 @@
+{
+  "schema": "km.wp1.production-preflight-refresh.v1",
+  "observed_at": "2026-08-23",
+  "mode": "read-only",
+  "production_touched": false,
+  "production_gate": "NO-GO_PENDING_SUPERVISOR_DEPLOYMENT_GO",
+  "candidate": {
+    "source_commit": "e8455db7f36398995c0ec51647aff21aa4df3925",
+    "release_id": "wp1-e2e-cleanup-router-fix-20260822-r1",
+    "image_digest": "sha256:f3290d5d594d20aa35e2b3799675f86a9dc615a01063acfa9efd8097bc710cf0",
+    "image_present": true,
+    "identity_consistent_with_pr14_evidence": true
+  },
+  "current_production": {
+    "web_image": "sha256:a3220ec33ab80c588f289d8560af96c447c6f573da3145fe66ffa2cd719b16ec",
+    "runtime_version_http": 200,
+    "runtime_version_commit": null,
+    "runtime_version_note": "Current production is the pre-candidate runtime; null commit is a known legacy limitation. Candidate identity is not inferred from this endpoint."
+  },
+  "checkpoint": {
+    "path": "/home/da40_ai_gb10/kb-pre-wp01-backups/pre-deploy-current-production-20260822-110946",
+    "sha256sums_sha256": "18f0f3ff7f5652ad72b45d8ddc497ef8f7ece34b2de9a822ed7436fe0d719d3f",
+    "verification": "PASS",
+    "checksum_files_verified": 23,
+    "rollback_target": "sha256:a3220ec33ab80c588f289d8560af96c447c6f573da3145fe66ffa2cd719b16ec",
+    "rollback_target_matches_current_runtime": true,
+    "rollback_readiness": "PASS",
+    "rollback_command": "python3 scripts/rollback_pre_wp01.py --checkpoint /home/da40_ai_gb10/kb-pre-wp01-backups/pre-deploy-current-production-20260822-110946 --execute --confirm-production PRE_WP01_ROLLBACK"
+  },
+  "runtime_identity_check": {
+    "web": {"current_image": "sha256:a3220ec33ab80c588f289d8560af96c447c6f573da3145fe66ffa2cd719b16ec", "checkpoint_image": "sha256:a3220ec33ab80c588f289d8560af96c447c6f573da3145fe66ffa2cd719b16ec", "match": true},
+    "celery_search_worker": {"current_image": "sha256:af2948686fe51e24cb0cf83eda97e6371ddb1bb19d4ec6568ae38fd89420195e", "checkpoint_image": "sha256:af2948686fe51e24cb0cf83eda97e6371ddb1bb19d4ec6568ae38fd89420195e", "match": true},
+    "celery_ingest_worker": {"current_image": "sha256:ecf5d163fa3f8f48afe2b585bb9d8894e6e4c6501712e5663ba0b900a64991a0", "checkpoint_image": "sha256:ecf5d163fa3f8f48afe2b585bb9d8894e6e4c6501712e5663ba0b900a64991a0", "match": true},
+    "celery_beat": {"current_image": "sha256:a4a9d69cadf3f6d48afe2b585bb9d8894e6e4c6501712e5663ba0b900a64991a0", "checkpoint_image": "sha256:a4a9d69cadf3f6d48afe2b585bb9d8894e6e4c6501712e5663ba0b900a64991a0", "match": true},
+    "nginx": {"current_image": "sha256:c4ebb06c9c9db8551ac0f15d3b7b37589c7cbc04e78cbfb4ac33bd57193db776", "checkpoint_image": "sha256:c4ebb06c9c9db8551ac0f15d3b7b37589c7cbc04e78cbfb4ac33bd57193db776", "match": true}
+  },
+  "health": {"restart_kb_status": "PASS", "health_http": 200, "wp0_gates": "PASS", "wp1_gates": "PASS"},
+  "celery": {"nodes": 2, "active": [], "reserved": [], "scheduled": [], "queues": {"search": 0, "ingest": 0, "default": 0, "document": 0, "indexing": 0, "celery": 0}},
+  "drift_check": {
+    "drift_since_checkpoint": false,
+    "unauthorized_production_change_observed": false,
+    "basis": "Read-only image identity, service health, queue, and checkpoint verification; no deployment or mutation was performed."
+  },
+  "deferred": ["production deployment", "production restart", "production write", "migration", "restore", "WP2", "real instrument"]
+}
