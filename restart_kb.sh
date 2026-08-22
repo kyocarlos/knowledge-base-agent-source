@@ -143,7 +143,35 @@ compose_preflight() {
     [[ -n "${NEO4J_PASSWORD:-}" ]] || fail \
         "NEO4J_PASSWORD is missing; no container has been changed"
     "${COMPOSE[@]}" config --quiet
+    validate_shared_job_ledger_config
     printf 'Compose configuration: PASS\n'
+}
+
+validate_shared_job_ledger_config() {
+    local config_json
+    config_json="$("${COMPOSE[@]}" --profile scheduler config --format json)" || fail \
+        "unable to render Compose JSON for job ledger validation"
+    python3 -c '
+import json
+import sys
+
+config = json.loads(sys.stdin.read())
+services = config.get("services", {})
+required = ("web", "celery_search_worker", "celery_ingest_worker", "celery_beat")
+paths = {}
+for name in required:
+    service = services.get(name)
+    if not service:
+        raise SystemExit(f"job ledger validation: missing service {name}")
+    environment = service.get("environment", {})
+    path = environment.get("KB_JOB_LEDGER_PATH")
+    if not path or not path.startswith("/") or not path.endswith("/job-ledger.sqlite3"):
+        raise SystemExit(f"job ledger validation: {name} needs one absolute job ledger path")
+    paths[name] = path
+if len(set(paths.values())) != 1:
+    raise SystemExit(f"job ledger validation: services do not share one path: {paths}")
+print(f"Shared job ledger: {next(iter(paths.values()))}")
+' <<<"$config_json" || fail "Compose services do not share a valid job ledger path"
 }
 
 container_running() {

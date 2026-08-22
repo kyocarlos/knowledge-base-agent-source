@@ -13,7 +13,12 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
-from ..test_reports.auth import authenticate_report_agent, authenticate_report_reviewer, validate_e2e_test_run_id
+from ..test_reports.auth import (
+    authenticate_agent,
+    authenticate_report_agent,
+    authenticate_report_reviewer,
+    validate_e2e_test_run_id,
+)
 from ..test_reports.excel_contract import ReportValidationError, parse_and_validate_report
 from ..test_reports.registry import SubmissionConflict, SubmissionRegistry
 from app.core.job_config import celery_headers

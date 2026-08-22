@@ -156,6 +156,15 @@ class ReportApiTests(unittest.TestCase):
         self.assertEqual(approved.json()["status"], "queued")
         self.assertEqual(repeated.status_code, 409)
 
+    def test_agent_can_read_own_submission(self):
+        submission_id = self.upload().json()["submission_id"]
+        response = self.client.get(
+            f"/api/agent/v1/reports/{submission_id}",
+            headers=self.agent_headers(),
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["submission_id"], submission_id)
+
 
 if __name__ == "__main__":
     unittest.main()
