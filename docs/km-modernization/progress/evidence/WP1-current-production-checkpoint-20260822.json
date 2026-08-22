@@ -1,0 +1,52 @@
+{
+  "schema": "km.wp1.current-production-checkpoint.v1",
+  "recorded_at": "2026-08-22T03:15:31.718431+00:00",
+  "production_touched": false,
+  "checkpoint_created": true,
+  "checkpoint_path": "/home/da40_ai_gb10/kb-pre-wp01-backups/pre-deploy-current-production-20260822-110946",
+  "checkpoint_created_at": "2026-08-22T03:09:46.419360+00:00",
+  "checkpoint_sha256": "18f0f3ff7f5652ad72b45d8ddc497ef8f7ece34b2de9a822ed7436fe0d719d3f",
+  "backup_scope": [
+    "source git head/status/patch",
+    "runtime compose and rollback files",
+    "application image archive",
+    "PostgreSQL report registry dump",
+    "Redis data archive",
+    "Neo4j cypher export",
+    "Qdrant collection snapshots",
+    "protected secret environment references",
+    "nginx certificates",
+    "OpenClaw runtime archive"
+  ],
+  "current_runtime_images": {
+    "kb-web": "sha256:a3220ec33ab80c588f289d8560af96c447c6f573da3145fe66ffa2cd719b16ec",
+    "kb-celery-search": "sha256:af2948686fe51e24cb0cf83eda97e6371ddb1bb19d4ec6568ae38fd89420195e",
+    "kb-celery-ingest": "sha256:ecf5d163fa3f8f48afe2b585bb9d8894e6e4c6501712e5663ba0b900a64991a0",
+    "kb-celery-beat": "sha256:a4a9d69cadf3f6d48a3dc282899b3e3a172af557046a25df57eb77d45d6a53e1",
+    "kb-nginx": "sha256:c4ebb06c9c9db8551ac0f15d3b7b37589c7cbc04e78cbfb4ac33bd57193db776"
+  },
+  "current_runtime_image": "sha256:a3220ec33ab80c588f289d8560af96c447c6f573da3145fe66ffa2cd719b16ec",
+  "rollback_image": "sha256:a3220ec33ab80c588f289d8560af96c447c6f573da3145fe66ffa2cd719b16ec",
+  "rollback_target_matches_current_runtime": true,
+  "rollback_command": "python3 scripts/rollback_pre_wp01.py --checkpoint /home/da40_ai_gb10/kb-pre-wp01-backups/pre-deploy-current-production-20260822-110946 --execute --confirm-production PRE_WP01_ROLLBACK",
+  "rollback_readiness": "PASS",
+  "rollback_readiness_checks": {
+    "checkpoint_verifier": "PASS",
+    "checksum_files_verified": 23,
+    "rollback_dry_run": "PASS",
+    "shadow_drill": "PASS",
+    "shadow_drill_evidence": "outputs/current-production-rollback-drill-20260822.json",
+    "shadow_drill_sha256": "1d310985329795265b327707b8d14162b4a3d2e7753d2b5f1620e0a95d7fbede",
+    "production_services_stopped": false
+  },
+  "health_before": {"status": "PASS", "http_status": 200, "response": "{\"status\":\"healthy\"}"},
+  "health_after": {"status": "PASS", "http_status": 200, "response": "{\"status\":\"healthy\"}"},
+  "celery_nodes": 2,
+  "queue_state": {"active": 0, "reserved": 0, "scheduled": 0, "search": 0, "ingest": 0, "default": 0, "document": 0, "indexing": 0, "celery": 0},
+  "production_write_performed": false,
+  "migration_performed": false,
+  "restore_performed": false,
+  "real_instrument_access": false,
+  "frozen_release_source": "38dda63f4ba53762d926d9874bdf310e3a0eb324",
+  "production_gate": "NO-GO"
+}

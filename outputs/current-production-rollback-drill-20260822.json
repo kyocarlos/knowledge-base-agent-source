@@ -1,0 +1,20 @@
+{
+  "project": "kb-wp01-shadow-20260822-111453",
+  "port": 38301,
+  "checkpoint": "/home/da40_ai_gb10/kb-pre-wp01-backups/pre-deploy-current-production-20260822-110946",
+  "baseline_before": {
+    "status": 200,
+    "marker": "pre-wp01-baseline"
+  },
+  "candidate_failure": {
+    "status": 503,
+    "marker": "wp01-candidate-failed"
+  },
+  "rollback": {
+    "status": 200,
+    "marker": "pre-wp01-baseline",
+    "image_id_matches": true
+  },
+  "result": "passed",
+  "finished_at": "2026-08-22T03:15:31.718431+00:00"
+}
