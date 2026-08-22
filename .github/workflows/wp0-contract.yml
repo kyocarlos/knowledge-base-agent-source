@@ -94,7 +94,12 @@ jobs:
           fetch-depth: 0
 
       - name: Check whitespace
-        run: git diff --check "${{ github.event.pull_request.base.sha || github.event.before }}" "${{ github.sha }}"
+        run: |
+          base_sha="${{ github.event.pull_request.base.sha || github.event.before }}"
+          if [ -z "$base_sha" ] || [ "$base_sha" = "0000000000000000000000000000000000000000" ]; then
+            base_sha="$(git rev-parse "${GITHUB_SHA}^")"
+          fi
+          git diff --check "$base_sha" "$GITHUB_SHA"
 
       - name: Check common credential patterns
         run: |
