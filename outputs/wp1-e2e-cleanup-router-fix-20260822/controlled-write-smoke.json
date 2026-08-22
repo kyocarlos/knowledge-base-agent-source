@@ -1,0 +1,138 @@
+{
+  "project": "kb-wp01-candidate-20260822-234514",
+  "image": "kb-wp1-release:wp1-e2e-cleanup-router-fix-20260822-r1",
+  "port": 52229,
+  "e2e_auth_probes": {
+    "agent_health": {
+      "status": 200,
+      "body": "{\"status\":\"ok\",\"identity\":\"e2e-agent-01\",\"scope\":\"report:upload\",\"agent_id\":\"e2e-agent-01\",\"environment\":\"anritsu\",\"e2e\":true,\"schema_versions\":[\"1.0\"]}"
+    },
+    "cleanup_missing_token": {
+      "status": 401,
+      "body": "{\"detail\":\"缺少 X-E2E-Cleanup-ID\"}"
+    },
+    "cleanup_wrong_role_token": {
+      "status": 403,
+      "body": "{\"detail\":\"E2E cleanup token 無效\"}"
+    }
+  },
+  "write_e2e": {
+    "test_run_id": "TR-E2E-WP1-CLEANUP-FIX-20260822-234514-bf02b7bd",
+    "upload_status": 202,
+    "duplicate_upload_status": 202,
+    "duplicate_upload": {
+      "submission_id": "report_20260822_154526_a5fe66ae",
+      "environment": "anritsu",
+      "run_id": "TR-E2E-WP1-CLEANUP-FIX-20260822-234514-bf02b7bd",
+      "agent_id": "e2e-agent-01",
+      "report_name": "synthetic.xlsx",
+      "report_hash": "a378419ebdb8634e40d0ab5efd3e15681bfb408731607470cabf9552fe72d709",
+      "status": "pending_review",
+      "reviewer_id": null,
+      "review_comment": null,
+      "reviewed_at": null,
+      "ingest_task_id": null,
+      "error": null,
+      "version": 1,
+      "created_at": "2026-08-22T15:45:26+00:00",
+      "updated_at": "2026-08-22T15:45:26+00:00",
+      "attachments": [
+        {
+          "name": "synthetic-e2e-log.txt",
+          "path": "/app/data/report-staging/report_20260822_154526_a5fe66ae/attachments/synthetic-e2e-log.txt",
+          "sha256": "6329df9f91e57de549e5610b0af76581e8274c1bf33df13db3866249aec7ab19",
+          "size": 53
+        }
+      ],
+      "manifest": {
+        "schema_version": "1.0",
+        "run_id": "TR-E2E-WP1-CLEANUP-FIX-20260822-234514-bf02b7bd",
+        "test_run_id": "TR-E2E-WP1-CLEANUP-FIX-20260822-234514-bf02b7bd",
+        "environment": "anritsu",
+        "project_code": "E2E-WP0-SYNTHETIC",
+        "dut_model": "E2E-DUT-NONPRODUCTION",
+        "started_at": "2026-08-19T07:25:14+00:00",
+        "finished_at": "2026-08-19T07:25:14+00:00",
+        "overall_verdict": "pass"
+      },
+      "validation": {
+        "valid": true,
+        "schema_version": "1.0"
+      },
+      "duplicate": true
+    },
+    "agent_self_read_status": 200,
+    "approval_status": 200,
+    "terminal_status": "completed",
+    "terminal_error": null,
+    "worker_log_excerpt": "",
+    "ingest_task_id_present": true,
+    "cleanup_dry_run_status": 200,
+    "cleanup_apply_status": 200,
+    "cleanup_plan_counts": {
+      "reports": 1,
+      "ingest_records": 0,
+      "neo4j": {
+        "TestRun": 1,
+        "TestCase": 1,
+        "Measurement": 1
+      },
+      "qdrant": {
+        "points": 0
+      }
+    },
+    "cleanup_deleted_counts": {
+      "files": 2,
+      "redis_tasks": 1,
+      "reports": 1,
+      "ingest_records": 0,
+      "neo4j": {
+        "Measurement": 1,
+        "TestCase": 1,
+        "TestRun": 1
+      },
+      "qdrant_points": 0
+    },
+    "submission_after_cleanup": 404,
+    "post_cleanup_health_status": 200,
+    "result": "passed"
+  },
+  "probes": {
+    "/health": {
+      "status": 200,
+      "body": "{\"status\":\"healthy\"}"
+    },
+    "/api/v1/health": {
+      "status": 200,
+      "body": "{\"data\":{\"status\":\"ok\",\"live\":true,\"ready\":true},\"error\":null,\"trace_id\":\"b5be44c0caa74b05bc6f04e922e16fd7\"}"
+    },
+    "/api/v1/health/live": {
+      "status": 200,
+      "body": "{\"data\":{\"status\":\"ok\",\"live\":true,\"ready\":null},\"error\":null,\"trace_id\":\"21c0de1062d54897bf2e249033c7bdf7\"}"
+    },
+    "/api/v1/health/ready": {
+      "status": 200,
+      "body": "{\"data\":{\"status\":\"ok\",\"live\":true,\"ready\":true},\"error\":null,\"trace_id\":\"509c4eb17f004336b64c02bcc19de82f\"}"
+    },
+    "/api/v1/version": {
+      "status": 200,
+      "body": "{\"data\":{\"service\":\"knowledge-base-api\",\"version\":\"1.0.0\",\"environment\":\"development\",\"commit\":\"e8455db7f36398995c0ec51647aff21aa4df3925\",\"release_id\":\"wp1-e2e-cleanup-router-fix-20260822-r1\",\"image_digest\":\"sha256:f3290d5d594d20aa35e2b3799675f86a9dc615a01063acfa9efd8097bc710cf0\",\"build_timestamp\":\"2026-08-22T23:32:27+08:00\"},\"error\":null,\"trace_id\":\"f23a8079137945029b573f34ab387479\"}"
+    },
+    "/api/agent/v1/health": {
+      "status": 401,
+      "body": "{\"detail\":\"缺少 X-Agent-ID\"}"
+    }
+  },
+  "search_submission": {
+    "status": 200,
+    "task_id_present": true
+  },
+  "services_running": {
+    "web": true,
+    "search_worker": true,
+    "ingest_worker": true,
+    "beat": true
+  },
+  "result": "passed",
+  "finished_at": "2026-08-22T15:46:06.240828+00:00"
+}

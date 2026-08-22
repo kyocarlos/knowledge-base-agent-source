@@ -1,0 +1,37 @@
+{
+  "schema": "km.wp1.e2e-cleanup-router-fix.summary.v1",
+  "source_commit": "e8455db7f36398995c0ec51647aff21aa4df3925",
+  "release_id": "wp1-e2e-cleanup-router-fix-20260822-r1",
+  "image_digest": "sha256:f3290d5d594d20aa35e2b3799675f86a9dc615a01063acfa9efd8097bc710cf0",
+  "build_timestamp": "2026-08-22T23:32:27+08:00",
+  "synthetic_run_id": "TR-E2E-WP1-CLEANUP-FIX-20260822-234514-bf02b7bd",
+  "production_touched": false,
+  "controlled_write_smoke": {
+    "health": "PASS",
+    "search": "PASS",
+    "report_api_agent_self_read": "PASS",
+    "shared_job_ledger": "PASS",
+    "upload": "PASS",
+    "duplicate_submission_deduplication": "PASS",
+    "worker_completion": "PASS",
+    "report_approve_read": "PASS",
+    "cleanup": "PASS",
+    "post_cleanup_health": "PASS",
+    "residual_count": 0,
+    "submission_after_cleanup_http": 404,
+    "services": ["web", "search_worker", "ingest_worker", "beat"]
+  },
+  "reliability_drills": {
+    "worker_recovery": "PASS",
+    "inflight_redelivery": "PASS",
+    "application_idempotency": "PASS",
+    "redis_reconnect_idempotency": "PASS"
+  },
+  "not_run_or_deferred": {
+    "real_instrument": true,
+    "production_write": true,
+    "migration": true,
+    "destructive_restore": true
+  },
+  "production_gate": "NO-GO"
+}
