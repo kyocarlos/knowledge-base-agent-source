@@ -1,0 +1,35 @@
+{
+  "schema": "km.wp1.search-fix.write-smoke-failure.v1",
+  "source_commit": "cf00ac55fa6aa2e197164eddf9116f812af8e1e2",
+  "release_id": "wp1-search-fix-20260822-r1",
+  "image_digest": "sha256:d9b21fd0d3c43438ad38b6866d5aef767ae8c2d24b4b24fe05e5588fbff8991a",
+  "run_id": "TR-E2E-WP1-SEARCH-FIX-20260822-211105-354d74f7",
+  "production_touched": false,
+  "failure_stage": "e2e_credential_probe",
+  "classification": "code_regression_or_branch_completeness",
+  "agent_health": {
+    "status": 200,
+    "identity": "e2e-agent-01",
+    "scope": "report:upload",
+    "environment": "anritsu",
+    "e2e": true
+  },
+  "cleanup_missing_token": {
+    "status": 404,
+    "body": "Not Found"
+  },
+  "cleanup_wrong_role_token": {
+    "status": 404,
+    "body": "Not Found"
+  },
+  "expected_cleanup_status": 401,
+  "expected_wrong_role_status": 403,
+  "write_operations_started": false,
+  "upload_started": false,
+  "ingest_started": false,
+  "cleanup": "stack_teardown_pass",
+  "residual_count": 0,
+  "root_cause_observation": "The candidate contains src/web_api/e2e_cleanup_routes.py but src/web_api/__init__.py does not include the cleanup router, so the protected cleanup endpoint is absent.",
+  "remaining_smoke": "BLOCKED",
+  "production_gate": "NO-GO"
+}
