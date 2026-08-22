@@ -9,6 +9,7 @@ on:
   pull_request:
     branches:
       - agent/km-plan-v2.6-anderson
+      - agent/wp1-release-convergence
       - agent/wp0-fastapi-contract
       - agent/km-modify-codex-plan
       - dev-work

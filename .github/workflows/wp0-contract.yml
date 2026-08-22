@@ -8,6 +8,7 @@ on:
     branches:
       - agent/km-modify-codex-plan
       - agent/km-plan-v2.6-anderson
+      - agent/wp1-release-convergence
       - dev-work
   workflow_dispatch:
     inputs:
