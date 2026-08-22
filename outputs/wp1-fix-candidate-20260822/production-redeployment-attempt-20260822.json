@@ -1,0 +1,67 @@
+{
+  "schema": "km.wp1.production-redeployment-attempt.v1",
+  "operator": "codex",
+  "candidate": {
+    "source_commit": "12328e19a089b62a15a2a31582b8f05e9ceaa503",
+    "release_id": "wp1-fix-20260822",
+    "image": "sha256:9ee779ae089ce6ab5080697caf069910fa29e19c22f3faaf785a0e10591f376a"
+  },
+  "rollback_baseline": {
+    "current_image": "sha256:a3220ec33ab80c588f289d8560af96c447c6f573da3145fe66ffa2cd719b16ec",
+    "checkpoint_path": "/home/da40_ai_gb10/kb-pre-wp01-backups/pre-deploy-current-production-20260822-110946",
+    "checkpoint_sha256": "18f0f3ff7f5652ad72b45d8ddc497ef8f7ece34b2de9a822ed7436fe0d719d3f",
+    "rollback_target_matches_current_runtime": true,
+    "rollback_readiness": "PASS"
+  },
+  "attempts": [
+    {
+      "attempt": 1,
+      "deployment_start": "2026-08-22T13:23:12+08:00",
+      "deployment_end": "2026-08-22T13:23:17+08:00",
+      "runtime_image_identity": "sha256:9ee779ae089ce6ab5080697caf069910fa29e19c22f3faaf785a0e10591f376a",
+      "health": "PASS",
+      "wp0_gates": "PASS",
+      "wp1_celery_ping": "FAIL",
+      "wp1_search_ingest_queues": "FAIL",
+      "decision": "ROLLBACK",
+      "rollback": "PASS",
+      "notes": "Initial check occurred during worker startup; no production write was performed."
+    },
+    {
+      "attempt": 2,
+      "deployment_start": "2026-08-22T13:25:00+08:00",
+      "deployment_end": "2026-08-22T13:25:04+08:00",
+      "readiness_wait_seconds": 35,
+      "runtime_image_identity": "sha256:9ee779ae089ce6ab5080697caf069910fa29e19c22f3faaf785a0e10591f376a",
+      "health": "PASS",
+      "wp0_gates": "PASS",
+      "wp1_gates": "PASS",
+      "version_http": 200,
+      "version_response": {
+        "commit": null,
+        "release_id": null,
+        "image_digest": null,
+        "build_timestamp": null
+      },
+      "identity_gate": "FAIL",
+      "identity_failure": "runtime metadata was not injected into the production Compose environment",
+      "production_acceptance_started": false,
+      "production_write_performed": false,
+      "migration_performed": false,
+      "restore_performed": false,
+      "decision": "ROLLBACK",
+      "rollback": "PASS"
+    }
+  ],
+  "final_runtime": {
+    "image": "sha256:a3220ec33ab80c588f289d8560af96c447c6f573da3145fe66ffa2cd719b16ec",
+    "health": "PASS",
+    "wp0_wp1_gates": "PASS",
+    "celery_nodes": 2,
+    "queues": "empty",
+    "synthetic_run_id": null,
+    "production_acceptance": "NOT_STARTED",
+    "production_gate": "NO-GO",
+    "next_action": "Open a separate reviewed deployment-metadata fix cycle; do not modify or redeploy this candidate."
+  }
+}
