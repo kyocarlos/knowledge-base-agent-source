@@ -1,0 +1,45 @@
+{
+  "schema": "km.wp1.search-500-diagnosis.v1",
+  "classification": "C",
+  "classification_name": "existing_search_bug_previously_uncaught",
+  "metadata_fix_regression": false,
+  "production_touched": false,
+  "affected_endpoint": "POST /search",
+  "request": {
+    "method": "POST",
+    "body": {
+      "query": "WP01 shadow search submission",
+      "mode": "basic",
+      "sources_only": true
+    },
+    "headers": {
+      "X-Trace-ID": "wp01-shadow-trace"
+    }
+  },
+  "failing_candidate": {
+    "source_commit": "9e610ed1643dd0489511cfaf5f918522c8c25b82",
+    "image": "sha256:71c8a464da334098a87de25afd517dbf4bc125511c11f7d58d708ede635cb805",
+    "http_status": 500,
+    "response_body": "Internal Server Error",
+    "traceback_type": "AttributeError",
+    "traceback_message": "SearchRequest object has no attribute 'headers'",
+    "traceback_location": "src/web_api/__init__.py:1856"
+  },
+  "root_cause": "The /search handler used the Pydantic SearchRequest parameter named request when reading HTTP headers. The handler must read the separate FastAPI Request parameter.",
+  "dependency_observations": {
+    "redis": "started_and_ready",
+    "qdrant": "started_and_listening",
+    "search_worker": "started",
+    "celery_submission": "not_reached_due_to_web_handler_exception"
+  },
+  "fix_candidate": {
+    "source_commit": "cf00ac55fa6aa2e197164eddf9116f812af8e1e2",
+    "image": "sha256:d9b21fd0d3c43438ad38b6866d5aef767ae8c2d24b4b24fe05e5588fbff8991a",
+    "release_id": "wp1-search-fix-20260822-r1",
+    "search_http_status": 200,
+    "task_id_present": true,
+    "services_running": ["web", "search_worker", "ingest_worker", "beat"]
+  },
+  "remaining_smoke": "PENDING",
+  "production_gate": "NO-GO"
+}

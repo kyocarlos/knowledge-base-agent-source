@@ -1,0 +1,28 @@
+{
+  "schema": "km.wp1.search-fix-runtime-identity.v1",
+  "source_commit": "cf00ac55fa6aa2e197164eddf9116f812af8e1e2",
+  "release_id": "wp1-search-fix-20260822-r1",
+  "build_timestamp": "2026-08-22T20:00:29+08:00",
+  "image_tag": "kb-wp1-release:wp1-search-fix-20260822-r1",
+  "image_id": "sha256:d9b21fd0d3c43438ad38b6866d5aef767ae8c2d24b4b24fe05e5588fbff8991a",
+  "runtime_env_mode": "0600",
+  "secrets_included": false,
+  "version_validation": {
+    "http": 200,
+    "commit": "cf00ac55fa6aa2e197164eddf9116f812af8e1e2",
+    "release_id": "wp1-search-fix-20260822-r1",
+    "image_digest": "sha256:d9b21fd0d3c43438ad38b6866d5aef767ae8c2d24b4b24fe05e5588fbff8991a",
+    "build_timestamp": "2026-08-22T20:00:29+08:00"
+  },
+  "search_status": 200,
+  "task_id_present": true,
+  "services_running": {
+    "web": true,
+    "search_worker": true,
+    "ingest_worker": true,
+    "beat": true
+  },
+  "remaining_smoke": "PENDING",
+  "production_touched": false,
+  "production_gate": "NO-GO"
+}
