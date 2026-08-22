@@ -1,0 +1,17 @@
+{
+  "schema": "km.wp1.metadata-fix-candidate-build.v1",
+  "source_commit": "9e610ed1643dd0489511cfaf5f918522c8c25b82",
+  "release_id": "wp1-metadata-fix-20260822-r1",
+  "build_timestamp": "2026-08-22T17:06:02+08:00",
+  "image_tag": "kb-wp1-release:wp1-metadata-fix-20260822-r1",
+  "image_id": "sha256:71c8a464da334098a87de25afd517dbf4bc125511c11f7d58d708ede635cb805",
+  "registry_digest_status": "NOT_PUSHED_REQUIRES_APPROVAL",
+  "build_result": "PASS",
+  "build_labels": {
+    "source_commit": "9e610ed1643dd0489511cfaf5f918522c8c25b82",
+    "release_id": "wp1-metadata-fix-20260822-r1",
+    "build_timestamp": "2026-08-22T17:06:02+08:00"
+  },
+  "production_touched": false,
+  "secrets_included": false
+}

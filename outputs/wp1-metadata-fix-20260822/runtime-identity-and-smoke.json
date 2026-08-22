@@ -1,0 +1,43 @@
+{
+  "schema": "km.wp1.metadata-fix-runtime-identity-and-smoke.v1",
+  "source_commit": "9e610ed1643dd0489511cfaf5f918522c8c25b82",
+  "release_id": "wp1-metadata-fix-20260822-r1",
+  "build_timestamp": "2026-08-22T17:06:02+08:00",
+  "image_tag": "kb-wp1-release:wp1-metadata-fix-20260822-r1",
+  "image_id": "sha256:71c8a464da334098a87de25afd517dbf4bc125511c11f7d58d708ede635cb805",
+  "registry_digest_status": "NOT_PUSHED_REQUIRES_APPROVAL",
+  "production_touched": false,
+  "runtime_env": {
+    "mode": "0600",
+    "secrets_included": false,
+    "metadata_format": "PASS",
+    "services": {
+      "web": {"KM_GIT_COMMIT": "9e610ed1643dd0489511cfaf5f918522c8c25b82", "KM_RELEASE_ID": "wp1-metadata-fix-20260822-r1", "KM_IMAGE_DIGEST": "sha256:71c8a464da334098a87de25afd517dbf4bc125511c11f7d58d708ede635cb805", "KM_BUILD_TIMESTAMP": "2026-08-22T17:06:02+08:00"},
+      "celery_search_worker": {"KM_GIT_COMMIT": "9e610ed1643dd0489511cfaf5f918522c8c25b82", "KM_RELEASE_ID": "wp1-metadata-fix-20260822-r1", "KM_IMAGE_DIGEST": "sha256:71c8a464da334098a87de25afd517dbf4bc125511c11f7d58d708ede635cb805", "KM_BUILD_TIMESTAMP": "2026-08-22T17:06:02+08:00"},
+      "celery_ingest_worker": {"KM_GIT_COMMIT": "9e610ed1643dd0489511cfaf5f918522c8c25b82", "KM_RELEASE_ID": "wp1-metadata-fix-20260822-r1", "KM_IMAGE_DIGEST": "sha256:71c8a464da334098a87de25afd517dbf4bc125511c11f7d58d708ede635cb805", "KM_BUILD_TIMESTAMP": "2026-08-22T17:06:02+08:00"},
+      "celery_beat": {"KM_GIT_COMMIT": "9e610ed1643dd0489511cfaf5f918522c8c25b82", "KM_RELEASE_ID": "wp1-metadata-fix-20260822-r1", "KM_IMAGE_DIGEST": "sha256:71c8a464da334098a87de25afd517dbf4bc125511c11f7d58d708ede635cb805", "KM_BUILD_TIMESTAMP": "2026-08-22T17:06:02+08:00"}
+    },
+    "all_services_equal": true
+  },
+  "version_validation": {
+    "http": 200,
+    "commit": "9e610ed1643dd0489511cfaf5f918522c8c25b82",
+    "release_id": "wp1-metadata-fix-20260822-r1",
+    "image_digest": "sha256:71c8a464da334098a87de25afd517dbf4bc125511c11f7d58d708ede635cb805",
+    "build_timestamp": "2026-08-22T17:06:02+08:00"
+  },
+  "isolated_smoke": {
+    "stack_teardown": "PASS",
+    "production_side_effects": 0,
+    "health": "PASS",
+    "report_api_self_read": "NOT_RUN",
+    "shared_ledger": "NOT_RUN",
+    "upload_ingest": "NOT_RUN",
+    "report_review": "NOT_RUN",
+    "celery_queues": "NOT_RUN",
+    "cleanup": "NOT_RUN",
+    "residual_count": 0,
+    "blocking_failure": "Search probe returned HTTP 500 in isolated candidate smoke before report/upload flow."
+  },
+  "production_gate": "NO-GO"
+}
