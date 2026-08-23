@@ -1,0 +1,59 @@
+{
+  "schema": "km.wp1.production-acceptance-retry3.v1",
+  "mode": "controlled-production-acceptance",
+  "deployment_start": "2026-08-23T23:50:36+08:00",
+  "deployment_end": "2026-08-23T23:51:23+08:00",
+  "operator": "anderson",
+  "production_touched": true,
+  "production_write_performed": false,
+  "migration_performed": false,
+  "restore_performed": false,
+  "candidate": {
+    "source_commit": "e8455db7f36398995c0ec51647aff21aa4df3925",
+    "release_id": "wp1-e2e-cleanup-router-fix-20260822-r1",
+    "image": "sha256:f3290d5d594d20aa35e2b3799675f86a9dc615a01063acfa9efd8097bc710cf0",
+    "planned_ledger_path": "/home/da40_ai_gb10/knowledge-base/data/job-ledger.sqlite3",
+    "four_service_ledger_and_mount_preflight": "PASS"
+  },
+  "temporary_e2e_identity": {
+    "provisioning": "additive runtime env, 0600 file",
+    "provisioning_before_acceptance": "PASS",
+    "existing_registry_preserved": true,
+    "removed_by_rollback": true,
+    "post_removal_auth_http": 403,
+    "secrets_included": false
+  },
+  "identity_gate": {
+    "health_http": 502,
+    "version_http": 502,
+    "result": "FAIL",
+    "failure_classification": "production runtime startup/configuration concurrency",
+    "root_cause_observed": "sqlite3.OperationalError: database is locked during JobLeaseStore WAL initialization in one Uvicorn child process",
+    "acceptance_stopped_immediately": true,
+    "synthetic_e2e_started": false,
+    "synthetic_run_id": null,
+    "cleanup_required": false,
+    "cleanup_reason": "identity gate failed before any synthetic write"
+  },
+  "rollback": {
+    "performed": true,
+    "checkpoint": "/home/da40_ai_gb10/kb-pre-wp01-backups/pre-deploy-current-production-20260822-110946",
+    "checkpoint_sha256": "18f0f3ff7f5652ad72b45d8ddc497ef8f7ece34b2de9a822ed7436fe0d719d3f",
+    "target_image": "sha256:a3220ec33ab80c588f289d8560af96c447c6f573da3145fe66ffa2cd719b16ec",
+    "rollback_command": "python3 scripts/rollback_pre_wp01.py --checkpoint /home/da40_ai_gb10/kb-pre-wp01-backups/pre-deploy-current-production-20260822-110946 --execute --confirm-production PRE_WP01_ROLLBACK",
+    "result": "PASS"
+  },
+  "final_production_status": {
+    "image": "sha256:a3220ec33ab80c588f289d8560af96c447c6f573da3145fe66ffa2cd719b16ec",
+    "health": "PASS",
+    "wp0_gates": "PASS",
+    "wp1_gates": "PASS",
+    "celery_nodes": 2,
+    "queues_empty": true,
+    "active_reserved_scheduled_empty": true,
+    "temporary_identity_rejected": true,
+    "production_gate": "NO-GO",
+    "wp1_final_closure": "NOT_REACHED"
+  },
+  "remaining_blocker": "Candidate startup must resolve SQLite WAL initialization concurrency before another Production GO is considered; no source fix was attempted in this run."
+}
