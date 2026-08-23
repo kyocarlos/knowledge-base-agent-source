@@ -1,0 +1,99 @@
+{
+  "schema": "km.wp1.production-ingest-lease-diagnosis.v1",
+  "observed_at": "2026-08-23",
+  "mode": "read-only",
+  "production_mutation_performed": false,
+  "target": {
+    "run_id": "TR-E2E-WP1-PROD-RETRY-20260823-095504-unique",
+    "submission_id": "report_20260823_015605_548beca0",
+    "ingest_task_id": "ingest_20260823_015605_be828d38",
+    "celery_task_id": "988bc427-ca2c-4a00-9543-ef1bf4018f9c"
+  },
+  "submission": {
+    "source": "PostgreSQL report_submissions read-only query",
+    "status": "queued",
+    "ingest_task_id_matches": true,
+    "created_at": "2026-08-23T01:56:05+00:00",
+    "updated_at": "2026-08-23T01:56:05+00:00"
+  },
+  "task_state": {
+    "source": "Redis read-only GET of task state",
+    "status": "queued",
+    "job_status": "queued",
+    "started_at": null,
+    "finished_at": null,
+    "ingested": false,
+    "celery_task_id_present": true,
+    "task_state_consistent_with_submission": true
+  },
+  "celery": {
+    "current_queue_lengths": {
+      "ingest": 0,
+      "search": 0,
+      "default": 0,
+      "document": 0,
+      "indexing": 0,
+      "celery": 0
+    },
+    "current_unacked_state": "not_observed_after_rollback",
+    "task_acknowledged_or_redelivered": "not_determinable_from_current_runtime",
+    "worker_receipt": "confirmed_by acceptance evidence and worker log",
+    "worker_receipt_log_message": "worker received task but logged lease claim false and returned queued state"
+  },
+  "ledger": {
+    "claim_behavior": "JobLeaseStore.claim returns null for missing row, succeeded row, or live lease owned by another owner",
+    "live_compose_kb_job_ledger_path": "not_declared",
+    "candidate_compose_kb_job_ledger_path": "/home/da40_ai_gb10/knowledge-base/data/job-ledger.sqlite3",
+    "candidate_image_default_when_env_missing": "relative data/job-ledger.sqlite3",
+    "current_baseline_container_env": {
+      "web": "KB_JOB_LEDGER_PATH absent",
+      "celery_search_worker": "KB_JOB_LEDGER_PATH absent",
+      "celery_ingest_worker": "KB_JOB_LEDGER_PATH absent",
+      "celery_beat": "KB_JOB_LEDGER_PATH absent"
+    },
+    "current_baseline_host_ledger_file": "absent",
+    "candidate_service_mount_consistency": "candidate branch declares the same host data mount, but the production deployment used the live Compose plus an image override",
+    "actual_candidate_ledger_inode": "not recoverable after rollback and teardown",
+    "web_worker_path_identity": "not directly captured during the failed deployment; configuration proves a relative-path risk",
+    "row_for_target_after_rollback": "not available in current baseline ledger"
+  },
+  "lease": {
+    "row_observed": false,
+    "status": "not_determinable_after_rollback",
+    "owner": null,
+    "acquired_at": null,
+    "heartbeat": null,
+    "expires_at": null,
+    "attempt_count": null,
+    "logical_job_id": "ingest_20260823_015605_be828d38",
+    "idempotency_key": "redacted; not recorded in evidence",
+    "stale_lease_before_retry": "NOT_DETERMINABLE",
+    "reason": "approved rollback removed the candidate runtime and its private ledger state; no production ledger mutation or forensic recovery was authorized"
+  },
+  "recovery": {
+    "startup_sweep_for_target": "NOT_OBSERVED",
+    "redelivery": "NOT_OBSERVED",
+    "post_rollback_runtime": "healthy baseline; queues empty",
+    "manual_task_state_change": false
+  },
+  "root_cause": {
+    "classification": "A",
+    "label": "production configuration/path mismatch",
+    "confidence": "high",
+    "finding": "The live deployment Compose did not inject KB_JOB_LEDGER_PATH. The candidate JobLeaseStore therefore falls back to relative data/job-ledger.sqlite3. The web and ingest worker containers do not share the container-local /app/data ledger file, so web registration can be invisible to worker claim.",
+    "code_fix_required": "not established by this diagnosis",
+    "configuration_or_deployment_correction_required": true
+  },
+  "cleanup_reconciliation": {
+    "current_protection": "preserved",
+    "active_task_count_before_rollback": 1,
+    "cleanup_apply": "HTTP 409 active task",
+    "terminalize_or_reconcile_proof": "not run; production task state was not manually changed",
+    "cleanup_completion": "BLOCKED",
+    "safe_next_step": "reproduce in isolated/shadow with one explicit shared absolute ledger path, prove register/claim/terminalize and cleanup, then request separate production approval"
+  },
+  "production_gate": "NO-GO",
+  "recommended_next_gate": "isolated/shared-ledger reconciliation validation",
+  "secrets_included": false,
+  "wp2_or_real_instrument": false
+}
