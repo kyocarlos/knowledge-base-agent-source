@@ -1,0 +1,38 @@
+{
+  "schema": "km.wp1.job-lease-startup-fix.v1",
+  "source_commit": "4042284c23f2076e16a476f2426ec1f1ca73f7b4",
+  "image": {
+    "tag": "kb-wp1-job-lease-startup-fix:local",
+    "local_image_id": "sha256:29f210334bc4d72d7b83f660799a7bfe575274bbd41fe337ac55d15b1525c58b",
+    "registry_digest": null
+  },
+  "root_cause": {
+    "classification": "production runtime startup/configuration concurrency",
+    "observed_error": "sqlite3.OperationalError: database is locked",
+    "location": "JobLeaseStore WAL/schema initialization during multi-worker startup"
+  },
+  "change": {
+    "scope": "serialize WAL/schema initialization with a database-adjacent POSIX advisory lock",
+    "business_logic_changed": false,
+    "ledger_path_contract_changed": false,
+    "production_deployed": false
+  },
+  "validation": {
+    "concurrent_process_initialization": "PASS",
+    "process_count": 4,
+    "four_worker_uvicorn_startup": "PASS",
+    "database_locked_observed": false,
+    "compileall": "PASS",
+    "pytest": "NOT_RUN: pytest is not installed in the host environment",
+    "isolated_config_warning": "config.yaml was not mounted in the minimal runtime probe; existing scheduler configuration warning only"
+  },
+  "safety": {
+    "production_touched": false,
+    "production_write_performed": false,
+    "migration_performed": false,
+    "restore_performed": false,
+    "secrets_included": false,
+    "real_instrument_access": false
+  },
+  "next_gate": "independent review and CI, then full isolated candidate validation; no production retry authorized"
+}
