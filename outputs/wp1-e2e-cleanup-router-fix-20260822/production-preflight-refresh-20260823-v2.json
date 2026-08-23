@@ -1,0 +1,80 @@
+{
+  "schema": "km.wp1.production-preflight-refresh.v2",
+  "mode": "read-only",
+  "executed_at": "2026-08-23",
+  "production_touched": false,
+  "secrets_included": false,
+  "current_production": {
+    "web_image": "sha256:a3220ec33ab80c588f289d8560af96c447c6f573da3145fe66ffa2cd719b16ec",
+    "runtime_images": {
+      "web": "sha256:a3220ec33ab80c588f289d8560af96c447c6f573da3145fe66ffa2cd719b16ec",
+      "search_worker": "sha256:af2948686fe51e24cb0cf83eda97e6371ddb1bb19d4ec6568ae38fd89420195e",
+      "ingest_worker": "sha256:ecf5d163fa3f8f48afe2b585bb9d8894e6e4c6501712e5663ba0b900a64991a0",
+      "beat": "sha256:a4a9d69cadf3f6d48a3dc282899b3e3a172af557046a25df57eb77d45d6a53e"
+    },
+    "health": "PASS",
+    "wp0_acceptance_gates": "PASS",
+    "wp1_acceptance_gates": "PASS",
+    "celery_nodes": 2,
+    "queues": {
+      "active": 0,
+      "reserved": 0,
+      "scheduled": 0,
+      "search": 0,
+      "ingest": 0,
+      "default": 0,
+      "document": 0,
+      "indexing": 0,
+      "celery": 0
+    }
+  },
+  "checkpoint": {
+    "path": "/home/da40_ai_gb10/kb-pre-wp01-backups/pre-deploy-current-production-20260822-110946",
+    "sha256": "18f0f3ff7f5652ad72b45d8ddc497ef8f7ece34b2de9a822ed7436fe0d719d3f",
+    "verification": "PASS",
+    "rollback_target": "sha256:a3220ec33ab80c588f289d8560af96c447c6f573da3145fe66ffa2cd719b16ec",
+    "rollback_target_matches_current_runtime": true,
+    "rollback_readiness": "PASS",
+    "drift_since_checkpoint": false
+  },
+  "candidate": {
+    "source_commit": "e8455db7f36398995c0ec51647aff21aa4df3925",
+    "release_id": "wp1-e2e-cleanup-router-fix-20260822-r1",
+    "image": "sha256:f3290d5d594d20aa35e2b3799675f86a9dc615a01063acfa9efd8097bc710cf0",
+    "local_image_exists": true,
+    "source_release_image_consistent": true
+  },
+  "planned_shared_ledger_configuration": {
+    "ledger_path": "/home/da40_ai_gb10/knowledge-base/data/job-ledger.sqlite3",
+    "path_is_absolute": true,
+    "volume_source": "/home/da40_ai_gb10/knowledge-base/data",
+    "services": {
+      "web": {"compose_service": "web", "env_path": "/home/da40_ai_gb10/knowledge-base/data/job-ledger.sqlite3", "mount_target": "/home/da40_ai_gb10/knowledge-base/data"},
+      "search_worker": {"compose_service": "celery_search_worker", "env_path": "/home/da40_ai_gb10/knowledge-base/data/job-ledger.sqlite3", "mount_target": "/home/da40_ai_gb10/knowledge-base/data"},
+      "ingest_worker": {"compose_service": "celery_ingest_worker", "env_path": "/home/da40_ai_gb10/knowledge-base/data/job-ledger.sqlite3", "mount_target": "/home/da40_ai_gb10/knowledge-base/data"},
+      "beat": {"compose_service": "celery_beat", "env_path": "/home/da40_ai_gb10/knowledge-base/data/job-ledger.sqlite3", "mount_target": "/home/da40_ai_gb10/knowledge-base/data"}
+    },
+    "rendered_compose_verified": true,
+    "env_consistent": true,
+    "mount_consistent": true,
+    "fallback_dependency": false,
+    "secrets_included": false
+  },
+  "temporary_e2e_identity": {
+    "provisioning_method": "runtime env additive merge with 0600 temporary env and controlled application-service restart",
+    "additive": true,
+    "existing_registry_preserved": true,
+    "e2e_identity_present": true,
+    "removal_procedure": "remove temporary env/hash entry, restart/reload application services, verify auth rejection",
+    "removal_procedure_defined": true,
+    "rollback_safe": true,
+    "secrets_included": false
+  },
+  "recommendation": {
+    "production_gate": "NO-GO",
+    "production_go": false,
+    "preflight_refresh": "PASS",
+    "ready_for_supervisor_production_go_review": true,
+    "prohibited_in_this_run": ["deploy", "restart", "production_write", "migration", "restore", "WP2", "real_instrument"]
+  }
+}
