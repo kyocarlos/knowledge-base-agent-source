@@ -1,0 +1,22 @@
+{
+  "schema": "km.temporary-production-e2e-provisioning.shadow.v1",
+  "validation_mode": "read-only/shadow",
+  "provisioning_method": "runtime env additive merge; temporary 0600 env; controlled application service restart required",
+  "additive": true,
+  "existing_registry_preserved": true,
+  "existing_registry_entry_count": 2,
+  "e2e_identity_present": true,
+  "e2e_identity_removed_auth_rejected": true,
+  "temporary_env_mode": "0600",
+  "secrets_included": false,
+  "removal_procedure_defined": true,
+  "rollback_safe": true,
+  "migration_triggered": false,
+  "wp2_modified": false,
+  "real_instrument_used": false,
+  "credential_material_written_to_evidence": false,
+  "service_restart_required": true,
+  "shadow_result": "PASS",
+  "production_deployment_performed": false,
+  "production_gate": "NO-GO"
+}
