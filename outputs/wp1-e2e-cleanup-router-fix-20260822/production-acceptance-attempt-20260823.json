@@ -1,0 +1,64 @@
+{
+  "schema": "km.wp1.production-acceptance-attempt.v1",
+  "deployment_start": "2026-08-23T09:35:24+08:00",
+  "operator": "codex",
+  "candidate": {
+    "source_commit": "e8455db7f36398995c0ec51647aff21aa4df3925",
+    "release_id": "wp1-e2e-cleanup-router-fix-20260822-r1",
+    "image_digest": "sha256:f3290d5d594d20aa35e2b3799675f86a9dc615a01063acfa9efd8097bc710cf0",
+    "identity_gate": "PASS",
+    "version_http": 200,
+    "version_commit": "e8455db7f36398995c0ec51647aff21aa4df3925",
+    "version_release_id": "wp1-e2e-cleanup-router-fix-20260822-r1",
+    "version_image_digest": "sha256:f3290d5d594d20aa35e2b3799675f86a9dc615a01063acfa9efd8097bc710cf0",
+    "build_timestamp": "2026-08-22T23:32:27+08:00"
+  },
+  "acceptance": {
+    "health": "PASS",
+    "search": "PASS",
+    "report_agent_health": "PASS",
+    "upload": "PASS",
+    "duplicate_deduplication": "PASS",
+    "report_self_read": "FAIL_HTTP_403",
+    "report_approve_read": "NOT_RUN",
+    "worker_completion": "NOT_RUN",
+    "worker_recovery": "NOT_RUN",
+    "inflight_redelivery": "NOT_RUN",
+    "application_idempotency": "NOT_RUN",
+    "celery_queues": "NOT_RUN_BEFORE_ROLLBACK",
+    "cleanup": "PASS",
+    "post_cleanup_health": "NOT_RUN_BEFORE_ROLLBACK",
+    "synthetic_run_id": "TR-E2E-WP1-PROD-20260823-093524-unique",
+    "synthetic_submission_id": "report_20260823_013818_a6a31b5c",
+    "synthetic_residual_count": 0
+  },
+  "failure": {
+    "classification": "production_configuration",
+    "root_cause": "The production regular agent registry did not contain the temporary isolated E2E agent identity. The E2E token authenticated upload, but the self-read route uses the regular agent authentication boundary and returned HTTP 403.",
+    "source_code_changed_during_attempt": false,
+    "candidate_modified_during_attempt": false,
+    "production_data_cleanup": {
+      "status": 200,
+      "files": 2,
+      "reports": 1,
+      "ingest_records": 0,
+      "neo4j_nodes": 0,
+      "qdrant_points": 0,
+      "residual_count": 0
+    }
+  },
+  "rollback": {
+    "performed": true,
+    "checkpoint": "/home/da40_ai_gb10/kb-pre-wp01-backups/pre-deploy-current-production-20260822-110946",
+    "checkpoint_sha256": "18f0f3ff7f5652ad72b45d8ddc497ef8f7ece34b2de9a822ed7436fe0d719d3f",
+    "target_image": "sha256:a3220ec33ab80c588f289d8560af96c447c6f573da3145fe66ffa2cd719b16ec",
+    "command": "python3 scripts/rollback_pre_wp01.py --checkpoint /home/da40_ai_gb10/kb-pre-wp01-backups/pre-deploy-current-production-20260822-110946 --execute --confirm-production PRE_WP01_ROLLBACK",
+    "result": "PASS",
+    "final_health_http": 200,
+    "final_celery_nodes": 2,
+    "final_queue_state": "empty"
+  },
+  "production_gate": "NO-GO",
+  "final_status": "ROLLED_BACK_TO_KNOWN_GOOD_BASELINE",
+  "deferred": ["production acceptance retry after separately approved E2E agent registry configuration", "WP2", "migration", "destructive restore", "real instrument"]
+}
