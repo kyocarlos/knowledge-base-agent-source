@@ -1,0 +1,91 @@
+{
+  "schema": "km.wp1.production-acceptance-retry.v1",
+  "deployment_start": "2026-08-23T09:55:04+08:00",
+  "deployment_end": null,
+  "deployment_end_note": "End timestamp was not captured before rollback; final state was verified after rollback.",
+  "operator": "codex",
+  "candidate": {
+    "source_commit": "e8455db7f36398995c0ec51647aff21aa4df3925",
+    "release_id": "wp1-e2e-cleanup-router-fix-20260822-r1",
+    "image_digest": "sha256:f3290d5d594d20aa35e2b3799675f86a9dc615a01063acfa9efd8097bc710cf0",
+    "identity_gate": "PASS"
+  },
+  "temporary_provisioning": {
+    "method": "additive runtime regular-agent registry merge with controlled service restart",
+    "additive": true,
+    "existing_registry_entry_count": 2,
+    "merged_registry_entry_count": 3,
+    "existing_registry_preserved": true,
+    "temporary_identity": "e2e-agent-01",
+    "runtime_env_mode": "0600",
+    "secrets_included": false,
+    "migration_performed": false,
+    "removal_procedure_defined": true
+  },
+  "synthetic_run": {
+    "run_id": "TR-E2E-WP1-PROD-RETRY-20260823-095504-unique",
+    "submission_id": "report_20260823_015605_548beca0",
+    "ingest_task_id": "ingest_20260823_015605_be828d38",
+    "synthetic_only": true
+  },
+  "acceptance": {
+    "health": "PASS_HTTP_200",
+    "version_identity": "PASS",
+    "search": "PASS_HTTP_200",
+    "report_agent_health": "PASS_HTTP_200",
+    "upload": "PASS_HTTP_202",
+    "duplicate_deduplication": "PASS_duplicate_true",
+    "report_self_read": "PASS_HTTP_200",
+    "report_approve_read": "FAIL_HTTP_409_QUEUED",
+    "worker_completion": "FAIL_OR_BLOCKED_BY_LEASE",
+    "worker_recovery": "NOT_RUN_AFTER_MANDATORY_FAILURE",
+    "inflight_redelivery": "NOT_RUN_AFTER_MANDATORY_FAILURE",
+    "application_idempotency": "NOT_RUN_AFTER_MANDATORY_FAILURE",
+    "celery_queues": "HEALTHY_BUT_TASK_NOT_COMPLETED",
+    "synthetic_submission_status": "queued",
+    "task_lease_observation": "ingest worker received task but did not acquire lease",
+    "task_side_effects": "not_started",
+    "report_review": "NOT_RUN_AFTER_MANDATORY_FAILURE"
+  },
+  "cleanup": {
+    "dry_run": "PASS_HTTP_200",
+    "dry_run_reports": 1,
+    "dry_run_task_ids": ["ingest_20260823_015605_be828d38"],
+    "dry_run_active_task_count": 1,
+    "apply": "FAIL_HTTP_409_ACTIVE_TASK",
+    "residual_reconciliation": "BLOCKED",
+    "residual_count": null,
+    "note": "Cleanup apply was correctly refused while the queued/active ingest task remained. No manual production deletion was performed."
+  },
+  "temporary_identity_removal": {
+    "removed": true,
+    "existing_registry_preserved": true,
+    "regular_auth_after_removal": "REJECTED_HTTP_403",
+    "post_removal_service_health": "PASS",
+    "secrets_included": false
+  },
+  "rollback": {
+    "performed": true,
+    "checkpoint": "/home/da40_ai_gb10/kb-pre-wp01-backups/pre-deploy-current-production-20260822-110946",
+    "checkpoint_sha256": "18f0f3ff7f5652ad72b45d8ddc497ef8f7ece34b2de9a822ed7436fe0d719d3f",
+    "target_image": "sha256:a3220ec33ab80c588f289d8560af96c447c6f573da3145fe66ffa2cd719b16ec",
+    "command": "python3 scripts/rollback_pre_wp01.py --checkpoint /home/da40_ai_gb10/kb-pre-wp01-backups/pre-deploy-current-production-20260822-110946 --execute --confirm-production PRE_WP01_ROLLBACK",
+    "result": "PASS",
+    "final_health_http": 200,
+    "final_celery_nodes": 2,
+    "final_queue_state": "empty",
+    "final_runtime": "known_good_baseline"
+  },
+  "source_code_changed_during_attempt": false,
+  "candidate_modified_during_attempt": false,
+  "production_gate": "NO-GO",
+  "final_status": "ACCEPTANCE_FAILED_ROLLED_BACK",
+  "deferred": [
+    "production ingest lease/task-state reconciliation",
+    "production synthetic cleanup completion",
+    "WP2",
+    "migration",
+    "destructive restore",
+    "real instrument"
+  ]
+}
