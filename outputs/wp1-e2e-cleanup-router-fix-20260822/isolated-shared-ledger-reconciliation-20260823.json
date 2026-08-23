@@ -1,0 +1,102 @@
+{
+  "schema": "km.wp1.isolated-shared-ledger-reconciliation.v1",
+  "mode": "isolated-shadow",
+  "executed_at": "2026-08-23",
+  "candidate": {
+    "source_commit": "e8455db7f36398995c0ec51647aff21aa4df3925",
+    "release_id": "wp1-e2e-cleanup-router-fix-20260822-r1",
+    "image": "sha256:f3290d5d594d20aa35e2b3799675f86a9dc615a01063acfa9efd8097bc710cf0"
+  },
+  "production_touched": false,
+  "secrets_included": false,
+  "configuration": {
+    "explicit_ledger_path": "/app/data/job-ledger.sqlite3",
+    "path_is_absolute": true,
+    "services": {
+      "web": {"env_path": "/app/data/job-ledger.sqlite3", "mount_targets": ["/app/data", "/home/da40_ai_gb10/knowledge-base/data"]},
+      "search_worker": {"env_path": "/app/data/job-ledger.sqlite3", "mount_targets": ["/app/data", "/home/da40_ai_gb10/knowledge-base/data"]},
+      "ingest_worker": {"env_path": "/app/data/job-ledger.sqlite3", "mount_targets": ["/app/data", "/home/da40_ai_gb10/knowledge-base/data"]},
+      "beat": {"env_path": "/app/data/job-ledger.sqlite3", "mount_targets": ["/app/data", "/home/da40_ai_gb10/knowledge-base/data"]}
+    },
+    "rendered_compose_verified": true,
+    "env_consistent": true,
+    "mount_target_consistent": true,
+    "application_fallback_used": false
+  },
+  "shared_file_identity": {
+    "stat_format": "path|device|inode|size",
+    "per_service": {
+      "web": "/app/data/job-ledger.sqlite3|66306|64785378|16384",
+      "search_worker": "/app/data/job-ledger.sqlite3|66306|64785378|16384",
+      "ingest_worker": "/app/data/job-ledger.sqlite3|66306|64785378|16384",
+      "beat": "/app/data/job-ledger.sqlite3|66306|64785378|16384"
+    },
+    "device_inode_size_consistent": true
+  },
+  "register_claim_completion": {
+    "run_id": "TR-E2E-WP1-SHARED-20260823-222709-unique",
+    "register": "PASS",
+    "worker_read_same_ledger_row": "PASS",
+    "claim": "PASS",
+    "lease_lifecycle": {
+      "during_inflight": {
+        "status": "running",
+        "owner_present": true,
+        "attempt": 1,
+        "lease_until_present": true,
+        "heartbeat_updated_at_present": true,
+        "completed_at": null
+      },
+      "terminal": {
+        "status": "succeeded",
+        "owner": null,
+        "attempt": 2,
+        "recovery_count": 1,
+        "lease_until": 0.0,
+        "completed_at_present": true
+      }
+    },
+    "worker_completion": "PASS",
+    "terminal_state": "succeeded"
+  },
+  "recovery_redelivery_idempotency": {
+    "inflight_run": "isolated job-1",
+    "worker_killed_during_job": true,
+    "unacked_observed_before_recovery": true,
+    "recovery_sweep": "PASS",
+    "redelivery_verified": true,
+    "attempts": 2,
+    "duplicate_side_effect_prevented": true,
+    "side_effect_count": 1,
+    "worker_restart_recovery": "PASS",
+    "cleanup_verified": true
+  },
+  "write_e2e": {
+    "upload_status": 202,
+    "approval_status": 200,
+    "terminal_status": "completed",
+    "ingest_task_id_present": true,
+    "cleanup_dry_run_status": 200,
+    "cleanup_apply_status": 200,
+    "submission_after_cleanup": 404,
+    "residual_count": 0,
+    "result": "PASS"
+  },
+  "health_and_queues": {
+    "health": "PASS",
+    "worker_and_queue_flow": "PASS",
+    "post_cleanup_health": "PASS",
+    "active_task_count": 0
+  },
+  "conclusion": {
+    "root_cause_a_shared_ledger_reconciliation": "CLOSED_IN_ISOLATED_VALIDATION",
+    "production_configuration_changed": false,
+    "production_gate": "NO-GO",
+    "production_preflight_ready": true,
+    "next_action": "Supervisor review before any production retry"
+  },
+  "audit_notes": [
+    "An initial in-flight drill failed because the temporary harness mounted a non-existent job_lease.py path; it was classified as test-harness failure and did not produce a candidate conclusion.",
+    "The corrected harness passed; no source code or production state was modified."
+  ]
+}
