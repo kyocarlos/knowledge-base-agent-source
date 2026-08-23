@@ -1,0 +1,182 @@
+{
+  "project": "kb-wp01-candidate-20260824-065438",
+  "image": "kb-wp1-release:wp1-job-lease-startup-fix-20260824",
+  "port": 40477,
+  "e2e_auth_probes": {
+    "agent_health": {
+      "status": 200,
+      "body": "{\"status\":\"ok\",\"identity\":\"e2e-agent-01\",\"scope\":\"report:upload\",\"agent_id\":\"e2e-agent-01\",\"environment\":\"anritsu\",\"e2e\":true,\"schema_versions\":[\"1.0\"]}"
+    },
+    "cleanup_missing_token": {
+      "status": 401,
+      "body": "{\"detail\":\"缺少 X-E2E-Cleanup-ID\"}"
+    },
+    "cleanup_wrong_role_token": {
+      "status": 403,
+      "body": "{\"detail\":\"E2E cleanup token 無效\"}"
+    }
+  },
+  "write_e2e": {
+    "test_run_id": "TR-E2E-WP1-CLEANUP-FIX-20260822-234514-bf02b7bd",
+    "upload_status": 202,
+    "duplicate_upload_status": 202,
+    "duplicate_upload": {
+      "submission_id": "report_20260823_225451_1404f67c",
+      "environment": "anritsu",
+      "run_id": "TR-E2E-WP1-CLEANUP-FIX-20260822-234514-bf02b7bd",
+      "agent_id": "e2e-agent-01",
+      "report_name": "synthetic.xlsx",
+      "report_hash": "a378419ebdb8634e40d0ab5efd3e15681bfb408731607470cabf9552fe72d709",
+      "status": "pending_review",
+      "reviewer_id": null,
+      "review_comment": null,
+      "reviewed_at": null,
+      "ingest_task_id": null,
+      "error": null,
+      "version": 1,
+      "created_at": "2026-08-23T22:54:51+00:00",
+      "updated_at": "2026-08-23T22:54:51+00:00",
+      "attachments": [
+        {
+          "name": "synthetic-e2e-log.txt",
+          "path": "/app/data/report-staging/report_20260823_225451_1404f67c/attachments/synthetic-e2e-log.txt",
+          "sha256": "6329df9f91e57de549e5610b0af76581e8274c1bf33df13db3866249aec7ab19",
+          "size": 53
+        }
+      ],
+      "manifest": {
+        "schema_version": "1.0",
+        "run_id": "TR-E2E-WP1-CLEANUP-FIX-20260822-234514-bf02b7bd",
+        "test_run_id": "TR-E2E-WP1-CLEANUP-FIX-20260822-234514-bf02b7bd",
+        "environment": "anritsu",
+        "project_code": "E2E-WP0-SYNTHETIC",
+        "dut_model": "E2E-DUT-NONPRODUCTION",
+        "started_at": "2026-08-19T07:25:14+00:00",
+        "finished_at": "2026-08-19T07:25:14+00:00",
+        "overall_verdict": "pass"
+      },
+      "validation": {
+        "valid": true,
+        "schema_version": "1.0"
+      },
+      "duplicate": true
+    },
+    "agent_self_read_status": 200,
+    "approval_status": 200,
+    "terminal_status": "completed",
+    "terminal_error": null,
+    "lease_lifecycle": {
+      "job_id": "ingest_20260823_225451_5e80c7e8",
+      "idempotency_key": "report_20260823_225451_1404f67c:a378419ebdb8634e40d0ab5efd3e15681bfb408731607470cabf9552fe72d709",
+      "status": "succeeded",
+      "owner": null,
+      "attempt": 1,
+      "lease_until": 0.0,
+      "recovery_count": 0,
+      "created_at": 1787525691.5774267,
+      "updated_at": 1787525714.6219444,
+      "completed_at": 1787525714.6219444
+    },
+    "worker_log_excerpt": "",
+    "ingest_task_id_present": true,
+    "cleanup_dry_run_status": 200,
+    "cleanup_apply_status": 200,
+    "cleanup_plan_counts": {
+      "reports": 1,
+      "ingest_records": 0,
+      "neo4j": {
+        "TestRun": 1,
+        "TestCase": 1,
+        "Measurement": 1
+      },
+      "qdrant": {
+        "points": 0
+      }
+    },
+    "cleanup_deleted_counts": {
+      "files": 2,
+      "redis_tasks": 1,
+      "reports": 1,
+      "ingest_records": 0,
+      "neo4j": {
+        "Measurement": 1,
+        "TestCase": 1,
+        "TestRun": 1
+      },
+      "qdrant_points": 0
+    },
+    "submission_after_cleanup": 404,
+    "active_task_count_after_cleanup": 0,
+    "post_cleanup_health_status": 200,
+    "result": "passed"
+  },
+  "probes": {
+    "/health": {
+      "status": 200,
+      "body": "{\"status\":\"healthy\"}"
+    },
+    "/api/v1/health": {
+      "status": 200,
+      "body": "{\"data\":{\"status\":\"ok\",\"live\":true,\"ready\":true},\"error\":null,\"trace_id\":\"4ec4119408b54bf48f0f7f7d63395e61\"}"
+    },
+    "/api/v1/health/live": {
+      "status": 200,
+      "body": "{\"data\":{\"status\":\"ok\",\"live\":true,\"ready\":null},\"error\":null,\"trace_id\":\"f6e8b4d836d94d1993b7ba31c27f9270\"}"
+    },
+    "/api/v1/health/ready": {
+      "status": 200,
+      "body": "{\"data\":{\"status\":\"ok\",\"live\":true,\"ready\":true},\"error\":null,\"trace_id\":\"7f4a676e919f424ebf10ca31bdb5e3bd\"}"
+    },
+    "/api/v1/version": {
+      "status": 200,
+      "body": "{\"data\":{\"service\":\"knowledge-base-api\",\"version\":\"1.0.0\",\"environment\":\"development\",\"commit\":\"4042284c23f2076e16a476f2426ec1f1ca73f7b4\",\"release_id\":\"wp1-job-lease-startup-fix-20260824\",\"image_digest\":\"sha256:ed09a772cae7ddcb8251dac59f4e1921e6da24642bb4b7708b912edd97db2ea6\",\"build_timestamp\":\"2026-08-24T06:47:20+08:00\"},\"error\":null,\"trace_id\":\"c33be1d02f574260b0ff4c2435175e74\"}"
+    },
+    "/api/agent/v1/health": {
+      "status": 401,
+      "body": "{\"detail\":\"缺少 X-Agent-ID\"}"
+    }
+  },
+  "search_submission": {
+    "status": 200,
+    "task_id_present": true
+  },
+  "services_running": {
+    "web": true,
+    "search_worker": true,
+    "ingest_worker": true,
+    "beat": true
+  },
+  "shared_ledger": {
+    "path": "/app/data/job-ledger.sqlite3",
+    "service_file_identity": {
+      "web": {
+        "path": "/app/data/job-ledger.sqlite3",
+        "device": 66306,
+        "inode": 70782489,
+        "size": 16384
+      },
+      "search_worker": {
+        "path": "/app/data/job-ledger.sqlite3",
+        "device": 66306,
+        "inode": 70782489,
+        "size": 16384
+      },
+      "ingest_worker": {
+        "path": "/app/data/job-ledger.sqlite3",
+        "device": 66306,
+        "inode": 70782489,
+        "size": 16384
+      },
+      "beat": {
+        "path": "/app/data/job-ledger.sqlite3",
+        "device": 66306,
+        "inode": 70782489,
+        "size": 16384
+      }
+    },
+    "path_consistent": true,
+    "file_identity_consistent": true
+  },
+  "result": "passed",
+  "finished_at": "2026-08-23T22:55:31.716473+00:00"
+}

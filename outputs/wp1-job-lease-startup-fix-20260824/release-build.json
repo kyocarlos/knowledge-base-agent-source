@@ -1,0 +1,12 @@
+{
+  "schema": "km.wp1.release-candidate-build.v1",
+  "release_candidate_commit": "4042284c23f2076e16a476f2426ec1f1ca73f7b4",
+  "release_id": "wp1-job-lease-startup-fix-20260824",
+  "build_timestamp": "2026-08-24T06:47:20+08:00",
+  "image_tag": "kb-wp1-release:wp1-job-lease-startup-fix-20260824",
+  "image_id": "sha256:ed09a772cae7ddcb8251dac59f4e1921e6da24642bb4b7708b912edd97db2ea6",
+  "image_digest_source": "local docker image ID; registry digest requires a separately approved registry push",
+  "production_touched": false,
+  "deployed": false,
+  "secrets_included": false
+}

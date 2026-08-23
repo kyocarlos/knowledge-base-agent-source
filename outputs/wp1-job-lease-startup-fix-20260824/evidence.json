@@ -1,0 +1,72 @@
+{
+  "schema": "km.wp1.job-lease-startup-fix-candidate.v1",
+  "source_commit": "4042284c23f2076e16a476f2426ec1f1ca73f7b4",
+  "release_id": "wp1-job-lease-startup-fix-20260824",
+  "image_tag": "kb-wp1-release:wp1-job-lease-startup-fix-20260824",
+  "image_id": "sha256:ed09a772cae7ddcb8251dac59f4e1921e6da24642bb4b7708b912edd97db2ea6",
+  "build_timestamp": "2026-08-24T06:47:20+08:00",
+  "registry_digest": null,
+  "startup": {
+    "uvicorn_worker_count": 4,
+    "workers_started": 4,
+    "application_startup_complete": 4,
+    "database_locked_observed": false,
+    "result": "PASS"
+  },
+  "shared_ledger": {
+    "KB_JOB_LEDGER_PATH": "/app/data/job-ledger.sqlite3",
+    "services": ["web", "search_worker", "ingest_worker", "beat"],
+    "path_consistent": true,
+    "mount_consistent": true,
+    "file_identity_consistent": true,
+    "device": 66306,
+    "inode": 70782489,
+    "result": "PASS"
+  },
+  "lease_lifecycle": {
+    "register": "PASS",
+    "claim": "PASS",
+    "status": "succeeded",
+    "attempt": 1,
+    "owner_released": true,
+    "completion": "PASS"
+  },
+  "isolated_validation": {
+    "health": "PASS",
+    "version_identity": "PASS",
+    "search": "PASS",
+    "report_self_read": "PASS",
+    "upload_ingest": "PASS",
+    "duplicate_dedup": "PASS",
+    "report_approve_read": "PASS",
+    "worker_completion": "PASS",
+    "worker_recovery": "PASS",
+    "inflight_redelivery": "PASS",
+    "application_idempotency": "PASS",
+    "redis_reconnect_setnx": "PASS",
+    "cleanup_dry_run": "PASS",
+    "cleanup_apply": "PASS",
+    "active_task_count_after_cleanup": 0,
+    "residual_count": 0,
+    "post_cleanup_health": "PASS"
+  },
+  "evidence_files": [
+    "release-build.json",
+    "isolated/full-smoke.json",
+    "isolated/worker4-startup.log",
+    "isolated/worker-recovery.json",
+    "isolated/inflight-recovery.json",
+    "isolated/application-idempotency.json",
+    "isolated/redis-idempotency.json"
+  ],
+  "safety": {
+    "production_touched": false,
+    "secrets_included": false,
+    "production_deployed": false,
+    "production_write_performed": false,
+    "migration_performed": false,
+    "restore_performed": false,
+    "real_instrument_access": false
+  },
+  "recommendation": "Candidate is technically ready for supervisor Production Preflight Review; do not deploy or retry production from this evidence."
+}
