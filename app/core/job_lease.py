@@ -9,6 +9,11 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Iterator
 
+try:
+    import fcntl
+except ImportError:  # pragma: no cover - production runs on Linux
+    fcntl = None
+
 
 def _database_path() -> Path:
     return Path(os.getenv("KB_JOB_LEDGER_PATH", "data/job-ledger.sqlite3"))
@@ -30,25 +35,41 @@ class JobLeaseStore:
         finally:
             connection.close()
 
+    @contextmanager
+    def _initialization_lock(self) -> Iterator[None]:
+        """Serialize schema/WAL initialization across web worker processes."""
+        if fcntl is None:
+            yield
+            return
+
+        lock_path = self.database_path.with_name(f".{self.database_path.name}.init.lock")
+        with lock_path.open("a+") as lock_file:
+            fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
+            try:
+                yield
+            finally:
+                fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
+
     def _initialize(self) -> None:
-        with self._connection() as connection:
-            connection.execute("PRAGMA journal_mode=WAL")
-            connection.execute(
-                """
-                CREATE TABLE IF NOT EXISTS job_leases (
-                    job_id TEXT PRIMARY KEY,
-                    idempotency_key TEXT NOT NULL UNIQUE,
-                    status TEXT NOT NULL,
-                    owner TEXT,
-                    attempt INTEGER NOT NULL DEFAULT 0,
-                    lease_until REAL NOT NULL DEFAULT 0,
-                    recovery_count INTEGER NOT NULL DEFAULT 0,
-                    created_at REAL NOT NULL,
-                    updated_at REAL NOT NULL,
-                    completed_at REAL
+        with self._initialization_lock():
+            with self._connection() as connection:
+                connection.execute("PRAGMA journal_mode=WAL")
+                connection.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS job_leases (
+                        job_id TEXT PRIMARY KEY,
+                        idempotency_key TEXT NOT NULL UNIQUE,
+                        status TEXT NOT NULL,
+                        owner TEXT,
+                        attempt INTEGER NOT NULL DEFAULT 0,
+                        lease_until REAL NOT NULL DEFAULT 0,
+                        recovery_count INTEGER NOT NULL DEFAULT 0,
+                        created_at REAL NOT NULL,
+                        updated_at REAL NOT NULL,
+                        completed_at REAL
+                    )
+                    """
                 )
-                """
-            )
 
     def register(self, job_id: str, idempotency_key: str | None = None) -> dict:
         if not job_id:

@@ -1,4 +1,10 @@
 from app.core.job_lease import JobLeaseStore
+from concurrent.futures import ProcessPoolExecutor
+
+
+def _initialize_store(path):
+    JobLeaseStore(path)
+    return True
 
 
 def test_expired_lease_is_recovered_and_reclaimed(tmp_path):
@@ -38,3 +44,12 @@ def test_claim_race_allows_only_one_live_owner(tmp_path):
     store.register("job-1")
     assert store.claim("job-1", "worker-a", lease_seconds=30)
     assert store.claim("job-1", "worker-b", lease_seconds=30) is None
+
+
+def test_concurrent_process_initialization_is_serialized(tmp_path):
+    database = tmp_path / "ledger.sqlite3"
+    with ProcessPoolExecutor(max_workers=4) as executor:
+        results = list(executor.map(_initialize_store, [database] * 4))
+
+    assert results == [True] * 4
+    assert JobLeaseStore(database).get("missing") is None
