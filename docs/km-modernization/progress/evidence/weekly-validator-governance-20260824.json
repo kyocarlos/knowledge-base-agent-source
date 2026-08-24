@@ -1,0 +1,46 @@
+{
+  "schema": "km.weekly.validator-governance.v1",
+  "status": "IMPLEMENTED",
+  "scope": "100% work-package delivery validation",
+  "traditional_delivery": {
+    "required": ["pr", "tests", "acceptance", "merged=true"]
+  },
+  "canonical_ancestry_delivery": {
+    "required": [
+      "pr",
+      "tests=true",
+      "acceptance=true",
+      "production_gate=PASS",
+      "integration.status=completed",
+      "integration.method=fast-forward",
+      "integration.target_branch",
+      "integration.target_sha",
+      "integration.compare.status=identical|equivalent",
+      "integration.compare.ahead_by=0",
+      "integration.compare.behind_by=0",
+      "integration.evidence_path"
+    ],
+    "historical_pr_merge_not_required": true,
+    "history_rewrite_allowed": false
+  },
+  "fixture": {
+    "week": "2026-W34",
+    "wp": "WP1",
+    "progress": 100,
+    "delivery_method": "fast-forward",
+    "target_branch": "agent/km-plan-v2.6-anderson",
+    "target_sha": "e47823629e5ec9013fa35f96898191049c943674",
+    "compare": {"status": "identical", "ahead_by": 0, "behind_by": 0},
+    "evidence_path": "progress/evidence/WP1-canonical-integration-dry-run-20260824.json"
+  },
+  "local_pptx_validation": {
+    "output": "/tmp/AI-KM-Weekly-2026-W34-governance-fix.pptx",
+    "sha256": "c35177fc91fbc0b3af0793cde05562943d72fab60b96a4a470229f6f7fef4189",
+    "size_bytes": 161329,
+    "rendered_pages": 7,
+    "render_status": "PASS",
+    "visual_check": "PASS; seven rendered pages inspected, no visible overflow or occlusion"
+  },
+  "production_touched": false,
+  "secrets_included": false
+}

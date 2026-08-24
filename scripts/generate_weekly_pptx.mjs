@@ -27,6 +27,21 @@ const required = (value, label) => {
 const round1 = (value) => Math.round(value * 10) / 10;
 const data = JSON.parse(fs.readFileSync(dataPath, "utf8"));
 
+function hasTraditionalDeliveryEvidence(wp) {
+  return Boolean(wp.pr && wp.tests && wp.acceptance && wp.merged === true);
+}
+
+function hasCanonicalIntegrationEvidence(wp) {
+  const integration = wp.integration;
+  if (!wp.pr || wp.tests !== true || wp.acceptance !== true || wp.production_gate !== "PASS" || !integration) return false;
+  if (integration.status !== "completed" || integration.method !== "fast-forward") return false;
+  if (!integration.target_branch || !/^[0-9a-f]{40}$/.test(integration.target_sha || "")) return false;
+  if (!integration.evidence_path) return false;
+  const compare = integration.compare;
+  if (!compare || !["identical", "equivalent"].includes(compare.status)) return false;
+  return compare.ahead_by === 0 && compare.behind_by === 0;
+}
+
 function validate() {
   for (const key of ["schema_version", "source_baseline", "source_baseline_path", "source_baseline_status", "week", "report_date", "period", "positioning", "current_phase", "weights", "work_packages", "phase_progress", "program_progress", "weekly_outcomes", "quality", "risks", "decisions", "next_week"]) required(data[key], key);
   if (data.week !== week) throw new Error(`week 不一致: ${data.week}`);
@@ -47,7 +62,9 @@ function validate() {
       if (score !== wp.progress) throw new Error(`${wp.id} 加權總和 ${score} != progress ${wp.progress}`);
       for (const [key, value] of Object.entries(wp.scores)) if (value < 0 || value > expectedWeights[key]) throw new Error(`${wp.id}.${key} 超出權重`);
     } else if (wp.progress !== 0) throw new Error(`${wp.id} 無 scores 卻有進度`);
-    if (wp.progress === 100 && (!wp.pr || !wp.tests || !wp.acceptance || !wp.merged)) throw new Error(`${wp.id} 缺 PR/測試/驗收/合併證據，不得為 100`);
+    if (wp.progress === 100 && !hasTraditionalDeliveryEvidence(wp) && !hasCanonicalIntegrationEvidence(wp)) {
+      throw new Error(`${wp.id} 缺傳統 merge 或 canonical integration delivery evidence，不得為 100`);
+    }
   }
   for (let phase = 1; phase <= 5; phase += 1) {
     const members = data.work_packages.filter((wp) => wp.phase === phase);
