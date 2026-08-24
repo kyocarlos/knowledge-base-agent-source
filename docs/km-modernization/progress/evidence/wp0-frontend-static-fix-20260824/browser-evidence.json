@@ -1,0 +1,60 @@
+{
+  "base": "http://127.0.0.1:18081",
+  "results": [
+    {
+      "route": "/",
+      "status": 200,
+      "title": "知識庫搜尋系統",
+      "assets": [
+        "http://127.0.0.1:18081/assets/index-Dn6LwqJX.js",
+        "http://127.0.0.1:18081/assets/index-CHcSE2yN.css"
+      ],
+      "console_errors": [],
+      "failed_requests": []
+    },
+    {
+      "route": "/chat.html",
+      "status": 200,
+      "title": "知識庫熱圖 | Knowledge Base Heatmap",
+      "assets": [
+        "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap",
+        "https://cdn.jsdelivr.net/npm/tweetnacl@1.0.3/nacl.min.js",
+        "http://127.0.0.1:18081/lib/compare-rules.js",
+        "http://127.0.0.1:18081/lib/marked.min.js"
+      ],
+      "console_errors": [
+        "[Chat] 無法載入 runtime config: SyntaxError: Unexpected token '<', \"<!DOCTYPE \"... is not valid JSON"
+      ],
+      "failed_requests": []
+    },
+    {
+      "route": "/upload",
+      "status": 200,
+      "title": "知識庫搜尋系統",
+      "assets": [
+        "http://127.0.0.1:18081/assets/index-Dn6LwqJX.js",
+        "http://127.0.0.1:18081/assets/index-CHcSE2yN.css",
+        "http://127.0.0.1:18081/assets/UploadView-C_sbEJI3.css"
+      ],
+      "console_errors": [
+        "取得檔案列表失敗: SyntaxError: Unexpected token '<', \"<!DOCTYPE \"... is not valid JSON",
+        "取得攝入任務失敗: SyntaxError: Unexpected token '<', \"<!DOCTYPE \"... is not valid JSON"
+      ],
+      "failed_requests": []
+    },
+    {
+      "route": "/admin/report-reviews",
+      "status": 200,
+      "title": "知識庫搜尋系統",
+      "assets": [
+        "http://127.0.0.1:18081/assets/index-Dn6LwqJX.js",
+        "http://127.0.0.1:18081/assets/index-CHcSE2yN.css",
+        "http://127.0.0.1:18081/assets/ReportReviewView-DtQYJdJo.css"
+      ],
+      "console_errors": [],
+      "failed_requests": []
+    }
+  ],
+  "production_touched": false,
+  "secrets_included": false
+}
