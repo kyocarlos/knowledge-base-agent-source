@@ -1,0 +1,100 @@
+{
+  "schema": "km.wp1.metadata-validation-fix.production-preflight.v1",
+  "preflight_at": "2026-08-24T10:27:07+08:00",
+  "pr": 16,
+  "branch": "agent/wp1-metadata-validation-fix",
+  "source_commit": "703075efe862736cffe5159edfcb3b1940c5ae09",
+  "evidence_head_before_record": "ecc1a041f1e2e4a9382da5d2f2e7cacdd5ce6a08",
+  "candidate": {
+    "release_id": "wp1-metadata-validation-fix-20260824-r2",
+    "image_tag": "kb-wp1-release:wp1-metadata-validation-fix-20260824-r2",
+    "image_digest": "sha256:8f009d19a8bfec29736cfb08b1175795aaabdc44449bf298e29d5c8974ed129c",
+    "build_timestamp": "2026-08-24T10:09:35+08:00",
+    "image_exists": true,
+    "identity_consistent": true
+  },
+  "current_production": {
+    "image_digest": "sha256:a3220ec33ab80c588f289d8560af96c447c6f573da3145fe66ffa2cd719b16ec",
+    "health": "PASS",
+    "wp0_wp1_runtime_gates": "PASS",
+    "celery_nodes": 2,
+    "active_reserved_scheduled": {
+      "active": 0,
+      "reserved": 0,
+      "scheduled": 0
+    },
+    "queues": {
+      "search": 0,
+      "ingest": 0,
+      "default": 0,
+      "document": 0,
+      "indexing": 0,
+      "celery": 0
+    },
+    "production_touched_by_preflight": false
+  },
+  "checkpoint": {
+    "path": "/home/da40_ai_gb10/kb-pre-wp01-backups/pre-deploy-current-production-20260822-110946",
+    "sha256sums_sha256": "18f0f3ff7f5652ad72b45d8ddc497ef8f7ece34b2de9a822ed7436fe0d719d3f",
+    "verification": "PASS",
+    "checksum_files_verified": 23,
+    "rollback_target_image_digest": "sha256:a3220ec33ab80c588f289d8560af96c447c6f573da3145fe66ffa2cd719b16ec",
+    "rollback_target_matches_current_runtime": true,
+    "rollback_readiness": "PASS",
+    "drift_since_checkpoint": false
+  },
+  "planned_runtime": {
+    "ledger_path": "/home/da40_ai_gb10/knowledge-base/data/job-ledger.sqlite3",
+    "initialization_lock_path": "/home/da40_ai_gb10/knowledge-base/data/.job-ledger.sqlite3.init.lock",
+    "uvicorn_workers": 4,
+    "services": {
+      "web": {
+        "build_timestamp": "2026-08-24T10:09:35+08:00",
+        "ledger_path": "/home/da40_ai_gb10/knowledge-base/data/job-ledger.sqlite3",
+        "shared_data_mount": true
+      },
+      "celery_search_worker": {
+        "build_timestamp": "2026-08-24T10:09:35+08:00",
+        "ledger_path": "/home/da40_ai_gb10/knowledge-base/data/job-ledger.sqlite3",
+        "shared_data_mount": true
+      },
+      "celery_ingest_worker": {
+        "build_timestamp": "2026-08-24T10:09:35+08:00",
+        "ledger_path": "/home/da40_ai_gb10/knowledge-base/data/job-ledger.sqlite3",
+        "shared_data_mount": true
+      },
+      "celery_beat": {
+        "build_timestamp": "2026-08-24T10:09:35+08:00",
+        "ledger_path": "/home/da40_ai_gb10/knowledge-base/data/job-ledger.sqlite3",
+        "shared_data_mount": true
+      }
+    },
+    "metadata_render_validation": "PASS",
+    "rendered_compose_sha256": "85462eda83513c6b8a3ba466f20bd5b7624990d75a418790993df15b79a95856",
+    "timestamp_yaml_coercion": false,
+    "rendered_timestamp_exact": true
+  },
+  "temporary_e2e_identity": {
+    "provisioning": "additive runtime configuration only",
+    "existing_registry_preserved": true,
+    "removal_procedure_defined": true,
+    "post_removal_auth_rejection_expected": "401/403",
+    "runtime_env_mode": "0600",
+    "secrets_included": false,
+    "provisioning_performed_in_production": false
+  },
+  "safety": {
+    "production_deploy": false,
+    "production_restart": false,
+    "production_write": false,
+    "migration": false,
+    "restore": false,
+    "wp2": false,
+    "real_instrument": false
+  },
+  "gate": {
+    "production_gate": "NO-GO",
+    "recommendation": "Production GO review may be requested; no deployment is authorized by this preflight.",
+    "ready_for_production_go_review": true
+  }
+}
