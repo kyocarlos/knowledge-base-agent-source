@@ -1,0 +1,112 @@
+{
+  "schema": "km.wp1.canonical-integration-dry-run.v1",
+  "status": "PASS_NOT_MERGED",
+  "performed_at": "2026-08-24T00:00:00+08:00",
+  "method": "GitHub compare and commit/tree ancestry inspection; no merge, rebase, squash, force push, or production operation",
+  "target": {
+    "branch": "agent/km-plan-v2.6-anderson",
+    "sha": "d29bca3a2d4b58f255f7878ae9d663908270d407"
+  },
+  "proposed_final_integration": {
+    "branch": "agent/wp1-metadata-validation-fix",
+    "sha": "e47823629e5ec9013fa35f96898191049c943674",
+    "target_is_ancestor": true,
+    "compare_status": "ahead",
+    "ahead_by": 53,
+    "behind_by": 0,
+    "total_commits": 53,
+    "changed_files": 150
+  },
+  "commit_preservation_map": {
+    "pr_9_required_code": {
+      "commit": "359ccd50b46eba84aea4d561248b2664b2c0d413",
+      "description": "durable JobLeaseStore recovery",
+      "in_final_ancestry": true,
+      "pr_9_separate_merge": false
+    },
+    "pr_10": {
+      "head": "32ad1ad34241c267faeff5609c2abf99b9b2af64",
+      "code_commits": ["d44485540427f180950997831aa8c3cd789a5f0f"],
+      "in_final_ancestry": true
+    },
+    "pr_11": {
+      "head": "149f677b6d39bd6bf8bb4bc53548bd2edde1e84f",
+      "code_commits": ["f272294708c1b31e10bccac2ec4fbb02f8be2a05", "12328e19a089b62a15a2a31582b8f05e9ceaa503"],
+      "in_final_ancestry": true
+    },
+    "pr_12": {
+      "head": "4f0f49b058bd2fc4e12448c43a9f157eeedf281c",
+      "code_commits": ["9e610ed1643dd0489511cfaf5f918522c8c25b82"],
+      "in_final_ancestry": true
+    },
+    "pr_13": {
+      "head": "2a67fcbddb2e0f3995fa5a9c25887c70c0543890",
+      "code_commits": ["cf00ac55fa6aa2e197164eddf9116f812af8e1e2"],
+      "in_final_ancestry": true
+    },
+    "pr_14": {
+      "head": "abd65b88b850cd29550a361816403a8756fc43d8",
+      "code_commits": ["e8455db7f36398995c0ec51647aff21aa4df3925"],
+      "in_final_ancestry": true
+    },
+    "pr_15": {
+      "head": "7e63a42be9c2894a9d6e0faea35103eda930d8fb",
+      "code_commits": ["4042284c23f2076e16a476f2426ec1f1ca73f7b4"],
+      "in_final_ancestry": true
+    },
+    "pr_16": {
+      "head": "e47823629e5ec9013fa35f96898191049c943674",
+      "code_commits": ["e67bd9b0dbfdcc316d94d3e2b1ae590a1ba06efe", "703075efe862736cffe5159edfcb3b1940c5ae09"],
+      "in_final_ancestry": true
+    }
+  },
+  "required_capabilities_present": {
+    "search_fix": true,
+    "cleanup_router": true,
+    "shared_ledger": true,
+    "sqlite_startup_lock": true,
+    "metadata_contract_and_render_validation": true,
+    "v2_6_planning_workbook": true,
+    "w34_report": true,
+    "wp1_100_percent_evidence": true,
+    "paths": [
+      "app/core/job_lease.py",
+      "app/core/release_metadata.py",
+      "src/web_api/e2e_cleanup_routes.py",
+      "scripts/validate_release_compose_metadata.py",
+      "tests/test_release_compose_metadata.py",
+      "tests/test_release_compose_rendering.py",
+      "docs/release-metadata-contract.md",
+      "docs/km-modernization/01_AI_KM_Phase規劃_v2.6.xlsx",
+      "docs/km-modernization/progress/data/2026-W34.json",
+      "docs/km-modernization/progress/weekly/2026-W34.md",
+      "docs/km-modernization/progress/evidence/WP1.md"
+    ]
+  },
+  "production_attribution": {
+    "accepted_production_source": "703075efe862736cffe5159edfcb3b1940c5ae09",
+    "accepted_production_release": "wp1-metadata-validation-fix-20260824-r2",
+    "accepted_production_image": "sha256:8f009d19a8bfec29736cfb08b1175795aaabdc44449bf298e29d5c8974ed129c",
+    "production_evidence_head": "6024e80cb4081579729174a7b1ae9cfe9003e481",
+    "final_repository_integration_head": "e47823629e5ec9013fa35f96898191049c943674",
+    "identities_are_separate": true,
+    "superseded_runtime_identities_remain_historical": true,
+    "production_source_changed_by_dry_run": false
+  },
+  "conflict_status": {
+    "no_merge_performed": true,
+    "target_is_ancestor_of_final": true,
+    "github_compare_conflict_indicator": "not_applicable_to_ancestor_compare",
+    "pr_16_mergeable_at_inspection": true
+  },
+  "integration_plan": {
+    "recommended_method": "integrate the ancestry-preserving final head once into the target after supervisor approval",
+    "independent_seven_way_merge": false,
+    "squash_or_history_rewrite": false,
+    "force_push": false,
+    "post_integration_ci": ["WP0 contract", "WP1 reliability", "weekly/repository checks", "read-only portal E2E", "version identity attribution"],
+    "historical_pr_plan": "keep PR #9 through #16 open Draft until explicit supervisor approval; archive/close only after canonical integration and links are preserved"
+  },
+  "secrets_included": false,
+  "production_touched": false
+}
