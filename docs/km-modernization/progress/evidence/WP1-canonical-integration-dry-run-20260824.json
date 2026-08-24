@@ -1,7 +1,7 @@
 {
   "schema": "km.wp1.canonical-integration-dry-run.v1",
   "status": "PASS_NOT_MERGED",
-  "performed_at": "2026-08-24T00:00:00+08:00",
+  "performed_at": "2026-08-24T12:01:26+08:00",
   "method": "GitHub compare and commit/tree ancestry inspection; no merge, rebase, squash, force push, or production operation",
   "target": {
     "branch": "agent/km-plan-v2.6-anderson",
