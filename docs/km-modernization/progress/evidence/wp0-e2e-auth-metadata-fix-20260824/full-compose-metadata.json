@@ -1,0 +1,130 @@
+{
+  "schema": "km.wp0.full-compose-metadata.v1",
+  "project": "kb-wp0-full-compose-1787560604",
+  "source_commit": "2ef93d6b47d05b1acbc05fadc0df8393fefd41a0",
+  "release_id": "wp0-e2e-auth-metadata-fix-20260824-r1",
+  "image": "kb-wp0-release:wp0-e2e-auth-metadata-fix-20260824-r1",
+  "image_digest": "sha256:18039a96b063b3fd85d7c40b975b323f25de71b169efcd9a7d20c2f0f7a5a749",
+  "build_timestamp": "2026-08-24T16:18:21+08:00",
+  "production_touched": false,
+  "secrets_included": false,
+  "ledger_path": "/home/da40_ai_gb10/knowledge-base/data/job-ledger.sqlite3",
+  "rendered_service_images": {
+    "web": "kb-wp0-release:wp0-e2e-auth-metadata-fix-20260824-r1",
+    "search_worker": "kb-wp0-release:wp0-e2e-auth-metadata-fix-20260824-r1",
+    "ingest_worker": "kb-wp0-release:wp0-e2e-auth-metadata-fix-20260824-r1",
+    "beat": "kb-wp0-release:wp0-e2e-auth-metadata-fix-20260824-r1"
+  },
+  "rendered_metadata": {
+    "web": {
+      "KM_GIT_COMMIT": "2ef93d6b47d05b1acbc05fadc0df8393fefd41a0",
+      "KM_RELEASE_ID": "wp0-e2e-auth-metadata-fix-20260824-r1",
+      "KM_IMAGE_DIGEST": "sha256:18039a96b063b3fd85d7c40b975b323f25de71b169efcd9a7d20c2f0f7a5a749",
+      "KM_BUILD_TIMESTAMP": "2026-08-24T16:18:21+08:00"
+    },
+    "search_worker": {
+      "KM_GIT_COMMIT": "2ef93d6b47d05b1acbc05fadc0df8393fefd41a0",
+      "KM_RELEASE_ID": "wp0-e2e-auth-metadata-fix-20260824-r1",
+      "KM_IMAGE_DIGEST": "sha256:18039a96b063b3fd85d7c40b975b323f25de71b169efcd9a7d20c2f0f7a5a749",
+      "KM_BUILD_TIMESTAMP": "2026-08-24T16:18:21+08:00"
+    },
+    "ingest_worker": {
+      "KM_GIT_COMMIT": "2ef93d6b47d05b1acbc05fadc0df8393fefd41a0",
+      "KM_RELEASE_ID": "wp0-e2e-auth-metadata-fix-20260824-r1",
+      "KM_IMAGE_DIGEST": "sha256:18039a96b063b3fd85d7c40b975b323f25de71b169efcd9a7d20c2f0f7a5a749",
+      "KM_BUILD_TIMESTAMP": "2026-08-24T16:18:21+08:00"
+    },
+    "beat": {
+      "KM_GIT_COMMIT": "2ef93d6b47d05b1acbc05fadc0df8393fefd41a0",
+      "KM_RELEASE_ID": "wp0-e2e-auth-metadata-fix-20260824-r1",
+      "KM_IMAGE_DIGEST": "sha256:18039a96b063b3fd85d7c40b975b323f25de71b169efcd9a7d20c2f0f7a5a749",
+      "KM_BUILD_TIMESTAMP": "2026-08-24T16:18:21+08:00"
+    }
+  },
+  "render_result": "PASS",
+  "runtime_services": {
+    "web": {
+      "container_id": "5fc8f71142a289b669abd0de5e4fb2849865bb8e91fe6c3e6b5a453353952c0b",
+      "image_id": "sha256:18039a96b063b3fd85d7c40b975b323f25de71b169efcd9a7d20c2f0f7a5a749",
+      "running": true,
+      "metadata": {
+        "KM_GIT_COMMIT": "2ef93d6b47d05b1acbc05fadc0df8393fefd41a0",
+        "KM_RELEASE_ID": "wp0-e2e-auth-metadata-fix-20260824-r1",
+        "KM_IMAGE_DIGEST": "sha256:18039a96b063b3fd85d7c40b975b323f25de71b169efcd9a7d20c2f0f7a5a749",
+        "KM_BUILD_TIMESTAMP": "2026-08-24T16:18:21+08:00"
+      },
+      "ledger_path": "/home/da40_ai_gb10/knowledge-base/data/job-ledger.sqlite3",
+      "mounts": [
+        "/app/data",
+        "/home/da40_ai_gb10/knowledge-base/data",
+        "/app/config"
+      ]
+    },
+    "search_worker": {
+      "container_id": "3fb814b7aec2530435dd6c9080729e14d03974fdf248e5f6892a8f39da187701",
+      "image_id": "sha256:18039a96b063b3fd85d7c40b975b323f25de71b169efcd9a7d20c2f0f7a5a749",
+      "running": true,
+      "metadata": {
+        "KM_GIT_COMMIT": "2ef93d6b47d05b1acbc05fadc0df8393fefd41a0",
+        "KM_RELEASE_ID": "wp0-e2e-auth-metadata-fix-20260824-r1",
+        "KM_IMAGE_DIGEST": "sha256:18039a96b063b3fd85d7c40b975b323f25de71b169efcd9a7d20c2f0f7a5a749",
+        "KM_BUILD_TIMESTAMP": "2026-08-24T16:18:21+08:00"
+      },
+      "ledger_path": "/home/da40_ai_gb10/knowledge-base/data/job-ledger.sqlite3",
+      "mounts": [
+        "/app/config",
+        "/app/data",
+        "/home/da40_ai_gb10/knowledge-base/data"
+      ]
+    },
+    "ingest_worker": {
+      "container_id": "85aa74001003669f927cb9d92062ed96576c47d6cd4802a6b0f7ea0c5ee917d1",
+      "image_id": "sha256:18039a96b063b3fd85d7c40b975b323f25de71b169efcd9a7d20c2f0f7a5a749",
+      "running": true,
+      "metadata": {
+        "KM_GIT_COMMIT": "2ef93d6b47d05b1acbc05fadc0df8393fefd41a0",
+        "KM_RELEASE_ID": "wp0-e2e-auth-metadata-fix-20260824-r1",
+        "KM_IMAGE_DIGEST": "sha256:18039a96b063b3fd85d7c40b975b323f25de71b169efcd9a7d20c2f0f7a5a749",
+        "KM_BUILD_TIMESTAMP": "2026-08-24T16:18:21+08:00"
+      },
+      "ledger_path": "/home/da40_ai_gb10/knowledge-base/data/job-ledger.sqlite3",
+      "mounts": [
+        "/app/config",
+        "/app/data",
+        "/home/da40_ai_gb10/knowledge-base/data"
+      ]
+    },
+    "beat": {
+      "container_id": "8ae49f24e07bd2652dabc0dfa85108bc770f274d9bc6e844ae5b9e5072cb7d04",
+      "image_id": "sha256:18039a96b063b3fd85d7c40b975b323f25de71b169efcd9a7d20c2f0f7a5a749",
+      "running": true,
+      "metadata": {
+        "KM_GIT_COMMIT": "2ef93d6b47d05b1acbc05fadc0df8393fefd41a0",
+        "KM_RELEASE_ID": "wp0-e2e-auth-metadata-fix-20260824-r1",
+        "KM_IMAGE_DIGEST": "sha256:18039a96b063b3fd85d7c40b975b323f25de71b169efcd9a7d20c2f0f7a5a749",
+        "KM_BUILD_TIMESTAMP": "2026-08-24T16:18:21+08:00"
+      },
+      "ledger_path": "/home/da40_ai_gb10/knowledge-base/data/job-ledger.sqlite3",
+      "mounts": [
+        "/home/da40_ai_gb10/knowledge-base/data",
+        "/app/config",
+        "/app/data"
+      ]
+    }
+  },
+  "version": {
+    "status": 200,
+    "data": {
+      "service": "knowledge-base-api",
+      "version": "1.0.0",
+      "environment": "development",
+      "commit": "2ef93d6b47d05b1acbc05fadc0df8393fefd41a0",
+      "release_id": "wp0-e2e-auth-metadata-fix-20260824-r1",
+      "image_digest": "sha256:18039a96b063b3fd85d7c40b975b323f25de71b169efcd9a7d20c2f0f7a5a749",
+      "build_timestamp": "2026-08-24T16:18:21+08:00"
+    },
+    "error": null,
+    "trace_id": "302dc58e58b340609f414940b12ebfbc"
+  },
+  "result": "PASS"
+}
