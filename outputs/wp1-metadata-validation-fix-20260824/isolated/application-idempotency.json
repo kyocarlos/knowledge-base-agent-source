@@ -1,0 +1,49 @@
+{
+  "schema": "km.wp1.application-idempotency-shadow.v1",
+  "mode": "isolated-shadow",
+  "production_touched": false,
+  "run_id": "wp1-app-idempotency-8574ce0db616",
+  "job_id": "job-wp1-app-idempotency-8574ce0db616",
+  "idempotency_key": "request:wp1-app-idempotency-8574ce0db616",
+  "concurrent_submissions": [
+    {
+      "worker": "worker-0",
+      "claimed": false,
+      "attempt": null
+    },
+    {
+      "worker": "worker-1",
+      "claimed": false,
+      "attempt": null
+    },
+    {
+      "worker": "worker-2",
+      "claimed": false,
+      "attempt": null
+    },
+    {
+      "worker": "worker-3",
+      "claimed": true,
+      "attempt": 1
+    }
+  ],
+  "live_owner_count": 1,
+  "first_owner": "worker-3",
+  "first_attempt_side_effect_committed_before_crash": true,
+  "recovered_job_ids": [
+    "job-wp1-app-idempotency-8574ce0db616"
+  ],
+  "recovery_attempt": 2,
+  "recovery_completed": true,
+  "duplicate_insert_rowcount": 0,
+  "side_effect_row": {
+    "key": "request:wp1-app-idempotency-8574ce0db616",
+    "value": "created-by-first-attempt"
+  },
+  "side_effect_count": 1,
+  "late_duplicate_claim_after_success": false,
+  "final_ledger_status": "succeeded",
+  "final_ledger_attempt": 2,
+  "application_idempotency_verified": true,
+  "cleanup_verified": true
+}

@@ -1,0 +1,40 @@
+INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
+INFO:     Started parent process [1]
+/usr/local/lib/python3.12/site-packages/pydub/utils.py:170: RuntimeWarning: Couldn't find ffmpeg or avconv - defaulting to ffmpeg, but may not work
+  warn("Couldn't find ffmpeg or avconv - defaulting to ffmpeg, but may not work", RuntimeWarning)
+/usr/local/lib/python3.12/site-packages/pydub/utils.py:170: RuntimeWarning: Couldn't find ffmpeg or avconv - defaulting to ffmpeg, but may not work
+  warn("Couldn't find ffmpeg or avconv - defaulting to ffmpeg, but may not work", RuntimeWarning)
+/usr/local/lib/python3.12/site-packages/pydub/utils.py:170: RuntimeWarning: Couldn't find ffmpeg or avconv - defaulting to ffmpeg, but may not work
+  warn("Couldn't find ffmpeg or avconv - defaulting to ffmpeg, but may not work", RuntimeWarning)
+/usr/local/lib/python3.12/site-packages/pydub/utils.py:170: RuntimeWarning: Couldn't find ffmpeg or avconv - defaulting to ffmpeg, but may not work
+  warn("Couldn't find ffmpeg or avconv - defaulting to ffmpeg, but may not work", RuntimeWarning)
+LangChain 未安裝，部分功能可能無法使用
+LangChain 未安裝，部分功能可能無法使用
+LangChain 未安裝，部分功能可能無法使用
+LangChain 未安裝，部分功能可能無法使用
+載入排程設定失敗: [Errno 2] No such file or directory: '/app/config/config.yaml'
+載入排程設定失敗: [Errno 2] No such file or directory: '/app/config/config.yaml'
+載入排程設定失敗: [Errno 2] No such file or directory: '/app/config/config.yaml'
+載入排程設定失敗: [Errno 2] No such file or directory: '/app/config/config.yaml'
+INFO:     Started server process [10]
+INFO:     Waiting for application startup.
+INFO:src.web_api:FastAPI 啟動
+INFO:     Started server process [11]
+INFO:     Started server process [8]
+ERROR:src.web_api.tasks:載入排程設定失敗: [Errno 2] No such file or directory: '/app/config/config.yaml'
+INFO:     Waiting for application startup.
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:src.web_api:FastAPI 啟動
+INFO:src.web_api:FastAPI 啟動
+ERROR:src.web_api.tasks:載入排程設定失敗: [Errno 2] No such file or directory: '/app/config/config.yaml'
+ERROR:src.web_api.tasks:載入排程設定失敗: [Errno 2] No such file or directory: '/app/config/config.yaml'
+INFO:     Application startup complete.
+INFO:     Application startup complete.
+INFO:     Started server process [9]
+INFO:     Waiting for application startup.
+INFO:src.web_api:FastAPI 啟動
+ERROR:src.web_api.tasks:載入排程設定失敗: [Errno 2] No such file or directory: '/app/config/config.yaml'
+INFO:     Application startup complete.
+INFO:     127.0.0.1:39910 - "GET /health HTTP/1.1" 200 OK
+INFO:app.core.trace:HTTP request trace_id=d71d9702037142d29bd4f3aef1ed5899 method=GET path=/health status=200

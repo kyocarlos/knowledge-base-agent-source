@@ -1,0 +1,130 @@
+{
+  "schema": "km.wp1.metadata-validation-fix-candidate.v1",
+  "fix_source_commit": "e67bd9b0dbfdcc316d94d3e2b1ae590a1ba06efe",
+  "base_pr": 15,
+  "base_evidence_commit": "7e63a42be9c2894a9d6e0faea35103eda930d8fb",
+  "root_cause": {
+    "classification": "candidate runtime metadata rendering and validation contract gap",
+    "generator_output": "2026-08-24T06:47:20+08:00",
+    "generator_output_valid_rfc3339": true,
+    "rendered_production_value": "2026-08-24 06:47:20 +0800 CST",
+    "yaml_implicit_timestamp_coercion": true,
+    "legal_plus_offset_was_not_the_failure": true,
+    "previous_evidence_note": "Retry 4 evidence correctly located the failure at KM_BUILD_TIMESTAMP validation but did not distinguish the generated RFC3339 value from the Compose-rendered value. This evidence adds that distinction without modifying the original chain.",
+    "ci_gap": "Earlier tests and isolated validation injected process/container environment values directly and did not validate rendered Compose metadata."
+  },
+  "contract": {
+    "source_commit": "40 lowercase hexadecimal characters",
+    "release_id": "1-128 safe identifier characters",
+    "image_digest": "sha256 followed by 64 lowercase hexadecimal characters",
+    "build_timestamp": "RFC3339 with T and explicit Z or +/-HH:MM timezone",
+    "valid_offset_example": "2026-08-24T06:47:20+08:00",
+    "valid_utc_example": "2026-08-23T22:47:20Z",
+    "development_empty_or_unknown_maps_to_null": true,
+    "release_runtime_requires_all_four_fields": true,
+    "version_endpoint_preserves_validated_timestamp": true
+  },
+  "fix": {
+    "shared_semantic_validator": true,
+    "generator_uses_shared_contract": true,
+    "application_startup_uses_shared_timestamp_contract": true,
+    "rendered_compose_preflight": true,
+    "four_services_checked": [
+      "web",
+      "celery_search_worker",
+      "celery_ingest_worker",
+      "celery_beat"
+    ],
+    "coerced_yaml_value_rejected_before_restart": true,
+    "canonical_rendered_compose_result": "PASS",
+    "runtime_env_mode": "0600",
+    "business_logic_changed": false,
+    "lease_logic_changed": false
+  },
+  "candidate": {
+    "source_commit": "e67bd9b0dbfdcc316d94d3e2b1ae590a1ba06efe",
+    "release_id": "wp1-metadata-validation-fix-20260824-r1",
+    "image_tag": "kb-wp1-release:wp1-metadata-validation-fix-20260824-r1",
+    "image_id": "sha256:510a2ad488085ab49968d361e20014ee939fdaef2dc32453dad9f13f28482588",
+    "build_timestamp": "2026-08-24T09:55:14+08:00",
+    "registry_digest": null,
+    "build_result": "PASS"
+  },
+  "tests": {
+    "metadata_api_contract": {
+      "passed": 26,
+      "failed": 0
+    },
+    "docker_compose_rendering": {
+      "passed": 2,
+      "failed": 0
+    },
+    "repository_container_run": {
+      "passed": 123,
+      "skipped": 2,
+      "failed": 1,
+      "known_base_failure": "test_legacy_business_and_websocket_routes_are_registered_once",
+      "same_failure_reproduced_on_unmodified_pr15_base": true
+    },
+    "python_compile": "PASS",
+    "shell_syntax": "PASS",
+    "diff_check": "PASS"
+  },
+  "isolated_validation": {
+    "synthetic_run_id": "TR-E2E-WP1-METADATA-FIX-20260824-095900-unique",
+    "uvicorn_workers_configured": 4,
+    "uvicorn_workers_started": 4,
+    "application_startup_complete": 4,
+    "database_locked_observed": false,
+    "health": "PASS",
+    "version_identity": "PASS",
+    "shared_ledger_path": "/app/data/job-ledger.sqlite3",
+    "shared_ledger_file_identity_consistent": true,
+    "search": "PASS",
+    "report_self_read": "PASS",
+    "upload_ingest": "PASS",
+    "duplicate_dedup": "PASS",
+    "register_claim_completion": "PASS",
+    "lease_terminal_status": "succeeded",
+    "report_approve_read": "PASS",
+    "worker_recovery": "PASS",
+    "inflight_redelivery": "PASS",
+    "application_idempotency": "PASS",
+    "redis_reconnect_setnx": "PASS",
+    "cleanup_dry_run": "PASS",
+    "cleanup_apply": "PASS",
+    "active_task_count_after_cleanup": 0,
+    "residual_count": 0,
+    "post_cleanup_health": "PASS"
+  },
+  "harness_audit": {
+    "attempt_1": "Neo4j dependency exited before candidate startup; isolated stack was removed.",
+    "attempt_2": "Upload was rejected because the reused XLSX manifest had an old run_id; no candidate defect and stack was removed.",
+    "attempt_3": "Fresh matching synthetic fixture; full isolated validation PASS."
+  },
+  "evidence_files": [
+    "release-build.json",
+    "isolated/worker4-startup.log",
+    "isolated/full-smoke.json",
+    "isolated/worker-recovery.json",
+    "isolated/inflight-recovery.json",
+    "isolated/application-idempotency.json",
+    "isolated/redis-idempotency.json"
+  ],
+  "safety": {
+    "production_touched": false,
+    "production_deployed": false,
+    "production_restarted": false,
+    "production_write_performed": false,
+    "migration_performed": false,
+    "restore_performed": false,
+    "wp2_changed": false,
+    "real_instrument_access": false,
+    "secrets_included": false
+  },
+  "gate": {
+    "production_gate": "NO-GO",
+    "ready_for_production_preflight_review": true,
+    "production_retry_authorized": false
+  }
+}
