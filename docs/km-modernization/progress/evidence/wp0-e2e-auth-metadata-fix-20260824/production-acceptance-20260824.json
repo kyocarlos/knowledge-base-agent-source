@@ -1,0 +1,89 @@
+{
+  "schema": "km.wp0.production-acceptance.v1",
+  "status": "PASS_WITH_BROWSER_TOOLING_GAP",
+  "operator": "da40_ai_gb10",
+  "deployment": {
+    "source_commit": "2ef93d6b47d05b1acbc05fadc0df8393fefd41a0",
+    "release_id": "wp0-e2e-auth-metadata-fix-20260824-r1",
+    "image_digest": "sha256:18039a96b063b3fd85d7c40b975b323f25de71b169efcd9a7d20c2f0f7a5a749",
+    "build_timestamp": "2026-08-24T16:18:21+08:00",
+    "deployment_config": "ephemeral exact-digest compose override; no source change",
+    "services_recreated": ["web", "celery_search_worker", "celery_ingest_worker", "celery_beat"],
+    "application_image_changed": true,
+    "nginx_database_redis_neo4j_recreated": false
+  },
+  "rollback": {
+    "checkpoint": "/home/da40_ai_gb10/knowledge-base/outputs/current-runtime-checkpoints/pre-deploy-wp0-e2e-auth-metadata-20260824-1801",
+    "checkpoint_sha256sums_sha256": "dfc4432a677cd749a5f902a21c17dea94dd505374efef227d77926d64b219267",
+    "previous_application_image": "sha256:8f009d19a8bfec29736cfb08b1175795aaabdc44449bf298e29d5c8974ed129c",
+    "rollback_readiness": "PASS",
+    "rollback_required": false
+  },
+  "identity_gate": {
+    "version_http_status": 200,
+    "version_response_exact": true,
+    "services": {
+      "web": {"running": true, "image_exact": true, "metadata_exact": true, "ledger_path_exact": true},
+      "search_worker": {"running": true, "image_exact": true, "metadata_exact": true, "ledger_path_exact": true},
+      "ingest_worker": {"running": true, "image_exact": true, "metadata_exact": true, "ledger_path_exact": true},
+      "beat": {"running": true, "image_exact": true, "metadata_exact": true, "ledger_path_exact": true}
+    },
+    "shared_ledger_path": "/home/da40_ai_gb10/knowledge-base/data/job-ledger.sqlite3",
+    "frontend_mount": "/home/da40_ai_gb10/knowledge-base/.frontend-build-runtime-user8:/usr/share/nginx/html:ro"
+  },
+  "static_acceptance": {
+    "root": 200,
+    "chat_html": 200,
+    "upload": 200,
+    "admin_report_reviews": 200,
+    "js_css_assets_2xx": true,
+    "websocket_proxy": "PASS via restart_kb.sh status gate",
+    "browser_playwright_visual_console_network": "BLOCKED_BY_HOST_CHROMIUM_SNAP_READ_ONLY_RUNTIME"
+  },
+  "synthetic_acceptance": {
+    "run_id": "TR-E2E-WP0-PROD-20260824-180658-5688b9d2-retry1",
+    "synthetic_only": true,
+    "submission_id": "report_20260824_101129_c90ad40e",
+    "upload_http_status": 202,
+    "duplicate_upload_http_status": 202,
+    "duplicate_submission_same_id": true,
+    "report_approve_http_status": 200,
+    "terminal_state": "completed",
+    "ingest_task_id": "ingest_20260824_101130_53302f6c",
+    "cleanup_dry_run_http_status": 200,
+    "cleanup_apply_http_status": 200,
+    "post_cleanup_submission_http_status": 404,
+    "cleanup_deleted": {"files": 2, "redis_tasks": 1, "reports": 1, "ingest_records": 0, "neo4j_measurement": 1, "neo4j_test_case": 1, "neo4j_test_run": 1, "qdrant_points": 0},
+    "residual_count": 0
+  },
+  "security_cleanup": {
+    "temporary_identity_additive": true,
+    "temporary_identity_removed": true,
+    "regular_auth_without_credentials": 401,
+    "regular_auth_with_removed_identity": 403,
+    "e2e_route_after_disable": 404,
+    "e2e_write_mode_enabled_after_cleanup": false,
+    "existing_registry_preserved": true,
+    "secrets_included": false
+  },
+  "runtime_final": {
+    "health": "PASS",
+    "wp0_runtime_gates": "PASS",
+    "wp1_runtime_gates": "PASS",
+    "celery_nodes": 2,
+    "queues_empty": true,
+    "active_reserved_scheduled_empty": true,
+    "production_touched": true,
+    "migration_performed": false,
+    "restore_performed": false,
+    "real_instrument_access": false,
+    "wp2_deployed": false,
+    "final_candidate_still_running": true
+  },
+  "decision": {
+    "production_acceptance": "PASS_WITH_BROWSER_TOOLING_GAP",
+    "wp0_completion_update": false,
+    "wp0_current_state": "94% Owner Accepted; pending supervisor final closure",
+    "remaining_review_item": "repeat browser visual/network/console evidence with a writable supported browser runtime"
+  }
+}
