@@ -144,7 +144,28 @@ compose_preflight() {
         "NEO4J_PASSWORD is missing; no container has been changed"
     "${COMPOSE[@]}" config --quiet
     validate_shared_job_ledger_config
+    validate_release_metadata_config
     printf 'Compose configuration: PASS\n'
+}
+
+validate_release_metadata_config() {
+    local metadata_values config_json
+    metadata_values="${KM_GIT_COMMIT:-}${KM_RELEASE_ID:-}${KM_IMAGE_DIGEST:-}${KM_BUILD_TIMESTAMP:-}"
+    if [[ -z "$metadata_values" ]]; then
+        printf 'Release metadata: not configured (development/runtime compatibility mode)\n'
+        return 0
+    fi
+    [[ -n "${KM_GIT_COMMIT:-}" && -n "${KM_RELEASE_ID:-}" && \
+       -n "${KM_IMAGE_DIGEST:-}" && -n "${KM_BUILD_TIMESTAMP:-}" ]] || fail \
+        "release metadata must provide commit, release ID, image digest, and build timestamp together"
+    config_json="$("${COMPOSE[@]}" --profile scheduler config --format json)" || fail \
+        "unable to render Compose JSON for release metadata validation"
+    python3 "$ROOT_DIR/scripts/validate_release_compose_metadata.py" \
+        --commit "$KM_GIT_COMMIT" \
+        --release-id "$KM_RELEASE_ID" \
+        --image-digest "$KM_IMAGE_DIGEST" \
+        --build-timestamp "$KM_BUILD_TIMESTAMP" \
+        <<<"$config_json" || fail "rendered Compose release metadata is invalid or inconsistent"
 }
 
 validate_shared_job_ledger_config() {

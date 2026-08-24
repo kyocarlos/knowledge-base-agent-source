@@ -4,14 +4,13 @@
 from __future__ import annotations
 
 import argparse
-import re
+import sys
 from pathlib import Path
 
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
 
-COMMIT = re.compile(r"^[0-9a-f]{40}$")
-RELEASE = re.compile(r"^[A-Za-z0-9._/-]{1,128}$")
-DIGEST = re.compile(r"^sha256:[0-9a-f]{64}$")
-TIMESTAMP = re.compile(r"^[0-9TZ:._+/-]{1,64}$")
+from app.core.release_metadata import validate_release_identity
 
 
 def main() -> int:
@@ -23,19 +22,19 @@ def main() -> int:
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
 
-    values = {
-        "KM_GIT_COMMIT": (COMMIT, args.commit),
-        "KM_RELEASE_ID": (RELEASE, args.release_id),
-        "KM_IMAGE_DIGEST": (DIGEST, args.image_digest),
-        "KM_BUILD_TIMESTAMP": (TIMESTAMP, args.build_timestamp),
-    }
-    for name, (pattern, value) in values.items():
-        if not pattern.fullmatch(value):
-            raise SystemExit(f"{name} has an invalid format")
+    try:
+        values = validate_release_identity(
+            source_commit=args.commit,
+            release_id=args.release_id,
+            image_digest=args.image_digest,
+            build_timestamp=args.build_timestamp,
+        )
+    except ValueError as exc:
+        raise SystemExit(f"release metadata is invalid: {exc}") from exc
 
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(
-        "".join(f"{name}={value}\n" for name, (_, value) in values.items()),
+        "".join(f"{name}={value}\n" for name, value in values.items()),
         encoding="utf-8",
     )
     args.output.chmod(0o600)

@@ -32,7 +32,31 @@ def test_release_runtime_env_is_validated_and_written(tmp_path: Path) -> None:
     )
     assert "KM_GIT_COMMIT=12328e19a089b62a15a2a31582b8f05e9ceaa503" in output.read_text()
     assert "KM_RELEASE_ID=wp1-fix-20260822" in output.read_text()
+    assert "KM_IMAGE_DIGEST=sha256:" + "a" * 64 in output.read_text()
+    assert "KM_BUILD_TIMESTAMP=2026-08-22T12:53:13+08:00" in output.read_text()
     assert output.stat().st_mode & 0o777 == 0o600
+
+
+def test_release_runtime_env_accepts_utc_z_timestamp(tmp_path: Path) -> None:
+    output = tmp_path / "release-z.env"
+    subprocess.run(
+        [
+            sys.executable,
+            str(SCRIPT),
+            "--commit",
+            "a" * 40,
+            "--release-id",
+            "wp1-fix-z",
+            "--image-digest",
+            "sha256:" + "b" * 64,
+            "--build-timestamp",
+            "2026-08-24T00:00:00Z",
+            "--output",
+            str(output),
+        ],
+        check=True,
+    )
+    assert "KM_BUILD_TIMESTAMP=2026-08-24T00:00:00Z" in output.read_text()
 
 
 def test_release_runtime_env_rejects_invalid_commit(tmp_path: Path) -> None:
@@ -55,3 +79,27 @@ def test_release_runtime_env_rejects_invalid_commit(tmp_path: Path) -> None:
         text=True,
     )
     assert result.returncode != 0
+
+
+def test_release_runtime_env_rejects_invalid_timestamp(tmp_path: Path) -> None:
+    output = tmp_path / "invalid.env"
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(SCRIPT),
+            "--commit",
+            "a" * 40,
+            "--release-id",
+            "wp1-fix-20260824",
+            "--image-digest",
+            "sha256:" + "b" * 64,
+            "--build-timestamp",
+            "2026-08-24 06:47:20 +0800 CST",
+            "--output",
+            str(output),
+        ],
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode != 0
+    assert not output.exists()

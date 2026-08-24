@@ -6,10 +6,11 @@ import os
 import re
 from dataclasses import dataclass
 
+from app.core.release_metadata import validate_build_timestamp
+
 
 _SAFE_VALUE = re.compile(r"^[A-Za-z0-9._/-]{1,128}$")
 _SAFE_IMAGE_DIGEST = re.compile(r"^sha256:[0-9a-f]{64}$")
-_SAFE_TIMESTAMP = re.compile(r"^[0-9TZ:._+/-]{1,64}$")
 DEFAULT_SERVICE_NAME = "knowledge-base-api"
 DEFAULT_VERSION = "1.0.0"
 DEFAULT_ENVIRONMENT = "development"
@@ -29,6 +30,16 @@ def _read_optional_env(name: str, pattern: re.Pattern[str]) -> str | None:
     if not pattern.fullmatch(value):
         raise ValueError(f"{name} contains unsupported characters")
     return value
+
+
+def _read_optional_build_timestamp() -> str | None:
+    value = os.getenv("KM_BUILD_TIMESTAMP", "").strip()
+    if not value or value == "unknown":
+        return None
+    try:
+        return validate_build_timestamp(value)
+    except ValueError as exc:
+        raise ValueError(f"KM_BUILD_TIMESTAMP is invalid: {exc}") from exc
 
 
 @dataclass(frozen=True, slots=True)
@@ -53,5 +64,5 @@ class AppSettings:
             commit=commit,
             release_id=_read_optional_env("KM_RELEASE_ID", _SAFE_VALUE),
             image_digest=_read_optional_env("KM_IMAGE_DIGEST", _SAFE_IMAGE_DIGEST),
-            build_timestamp=_read_optional_env("KM_BUILD_TIMESTAMP", _SAFE_TIMESTAMP),
+            build_timestamp=_read_optional_build_timestamp(),
         )

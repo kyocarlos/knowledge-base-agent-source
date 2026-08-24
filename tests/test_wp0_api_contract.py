@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import re
 
+import pytest
 from fastapi import APIRouter
 from fastapi.testclient import TestClient
 
@@ -53,13 +54,27 @@ def test_health_live_ready_and_version_use_the_v1_envelope():
 
 
 def test_version_exposes_release_identity_from_environment(monkeypatch):
+    monkeypatch.setenv("KM_GIT_COMMIT", "b" * 40)
     monkeypatch.setenv("KM_RELEASE_ID", "wp1-release-20260821")
     monkeypatch.setenv("KM_IMAGE_DIGEST", "sha256:" + "a" * 64)
     monkeypatch.setenv("KM_BUILD_TIMESTAMP", "2026-08-21T12:00:00+08:00")
     settings = AppSettings.from_env()
+    assert settings.commit == "b" * 40
     assert settings.release_id == "wp1-release-20260821"
     assert settings.image_digest == "sha256:" + "a" * 64
     assert settings.build_timestamp == "2026-08-21T12:00:00+08:00"
+
+
+def test_optional_build_timestamp_is_none_for_empty_or_unknown(monkeypatch):
+    for value in ("", "unknown"):
+        monkeypatch.setenv("KM_BUILD_TIMESTAMP", value)
+        assert AppSettings.from_env().build_timestamp is None
+
+
+def test_invalid_build_timestamp_fails_before_application_start(monkeypatch):
+    monkeypatch.setenv("KM_BUILD_TIMESTAMP", "2026-08-24 06:47:20 +0800 CST")
+    with pytest.raises(ValueError, match="RFC3339"):
+        AppSettings.from_env()
 
 
 def test_invalid_trace_header_is_replaced_and_same_id_is_logged(caplog):
