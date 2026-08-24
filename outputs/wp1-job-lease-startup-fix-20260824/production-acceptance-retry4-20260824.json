@@ -1,0 +1,82 @@
+{
+  "schema": "km.wp1.production-acceptance-retry4.v1",
+  "execution_date": "2026-08-24",
+  "deployment_start": "2026-08-24T09:31:30+08:00",
+  "deployment_end": "2026-08-24T09:31:34+08:00",
+  "rollback_completed": "2026-08-24T09:32:08+08:00",
+  "operator": "KM Agent controlled deployment",
+  "candidate": {
+    "source_commit": "4042284c23f2076e16a476f2426ec1f1ca73f7b4",
+    "release_id": "wp1-job-lease-startup-fix-20260824",
+    "image_digest": "sha256:ed09a772cae7ddcb8251dac59f4e1921e6da24642bb4b7708b912edd97db2ea6"
+  },
+  "identity_gate": {
+    "result": "FAIL",
+    "health_http": 502,
+    "version_http": 502,
+    "uvicorn_workers_configured": 4,
+    "uvicorn_workers_started": 0,
+    "application_startup_completed": 0,
+    "database_locked_observed": false,
+    "failure_classification": "candidate_runtime_metadata_validation",
+    "root_cause": "KM_BUILD_TIMESTAMP contained '+08:00', which the candidate configuration validator rejects as unsupported characters; all four Uvicorn workers failed during application import.",
+    "source_code_modified_during_deployment": false
+  },
+  "ledger": {
+    "planned_path": "/home/da40_ai_gb10/knowledge-base/data/job-ledger.sqlite3",
+    "container_path": "/app/data/job-ledger.sqlite3",
+    "four_service_path_consistent": true,
+    "mount_consistent": true,
+    "file_identity_observed": "66306:4492816:16384",
+    "initialization_lock_present": true,
+    "initialization_lock_observed_mode": "0644",
+    "initialization_lock_usability": "NOT_DETERMINABLE",
+    "register_claim_write_tests": "NOT_RUN"
+  },
+  "acceptance": {
+    "synthetic_run_id": null,
+    "synthetic_write_performed": false,
+    "search": "NOT_RUN",
+    "report_self_read": "NOT_RUN",
+    "upload_ingest": "NOT_RUN",
+    "duplicate_dedup": "NOT_RUN",
+    "report_review": "NOT_RUN",
+    "worker_recovery": "NOT_RUN",
+    "inflight_redelivery": "NOT_RUN",
+    "application_idempotency": "NOT_RUN",
+    "cleanup": "NOT_REQUIRED_BEFORE_WRITE",
+    "residual_count": 0
+  },
+  "temporary_identity": {
+    "provisioned_additively": true,
+    "existing_registry_preserved": true,
+    "secrets_included": false,
+    "removed_by_rollback": true,
+    "post_removal_auth_http": 403
+  },
+  "rollback": {
+    "result": "PASS",
+    "checkpoint": "/home/da40_ai_gb10/kb-pre-wp01-backups/pre-deploy-current-production-20260822-110946",
+    "checkpoint_sha256": "18f0f3ff7f5652ad72b45d8ddc497ef8f7ece34b2de9a822ed7436fe0d719d3f",
+    "rollback_target_image": "sha256:a3220ec33ab80c588f289d8560af96c447c6f573da3145fe66ffa2cd719b16ec",
+    "target_matches_pre_deploy_runtime": true,
+    "health_after": "PASS",
+    "celery_nodes_after": 2,
+    "queues_after": 0,
+    "active_reserved_scheduled_after": 0
+  },
+  "safety": {
+    "production_touched": true,
+    "production_write_performed": false,
+    "migration_performed": false,
+    "restore_performed": false,
+    "real_instrument_access": false,
+    "secrets_included": false
+  },
+  "final_status": {
+    "production_restored_to_baseline": true,
+    "production_gate": "NO-GO",
+    "retry_authorized": false,
+    "recommendation": "Open a separate candidate metadata validation fix cycle; do not modify this frozen source or retry production until reviewed."
+  }
+}
