@@ -1,0 +1,42 @@
+INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
+INFO:     Started parent process [1]
+/usr/local/lib/python3.12/site-packages/pydub/utils.py:170: RuntimeWarning: Couldn't find ffmpeg or avconv - defaulting to ffmpeg, but may not work
+  warn("Couldn't find ffmpeg or avconv - defaulting to ffmpeg, but may not work", RuntimeWarning)
+/usr/local/lib/python3.12/site-packages/pydub/utils.py:170: RuntimeWarning: Couldn't find ffmpeg or avconv - defaulting to ffmpeg, but may not work
+  warn("Couldn't find ffmpeg or avconv - defaulting to ffmpeg, but may not work", RuntimeWarning)
+/usr/local/lib/python3.12/site-packages/pydub/utils.py:170: RuntimeWarning: Couldn't find ffmpeg or avconv - defaulting to ffmpeg, but may not work
+  warn("Couldn't find ffmpeg or avconv - defaulting to ffmpeg, but may not work", RuntimeWarning)
+/usr/local/lib/python3.12/site-packages/pydub/utils.py:170: RuntimeWarning: Couldn't find ffmpeg or avconv - defaulting to ffmpeg, but may not work
+  warn("Couldn't find ffmpeg or avconv - defaulting to ffmpeg, but may not work", RuntimeWarning)
+LangChain 未安裝，部分功能可能無法使用
+LangChain 未安裝，部分功能可能無法使用
+LangChain 未安裝，部分功能可能無法使用
+LangChain 未安裝，部分功能可能無法使用
+INFO:     Started server process [9]
+INFO:     Waiting for application startup.
+INFO:src.web_api:FastAPI 啟動
+INFO:src.web_api.tasks:Celery Beat 已更新: 每 1 分鐘執行
+INFO:src.web_api:Celery Beat 已初始化: 每 1 分鐘
+INFO:     Application startup complete.
+INFO:     172.17.0.1:55804 - "GET /health HTTP/1.1" 200 OK
+INFO:app.core.trace:HTTP request trace_id=b5d3c0174fc54e6c9b9aaeb444a29daa method=GET path=/health status=200
+INFO:     Started server process [10]
+INFO:     Waiting for application startup.
+INFO:src.web_api:FastAPI 啟動
+INFO:     Started server process [8]
+INFO:     Waiting for application startup.
+INFO:src.web_api:FastAPI 啟動
+INFO:     Started server process [11]
+INFO:     Waiting for application startup.
+INFO:src.web_api:FastAPI 啟動
+INFO:src.web_api.tasks:Celery Beat 已更新: 每 1 分鐘執行
+INFO:src.web_api:Celery Beat 已初始化: 每 1 分鐘
+INFO:     Application startup complete.
+INFO:src.web_api.tasks:Celery Beat 已更新: 每 1 分鐘執行
+INFO:src.web_api:Celery Beat 已初始化: 每 1 分鐘
+INFO:     Application startup complete.
+INFO:src.web_api.tasks:Celery Beat 已更新: 每 1 分鐘執行
+INFO:src.web_api:Celery Beat 已初始化: 每 1 分鐘
+INFO:     Application startup complete.
+INFO:app.core.trace:HTTP request trace_id=d763e2cb8cd04c818d8fe09767b9435c method=GET path=/api/v1/version status=200
+INFO:     172.17.0.1:55806 - "GET /api/v1/version HTTP/1.1" 200 OK

@@ -1,0 +1,14 @@
+{
+  "schema": "km.wp1.redis-reconnect-idempotency-shadow.v1",
+  "mode": "isolated-shadow",
+  "production_touched": false,
+  "container": "kb-wp1-redis-47d2e01a15",
+  "port": 29748,
+  "initial_ping": true,
+  "first_set_nx": true,
+  "post_restart_ping": true,
+  "value_after_restart": "accepted",
+  "duplicate_set_nx": false,
+  "idempotency_verified": true,
+  "cleanup_verified": true
+}

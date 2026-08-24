@@ -1,0 +1,12 @@
+{
+  "schema": "km.wp1.release-candidate-build.v1",
+  "release_candidate_commit": "703075efe862736cffe5159edfcb3b1940c5ae09",
+  "release_id": "wp1-metadata-validation-fix-20260824-r2",
+  "build_timestamp": "2026-08-24T10:09:35+08:00",
+  "image_tag": "kb-wp1-release:wp1-metadata-validation-fix-20260824-r2",
+  "image_id": "sha256:8f009d19a8bfec29736cfb08b1175795aaabdc44449bf298e29d5c8974ed129c",
+  "image_digest_source": "local docker image ID; registry digest requires a separately approved registry push",
+  "production_touched": false,
+  "deployed": false,
+  "secrets_included": false
+}
