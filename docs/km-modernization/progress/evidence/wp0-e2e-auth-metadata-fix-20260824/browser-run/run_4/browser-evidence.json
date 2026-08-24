@@ -1,0 +1,117 @@
+{
+  "schema": "km.wp0.post-deploy-browser-evidence.v1",
+  "base": "https://127.0.0.1:3030",
+  "routes": [
+    {
+      "route": "/",
+      "status": 200,
+      "title": "知識庫搜尋系統",
+      "console_errors": [],
+      "page_errors": [],
+      "failed_requests": [],
+      "asset_responses": [
+        {
+          "url": "https://127.0.0.1:3030/assets/index-Dn6LwqJX.js",
+          "status": 200
+        },
+        {
+          "url": "https://127.0.0.1:3030/assets/index-CHcSE2yN.css",
+          "status": 200
+        }
+      ],
+      "websocket": null
+    },
+    {
+      "route": "/chat.html",
+      "status": 200,
+      "title": "知識庫熱圖 | Knowledge Base Heatmap",
+      "console_errors": [],
+      "page_errors": [],
+      "failed_requests": [],
+      "asset_responses": [
+        {
+          "url": "https://127.0.0.1:3030/lib/compare-rules.js",
+          "status": 200
+        },
+        {
+          "url": "https://127.0.0.1:3030/lib/marked.min.js",
+          "status": 200
+        },
+        {
+          "url": "https://cdn.jsdelivr.net/npm/tweetnacl@1.0.3/nacl.min.js",
+          "status": 200
+        }
+      ],
+      "websocket": {
+        "opened": true,
+        "closed": true,
+        "timeout": false
+      }
+    },
+    {
+      "route": "/upload",
+      "status": 200,
+      "title": "知識庫搜尋系統",
+      "console_errors": [],
+      "page_errors": [],
+      "failed_requests": [],
+      "asset_responses": [
+        {
+          "url": "https://127.0.0.1:3030/assets/index-Dn6LwqJX.js",
+          "status": 200
+        },
+        {
+          "url": "https://127.0.0.1:3030/assets/index-CHcSE2yN.css",
+          "status": 200
+        },
+        {
+          "url": "https://127.0.0.1:3030/assets/UploadView-BwT4GTWx.js",
+          "status": 200
+        },
+        {
+          "url": "https://127.0.0.1:3030/assets/UploadView-C_sbEJI3.css",
+          "status": 200
+        }
+      ],
+      "websocket": null
+    },
+    {
+      "route": "/admin/report-reviews",
+      "status": 200,
+      "title": "知識庫搜尋系統",
+      "console_errors": [],
+      "page_errors": [],
+      "failed_requests": [],
+      "asset_responses": [
+        {
+          "url": "https://127.0.0.1:3030/assets/index-Dn6LwqJX.js",
+          "status": 200
+        },
+        {
+          "url": "https://127.0.0.1:3030/assets/index-CHcSE2yN.css",
+          "status": 200
+        },
+        {
+          "url": "https://127.0.0.1:3030/assets/ReportReviewView-CxFNfY35.js",
+          "status": 200
+        },
+        {
+          "url": "https://127.0.0.1:3030/assets/ReportReviewView-DtQYJdJo.css",
+          "status": 200
+        }
+      ],
+      "websocket": null
+    }
+  ],
+  "all_routes_200": true,
+  "all_assets_2xx": true,
+  "fatal_console_errors": false,
+  "failed_requests": [],
+  "websocket": {
+    "opened": true,
+    "closed": true,
+    "timeout": false
+  },
+  "credentials_used": false,
+  "secrets_included": false
+}

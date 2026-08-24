@@ -1,0 +1,5 @@
+step route_root: open / without credentials or write actions
+step route_chat: open /chat.html without credentials or write actions
+step route_upload: open /upload without credentials or write actions
+step route_report_reviews: open /admin/report-reviews without credentials or write actions
+final result: {"all_routes_200": true, "all_assets_2xx": true, "fatal_console_errors": false, "failed_request_count": 0, "websocket": {"opened": true, "closed": true, "timeout": false}}
