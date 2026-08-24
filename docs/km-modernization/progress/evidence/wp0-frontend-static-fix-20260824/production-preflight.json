@@ -1,0 +1,70 @@
+{
+  "schema": "km.wp0.frontend-static-production-preflight.v1",
+  "preflight_date": "2026-08-24",
+  "production_touched": false,
+  "production_restart": false,
+  "production_deploy": false,
+  "production_write": false,
+  "migration_performed": false,
+  "current_runtime": {
+    "nginx_container": "kb-nginx",
+    "nginx_image": "sha256:c4ebb06c9c9db8551ac0f15d3b7b37589c7cbc04e78cbfb4ac33bd57193db776",
+    "application_image": "sha256:8f009d19a8bfec29736cfb08b1175795aaabdc44449bf298e29d5c8974ed129c",
+    "release_id": "wp1-metadata-validation-fix-20260824-r2",
+    "source_commit": "703075efe862736cffe5159edfcb3b1940c5ae09",
+    "health_http": 200,
+    "version_http": 200,
+    "version_commit": "703075efe862736cffe5159edfcb3b1940c5ae09",
+    "runtime_gates": "PASS",
+    "celery_nodes": 2,
+    "queues_empty": true
+  },
+  "current_static_mount": {
+    "source": "/tmp/kb-metadata-validation-fix/.frontend-build-runtime-user8",
+    "target": "/usr/share/nginx/html",
+    "read_only": true,
+    "source_is_temporary": true,
+    "source_exists": true,
+    "source_file_count": 0,
+    "index_html": "FAIL",
+    "chat_html": "FAIL",
+    "asset_count": 0,
+    "nginx_readable": false
+  },
+  "proposed_static_mount": {
+    "KB_FRONTEND_BUILD_DIR": "/home/da40_ai_gb10/knowledge-base/.frontend-build-runtime-user8",
+    "source_is_temporary": false,
+    "source_exists": true,
+    "index_html": "PASS",
+    "chat_html": "PASS",
+    "file_count": 17,
+    "asset_count": 15,
+    "manifest": "PASS",
+    "manifest_sha256": "54b0e47f6f4afbcb6999df511aba2f0ae82d1f324849dc992a017e48db338e06",
+    "owner": "1000:1000",
+    "directory_mode": "0775",
+    "files_readable": true,
+    "rendered_target": "/usr/share/nginx/html",
+    "rendered_mount_read_only": true,
+    "result": "PASS"
+  },
+  "nginx_config": {
+    "root": "/usr/share/nginx/html",
+    "index": ["index.html", "chat.html"],
+    "root_matches_mount_target": true
+  },
+  "rollback": {
+    "approved_checkpoint": "/home/da40_ai_gb10/kb-pre-wp01-backups/pre-deploy-current-production-20260822-110946",
+    "checkpoint_sha256": "18f0f3ff7f5652ad72b45d8ddc497ef8f7ece34b2de9a822ed7436fe0d719d3f",
+    "checkpoint_verification": "PASS",
+    "checkpoint_application_image": "sha256:a3220ec33ab80c588f289d8560af96c447c6f573da3145fe66ffa2cd719b16ec",
+    "current_application_image_matches_checkpoint": false,
+    "production_drift": true,
+    "rollback_readiness_for_new_deployment": "BLOCKED_BY_DRIFT",
+    "frontend_restore_procedure_defined": true,
+    "frontend_restore_procedure": "On post-publish validation failure, restore the previous frontend directory before container recreation; on acceptance failure, restore the paired current-runtime checkpoint and validate Health/Version.",
+    "current_frontend_rollback_snapshot": "PENDING_CURRENT_RUNTIME_CHECKPOINT"
+  },
+  "production_gate": "NO-GO",
+  "recommendation": "Do not restart or deploy. First create a current-runtime maintenance checkpoint paired with the persistent frontend source, then re-run read-only preflight."
+}
