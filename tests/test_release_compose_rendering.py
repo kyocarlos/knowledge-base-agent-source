@@ -62,7 +62,13 @@ def test_unquoted_yaml_timestamp_coercion_is_caught(tmp_path: Path) -> None:
     )
     compose = tmp_path / "coerced.yml"
     compose.write_text(f"services:\n{service_blocks}\n", encoding="utf-8")
-    rendered = render_compose(compose, {})
+    try:
+        rendered = render_compose(compose, {})
+    except subprocess.CalledProcessError as exc:
+        # Newer Compose versions reject YAML timestamps during schema validation;
+        # older versions render a coerced value that our preflight must reject.
+        assert "KM_BUILD_TIMESTAMP" in exc.stderr
+        return
     observed = json.loads(rendered)["services"]["web"]["environment"]["KM_BUILD_TIMESTAMP"]
     assert observed != TIMESTAMP
     assert validate_rendered(rendered).returncode != 0
