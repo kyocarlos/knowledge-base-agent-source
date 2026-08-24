@@ -1,0 +1,72 @@
+{
+  "schema": "km.wp1.production-preflight-refresh.v1",
+  "preflight_date": "2026-08-24",
+  "preflight_read_only": true,
+  "production_touched": false,
+  "production_gate": "NO-GO",
+  "current_production": {
+    "web_image": "sha256:a3220ec33ab80c588f289d8560af96c447c6f573da3145fe66ffa2cd719b16ec",
+    "application_services_running": true,
+    "health": "PASS",
+    "wp0_runtime_gates": "PASS",
+    "wp1_runtime_gates": "PASS",
+    "celery_nodes": 2,
+    "active": 0,
+    "reserved": 0,
+    "scheduled": 0,
+    "queues": {
+      "search": 0,
+      "ingest": 0,
+      "default": 0,
+      "document": 0,
+      "indexing": 0,
+      "celery": 0
+    }
+  },
+  "rollback_baseline": {
+    "checkpoint_path": "/home/da40_ai_gb10/kb-pre-wp01-backups/pre-deploy-current-production-20260822-110946",
+    "checkpoint_sha256": "18f0f3ff7f5652ad72b45d8ddc497ef8f7ece34b2de9a822ed7436fe0d719d3f",
+    "checkpoint_verification": "PASS",
+    "checksum_files_verified": 23,
+    "rollback_target": "sha256:a3220ec33ab80c588f289d8560af96c447c6f573da3145fe66ffa2cd719b16ec",
+    "rollback_target_matches_current_runtime": true,
+    "rollback_readiness": "PASS",
+    "production_drift": false
+  },
+  "candidate": {
+    "source_commit": "4042284c23f2076e16a476f2426ec1f1ca73f7b4",
+    "release_id": "wp1-job-lease-startup-fix-20260824",
+    "image_tag": "kb-wp1-release:wp1-job-lease-startup-fix-20260824",
+    "image_id": "sha256:ed09a772cae7ddcb8251dac59f4e1921e6da24642bb4b7708b912edd97db2ea6",
+    "image_exists": true,
+    "old_f3290_candidate_used": false
+  },
+  "planned_production_configuration": {
+    "KB_JOB_LEDGER_PATH": "/home/da40_ai_gb10/knowledge-base/data/job-ledger.sqlite3",
+    "services": ["web", "celery_search_worker", "celery_ingest_worker", "celery_beat"],
+    "rendered_env_consistent": true,
+    "rendered_image_consistent": true,
+    "shared_data_mount_consistent": true,
+    "uvicorn_worker_count": 4,
+    "initialization_lock_path": "/home/da40_ai_gb10/knowledge-base/data/.job-ledger.sqlite3.init.lock",
+    "lock_path_is_database_adjacent": true,
+    "shared_volume_supports_database_and_lock": true,
+    "application_fallback_required": false
+  },
+  "temporary_e2e_identity_plan": {
+    "method": "additive runtime configuration",
+    "existing_registry_preserved": true,
+    "runtime_env_mode": "0600",
+    "secrets_in_evidence": false,
+    "removal_procedure_defined": true,
+    "post_removal_auth_rejection_defined": true,
+    "rollback_safe": true
+  },
+  "ci": {
+    "wp0_run": "32669829674",
+    "wp1_run": "32669831189",
+    "wp0_result": "PASS",
+    "wp1_result": "PASS"
+  },
+  "recommendation": "Production Preflight PASS; submit for supervisor Production GO Review. Do not deploy from this evidence."
+}
