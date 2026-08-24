@@ -7,6 +7,7 @@
 - `evidence/`：WP commit、PR、CI、測試與驗收證據。
 - `evidence/WP0-WP1-v2.6-gap-assessment.md`：WP0／WP1 對 v2.6 的 A～E 差異與保全決策。
 - WP1 最新 closure 證據包含 application idempotency shadow 與 system recovery coverage matrix；PENDING 項目不得視為系統 restore PASS。
+- WP1 已由主管 Final Closure 核准為 100%；accepted production identity、PR #9～#16 consolidation strategy 見 `evidence/WP1-pr-consolidation-strategy-20260824.{json,md}`。PR #9～#16 仍維持 Draft/Open，未自行合併。
 - `presentations/`：已人工審查、可直接下載的歷史 PPTX。
 - `templates/`：固定 7 頁版型基準。
 

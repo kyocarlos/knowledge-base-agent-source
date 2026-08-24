@@ -1,0 +1,130 @@
+{
+  "schema": "km.wp1.pr-consolidation-strategy.v1",
+  "status": "PREPARED_NOT_MERGED",
+  "review_scope": "PR #9 through PR #16",
+  "planning_baseline": {
+    "file": "docs/km-modernization/01_AI_KM_Phase規劃_v2.6.xlsx",
+    "sha256": "4c5a4782e727b5675add29027a5a09192966f126baa5ca648d89b22c333fba46"
+  },
+  "accepted_production_identity": {
+    "source_commit": "703075efe862736cffe5159edfcb3b1940c5ae09",
+    "release_id": "wp1-metadata-validation-fix-20260824-r2",
+    "image_digest": "sha256:8f009d19a8bfec29736cfb08b1175795aaabdc44449bf298e29d5c8974ed129c",
+    "evidence_head": "6024e80cb4081579729174a7b1ae9cfe9003e481"
+  },
+  "pull_requests": [
+    {
+      "number": 9,
+      "base": "agent/km-plan-v2.6-anderson",
+      "head": "fa53344328c912e54866b070f21e0b8bbba793f2",
+      "state": "OPEN_DRAFT",
+      "role": "historical WP1 closure and attribution record",
+      "code_contribution": ["JobLeaseStore durable recovery", "report ingest/status behavior", "WP1 recovery and idempotency tests"],
+      "evidence_contribution": ["worker recovery", "backup/restore shadow", "Redis idempotency", "in-flight recovery", "production attribution"],
+      "canonical_action": "do_not_merge_separately; ancestry and evidence are included in PR #10",
+      "archive_action": "close only after canonical consolidation approval and links are preserved"
+    },
+    {
+      "number": 10,
+      "base": "agent/km-plan-v2.6-anderson",
+      "head": "32ad1ad34241c267faeff5609c2abf99b9b2af64",
+      "state": "OPEN_DRAFT",
+      "role": "canonical integration entry candidate",
+      "code_contribution": ["v2.6 planning source publication", "release convergence", "restart/deployment support", "version metadata baseline"],
+      "evidence_contribution": ["release convergence", "exact-head image gate", "current production checkpoint", "rollback acceptance"],
+      "canonical_action": "first integration layer after supervisor approval",
+      "superseded_runtime_identity": ["wp1-final-20260821", "sha256:aae454ffe5caf1a0b562ac9e6ec34b289ea14836c4941e962bf9d061796eae29"]
+    },
+    {
+      "number": 11,
+      "base": "agent/wp1-release-convergence",
+      "head": "149f677b6d39bd6bf8bb4bc53548bd2edde1e84f",
+      "state": "OPEN_DRAFT",
+      "role": "production ingest blocker and CI portability fix",
+      "code_contribution": ["agent self-read compatibility", "shared ledger path preflight", "manual CI fallback"],
+      "evidence_contribution": ["blocker-fix shadow", "production preflight", "rollback attempt"],
+      "canonical_action": "integrate after PR #10",
+      "superseded_runtime_identity": ["wp1-fix-20260822", "sha256:9ee779ae089ce6ab5080697caf069910fa29e19c22f3faaf785a0e10591f376a"]
+    },
+    {
+      "number": 12,
+      "base": "agent/wp1-production-fix-review",
+      "head": "4f0f49b058bd2fc4e12448c43a9f157eeedf281c",
+      "state": "OPEN_DRAFT",
+      "role": "runtime release metadata injection",
+      "code_contribution": ["KM_GIT_COMMIT/KM_RELEASE_ID/KM_IMAGE_DIGEST/KM_BUILD_TIMESTAMP injection", "0600 runtime env generator"],
+      "evidence_contribution": ["metadata candidate identity smoke"],
+      "canonical_action": "integrate after PR #11; retained by PR #16 ancestry",
+      "superseded_runtime_identity": ["wp1-metadata-fix-20260822-r1", "sha256:71c8a464da334098a87de25afd517dbf4bc125511c11f7d58d708ede635cb805"]
+    },
+    {
+      "number": 13,
+      "base": "agent/wp1-deployment-metadata-fix",
+      "head": "2a67fcbddb2e0f3995fa5a9c25887c70c0543890",
+      "state": "OPEN_DRAFT",
+      "role": "Search regression fix",
+      "code_contribution": ["separate FastAPI Request from SearchRequest for trace propagation"],
+      "evidence_contribution": ["Search 500 diagnosis", "Search rerun", "write-smoke route blocker"],
+      "canonical_action": "integrate after PR #12; retained by PR #16 ancestry",
+      "superseded_runtime_identity": ["wp1-search-fix-20260822-r1", "sha256:d9b21fd0d3c43438ad38b6866d5aef767ae8c2d24b4b24fe05e5588fbff8991a"]
+    },
+    {
+      "number": 14,
+      "base": "agent/wp1-search-500-fix",
+      "head": "abd65b88b850cd29550a361816403a8756fc43d8",
+      "state": "OPEN_DRAFT",
+      "role": "E2E cleanup route and shared-ledger reconciliation evidence",
+      "code_contribution": ["mount existing E2E cleanup router"],
+      "evidence_contribution": ["isolated full write smoke", "production ingest lease diagnosis", "shared-ledger reconciliation", "preflight and rollback evidence"],
+      "canonical_action": "integrate after PR #13; retained by PR #16 ancestry",
+      "superseded_runtime_identity": ["wp1-e2e-cleanup-router-fix-20260822-r1", "sha256:f3290d5d594d20aa35e2b3799675f86a9dc615a01063acfa9efd8097bc710cf0"]
+    },
+    {
+      "number": 15,
+      "base": "agent/wp1-e2e-cleanup-router-fix",
+      "head": "7e63a42be9c2894a9d6e0faea35103eda930d8fb",
+      "state": "OPEN_DRAFT",
+      "role": "SQLite startup race fix",
+      "code_contribution": ["serialize JobLeaseStore WAL/schema initialization with adjacent lock"],
+      "evidence_contribution": ["4-worker startup", "in-flight/recovery/idempotency isolated validation", "production retry rollback"],
+      "canonical_action": "integrate after PR #14; retained by PR #16 ancestry",
+      "superseded_runtime_identity": ["wp1-job-lease-startup-fix-20260824", "sha256:ed09a772cae7ddcb8251dac59f4e1921e6da24642bb4b7708b912edd97db2ea6"]
+    },
+    {
+      "number": 16,
+      "base": "agent/wp1-job-lease-startup-fix",
+      "head": "6024e80cb4081579729174a7b1ae9cfe9003e481",
+      "state": "OPEN_DRAFT",
+      "role": "final accepted metadata contract and production evidence",
+      "code_contribution": ["shared release metadata contract", "RFC3339 rendered-Compose validation", "release runtime validation"],
+      "evidence_contribution": ["isolated exact-candidate validation", "production preflight", "production acceptance", "temporary identity removal"],
+      "canonical_action": "proposed final canonical merge head",
+      "accepted": true
+    }
+  ],
+  "proposed_canonical_merge": {
+    "head": "6024e80cb4081579729174a7b1ae9cfe9003e481",
+    "source_commit": "703075efe862736cffe5159edfcb3b1940c5ae09",
+    "order": [10, 11, 12, 13, 14, 15, 16],
+    "pr9_handling": "not merged separately; included in PR10 ancestry and retained as historical review record",
+    "strategy": "retain individual code/evidence commits; do not squash until supervisor approves an explicit attribution map",
+    "target": "agent/km-plan-v2.6-anderson",
+    "merge_authorization": "PENDING_SUPERVISOR_MERGE_STRATEGY_REVIEW"
+  },
+  "superseded_items": {
+    "runtime_images": ["aae454", "9ee779", "71c8a4", "d9b21f", "f3290d", "ed09a7"],
+    "rule": "historical image evidence remains immutable; only sha256:8f009d19... is accepted production identity",
+    "commits": "Earlier evidence commits remain trace records; later fixes supersede runtime behavior only where the same chain changed code. No commit is deleted or rewritten."
+  },
+  "post_merge_ci_plan": [
+    "verify final merged head and source/image attribution",
+    "run WP0 Contract Baseline workflow",
+    "run WP1 Job Reliability workflow",
+    "run weekly/repository hygiene checks",
+    "rerun read-only portal E2E and archive artifacts",
+    "verify /api/v1/version equals accepted production source/release/image",
+    "keep PR #9-#16 history links in the final closure record"
+  ],
+  "archive_close_recommendation": "Do not archive or close any Draft PR before supervisor approval. After canonical merge and evidence links are preserved, close PR #9 and PR #11-#16 as superseded historical PRs; retain PR #10 or the final consolidation PR as the canonical delivery record.",
+  "production_identity_attribution": "The accepted production runtime remains source 703075efe862736cffe5159edfcb3b1940c5ae09, release wp1-metadata-validation-fix-20260824-r2, image sha256:8f009d19..., evidence head 6024e80.... A merge commit is documentation/integration identity and must not replace the deployed source/image identity."
+}
