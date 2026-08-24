@@ -138,7 +138,7 @@ s.addText(`${data.current_phase}\n報告日期：${data.report_date}\n統計期�
 s.addText(`全計畫 ${data.program_progress}%`,{x:9.8,y:4.7,w:2.5,h:0.55,fontFace:"Microsoft JhengHei",fontSize:24,bold:true,color:"78D6DA",align:"right",margin:0});
 s.addText("1 / 7",{x:11.8,y:6.95,w:0.7,h:0.25,fontFace:"Aptos",fontSize:10,color:"AFC1CD",align:"right",margin:0});
 
-s = pptx.addSlide("WEEKLY"); title(s,"主管摘要","本週結論：Phase 1 已有前置實作成果，但 Gate 尚未正式關閉");
+s = pptx.addSlide("WEEKLY"); title(s,"主管摘要","本週結論：WP0／WP1 Final Closed；WP2 仍待獨立 Start Gate Review");
 box(s,0.65,1.55,3.8,2.0,"全計畫",`${data.program_progress}%\n${data.source_baseline}`,C.navy);
 box(s,4.75,1.55,3.8,2.0,"Phase 1",`${data.phase_progress["1"]}%\nWP0 ${data.work_packages[0].progress}%｜WP1 ${data.work_packages[1].progress}%`,C.teal);
 box(s,8.85,1.55,3.8,2.0,"主管關注",data.risks.slice(0,2).join("\n"),C.amber);

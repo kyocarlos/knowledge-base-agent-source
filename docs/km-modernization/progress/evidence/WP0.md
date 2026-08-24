@@ -1,36 +1,48 @@
 # WP0 Evidence — FastAPI contract 與測試基線
 
-統計截止：2026-08-12 17:00 Asia/Taipei；合併驗收更新：2026-08-20
+統計與 closure 更新：2026-08-24；規劃基準：`01_AI_KM_Phase規劃_v2.6.xlsx`。
 
-| 類別 | 得分／權重 | 證據與限制 |
+| 類別 | 得分／權重 | 證據 |
 |---|---:|---|
-| 規格與 Contract | 15/15 | REQ-API-001、REQ-API-002、REQ-OPS-001；PR #2 描述具 ADR、相容與回滾。 |
-| 程式實作 | 35/35 | branch `agent/wp0-fastapi-contract`，head `19d0751e9dda6f7d9ebf3128ff3aa7b945be3b0e`；主要實作 commit `2c46c834d8d1aef170dc4862101db02cb536e3ca`。 |
-| 測試 | 25/25 | PR 記錄 76 passed；驗收分支 Actions backend、frontend、repository-hygiene 全部成功，包含 credential scan 與完整 Git 歷史差異檢查。 |
-| E2E／驗收 | 14/15 | 受控 production synthetic write E2E 已完成 upload／approve／ingest、Neo4j 1/1/1、Qdrant 4/4 cleanup、submission 404、Health／rollback PASS；未使用真實使用者資料或儀器。仍保留 1 分作為正式入口與長期 artifact 限制。 |
-| PR／合併／文件／回滾 | 5/10 | [PR #5](https://github.com/kyocarlos/knowledge-base-agent-source/pull/5) 已由 Owner Acceptance，exact-head CI 全部通過，並於 2026-08-20 合併至 `agent/km-plan-v2.6-anderson`，merge commit `eb1eb9253dd689eac8cd7796646f98321ad454af`。仍保留個人開發無獨立 Reviewer 及正式長期 artifact 的限制。 |
+| 規格與 Contract | 15/15 | REQ-API-001、REQ-API-002、REQ-OPS-001；PR #2／PR #5 保留 ADR、相容與回滾契約。 |
+| 程式實作 | 35/35 | WP0 canonical delivery 及 PR #20 candidate source `2ef93d6b47d05b1acbc05fadc0df8393fefd41a0`。 |
+| Unit／Integration／Security 測試 | 25/25 | PR #5 exact-head CI、PR #20 WP0/WP1/Weekly CI 與 auth fail-closed、metadata、full Compose evidence。 |
+| E2E／驗收 | 15/15 | Production synthetic upload／approve／ingest／cleanup residual=0；四個 browser route、assets、console、network、WebSocket evidence 全部 PASS。 |
+| PR／合併／文件／回滾 | 10/10 | PR #5 Owner Acceptance merge `eb1eb9253dd689eac8cd7796646f98321ad454af`；PR #20 final evidence `23a5bea56a278194d53d01514978b1dce5107cac`；current-runtime checkpoint rollback readiness PASS。 |
 
-總分：**94/100**。WP0 已完成本輪 Owner Acceptance 與 v2.6 整合；仍保留正式入口長期 artifact 與獨立 Reviewer 限制，不宣稱無條件 100%。
+總分：**100/100，WP0 = 100% Final Closed**。
 
-CI：原始失敗證據 [WP0 run 31405151388](https://github.com/kyocarlos/knowledge-base-agent-source/actions/runs/31405151388)；修正後成功證據 [WP0 run 31466582947](https://github.com/kyocarlos/knowledge-base-agent-source/actions/runs/31466582947)。
+## Final Production Identity
 
-## v2.6 歸類
+- Source：`2ef93d6b47d05b1acbc05fadc0df8393fefd41a0`
+- Release：`wp0-e2e-auth-metadata-fix-20260824-r1`
+- Image：`sha256:18039a96b063b3fd85d7c40b975b323f25de71b169efcd9a7d20c2f0f7a5a749`
+- Production Gate：`PASS`
+- `/api/v1/version`、web/search/ingest/beat metadata 與 shared ledger：PASS
 
-- `A`：FastAPI application shell、versioned router、統一 response／error／trace、secret-safe exception、legacy compatibility 與對應測試可直接保留。
-- `B`：原 PR 使用的 REQ／ADR 編號沿用舊規劃；後續驗收以 v2.6 `REQ-API-001` 與 Phase 1 前置工作重新追溯，不改寫既有 commit。
-- `A`：原 repository-hygiene 使用 shallow checkout 的問題已以完整 checkout 修正；PR #5 exact-head CI 全部成功，並已由 Owner Acceptance 後合併至 v2.6 base。
-- `D`：CSIT Web、DB Schema、Workflow 與商業邏輯不屬於 WP0／Anderson，不納入完成率。
-- `E`：`01_AI_KM_Phase規劃_v2.6.xlsx` 尚未存在於 Git，不能認定規劃來源 Gate 已完成。
+## Acceptance Evidence
 
-## 2026-08-20 cutoff 後補充證據
+- PR #20 production evidence：`progress/evidence/wp0-e2e-auth-metadata-fix-20260824/production-acceptance-20260824.json`
+- PR #20 browser closure：`progress/evidence/wp0-e2e-auth-metadata-fix-20260824/browser-run/run_4/browser-evidence.json`
+- Browser routes `/`、`/chat.html`、`/upload`、`/admin/report-reviews`：HTTP 200。
+- JS/CSS assets：全部 2xx；failed requests=0；fatal console/page errors=0。
+- WebSocket：opened／closed，timeout=false。
+- Synthetic run：`TR-E2E-WP0-PROD-20260824-180658-5688b9d2-retry1`；cleanup 後 submission=404、residual=0。
+- Temporary E2E identity 已移除；existing registry 保留；regular auth 維持 fail-closed。
 
-- Production synthetic write E2E 已完成，使用 pinned image `kb-wp01-e2e:20260820-cleanup-fix`，run `TR-E2E-WP0-20260820-PROD-CLEANUP-FIX-001`。
-- Upload `202`、approve `200`、ingest `completed`；Neo4j TestRun/TestCase/Measurement `1/1/1`；Qdrant scoped points `4`，cleanup 刪除 `4`；cleanup 後 submission `404`，Qdrant post-check 剩餘 `0`。
-- Production synthetic window 結束後已 rollback 至 pre-WP01 checkpoint，Health PASS，E2E flags disabled。未使用真實使用者資料，未操作真實儀器。
-- Evidence：[production E2E](../../../outputs/wp0-write-e2e-20260819/production-write-e2e-cleanup-fix-20260820.json)、[Qdrant diagnosis](../../../outputs/wp0-write-e2e-20260819/production-qdrant-resolution-diagnosis-20260820.json)、[rollback](../../../outputs/wp0-write-e2e-20260819/rollback-shadow-evidence-20260819.json)。
-- 此證據產生於 W33 cutoff 之後，現已補上 PR #5 Owner Acceptance、exact-head CI 與 merge evidence；本次驗收更新 WP0 為 **94/100**。
+## Review Model
 
-## 2026-08-20 merge evidence
+- `review_model = OWNER_ACCEPTANCE`
+- `owner_acceptance = PASS`
+- `independent_reviewer = false`
+- 個人開發模型不以 independent reviewer 作為 blocker；未宣稱不存在的獨立審查。
 
-- PR #5 head `2b60cfb10aca41ef7c29bd63c461544800c0aa97` 已合併至 `agent/km-plan-v2.6-anderson`。
-- Merge commit：`eb1eb9253dd689eac8cd7796646f98321ad454af`。
+## Historical References
+
+- PR #5：Owner Acceptance／canonical WP0 delivery，merge commit `eb1eb9253dd689eac8cd7796646f98321ad454af`。
+- PR #19：frontend static delivery fix closure reference；persistent frontend mount 與 static gate evidence 保留。
+- PR #20：E2E auth／runtime metadata candidate、production acceptance 與 browser closure evidence；目前保留 Draft/Open 作 final evidence record。
+
+## Scope Boundary
+
+WP0 已完成本輪 v2.6 FastAPI contract、相容性、測試基線、受控 production acceptance 與 browser evidence。CSIT Web、DB Schema、Workflow、WP2 formal implementation 與 real instrument 不屬於本 WP0 closure；WP2 必須另行通過 Prerequisite／Start Gate Review。
