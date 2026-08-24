@@ -1,0 +1,45 @@
+{
+  "schema": "km.wp0.frontend-static-current-runtime-preflight.v1",
+  "checkpoint": "/home/da40_ai_gb10/knowledge-base/outputs/current-runtime-checkpoints/current-runtime-frontend-20260824-153723",
+  "checkpoint_sha256": "dfc4432a677cd749a5f902a21c17dea94dd505374efef227d77926d64b219267",
+  "checkpoint_verification": "PASS",
+  "current_runtime_image": "sha256:8f009d19a8bfec29736cfb08b1175795aaabdc44449bf298e29d5c8974ed129c",
+  "nginx_image": "sha256:c4ebb06c9c9db8551ac0f15d3b7b37589c7cbc04e78cbfb4ac33bd57193db776",
+  "checkpoint_application_image_matches_current": true,
+  "production_drift": false,
+  "rollback_readiness": "PASS",
+  "current_frontend_mount": {
+    "source": "/tmp/kb-metadata-validation-fix/.frontend-build-runtime-user8",
+    "target": "/usr/share/nginx/html",
+    "file_count": 0,
+    "status": "KNOWN_BAD_UNTIL_DEPLOY"
+  },
+  "proposed_frontend": {
+    "source": "/home/da40_ai_gb10/knowledge-base/.frontend-build-runtime-user8",
+    "non_temporary": true,
+    "index_html": "PASS",
+    "chat_html": "PASS",
+    "asset_count": 15,
+    "file_count": 17,
+    "manifest": "PASS",
+    "nginx_readable": true
+  },
+  "runtime": {
+    "health": "PASS",
+    "version": "PASS",
+    "wp0_wp1_gates": "PASS",
+    "celery_nodes": 2,
+    "active_reserved_scheduled_empty": true,
+    "queues_empty": true,
+    "websocket_gate": "PASS_READ_ONLY_EXISTING_GATE",
+    "nginx_container_restarted": false,
+    "nginx_reloaded_in_place": true
+  },
+  "production_touched": "checkpoint backup and in-place nginx reload only",
+  "production_deploy": false,
+  "production_write": false,
+  "migration": false,
+  "restore": false,
+  "secrets_in_evidence": false,
+  "production_gate": "NO-GO_PENDING_SUPERVISOR_GO"
+}
