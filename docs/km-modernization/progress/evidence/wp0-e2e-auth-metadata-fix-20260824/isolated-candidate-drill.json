@@ -1,0 +1,94 @@
+{
+  "project": "kb-wp01-candidate-20260824-161903",
+  "image": "kb-wp0-release:wp0-e2e-auth-metadata-fix-20260824-r1",
+  "port": 52795,
+  "e2e_auth_probes": {
+    "agent_health": {
+      "status": 200,
+      "body": "{\"status\":\"ok\",\"identity\":\"e2e-agent-01\",\"scope\":\"report:upload\",\"agent_id\":\"e2e-agent-01\",\"environment\":\"anritsu\",\"e2e\":true,\"schema_versions\":[\"1.0\"]}"
+    },
+    "cleanup_missing_token": {
+      "status": 401,
+      "body": "{\"detail\":\"缺少 X-E2E-Cleanup-ID\"}"
+    },
+    "cleanup_wrong_role_token": {
+      "status": 403,
+      "body": "{\"detail\":\"E2E cleanup token 無效\"}"
+    }
+  },
+  "write_e2e": {
+    "test_run_id": "TR-E2E-WP0-AUTH-METADATA-20260824-161851-cd9df9e3",
+    "upload_status": 202,
+    "approval_status": 200,
+    "terminal_status": "completed",
+    "terminal_error": null,
+    "worker_log_excerpt": "",
+    "ingest_task_id_present": true,
+    "cleanup_dry_run_status": 200,
+    "cleanup_apply_status": 200,
+    "cleanup_plan_counts": {
+      "reports": 1,
+      "ingest_records": 0,
+      "neo4j": {
+        "TestRun": 1,
+        "TestCase": 1,
+        "Measurement": 1
+      },
+      "qdrant": {
+        "points": 0
+      }
+    },
+    "cleanup_deleted_counts": {
+      "files": 2,
+      "redis_tasks": 1,
+      "reports": 1,
+      "ingest_records": 0,
+      "neo4j": {
+        "Measurement": 1,
+        "TestCase": 1,
+        "TestRun": 1
+      },
+      "qdrant_points": 0
+    },
+    "submission_after_cleanup": 404,
+    "result": "passed"
+  },
+  "probes": {
+    "/health": {
+      "status": 200,
+      "body": "{\"status\":\"healthy\"}"
+    },
+    "/api/v1/health": {
+      "status": 200,
+      "body": "{\"data\":{\"status\":\"ok\",\"live\":true,\"ready\":true},\"error\":null,\"trace_id\":\"b54a8dbc0f494ce3b983fb1bef35c7f1\"}"
+    },
+    "/api/v1/health/live": {
+      "status": 200,
+      "body": "{\"data\":{\"status\":\"ok\",\"live\":true,\"ready\":null},\"error\":null,\"trace_id\":\"53a04c49c6e145c984a4b84e4234d0bc\"}"
+    },
+    "/api/v1/health/ready": {
+      "status": 200,
+      "body": "{\"data\":{\"status\":\"ok\",\"live\":true,\"ready\":true},\"error\":null,\"trace_id\":\"ac02d51acfc940b28fe3c83ea239cd03\"}"
+    },
+    "/api/v1/version": {
+      "status": 200,
+      "body": "{\"data\":{\"service\":\"knowledge-base-api\",\"version\":\"1.0.0\",\"environment\":\"development\",\"commit\":null,\"release_id\":null,\"image_digest\":null,\"build_timestamp\":null},\"error\":null,\"trace_id\":\"80a7d3f1015248a9bbc16500ea4b4dd0\"}"
+    },
+    "/api/agent/v1/health": {
+      "status": 401,
+      "body": "{\"detail\":\"缺少 X-Agent-ID\"}"
+    }
+  },
+  "search_submission": {
+    "status": 200,
+    "task_id_present": true
+  },
+  "services_running": {
+    "web": true,
+    "search_worker": true,
+    "ingest_worker": true,
+    "beat": true
+  },
+  "result": "passed",
+  "finished_at": "2026-08-24T08:19:58.210908+00:00"
+}

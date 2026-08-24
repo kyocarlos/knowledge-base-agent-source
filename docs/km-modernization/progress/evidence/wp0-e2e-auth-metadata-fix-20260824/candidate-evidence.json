@@ -1,0 +1,47 @@
+{
+  "schema": "km.wp0.e2e-auth-metadata-candidate.v1",
+  "candidate": {
+    "source_commit": "2ef93d6b47d05b1acbc05fadc0df8393fefd41a0",
+    "release_id": "wp0-e2e-auth-metadata-fix-20260824-r1",
+    "image_digest": "sha256:18039a96b063b3fd85d7c40b975b323f25de71b169efcd9a7d20c2f0f7a5a749",
+    "build_timestamp": "2026-08-24T16:18:21+08:00",
+    "image_tag": "kb-wp0-release:wp0-e2e-auth-metadata-fix-20260824-r1"
+  },
+  "fix_scope": {
+    "e2e_report_auth_routing": true,
+    "runtime_metadata_contract": true,
+    "regular_auth_fail_closed": true,
+    "production_code_changed": false
+  },
+  "image_capability_probe": {
+    "result": "PASS",
+    "auth_routing": "present",
+    "report_routes": "present",
+    "metadata_validation": "PASS"
+  },
+  "isolated_runtime": {
+    "four_services_startup": "PASS",
+    "health": "PASS",
+    "search": "PASS",
+    "e2e_agent_health": "PASS",
+    "upload": "PASS",
+    "duplicate_upload": "PASS",
+    "report_review": "PASS",
+    "ingest_completion": "PASS",
+    "cleanup_dry_run": "PASS",
+    "cleanup_apply": "PASS",
+    "residual_count": 0,
+    "secrets_included": false,
+    "production_touched": false
+  },
+  "version_validation": {
+    "result": "PASS",
+    "commit": "2ef93d6b47d05b1acbc05fadc0df8393fefd41a0",
+    "release_id": "wp0-e2e-auth-metadata-fix-20260824-r1",
+    "image_digest": "sha256:18039a96b063b3fd85d7c40b975b323f25de71b169efcd9a7d20c2f0f7a5a749",
+    "build_timestamp": "2026-08-24T16:18:21+08:00"
+  },
+  "evidence_reference": "isolated-candidate-drill.json",
+  "pytest_host": "NOT_RUN: pytest is not installed on host; direct py_compile and deterministic assertions PASS",
+  "production_gate": "NO-GO"
+}
