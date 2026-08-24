@@ -142,6 +142,11 @@ compose_preflight() {
     ensure_report_env
     [[ -n "${NEO4J_PASSWORD:-}" ]] || fail \
         "NEO4J_PASSWORD is missing; no container has been changed"
+    FRONTEND_BUILD_DIR="${KB_FRONTEND_BUILD_DIR:-$ROOT_DIR/.frontend-build-runtime-user8}"
+    python3 "$ROOT_DIR/scripts/validate_frontend_static_delivery.py" \
+        --source-dir "$FRONTEND_BUILD_DIR" \
+        --manifest-output "$ROOT_DIR/.frontend-static-manifest.json" \
+        >/dev/null || fail "frontend static delivery gate failed; no container has been changed"
     "${COMPOSE[@]}" config --quiet
     validate_shared_job_ledger_config
     validate_release_metadata_config
@@ -453,6 +458,10 @@ build_frontend() {
     install -m 0644 frontend/chat.html "$target/chat.html"
     install -m 0644 frontend/lib/marked.min.js "$target/lib/marked.min.js"
     install -m 0644 frontend/lib/compare-rules.js "$target/lib/compare-rules.js"
+    python3 "$ROOT_DIR/scripts/validate_frontend_static_delivery.py" \
+        --source-dir "$target" \
+        --manifest-output "$ROOT_DIR/.frontend-static-manifest.candidate.json" \
+        >/dev/null
 }
 
 run_restart() {
@@ -546,6 +555,13 @@ run_deploy() {
         mv -- "$FRONTEND_BUILD_DIR" "$frontend_previous"
     fi
     mv -- "$frontend_staging" "$FRONTEND_BUILD_DIR"
+    python3 "$ROOT_DIR/scripts/validate_frontend_static_delivery.py" \
+        --source-dir "$FRONTEND_BUILD_DIR" \
+        --manifest-output "$ROOT_DIR/.frontend-static-manifest.json" \
+        >/dev/null || {
+        restore_frontend "$frontend_previous"
+        fail "frontend static delivery gate failed after publish; no container was recreated"
+    }
 
     info "Recreating application services; data services remain running"
     if ! "${COMPOSE[@]}" up -d --no-deps --force-recreate "${APP_SERVICES[@]}"; then
