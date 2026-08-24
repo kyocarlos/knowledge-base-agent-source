@@ -1,0 +1,43 @@
+{
+  "schema": "km.wp1.governance-integration-closure.v1",
+  "status": "READY_FOR_SUPERVISOR_REVIEW",
+  "canonical": {
+    "branch": "agent/km-plan-v2.6-anderson",
+    "head_sha": "3ee80fcec3b9aac57f7763f0ee1d6e045b758abd",
+    "previous_sha": "e47823629e5ec9013fa35f96898191049c943674",
+    "method": "non-force-fast-forward",
+    "compare_status": "identical"
+  },
+  "ci": {
+    "weekly": {"run_id": "32695524097", "status": "success"},
+    "wp0": {"run_id": "32695525893", "status": "success"},
+    "wp1": {"run_id": "32695527488", "status": "success"},
+    "all_exact_head": true
+  },
+  "pull_request_disposition": {
+    "9": "merged_ancestry_recognized_retain",
+    "10": "merged_ancestry_recognized_retain",
+    "11": "closed_superseded_retain_branch_and_evidence",
+    "12": "closed_superseded_retain_branch_and_evidence",
+    "13": "closed_superseded_retain_branch_and_evidence",
+    "14": "closed_superseded_retain_branch_and_evidence",
+    "15": "closed_superseded_retain_branch_and_evidence",
+    "16": "closed_superseded_retain_branch_and_evidence",
+    "17": "merged_by_canonical_ancestry_recognition"
+  },
+  "accepted_production_identity": {
+    "source_commit": "703075efe862736cffe5159edfcb3b1940c5ae09",
+    "release_id": "wp1-metadata-validation-fix-20260824-r2",
+    "image_digest": "sha256:8f009d19a8bfec29736cfb08b1175795aaabdc44449bf298e29d5c8974ed129c",
+    "evidence_commit": "6024e80cb4081579729174a7b1ae9cfe9003e481"
+  },
+  "wp1": {"progress": 100, "status": "FINAL_CLOSED", "production_gate": "PASS"},
+  "w34_program_progress": 12.9,
+  "safety": {
+    "production_touched": false,
+    "production_identity_changed": false,
+    "historical_data_deleted": false,
+    "wp2_started": false,
+    "force_push_or_history_rewrite": false
+  }
+}
