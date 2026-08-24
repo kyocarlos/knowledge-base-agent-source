@@ -1,0 +1,49 @@
+{
+  "schema": "km.wp0.current-runtime-checkpoint-refresh.v1",
+  "scope": "approved checkpoint refresh plus read-only post-check",
+  "checkpoint": {
+    "path": "/home/da40_ai_gb10/knowledge-base/outputs/current-runtime-checkpoints/pre-deploy-wp0-e2e-auth-metadata-20260824-1801",
+    "verification": "PASS",
+    "checksum_files_verified": 23,
+    "sha256sums_sha256": "dfc4432a677cd749a5f902a21c17dea94dd505374efef227d77926d64b219267",
+    "application_image": "sha256:8f009d19a8bfec29736cfb08b1175795aaabdc44449bf298e29d5c8974ed129c",
+    "nginx_image": "sha256:c4ebb06c9c9db8551ac0f15d3b7b37589c7cbc04e78cbfb4ac33bd57193db776",
+    "frontend_mount_source": "/home/da40_ai_gb10/knowledge-base/.frontend-build-runtime-user8",
+    "frontend_mount_target": "/usr/share/nginx/html",
+    "frontend_mount_read_only": true,
+    "frontend_mount_match": true,
+    "application_image_match": true,
+    "rollback_readiness": "PASS"
+  },
+  "post_checkpoint": {
+    "production_drift": false,
+    "health": "PASS",
+    "wp0_wp1_runtime_gates": "PASS",
+    "celery_nodes": 2,
+    "active_reserved_scheduled": "empty",
+    "queues": "empty",
+    "version_http_status": 200,
+    "version_identity_observation": {
+      "commit": null,
+      "release_id": null,
+      "image_digest": null,
+      "build_timestamp": null
+    },
+    "production_touched": false
+  },
+  "proposed_candidate": {
+    "source_commit": "2ef93d6b47d05b1acbc05fadc0df8393fefd41a0",
+    "release_id": "wp0-e2e-auth-metadata-fix-20260824-r1",
+    "image_digest": "sha256:18039a96b063b3fd85d7c40b975b323f25de71b169efcd9a7d20c2f0f7a5a749",
+    "build_timestamp": "2026-08-24T16:18:21+08:00",
+    "local_image_available": true,
+    "capability_gate": "PASS",
+    "compose_exact_image_pin": "PASS",
+    "compose_four_service_metadata": "PASS",
+    "shared_ledger_path": "/home/da40_ai_gb10/knowledge-base/data/job-ledger.sqlite3",
+    "persistent_frontend_path": "/home/da40_ai_gb10/knowledge-base/.frontend-build-runtime-user8"
+  },
+  "production_gate": "NO-GO",
+  "result": "PRECHECK_PASS_WAITING_FOR_PRODUCTION_GO",
+  "secrets_included": false
+}
