@@ -1,0 +1,97 @@
+{
+  "schema": "km.wp1.production-acceptance.v1",
+  "production_touched": true,
+  "production_deployed": true,
+  "production_write_scope": "synthetic-only",
+  "deployment": {
+    "operator": "anderson",
+    "start": "2026-08-24T10:39:09+08:00",
+    "end": "2026-08-24T10:39:14+08:00",
+    "source_commit": "703075efe862736cffe5159edfcb3b1940c5ae09",
+    "release_id": "wp1-metadata-validation-fix-20260824-r2",
+    "image_digest": "sha256:8f009d19a8bfec29736cfb08b1175795aaabdc44449bf298e29d5c8974ed129c",
+    "build_timestamp": "2026-08-24T10:09:35+08:00",
+    "runtime_image_digest": "sha256:8f009d19a8bfec29736cfb08b1175795aaabdc44449bf298e29d5c8974ed129c",
+    "result": "PASS"
+  },
+  "identity_gate": {
+    "health_before": "PASS",
+    "health_after": "PASS",
+    "version_http": 200,
+    "version_identity_exact": true,
+    "uvicorn_workers_started": 4,
+    "database_is_locked_observed": false,
+    "services": ["web", "celery_search_worker", "celery_ingest_worker", "celery_beat"],
+    "metadata_consistent": true,
+    "build_timestamp_preserved_exactly": true
+  },
+  "shared_ledger": {
+    "path": "/home/da40_ai_gb10/knowledge-base/data/job-ledger.sqlite3",
+    "mount_target": "/home/da40_ai_gb10/knowledge-base/data",
+    "all_four_services_consistent": true,
+    "file_identity_consistent": true,
+    "ledger_device": 66306,
+    "ledger_inode": 4492816,
+    "initialization_lock": "/home/da40_ai_gb10/knowledge-base/data/.job-ledger.sqlite3.init.lock",
+    "initialization_lock_device": 66306,
+    "initialization_lock_inode": 4492817
+  },
+  "synthetic_acceptance": {
+    "run_id": "TR-E2E-WP1-PR16-PROD-20260824-103649-2738b350",
+    "search": "PASS",
+    "report_agent_health": "PASS",
+    "upload": "PASS",
+    "duplicate_submission": "PASS",
+    "duplicate_result": true,
+    "report_self_read": "PASS",
+    "report_approve_read": "PASS",
+    "submission_status": "completed",
+    "ingest_task_id": "ingest_20260824_024341_7530aa92",
+    "worker_completion": "PASS",
+    "register_claim_completion": "PASS",
+    "cleanup_dry_run": "PASS",
+    "cleanup_apply": "PASS",
+    "active_task_count_after_cleanup": 0,
+    "residual_count": 0,
+    "post_cleanup_health": "PASS"
+  },
+  "reliability_evidence": {
+    "worker_recovery": "PASS (carried forward from isolated candidate evidence)",
+    "inflight_redelivery": "PASS (carried forward from isolated candidate evidence)",
+    "application_idempotency": "PASS (production duplicate submission plus isolated candidate evidence)",
+    "redis_reconnect_setnx": "PASS (carried forward from isolated candidate evidence)",
+    "isolated_evidence": "outputs/wp1-metadata-validation-fix-20260824/isolated/"
+  },
+  "temporary_identity": {
+    "additive_provisioning": true,
+    "existing_registry_preserved": true,
+    "removed_after_acceptance": true,
+    "regular_auth_rejection_http": 403,
+    "e2e_mode_disabled_http": 404,
+    "secrets_included": false
+  },
+  "runtime_after_cleanup": {
+    "health": "PASS",
+    "celery_nodes": 2,
+    "active": 0,
+    "reserved": 0,
+    "scheduled": 0,
+    "queues": 0,
+    "wp0_wp1_runtime_gates": "PASS"
+  },
+  "rollback": {
+    "performed": false,
+    "required": false,
+    "approved_baseline_checkpoint": "/home/da40_ai_gb10/kb-pre-wp01-backups/pre-deploy-current-production-20260822-110946",
+    "readiness": "PASS"
+  },
+  "safety": {
+    "migration_performed": false,
+    "restore_performed": false,
+    "wp2_changed": false,
+    "real_instrument_access": false,
+    "unrestricted_production_write": false,
+    "secrets_included": false
+  },
+  "gate": "PASS_PENDING_SUPERVISOR_FINAL_CLOSURE"
+}
