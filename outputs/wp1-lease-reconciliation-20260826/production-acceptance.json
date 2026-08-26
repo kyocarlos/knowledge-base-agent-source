@@ -1,0 +1,41 @@
+{
+  "schema": "km.wp1.lease-reconciliation-production-acceptance.v1",
+  "approved_candidate": {
+    "source_commit": "34a937cdabe1a3c9aafd7c91e45de42badb33973",
+    "release_id": "wp1-lease-reconciliation-20260826-r1",
+    "image_digest": "sha256:8b567b21a37535bc1b986992aebb69bf6087242a8e6d650633b8808e84cb1f09",
+    "build_timestamp": "2026-08-26T13:58:10+08:00"
+  },
+  "deployment": {
+    "start": "2026-08-26T15:12:54+08:00",
+    "scope": ["web", "celery_search_worker", "celery_ingest_worker", "celery_beat"],
+    "exact_image_id_gate": "PASS",
+    "runtime_image_id_gate": "PASS",
+    "runtime_metadata_gate": "FAIL",
+    "failure_reason": "unquoted RFC3339 timestamp was coerced by Compose/YAML to 2026-08-26 13:58:10 +0800 CST",
+    "health_after_recreate": "HTTP 502",
+    "synthetic_write_started": false
+  },
+  "rollback": {
+    "performed": true,
+    "checkpoint": "/home/da40_ai_gb10/knowledge-base/outputs/current-runtime-checkpoints/pre-deploy-wp1-lease-current-runtime-20260826-145148",
+    "target_image": "sha256:18039a96b063b3fd85d7c40b975b323f25de71b169efcd9a7d20c2f0f7a5a749",
+    "result": "PASS",
+    "final_health": "PASS",
+    "final_application_services": "4 running",
+    "final_celery_nodes": 2,
+    "final_active_reserved_scheduled": "empty",
+    "final_queues": "empty",
+    "final_version": {"commit": null, "release_id": null, "image_digest": null, "build_timestamp": null}
+  },
+  "acceptance": {
+    "result": "FAIL",
+    "production_gate": "NO-GO",
+    "root_cause": "deployment_configuration_metadata_rendering",
+    "upload_ingest": "NOT_RUN",
+    "cleanup": "NOT_RUN",
+    "stuck_task_modified": false,
+    "secrets_included": false,
+    "wp2_started": false
+  }
+}
