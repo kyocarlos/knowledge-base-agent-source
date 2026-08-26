@@ -1,0 +1,43 @@
+{
+  "schema": "km.wp1.ingest-lease-reconciliation.evidence.v1",
+  "scope": "isolated-shadow",
+  "source_commit": "34a937cdabe1a3c9aafd7c91e45de42badb33973",
+  "observed_production_symptom": {
+    "worker_received_task": true,
+    "celery_result": "SUCCESS",
+    "application_task_state": "queued",
+    "ingested": false,
+    "claim_failure_was_terminalized": false
+  },
+  "fix_contract": {
+    "producer_ordering": "durable_ledger_register_commit_before_celery_dispatch",
+    "missing_ledger": "bounded_retry_then_terminal_failure_after_budget",
+    "active_foreign_lease": "bounded_celery_retry_then_terminal_failure_after_budget",
+    "already_succeeded": "idempotent_success",
+    "expired_running_lease": "recovery_sweep_then_next_worker_claim",
+    "inconsistent_state": "terminal_failure",
+    "steal_lease": false,
+    "retry_budget": "JOB_CONFIG.max_retries",
+    "infinite_retry": false,
+    "manual_task_mutation": false,
+    "automatic_cleanup": false
+  },
+  "isolated_checks": {
+    "decision_contract": "PASS",
+    "sqlite_lease_regression": "PASS",
+    "redis_task_before_ledger_row": "PASS_SIMULATED_BOUNDED_RETRY",
+    "ledger_transaction_before_worker_claim": "PASS_COMMIT_THEN_CLAIM",
+    "expired_running_lease": "PASS_RECOVER_THEN_CLAIM",
+    "foreign_active_lease": "PASS_NO_STEAL",
+    "succeeded_lease": "PASS_IDEMPOTENT",
+    "missing_ledger_without_transaction": "PASS_TERMINAL_AFTER_RETRY_BUDGET",
+    "single_side_effect_executor": "PASS",
+    "queued_worker_claim_completion_reconciliation": "PASS_SIMULATED_LIFECYCLE",
+    "terminal_reason_auditable": "PASS",
+    "upload_register_before_dispatch": "PASS",
+    "read_only_diagnosis": "PASS",
+    "apply_mode": "FAIL_CLOSED",
+    "production_touched": false,
+    "secrets_included": false
+  }
+}

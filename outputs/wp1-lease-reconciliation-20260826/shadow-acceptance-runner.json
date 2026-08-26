@@ -1,0 +1,149 @@
+{
+  "schema": "km.wp1.lease-reconciliation-shadow-acceptance.v2",
+  "run_id": "TR-E2E-WP1-LEASE-SHADOW-20260826-143200-07674975",
+  "runtime_source_commit": "34a937cdabe1a3c9aafd7c91e45de42badb33973",
+  "release_id": "wp1-lease-reconciliation-20260826-r1",
+  "image": "kb-wp1-release:wp1-lease-reconciliation-20260826-r1",
+  "image_digest": "sha256:8b567b21a37535bc1b986992aebb69bf6087242a8e6d650633b8808e84cb1f09",
+  "build_timestamp": "2026-08-26T13:58:10+08:00",
+  "production_touched": false,
+  "secrets_included": false,
+  "endpoint_policy": "localhost_only",
+  "production_endpoint_rejected": true,
+  "manual_redis_or_ledger_mutation": false,
+  "wp2_started": false,
+  "results": {
+    "health": "PASS",
+    "upload": {
+      "status": 202,
+      "submission_id_recorded": true
+    },
+    "duplicate": {
+      "status": 202,
+      "same_submission": true
+    },
+    "register_before_dispatch": "PASS_BY_CODE_ORDERING",
+    "worker_claim_and_completion": "PASS",
+    "terminal_state": "completed",
+    "report_registry_consistency": "PASS",
+    "cleanup_dry_run": "PASS",
+    "cleanup_apply": "PASS",
+    "post_cleanup_lookup": 404,
+    "active_task_count": 0,
+    "queue_state": "empty",
+    "residual_count": 0,
+    "synthetic_report_sha256": "7ee14c1c694884b2868c9275977f2a3fd00d8debbb0f8638635919b26a008a98",
+    "submission_id": "report_20260826_063206_146e3b05",
+    "ingest_task_id": "ingest_20260826_063206_2cb071fc",
+    "celery_task_id": null,
+    "ledger_state_transition": [
+      "registered",
+      "claimed",
+      "completed",
+      "removed_by_cleanup"
+    ],
+    "cleanup_counts": {
+      "files": 1,
+      "redis_tasks": 1,
+      "reports": 1,
+      "ingest_records": 0,
+      "neo4j": {
+        "Measurement": 1,
+        "TestCase": 1,
+        "TestRun": 1
+      },
+      "qdrant_points": 0
+    },
+    "redis_synthetic_residual": 0,
+    "neo4j_synthetic_residual": 0,
+    "qdrant_synthetic_residual": 0,
+    "post_cleanup_lookup_route": "admin_reviewer_scope",
+    "e2e_agent_self_read_route": "not_used; existing route requires regular agent registry"
+  },
+  "compose_render": {
+    "result": "PASS",
+    "services": [
+      "web",
+      "search_worker",
+      "ingest_worker",
+      "beat"
+    ],
+    "ledger_path": "/home/da40_ai_gb10/knowledge-base/data/job-ledger.sqlite3"
+  },
+  "runtime": {
+    "web": {
+      "image_id": "sha256:8b567b21a37535bc1b986992aebb69bf6087242a8e6d650633b8808e84cb1f09",
+      "metadata": {
+        "KM_GIT_COMMIT": "34a937cdabe1a3c9aafd7c91e45de42badb33973",
+        "KM_RELEASE_ID": "wp1-lease-reconciliation-20260826-r1",
+        "KM_IMAGE_DIGEST": "sha256:8b567b21a37535bc1b986992aebb69bf6087242a8e6d650633b8808e84cb1f09",
+        "KM_BUILD_TIMESTAMP": "2026-08-26T13:58:10+08:00"
+      },
+      "ledger_path": "/home/da40_ai_gb10/knowledge-base/data/job-ledger.sqlite3"
+    },
+    "search_worker": {
+      "image_id": "sha256:8b567b21a37535bc1b986992aebb69bf6087242a8e6d650633b8808e84cb1f09",
+      "metadata": {
+        "KM_GIT_COMMIT": "34a937cdabe1a3c9aafd7c91e45de42badb33973",
+        "KM_RELEASE_ID": "wp1-lease-reconciliation-20260826-r1",
+        "KM_IMAGE_DIGEST": "sha256:8b567b21a37535bc1b986992aebb69bf6087242a8e6d650633b8808e84cb1f09",
+        "KM_BUILD_TIMESTAMP": "2026-08-26T13:58:10+08:00"
+      },
+      "ledger_path": "/home/da40_ai_gb10/knowledge-base/data/job-ledger.sqlite3"
+    },
+    "ingest_worker": {
+      "image_id": "sha256:8b567b21a37535bc1b986992aebb69bf6087242a8e6d650633b8808e84cb1f09",
+      "metadata": {
+        "KM_GIT_COMMIT": "34a937cdabe1a3c9aafd7c91e45de42badb33973",
+        "KM_RELEASE_ID": "wp1-lease-reconciliation-20260826-r1",
+        "KM_IMAGE_DIGEST": "sha256:8b567b21a37535bc1b986992aebb69bf6087242a8e6d650633b8808e84cb1f09",
+        "KM_BUILD_TIMESTAMP": "2026-08-26T13:58:10+08:00"
+      },
+      "ledger_path": "/home/da40_ai_gb10/knowledge-base/data/job-ledger.sqlite3"
+    },
+    "beat": {
+      "image_id": "sha256:8b567b21a37535bc1b986992aebb69bf6087242a8e6d650633b8808e84cb1f09",
+      "metadata": {
+        "KM_GIT_COMMIT": "34a937cdabe1a3c9aafd7c91e45de42badb33973",
+        "KM_RELEASE_ID": "wp1-lease-reconciliation-20260826-r1",
+        "KM_IMAGE_DIGEST": "sha256:8b567b21a37535bc1b986992aebb69bf6087242a8e6d650633b8808e84cb1f09",
+        "KM_BUILD_TIMESTAMP": "2026-08-26T13:58:10+08:00"
+      },
+      "ledger_path": "/home/da40_ai_gb10/knowledge-base/data/job-ledger.sqlite3"
+    }
+  },
+  "version": {
+    "status": 200,
+    "identity": {
+      "commit": "34a937cdabe1a3c9aafd7c91e45de42badb33973",
+      "release_id": "wp1-lease-reconciliation-20260826-r1",
+      "image_digest": "sha256:8b567b21a37535bc1b986992aebb69bf6087242a8e6d650633b8808e84cb1f09",
+      "build_timestamp": "2026-08-26T13:58:10+08:00"
+    }
+  },
+  "cleanup_diagnostics": {
+    "apply_status": 200,
+    "apply_keys": [
+      "deleted",
+      "environment",
+      "mode",
+      "test_run_id"
+    ],
+    "post_cleanup_lookup_status": 404,
+    "post_cleanup_body_keys": [
+      "detail"
+    ],
+    "final_dry_run_status": 200,
+    "final_active_task_count": 0,
+    "final_file_target_count": 0
+  },
+  "temporary_identity": {
+    "method": "generated scoped E2E agent/reviewer/cleanup roles",
+    "additive": true,
+    "secrets_included": false,
+    "removed_with_ephemeral_runtime": true,
+    "regular_registry_modified": false,
+    "post_removal_auth_verification": "not applicable after Compose teardown; no credential material retained"
+  },
+  "result": "PASS"
+}

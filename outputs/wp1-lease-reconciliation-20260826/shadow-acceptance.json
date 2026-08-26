@@ -1,0 +1,31 @@
+{
+  "schema": "km.wp1.lease-reconciliation-shadow-acceptance.v1",
+  "scope": "isolated-shadow-only",
+  "source_commit": "34a937cdabe1a3c9aafd7c91e45de42badb33973",
+  "release_id": "wp1-lease-reconciliation-20260826-r1",
+  "image_id": "sha256:8b567b21a37535bc1b986992aebb69bf6087242a8e6d650633b8808e84cb1f09",
+  "build_timestamp": "2026-08-26T13:58:10+08:00",
+  "production_touched": false,
+  "secrets_included": false,
+  "results": {
+    "full_compose_metadata_and_ledger_mount": "PASS",
+    "candidate_version_identity": "PASS",
+    "lease_lifecycle_and_race_assertions": "PASS_12_DIRECT_ASSERTIONS",
+    "report_api_upload_duplicate_review": "PASS_8_UNITTESTS",
+    "cleanup_route_contract": "PASS_6_UNITTESTS",
+    "application_idempotency": "PASS_EXACT_CANDIDATE_SHADOW_DRILL",
+    "worker_recovery": "PASS_EXACT_CANDIDATE_SHADOW_DRILL",
+    "inflight_redelivery": "PASS_EXACT_CANDIDATE_SHADOW_DRILL",
+    "normal_upload_to_ingest_on_ephemeral_worker": "NOT_RUN_NO_SUPPORTED_RUNNER",
+    "cleanup_residual_zero_after_normal_ingest": "NOT_RUN_DEPENDS_ON_NORMAL_INGEST_RUNNER"
+  },
+  "gate": "BLOCKED_PENDING_EXACT_CANDIDATE_NORMAL_UPLOAD_INGEST_AND_CLEANUP",
+  "safety": {
+    "production_endpoint_rejected": true,
+    "production_data_modified": false,
+    "stuck_production_task_modified": false,
+    "manual_ledger_or_redis_mutation": false,
+    "wp0_wp1_reporting_modified": false,
+    "wp2_started": false
+  }
+}
