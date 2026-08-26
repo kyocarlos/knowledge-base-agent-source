@@ -1,0 +1,38 @@
+{
+  "schema": "km.wp1.production-tooling-safe-sync-execution-review.v1",
+  "status": "ABORTED_FAIL_CLOSED",
+  "production_checkout": "/home/da40_ai_gb10/knowledge-base",
+  "production_branch": "agent/km-r0-r2-progress-review-20260813",
+  "production_head": "59dd8bfed85e1dbd89860e765bfa8b7559088cd6",
+  "canonical_branch": "agent/km-plan-v2.6-anderson",
+  "canonical_sha": "07c36e123a92dc1b2774f99c647eddf504d673e2",
+  "sync_approved": true,
+  "sync_applied": true,
+  "sync_restored_after_validation_failure": true,
+  "production_deployment": false,
+  "production_restart": false,
+  "production_write": false,
+  "container_mutation": false,
+  "three_way_merge": "clean",
+  "restart_kb": {
+    "before_sha256": "d58b975c6bc5b978c62503428157d34ae6467945ac8680d0c33d6db774a9d0fc",
+    "merged_candidate_sha256": "fb7a7243b57b86b9691b2f78c558e47a2f16d2109a2d5d743a58f34ec40420a4",
+    "after_restore_sha256": "d58b975c6bc5b978c62503428157d34ae6467945ac8680d0c33d6db774a9d0fc",
+    "dirty_diff_backup": "/tmp/wp1-production-tooling-sync-20260826/restart_kb.dirty.diff"
+  },
+  "post_sync_validation": {
+    "help_deploy_pinned": "PASS_before_restore",
+    "shell_syntax": "PASS_before_restore",
+    "python_compile": "PASS_before_restore",
+    "focused_tests": "5 passed, 1 failed",
+    "failure": "generate_release_compose_override.py imports missing app.core.release_metadata",
+    "diff_check": "PASS_for_tooling; pre-existing PROJECT_MEMORY whitespace remained"
+  },
+  "inventory_preservation": {
+    "unrelated_inventory_before_count": 93,
+    "unrelated_inventory_after_restore_count": 93,
+    "unchanged": true,
+    "reset_clean_stash_checkout_branch_overwrite": false
+  },
+  "decision": "Do not use production pinned deployment until the missing release_metadata dependency is separately reviewed and the full focused test suite passes"
+}
