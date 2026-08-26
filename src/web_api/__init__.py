@@ -28,7 +28,7 @@ from celery.app.control import Inspect
 import yaml
 
 from ..compare_rules import is_compare_like_query
-from .tasks import search_task
+from .tasks import JOB_LEASE_STORE, search_task
 from app.core.job_config import celery_headers
 from .cache import cache_get, cache_set
 from ..storage_paths import resolve_storage_category
@@ -2995,6 +2995,12 @@ async def upload_and_ingest(request: Request, extraction_mode: str = "4g5g"):
             state["file_hash"] = identity.ingest_file_hash
             registry.record_event("task_created", task_id, document_id=identity.document_id, idempotency_key=identity.idempotency_key)
         set_ingest_task_state(task_id, state)
+        # Durable lease registration must commit before the broker dispatch.
+        # This prevents a worker from observing Redis state without its ledger row.
+        JOB_LEASE_STORE.register(
+            task_id,
+            idempotency_key=identity.idempotency_key if identity else f"legacy:{task_id}:{file_hash}",
+        )
         try:
             async_result = ingest_file_task.apply_async(
                 args=[task_id],

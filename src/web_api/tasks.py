@@ -651,13 +651,18 @@ def ingest_file_task(self, task_id: str):
     lease = JOB_LEASE_STORE.claim(task_id, self.request.id, JOB_LEASE_SECONDS)
     if not lease:
         current = get_ingest_task_state(task_id)
-        diagnosis = JOB_LEASE_STORE.diagnose_claim_failure(task_id, self.request.id)
+        diagnosis = JOB_LEASE_STORE.diagnose_claim_failure(
+            task_id,
+            self.request.id,
+            retry_count=getattr(self.request, "retries", 0),
+            max_retries=JOB_CONFIG.max_retries,
+        )
         if diagnosis["action"] == "idempotent_success":
             return current
         if diagnosis["action"] == "retry":
-            logger.warning("攝入任務 lease 仍由其他 worker 持有，安排受控重試: %s", task_id)
+            logger.warning("攝入任務 lease/ledger 尚未可安全 claim，安排受控重試: %s (%s)", task_id, diagnosis["reason"])
             raise self.retry(
-                exc=RuntimeError("ingest lease is held by another worker"),
+                exc=RuntimeError(f"ingest lease claim deferred: {diagnosis['reason']}"),
                 countdown=JOB_CONFIG.retry_countdown_seconds,
             )
         reason = f"job_lease_reconciliation:{diagnosis['reason']}"

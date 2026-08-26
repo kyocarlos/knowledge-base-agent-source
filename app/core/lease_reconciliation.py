@@ -19,14 +19,19 @@ def decide_claim_failure(
     *,
     owner: str,
     now: float,
+    retry_count: int = 0,
+    max_retries: int = 3,
 ) -> LeaseClaimDecision:
     """Classify a failed claim without changing state or stealing a lease.
 
-    The caller must retry only ``active_lease``. Missing or inconsistent ledger
-    state is terminalized by the task layer and requires explicit reconciliation.
+    Missing ledger state is retryable during the bounded producer/worker
+    initialization window. The caller must terminalize only after the retry
+    budget is exhausted; no decision here steals or mutates a lease.
     """
     if lease_row is None:
-        return LeaseClaimDecision("terminal_failure", "ledger_record_missing")
+        if retry_count < max_retries:
+            return LeaseClaimDecision("retry", "ledger_record_missing_transient")
+        return LeaseClaimDecision("terminal_failure", "ledger_record_missing_retry_exhausted")
     if lease_row.get("status") == "succeeded":
         return LeaseClaimDecision("idempotent_success", "already_completed")
     if (
@@ -34,5 +39,7 @@ def decide_claim_failure(
         and float(lease_row.get("lease_until") or 0) > now
         and lease_row.get("owner") != owner
     ):
-        return LeaseClaimDecision("retry", "active_lease")
+        if retry_count < max_retries:
+            return LeaseClaimDecision("retry", "active_lease")
+        return LeaseClaimDecision("terminal_failure", "active_lease_retry_exhausted")
     return LeaseClaimDecision("terminal_failure", "claim_rejected_inconsistent_state")

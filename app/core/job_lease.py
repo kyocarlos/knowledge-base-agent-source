@@ -96,13 +96,27 @@ class JobLeaseStore:
             row = connection.execute("SELECT * FROM job_leases WHERE job_id = ?", (job_id,)).fetchone()
         return dict(row) if row else None
 
-    def diagnose_claim_failure(self, job_id: str, owner: str, now: float | None = None) -> dict:
+    def diagnose_claim_failure(
+        self,
+        job_id: str,
+        owner: str,
+        now: float | None = None,
+        *,
+        retry_count: int = 0,
+        max_retries: int = 3,
+    ) -> dict:
         """Return a read-only snapshot used to reconcile a failed claim."""
         from .lease_reconciliation import decide_claim_failure
 
         current = time.time() if now is None else now
         row = self.get(job_id)
-        decision = decide_claim_failure(row, owner=owner, now=current)
+        decision = decide_claim_failure(
+            row,
+            owner=owner,
+            now=current,
+            retry_count=retry_count,
+            max_retries=max_retries,
+        )
         return {
             "job_id": job_id,
             "action": decision.action,
