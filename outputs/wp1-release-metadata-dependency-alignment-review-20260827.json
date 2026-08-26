@@ -1,0 +1,58 @@
+{
+  "schema": "km.wp1.release-metadata-dependency-alignment-review.v1",
+  "analysis_mode": "read_only",
+  "canonical_branch": "agent/km-plan-v2.6-anderson",
+  "canonical_sha": "07c36e123a92dc1b2774f99c647eddf504d673e2",
+  "production_checkout": "/home/da40_ai_gb10/knowledge-base",
+  "production_checkout_modified": false,
+  "module": "app/core/release_metadata.py",
+  "canonical_module_present": true,
+  "production_module_present": false,
+  "module_lines": 58,
+  "module_sha256_from_canonical_content": "59d5c5c29ab19a3bf553a6a6b6b59ad4ac6187f5dbcf3f6be807e08f7cf0c3a9",
+  "import_dependency_tree": {
+    "direct": ["re", "datetime.datetime"],
+    "transitive_project_dependencies": [],
+    "stdlib_only": true
+  },
+  "side_effect_review": {
+    "database": false,
+    "redis": false,
+    "fastapi": false,
+    "application_startup": false,
+    "runtime_env_reads": false,
+    "secret_reads": false,
+    "filesystem_writes": false,
+    "network_calls": false,
+    "side_effects": false
+  },
+  "validation_contract": {
+    "source_commit": "40 lowercase hexadecimal characters",
+    "release_id": "1-128 characters matching [A-Za-z0-9._/-]",
+    "image_digest": "sha256 followed by 64 lowercase hexadecimal characters",
+    "build_timestamp": "RFC3339 with T and Z or +/-HH:MM, calendar-valid and timezone-aware",
+    "identity_result": "dict with KM_GIT_COMMIT, KM_RELEASE_ID, KM_IMAGE_DIGEST, KM_BUILD_TIMESTAMP"
+  },
+  "consumers": {
+    "application": ["app/core/config.py"],
+    "tooling": [
+      "scripts/generate_release_compose_override.py",
+      "scripts/generate_release_runtime_env.py",
+      "scripts/validate_release_compose_metadata.py",
+      "scripts/validate_release_image_capabilities.py"
+    ],
+    "tests": ["tests/test_release_metadata.py", "tests/test_release_image_capabilities.py"]
+  },
+  "options": {
+    "A_backport_pure_module": {"coupling": "low", "contract_drift_risk": "low", "scope": "58-line pure module plus focused test"},
+    "B_standalone_duplicate_helper": {"coupling": "lowest_runtime", "contract_drift_risk": "high_due_to_duplicate_contract", "scope": "new validation implementation"},
+    "C_reuse_existing_equivalent": {"status": "not_available_in_production_checkout", "canonical_equivalent": true}
+  },
+  "decision": {
+    "selected": "A",
+    "reason": "canonical module already defines the accepted contract, is stdlib-only and side-effect-free; backporting it avoids duplicate validation logic"
+  },
+  "production_action": "none",
+  "secrets_included": false,
+  "recommendation": "NO-GO until supervisor approves adding only app/core/release_metadata.py and its focused test to the tooling dependency scope"
+}
