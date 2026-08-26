@@ -1,0 +1,64 @@
+{
+  "schema": "km.wp0.frontend-static-delivery.v1",
+  "fix_source_commit": "57ec8b176f2428cd0dab5c27f40fc7956a76863d",
+  "root_cause_classification": ["D", "F"],
+  "root_cause": "The nginx bind mount was overridden to an empty /tmp runtime directory; the temporary directory lifecycle was not part of the deployment contract.",
+  "production_touched": false,
+  "production_restart": false,
+  "production_write": false,
+  "production_deploy": false,
+  "migration_performed": false,
+  "static_contract": {
+    "production_mount_source": "${KB_FRONTEND_BUILD_DIR:-./.frontend-build-runtime-user8}",
+    "temporary_path_rejected_by_default": true,
+    "required_files": ["index.html", "chat.html"],
+    "asset_count_minimum": 1,
+    "manifest_sha256": true,
+    "pre_compose_gate": true,
+    "post_build_gate": true,
+    "post_publish_gate": true
+  },
+  "isolated_build": {
+    "result": "PASS",
+    "build_tool": "Vite",
+    "file_count": 17,
+    "asset_count": 15,
+    "manifest": "static-manifest.json",
+    "temporary_path_allowed_only_by_explicit_flag": true
+  },
+  "isolated_nginx": {
+    "result": "PASS",
+    "container": "nginx:alpine",
+    "mount_source": "/tmp/kb-wp0-static-shadow-20260824",
+    "mount_target": "/usr/share/nginx/html",
+    "mount_read_only": true,
+    "routes": {
+      "/": 200,
+      "/chat.html": 200,
+      "/upload": 200,
+      "/admin/report-reviews": 200,
+      "/assets/index-Dn6LwqJX.js": 200,
+      "/lib/marked.min.js": 200,
+      "/assets/missing.js": 404
+    }
+  },
+  "browser_validation": {
+    "result": "PASS_WITH_BACKEND_NOT_PRESENT_NOTE",
+    "screenshots": [
+      "root.png",
+      "chat-html.png",
+      "upload.png",
+      "admin_report-reviews.png"
+    ],
+    "network_and_console": "browser-evidence.json",
+    "static_asset_failures": 0,
+    "fatal_static_console_errors": 0,
+    "backend_api_console_warnings": "expected in static-only nginx shadow; no application backend is attached"
+  },
+  "websocket": {
+    "result": "NOT_APPLICABLE_TO_STATIC_ONLY_SHADOW",
+    "reason": "This fix changes static artifact publication and nginx mount validation only; application WebSocket acceptance remains covered by the existing WP0 runtime gate."
+  },
+  "secrets_included": false,
+  "rollback_safe": true
+}
