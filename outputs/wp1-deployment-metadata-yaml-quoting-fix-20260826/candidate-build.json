@@ -1,0 +1,12 @@
+{
+  "schema": "km.wp1.release-candidate-build.v1",
+  "release_candidate_commit": "914d7c829269779f13c47d71ebd27ecb9dde84ec",
+  "release_id": "wp1-deployment-metadata-yaml-quoting-fix-20260826-r1",
+  "build_timestamp": "2026-08-26T15:21:36+08:00",
+  "image_tag": "kb-wp1-release:wp1-deployment-metadata-yaml-quoting-fix-20260826-r1",
+  "image_id": "sha256:54650d64a2867be1ee21bbcb47951d5bc28d85ef76fcac370310b36a9c80bee3",
+  "image_digest_source": "local docker image ID; registry digest requires a separately approved registry push",
+  "production_touched": false,
+  "deployed": false,
+  "secrets_included": false
+}

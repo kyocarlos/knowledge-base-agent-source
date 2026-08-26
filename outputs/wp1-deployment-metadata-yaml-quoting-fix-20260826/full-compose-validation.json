@@ -1,0 +1,130 @@
+{
+  "schema": "km.wp0.full-compose-metadata.v1",
+  "project": "kb-wp0-full-compose-1787728924",
+  "source_commit": "914d7c829269779f13c47d71ebd27ecb9dde84ec",
+  "release_id": "wp1-deployment-metadata-yaml-quoting-fix-20260826-r1",
+  "image": "kb-wp1-release:wp1-deployment-metadata-yaml-quoting-fix-20260826-r1",
+  "image_digest": "sha256:54650d64a2867be1ee21bbcb47951d5bc28d85ef76fcac370310b36a9c80bee3",
+  "build_timestamp": "2026-08-26T15:21:36+08:00",
+  "production_touched": false,
+  "secrets_included": false,
+  "ledger_path": "/home/da40_ai_gb10/knowledge-base/data/job-ledger.sqlite3",
+  "rendered_service_images": {
+    "web": "kb-wp1-release:wp1-deployment-metadata-yaml-quoting-fix-20260826-r1",
+    "search_worker": "kb-wp1-release:wp1-deployment-metadata-yaml-quoting-fix-20260826-r1",
+    "ingest_worker": "kb-wp1-release:wp1-deployment-metadata-yaml-quoting-fix-20260826-r1",
+    "beat": "kb-wp1-release:wp1-deployment-metadata-yaml-quoting-fix-20260826-r1"
+  },
+  "rendered_metadata": {
+    "web": {
+      "KM_GIT_COMMIT": "914d7c829269779f13c47d71ebd27ecb9dde84ec",
+      "KM_RELEASE_ID": "wp1-deployment-metadata-yaml-quoting-fix-20260826-r1",
+      "KM_IMAGE_DIGEST": "sha256:54650d64a2867be1ee21bbcb47951d5bc28d85ef76fcac370310b36a9c80bee3",
+      "KM_BUILD_TIMESTAMP": "2026-08-26T15:21:36+08:00"
+    },
+    "search_worker": {
+      "KM_GIT_COMMIT": "914d7c829269779f13c47d71ebd27ecb9dde84ec",
+      "KM_RELEASE_ID": "wp1-deployment-metadata-yaml-quoting-fix-20260826-r1",
+      "KM_IMAGE_DIGEST": "sha256:54650d64a2867be1ee21bbcb47951d5bc28d85ef76fcac370310b36a9c80bee3",
+      "KM_BUILD_TIMESTAMP": "2026-08-26T15:21:36+08:00"
+    },
+    "ingest_worker": {
+      "KM_GIT_COMMIT": "914d7c829269779f13c47d71ebd27ecb9dde84ec",
+      "KM_RELEASE_ID": "wp1-deployment-metadata-yaml-quoting-fix-20260826-r1",
+      "KM_IMAGE_DIGEST": "sha256:54650d64a2867be1ee21bbcb47951d5bc28d85ef76fcac370310b36a9c80bee3",
+      "KM_BUILD_TIMESTAMP": "2026-08-26T15:21:36+08:00"
+    },
+    "beat": {
+      "KM_GIT_COMMIT": "914d7c829269779f13c47d71ebd27ecb9dde84ec",
+      "KM_RELEASE_ID": "wp1-deployment-metadata-yaml-quoting-fix-20260826-r1",
+      "KM_IMAGE_DIGEST": "sha256:54650d64a2867be1ee21bbcb47951d5bc28d85ef76fcac370310b36a9c80bee3",
+      "KM_BUILD_TIMESTAMP": "2026-08-26T15:21:36+08:00"
+    }
+  },
+  "render_result": "PASS",
+  "runtime_services": {
+    "web": {
+      "container_id": "06aaa3addd87d4cfb8eff5321b5018539ec9f268437f95b426af4b1a9da8614d",
+      "image_id": "sha256:54650d64a2867be1ee21bbcb47951d5bc28d85ef76fcac370310b36a9c80bee3",
+      "running": true,
+      "metadata": {
+        "KM_GIT_COMMIT": "914d7c829269779f13c47d71ebd27ecb9dde84ec",
+        "KM_RELEASE_ID": "wp1-deployment-metadata-yaml-quoting-fix-20260826-r1",
+        "KM_IMAGE_DIGEST": "sha256:54650d64a2867be1ee21bbcb47951d5bc28d85ef76fcac370310b36a9c80bee3",
+        "KM_BUILD_TIMESTAMP": "2026-08-26T15:21:36+08:00"
+      },
+      "ledger_path": "/home/da40_ai_gb10/knowledge-base/data/job-ledger.sqlite3",
+      "mounts": [
+        "/app/config",
+        "/app/data",
+        "/home/da40_ai_gb10/knowledge-base/data"
+      ]
+    },
+    "search_worker": {
+      "container_id": "73c52436cae5437b52cb7abc2dfd6c8f298465980c7fa16db908501a9dc6020c",
+      "image_id": "sha256:54650d64a2867be1ee21bbcb47951d5bc28d85ef76fcac370310b36a9c80bee3",
+      "running": true,
+      "metadata": {
+        "KM_GIT_COMMIT": "914d7c829269779f13c47d71ebd27ecb9dde84ec",
+        "KM_RELEASE_ID": "wp1-deployment-metadata-yaml-quoting-fix-20260826-r1",
+        "KM_IMAGE_DIGEST": "sha256:54650d64a2867be1ee21bbcb47951d5bc28d85ef76fcac370310b36a9c80bee3",
+        "KM_BUILD_TIMESTAMP": "2026-08-26T15:21:36+08:00"
+      },
+      "ledger_path": "/home/da40_ai_gb10/knowledge-base/data/job-ledger.sqlite3",
+      "mounts": [
+        "/app/data",
+        "/home/da40_ai_gb10/knowledge-base/data",
+        "/app/config"
+      ]
+    },
+    "ingest_worker": {
+      "container_id": "5ea7d0bc212407569101dbeda4e328e5c8e8733963c76f16c55666fa1e228478",
+      "image_id": "sha256:54650d64a2867be1ee21bbcb47951d5bc28d85ef76fcac370310b36a9c80bee3",
+      "running": true,
+      "metadata": {
+        "KM_GIT_COMMIT": "914d7c829269779f13c47d71ebd27ecb9dde84ec",
+        "KM_RELEASE_ID": "wp1-deployment-metadata-yaml-quoting-fix-20260826-r1",
+        "KM_IMAGE_DIGEST": "sha256:54650d64a2867be1ee21bbcb47951d5bc28d85ef76fcac370310b36a9c80bee3",
+        "KM_BUILD_TIMESTAMP": "2026-08-26T15:21:36+08:00"
+      },
+      "ledger_path": "/home/da40_ai_gb10/knowledge-base/data/job-ledger.sqlite3",
+      "mounts": [
+        "/home/da40_ai_gb10/knowledge-base/data",
+        "/app/config",
+        "/app/data"
+      ]
+    },
+    "beat": {
+      "container_id": "679f5dfbd9e3fbc4df0f65425f3ac559cf9e77320f7f2eb92c623573c30647f1",
+      "image_id": "sha256:54650d64a2867be1ee21bbcb47951d5bc28d85ef76fcac370310b36a9c80bee3",
+      "running": true,
+      "metadata": {
+        "KM_GIT_COMMIT": "914d7c829269779f13c47d71ebd27ecb9dde84ec",
+        "KM_RELEASE_ID": "wp1-deployment-metadata-yaml-quoting-fix-20260826-r1",
+        "KM_IMAGE_DIGEST": "sha256:54650d64a2867be1ee21bbcb47951d5bc28d85ef76fcac370310b36a9c80bee3",
+        "KM_BUILD_TIMESTAMP": "2026-08-26T15:21:36+08:00"
+      },
+      "ledger_path": "/home/da40_ai_gb10/knowledge-base/data/job-ledger.sqlite3",
+      "mounts": [
+        "/app/config",
+        "/app/data",
+        "/home/da40_ai_gb10/knowledge-base/data"
+      ]
+    }
+  },
+  "version": {
+    "status": 200,
+    "data": {
+      "service": "knowledge-base-api",
+      "version": "1.0.0",
+      "environment": "development",
+      "commit": "914d7c829269779f13c47d71ebd27ecb9dde84ec",
+      "release_id": "wp1-deployment-metadata-yaml-quoting-fix-20260826-r1",
+      "image_digest": "sha256:54650d64a2867be1ee21bbcb47951d5bc28d85ef76fcac370310b36a9c80bee3",
+      "build_timestamp": "2026-08-26T15:21:36+08:00"
+    },
+    "error": null,
+    "trace_id": "be12c051d3b44441a525085f2db267e1"
+  },
+  "result": "PASS"
+}
