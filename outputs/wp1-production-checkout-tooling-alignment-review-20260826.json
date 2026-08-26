@@ -1,0 +1,47 @@
+{
+  "schema": "km.wp1.production-checkout-tooling-alignment-review.v1",
+  "production_checkout": "/home/da40_ai_gb10/knowledge-base",
+  "production_branch": "agent/km-r0-r2-progress-review-20260813",
+  "production_head": "59dd8bfed85e1dbd89860e765bfa8b7559088cd6",
+  "production_touched": false,
+  "read_only_actions_only": true,
+  "unrelated_dirty_worktree_preserved": true,
+  "reset_clean_stash_checkout_or_branch_overwrite": false,
+  "production_deployment_attempted": false,
+  "required_tooling": {
+    "restart_kb.sh": {"status": "present_but_missing_deploy_pinned", "sha256": "d58b975c6bc5b978c62503428157d34ae6467945ac8680d0c33d6db774a9d0fc"},
+    "scripts/check_deployment_readiness.py": {"status": "missing"},
+    "scripts/generate_release_compose_override.py": {"status": "missing"},
+    "tests/test_deployment_readiness.py": {"status": "missing"},
+    "tests/test_release_compose_override.py": {"status": "missing"},
+    "tests/test_ingress_failure_capture_contract.py": {"status": "missing"}
+  },
+  "contract_checks": {
+    "deploy_pinned": false,
+    "exact_image_id_gate": false,
+    "no_deps_no_build_pull_never_force_recreate": false,
+    "knowledge_base_compose_project": "not_available_in_current_caller",
+    "absolute_rollback_helper_validation": "not_available_in_current_caller",
+    "bounded_readiness": "not_available_in_current_caller",
+    "failure_capture_before_rollback": "not_available_in_current_caller"
+  },
+  "dirty_inventory": {
+    "tracked_modified_count": 32,
+    "restart_kb_diff_lines": {"added": 5, "deleted": 1},
+    "inventory_source": "git status --short and git diff --numstat",
+    "files_overwritten": false
+  },
+  "approved_integration_candidate": {
+    "branch": "agent/wp1-production-deployment-orchestration-integration",
+    "tooling_commit": "5a72d064616714d82ebf9fc9d736b359818b8fd5",
+    "evidence_commit": "08f9652fe2b91fffb3035374e8348d7095932c53",
+    "base": "agent/km-plan-v2.6-anderson@ced1f32aa3ef776d68010a6b8781fb4b7701e4f5"
+  },
+  "safe_alignment_plan": [
+    "review PR #23 on isolated integration branch",
+    "after approval, integrate only selected tooling into canonical target using non-force fast-forward or an explicitly approved equivalent",
+    "verify canonical and production checkout ancestry/file hashes before any production operation",
+    "perform production checkout --help verification only after controlled integration"
+  ],
+  "recommendation": "NO-GO until canonical/production checkout tooling alignment is approved and verified"
+}
