@@ -651,10 +651,25 @@ def ingest_file_task(self, task_id: str):
     lease = JOB_LEASE_STORE.claim(task_id, self.request.id, JOB_LEASE_SECONDS)
     if not lease:
         current = get_ingest_task_state(task_id)
-        if current and current.get("status") == "completed":
+        diagnosis = JOB_LEASE_STORE.diagnose_claim_failure(task_id, self.request.id)
+        if diagnosis["action"] == "idempotent_success":
             return current
-        logger.warning("攝入任務未取得 lease，避免重複副作用: %s", task_id)
-        return current or {"task_id": task_id, "status": "queued", "job_status": "queued"}
+        if diagnosis["action"] == "retry":
+            logger.warning("攝入任務 lease 仍由其他 worker 持有，安排受控重試: %s", task_id)
+            raise self.retry(
+                exc=RuntimeError("ingest lease is held by another worker"),
+                countdown=JOB_CONFIG.retry_countdown_seconds,
+            )
+        reason = f"job_lease_reconciliation:{diagnosis['reason']}"
+        logger.error("攝入任務 lease claim 不一致，已終止任務: %s (%s)", task_id, diagnosis["reason"])
+        failed = update_ingest_task_state(task_id, status="failed", error=reason, ingested=False)
+        try:
+            from ..ingest_registry import IngestRegistry
+            IngestRegistry().update_status(task_id, "ingest_failed")
+            IngestRegistry().record_event("job_lease_reconciliation_failed", task_id, reason=diagnosis["reason"])
+        except Exception as registry_error:
+            logger.error("記錄 lease reconciliation 失敗事件失敗: %s", registry_error)
+        return failed
     state = get_ingest_task_state(task_id)
     if not state:
         logger.error(f"找不到攝入任務狀態: {task_id}")

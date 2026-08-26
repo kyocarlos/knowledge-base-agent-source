@@ -1,0 +1,29 @@
+{
+  "schema": "km.wp1.ingest-lease-reconciliation.evidence.v1",
+  "scope": "isolated-shadow",
+  "source_commit": "pending-after-commit",
+  "observed_production_symptom": {
+    "worker_received_task": true,
+    "celery_result": "SUCCESS",
+    "application_task_state": "queued",
+    "ingested": false,
+    "claim_failure_was_terminalized": false
+  },
+  "fix_contract": {
+    "missing_ledger": "terminal_failure",
+    "active_foreign_lease": "celery_retry",
+    "already_succeeded": "idempotent_success",
+    "inconsistent_state": "terminal_failure",
+    "steal_lease": false,
+    "manual_task_mutation": false,
+    "automatic_cleanup": false
+  },
+  "isolated_checks": {
+    "decision_contract": "PASS",
+    "sqlite_lease_regression": "PASS",
+    "read_only_diagnosis": "PASS",
+    "apply_mode": "FAIL_CLOSED",
+    "production_touched": false,
+    "secrets_included": false
+  }
+}
