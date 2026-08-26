@@ -1,0 +1,66 @@
+{
+  "schema": "km.wp1.production-deployment-orchestration-integration-review.v1",
+  "integration_branch": "agent/wp1-production-deployment-orchestration-integration",
+  "base_branch": "agent/km-plan-v2.6-anderson",
+  "base_sha": "ced1f32aa3ef776d68010a6b8781fb4b7701e4f5",
+  "integration_commit": "5a72d064616714d82ebf9fc9d736b359818b8fd5",
+  "source_branch": "agent/wp1-deployment-metadata-yaml-quoting-fix",
+  "source_tooling_head": "2bef3e627431dff9d8e020c8b05b2e4208aa11c4",
+  "integration_method": "selective_file_integration_on_isolated_branch",
+  "production_touched": false,
+  "production_deployment_attempted": false,
+  "wp2_included": false,
+  "selected_files": [
+    "restart_kb.sh",
+    "scripts/check_deployment_readiness.py",
+    "scripts/generate_release_compose_override.py",
+    "tests/test_deployment_readiness.py",
+    "tests/test_release_compose_override.py",
+    "tests/test_ingress_failure_capture_contract.py"
+  ],
+  "required_contracts": {
+    "deploy_pinned": true,
+    "exact_release_tag_and_image_id_gate": true,
+    "pull_policy_never": true,
+    "no_deps": true,
+    "no_build": true,
+    "force_recreate": true,
+    "compose_project_knowledge_base": true,
+    "application_container_lifecycle_validation": true,
+    "absolute_rollback_helper_validation": true,
+    "bounded_readiness": true,
+    "readiness_failure_capture_then_rollback": true,
+    "capture_best_effort_fail_safe": true
+  },
+  "excluded_scope": [
+    "lease business logic",
+    "Upload/Ingest behavior",
+    "Redis/ledger semantics",
+    "WP2",
+    "production data",
+    "unrelated PR #22 historical evidence"
+  ],
+  "validation": {
+    "shell_syntax": "PASS",
+    "python_compile": "PASS",
+    "deterministic_tests": "8 passed",
+    "git_diff_check": "PASS",
+    "pinned_dry_run": "PASS",
+    "dry_run_container_mutation": false,
+    "dry_run_worktree_mutation": false,
+    "dry_run_image_rebuild": false,
+    "dry_run_image_retag": false,
+    "protected_env_used": true,
+    "protected_env_committed": false
+  },
+  "ci": {
+    "wp0": "pending_after_push",
+    "wp1": "pending_after_push",
+    "weekly": "pending_after_push"
+  },
+  "production_verification": {
+    "status": "pending_after_integration_review",
+    "allowed_action": "read-only restart_kb.sh --help",
+    "deployment_not_authorized_in_this_record": true
+  }
+}

@@ -1,0 +1,38 @@
+{
+  "schema": "km.wp1.ingress-failure-evidence-preservation-review.v1",
+  "validation_mode": "isolated_contract_validation",
+  "production_touched": false,
+  "production_retry_performed": false,
+  "synthetic_write_performed": false,
+  "capture_before_rollback": true,
+  "capture_read_only": true,
+  "capture_failure_does_not_block_rollback": true,
+  "secrets_included": false,
+  "capture_scope": {
+    "candidate_web": ["container_id", "ip", "network"],
+    "nginx": ["container_id", "ip", "network"],
+    "docker_dns": "web",
+    "nginx_to_web": ["/health", "/api/v1/version"],
+    "formal_ingress": ["/health", "/api/v1/version"],
+    "nginx_logs": "best_effort_redacted",
+    "effective_nginx_config": "best_effort_redacted",
+    "readiness_evidence": "output_path_and_attempts"
+  },
+  "failure_safety": {
+    "capture_commands_are_best_effort": true,
+    "capture_returns_success_on_capture_error": true,
+    "rollback_remains_next_deployment_step": true,
+    "mutation_commands_in_capture": false,
+    "production_endpoint_or_write_in_capture": false
+  },
+  "tests": {
+    "command": "UV_CACHE_DIR=/tmp/kb-uv-cache uv run --with pytest==8.4.1 --with pyyaml pytest -q tests/test_ingress_failure_capture_contract.py tests/test_deployment_readiness.py tests/test_release_compose_override.py tests/test_release_compose_rendering.py",
+    "result": "8 passed",
+    "shell_syntax": "PASS",
+    "diff_check": "PASS"
+  },
+  "production_runtime_capture": {
+    "status": "not_run",
+    "reason": "supervisor explicitly prohibited production retry and mutation"
+  }
+}
