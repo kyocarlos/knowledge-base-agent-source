@@ -18,6 +18,7 @@ PINNED_IMAGE_ID=""
 PINNED_COMMIT=""
 PINNED_RELEASE_ID=""
 PINNED_BUILD_TIMESTAMP=""
+ROLLBACK_HELPER="${KB_ROLLBACK_HELPER:-/home/da40_ai_gb10/knowledge-base/scripts/rollback_pre_wp01.py}"
 WAIT_TIMEOUT="${KB_RESTART_WAIT_TIMEOUT_SECONDS:-120}"
 BASE_URL="${KB_INTERNAL_BASE_URL:-https://127.0.0.1:${KB_HTTPS_PORT:-3030}}"
 EXTERNAL_URL="${KB_EXTERNAL_URL:-$BASE_URL}"
@@ -57,6 +58,7 @@ Common options:
   --env-file FILE               Load an additional protected runtime env file.
   --wait-timeout SECONDS        Readiness timeout (default: 120).
   --dry-run                     Validate pinned deployment without changing containers.
+  --rollback-helper FILE        Absolute executable rollback helper path.
   -h, --help                    Show this help.
 
 The script always aborts restart/deploy when Celery has active, reserved,
@@ -116,6 +118,11 @@ parse_args() {
             --dry-run)
                 DRY_RUN=true
                 ;;
+            --rollback-helper)
+                (($# >= 2)) || fail "--rollback-helper requires a value"
+                ROLLBACK_HELPER="$2"
+                shift
+                ;;
             --release-tag)
                 (($# >= 2)) || fail "--release-tag requires a value"
                 PINNED_RELEASE_TAG="$2"
@@ -167,6 +174,8 @@ parse_args() {
         [[ "$PINNED_COMMIT" =~ ^[0-9a-f]{40}$ && -n "$PINNED_RELEASE_ID" && \
            -n "$PINNED_BUILD_TIMESTAMP" ]] || fail \
             "pinned deployment requires complete expected release metadata"
+        [[ "$ROLLBACK_HELPER" == /* ]] || fail \
+            "--deploy-pinned requires an absolute rollback helper path"
     fi
     [[ "$MODE" == "deploy-pinned" || "$DRY_RUN" == false ]] || fail \
         "--dry-run is supported only with --deploy-pinned"
@@ -570,10 +579,17 @@ prepare_checkpoint() {
 
 rollback_deploy() {
     printf '\nDeployment gate failed; restoring application images from %s\n' "$CHECKPOINT" >&2
-    python3 scripts/rollback_pre_wp01.py \
+    python3 "$ROLLBACK_HELPER" \
         --checkpoint "$CHECKPOINT" \
         --execute \
         --confirm-production PRE_WP01_ROLLBACK
+}
+
+validate_rollback_helper() {
+    [[ "$ROLLBACK_HELPER" == /* ]] || fail "rollback helper path must be absolute"
+    [[ -f "$ROLLBACK_HELPER" && -x "$ROLLBACK_HELPER" ]] || fail \
+        "rollback helper is missing or not executable: $ROLLBACK_HELPER"
+    printf 'Rollback helper: %s (executable)\n' "$ROLLBACK_HELPER"
 }
 
 restore_frontend() {
@@ -676,6 +692,7 @@ run_deploy_pinned() {
     CHECKPOINT="$(realpath "$CHECKPOINT")"
     validate_checkpoint "$CHECKPOINT"
     printf 'Using verified rollback checkpoint: %s\n' "$CHECKPOINT"
+    validate_rollback_helper
     if [[ "$DRY_RUN" == true ]]; then
         local rendered
         rendered="$("${COMPOSE[@]}" --profile scheduler config --format json)"
@@ -701,7 +718,7 @@ PY
     require_idle_tasks
 
     info "Recreating four application services from pinned release tag"
-    if ! "${COMPOSE[@]}" --profile scheduler up -d --no-build --pull never --force-recreate \
+    if ! "${COMPOSE[@]}" --profile scheduler up -d --no-deps --no-build --pull never --force-recreate \
         web celery_search_worker celery_ingest_worker celery_beat; then
         rollback_deploy
         fail "pinned candidate containers failed to start; rollback completed"
