@@ -1,0 +1,40 @@
+{
+  "schema": "km.wp1.production-tooling-safe-sync-plan-review.v1",
+  "canonical_branch": "agent/km-plan-v2.6-anderson",
+  "canonical_sha": "07c36e123a92dc1b2774f99c647eddf504d673e2",
+  "production_checkout": "/home/da40_ai_gb10/knowledge-base",
+  "production_branch": "agent/km-r0-r2-progress-review-20260813",
+  "production_head": "59dd8bfed85e1dbd89860e765bfa8b7559088cd6",
+  "production_touched": false,
+  "safe_sync_status": "PLAN_ONLY_PENDING_EXPLICIT_APPROVAL",
+  "dirty_file_protection": {
+    "restart_kb_sha256_before_sync": "d58b975c6bc5b978c62503428157d34ae6467945ac8680d0c33d6db774a9d0fc",
+    "restart_kb_existing_diff": {"added": 5, "deleted": 1},
+    "unrelated_dirty_files_overwritten": false,
+    "reset_clean_stash_checkout_used": false
+  },
+  "canonical_tooling": [
+    "restart_kb.sh",
+    "scripts/check_deployment_readiness.py",
+    "scripts/generate_release_compose_override.py",
+    "tests/test_deployment_readiness.py",
+    "tests/test_release_compose_override.py",
+    "tests/test_ingress_failure_capture_contract.py"
+  ],
+  "safe_apply_method": [
+    "create a timestamped read-only backup and hash of the dirty restart_kb.sh",
+    "verify the dirty diff contains no unrelated user changes that would be discarded",
+    "apply canonical restart_kb.sh with a three-way patch and abort on conflict",
+    "add only missing canonical tooling files and focused tests",
+    "run shell/python/deterministic tests and --help verification",
+    "abort before mutation if conflict or hash verification fails"
+  ],
+  "prohibited_actions": ["git reset", "git clean", "git stash", "forced checkout", "production deployment", "production restart", "production write"],
+  "required_post_sync_checks": [
+    "restart_kb.sh --help contains --deploy-pinned",
+    "canonical tooling hashes match approved integration",
+    "unrelated dirty diff preserved",
+    "production mutation remains false"
+  ],
+  "recommendation": "NO-GO until this safe sync plan is explicitly approved"
+}
