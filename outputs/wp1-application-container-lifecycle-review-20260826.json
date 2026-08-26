@@ -1,0 +1,45 @@
+{
+  "schema": "km.wp1-application-container-lifecycle-review.v1",
+  "review": "WP1 Application Container Lifecycle Alignment Review",
+  "validation_mode": "read_only_and_isolated_dry_run",
+  "production_touched": false,
+  "container_mutation": false,
+  "working_tree_mutation": false,
+  "observed_runtime": {
+    "compose_project": "knowledge-base",
+    "network": "knowledge-base_default",
+    "containers": {
+      "web": {"name": "kb-web", "compose_service": "web", "image_id": "sha256:18039a96b063b3fd85d7c40b975b323f25de71b169efcd9a7d20c2f0f7a5a749", "restart_policy": "unless-stopped"},
+      "celery_search_worker": {"name": "kb-celery-search", "compose_service": "celery_search_worker", "image_id": "sha256:18039a96b063b3fd85d7c40b975b323f25de71b169efcd9a7d20c2f0f7a5a749", "restart_policy": "unless-stopped"},
+      "celery_ingest_worker": {"name": "kb-celery-ingest", "compose_service": "celery_ingest_worker", "image_id": "sha256:18039a96b063b3fd85d7c40b975b323f25de71b169efcd9a7d20c2f0f7a5a749", "restart_policy": "unless-stopped"},
+      "celery_beat": {"name": "kb-celery-beat", "compose_service": "celery_beat", "image_id": "sha256:18039a96b063b3fd85d7c40b975b323f25de71b169efcd9a7d20c2f0f7a5a749", "restart_policy": "no"}
+    },
+    "config_hash_present": true,
+    "mounts_inspected": true
+  },
+  "root_cause": "isolated caller used Compose project kb while existing fixed-name containers belong to knowledge-base; fixed names then caused conflict during up",
+  "replacement_contract": {
+    "compose_project": "knowledge-base",
+    "flags": ["--no-deps", "--no-build", "--pull never", "--force-recreate"],
+    "allowed_containers": ["kb-web", "kb-celery-search", "kb-celery-ingest", "kb-celery-beat"],
+    "dependency_services_allowed": false,
+    "dynamic_tag_allowed": false,
+    "candidate_rebuild_allowed": false,
+    "exact_pinned_tag_and_image_required": true
+  },
+  "rollback_contract": {
+    "helper": "/home/da40_ai_gb10/knowledge-base/scripts/rollback_pre_wp01.py",
+    "absolute": true,
+    "existence_checked_before_mutation": true,
+    "executable_checked_before_mutation": true,
+    "missing_helper_fail_closed": true
+  },
+  "validation": {
+    "valid_lifecycle_dry_run": "PASS",
+    "invalid_helper_pre_mutation_failure": "PASS",
+    "shell_syntax": "PASS",
+    "regression_tests": "5 passed"
+  },
+  "secrets_included": false,
+  "result": "PASS"
+}

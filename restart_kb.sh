@@ -19,6 +19,7 @@ PINNED_COMMIT=""
 PINNED_RELEASE_ID=""
 PINNED_BUILD_TIMESTAMP=""
 ROLLBACK_HELPER="${KB_ROLLBACK_HELPER:-/home/da40_ai_gb10/knowledge-base/scripts/rollback_pre_wp01.py}"
+EXPECTED_COMPOSE_PROJECT="${KB_COMPOSE_PROJECT_NAME:-knowledge-base}"
 WAIT_TIMEOUT="${KB_RESTART_WAIT_TIMEOUT_SECONDS:-120}"
 BASE_URL="${KB_INTERNAL_BASE_URL:-https://127.0.0.1:${KB_HTTPS_PORT:-3030}}"
 EXTERNAL_URL="${KB_EXTERNAL_URL:-$BASE_URL}"
@@ -592,6 +593,32 @@ validate_rollback_helper() {
     printf 'Rollback helper: %s (executable)\n' "$ROLLBACK_HELPER"
 }
 
+validate_application_container_contract() {
+    local name service project network
+    for name in kb-web kb-celery-search kb-celery-ingest kb-celery-beat; do
+        docker inspect "$name" >/dev/null 2>&1 || fail \
+            "required application container is missing: $name"
+    done
+    for service in web celery_search_worker celery_ingest_worker celery_beat; do
+        case "$service" in
+            web) name=kb-web ;;
+            celery_search_worker) name=kb-celery-search ;;
+            celery_ingest_worker) name=kb-celery-ingest ;;
+            celery_beat) name=kb-celery-beat ;;
+        esac
+        project="$(docker inspect "$name" --format '{{index .Config.Labels "com.docker.compose.project"}}')"
+        network="$(docker inspect "$name" --format '{{range $key, $value := .NetworkSettings.Networks}}{{$key}} {{end}}')"
+        [[ "$project" == "$EXPECTED_COMPOSE_PROJECT" ]] || fail \
+            "$name has unexpected Compose project: $project"
+        [[ "$(docker inspect "$name" --format '{{index .Config.Labels "com.docker.compose.service"}}')" == "$service" ]] || fail \
+            "$name has unexpected Compose service label"
+        [[ "$network" == *"${EXPECTED_COMPOSE_PROJECT}_default"* ]] || fail \
+            "$name is not attached to ${EXPECTED_COMPOSE_PROJECT}_default"
+    done
+    export COMPOSE_PROJECT_NAME="$EXPECTED_COMPOSE_PROJECT"
+    printf 'Application container lifecycle contract: PASS (%s)\n' "$EXPECTED_COMPOSE_PROJECT"
+}
+
 restore_frontend() {
     local previous="$1"
     rm -rf -- "$FRONTEND_BUILD_DIR"
@@ -693,6 +720,7 @@ run_deploy_pinned() {
     validate_checkpoint "$CHECKPOINT"
     printf 'Using verified rollback checkpoint: %s\n' "$CHECKPOINT"
     validate_rollback_helper
+    validate_application_container_contract
     if [[ "$DRY_RUN" == true ]]; then
         local rendered
         rendered="$("${COMPOSE[@]}" --profile scheduler config --format json)"
