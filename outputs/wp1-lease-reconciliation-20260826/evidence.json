@@ -1,7 +1,7 @@
 {
   "schema": "km.wp1.ingest-lease-reconciliation.evidence.v1",
   "scope": "isolated-shadow",
-  "source_commit": "94ff4845e500211ec72f8f7f2bc37a3751f69bc7",
+  "source_commit": "34a937cdabe1a3c9aafd7c91e45de42badb33973",
   "observed_production_symptom": {
     "worker_received_task": true,
     "celery_result": "SUCCESS",

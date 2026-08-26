@@ -1,0 +1,130 @@
+{
+  "schema": "km.wp0.full-compose-metadata.v1",
+  "project": "kb-wp0-full-compose-1787724145",
+  "source_commit": "34a937cdabe1a3c9aafd7c91e45de42badb33973",
+  "release_id": "wp1-lease-reconciliation-20260826-r1",
+  "image": "kb-wp1-release:wp1-lease-reconciliation-20260826-r1",
+  "image_digest": "sha256:8b567b21a37535bc1b986992aebb69bf6087242a8e6d650633b8808e84cb1f09",
+  "build_timestamp": "2026-08-26T13:58:10+08:00",
+  "production_touched": false,
+  "secrets_included": false,
+  "ledger_path": "/home/da40_ai_gb10/knowledge-base/data/job-ledger.sqlite3",
+  "rendered_service_images": {
+    "web": "kb-wp1-release:wp1-lease-reconciliation-20260826-r1",
+    "search_worker": "kb-wp1-release:wp1-lease-reconciliation-20260826-r1",
+    "ingest_worker": "kb-wp1-release:wp1-lease-reconciliation-20260826-r1",
+    "beat": "kb-wp1-release:wp1-lease-reconciliation-20260826-r1"
+  },
+  "rendered_metadata": {
+    "web": {
+      "KM_GIT_COMMIT": "34a937cdabe1a3c9aafd7c91e45de42badb33973",
+      "KM_RELEASE_ID": "wp1-lease-reconciliation-20260826-r1",
+      "KM_IMAGE_DIGEST": "sha256:8b567b21a37535bc1b986992aebb69bf6087242a8e6d650633b8808e84cb1f09",
+      "KM_BUILD_TIMESTAMP": "2026-08-26T13:58:10+08:00"
+    },
+    "search_worker": {
+      "KM_GIT_COMMIT": "34a937cdabe1a3c9aafd7c91e45de42badb33973",
+      "KM_RELEASE_ID": "wp1-lease-reconciliation-20260826-r1",
+      "KM_IMAGE_DIGEST": "sha256:8b567b21a37535bc1b986992aebb69bf6087242a8e6d650633b8808e84cb1f09",
+      "KM_BUILD_TIMESTAMP": "2026-08-26T13:58:10+08:00"
+    },
+    "ingest_worker": {
+      "KM_GIT_COMMIT": "34a937cdabe1a3c9aafd7c91e45de42badb33973",
+      "KM_RELEASE_ID": "wp1-lease-reconciliation-20260826-r1",
+      "KM_IMAGE_DIGEST": "sha256:8b567b21a37535bc1b986992aebb69bf6087242a8e6d650633b8808e84cb1f09",
+      "KM_BUILD_TIMESTAMP": "2026-08-26T13:58:10+08:00"
+    },
+    "beat": {
+      "KM_GIT_COMMIT": "34a937cdabe1a3c9aafd7c91e45de42badb33973",
+      "KM_RELEASE_ID": "wp1-lease-reconciliation-20260826-r1",
+      "KM_IMAGE_DIGEST": "sha256:8b567b21a37535bc1b986992aebb69bf6087242a8e6d650633b8808e84cb1f09",
+      "KM_BUILD_TIMESTAMP": "2026-08-26T13:58:10+08:00"
+    }
+  },
+  "render_result": "PASS",
+  "runtime_services": {
+    "web": {
+      "container_id": "12b871bc2c5b093ddba711bae222361ae441369d297a8c0f4c36230814865c5d",
+      "image_id": "sha256:8b567b21a37535bc1b986992aebb69bf6087242a8e6d650633b8808e84cb1f09",
+      "running": true,
+      "metadata": {
+        "KM_GIT_COMMIT": "34a937cdabe1a3c9aafd7c91e45de42badb33973",
+        "KM_RELEASE_ID": "wp1-lease-reconciliation-20260826-r1",
+        "KM_IMAGE_DIGEST": "sha256:8b567b21a37535bc1b986992aebb69bf6087242a8e6d650633b8808e84cb1f09",
+        "KM_BUILD_TIMESTAMP": "2026-08-26T13:58:10+08:00"
+      },
+      "ledger_path": "/home/da40_ai_gb10/knowledge-base/data/job-ledger.sqlite3",
+      "mounts": [
+        "/app/config",
+        "/app/data",
+        "/home/da40_ai_gb10/knowledge-base/data"
+      ]
+    },
+    "search_worker": {
+      "container_id": "36d103fc67af9088d5649e79208f195587e3e895d571a2cf0c09594bd720844c",
+      "image_id": "sha256:8b567b21a37535bc1b986992aebb69bf6087242a8e6d650633b8808e84cb1f09",
+      "running": true,
+      "metadata": {
+        "KM_GIT_COMMIT": "34a937cdabe1a3c9aafd7c91e45de42badb33973",
+        "KM_RELEASE_ID": "wp1-lease-reconciliation-20260826-r1",
+        "KM_IMAGE_DIGEST": "sha256:8b567b21a37535bc1b986992aebb69bf6087242a8e6d650633b8808e84cb1f09",
+        "KM_BUILD_TIMESTAMP": "2026-08-26T13:58:10+08:00"
+      },
+      "ledger_path": "/home/da40_ai_gb10/knowledge-base/data/job-ledger.sqlite3",
+      "mounts": [
+        "/app/data",
+        "/home/da40_ai_gb10/knowledge-base/data",
+        "/app/config"
+      ]
+    },
+    "ingest_worker": {
+      "container_id": "5580662765b292af51274d763f8bef0881899fd54b07c23cf5abc09d92aa3e86",
+      "image_id": "sha256:8b567b21a37535bc1b986992aebb69bf6087242a8e6d650633b8808e84cb1f09",
+      "running": true,
+      "metadata": {
+        "KM_GIT_COMMIT": "34a937cdabe1a3c9aafd7c91e45de42badb33973",
+        "KM_RELEASE_ID": "wp1-lease-reconciliation-20260826-r1",
+        "KM_IMAGE_DIGEST": "sha256:8b567b21a37535bc1b986992aebb69bf6087242a8e6d650633b8808e84cb1f09",
+        "KM_BUILD_TIMESTAMP": "2026-08-26T13:58:10+08:00"
+      },
+      "ledger_path": "/home/da40_ai_gb10/knowledge-base/data/job-ledger.sqlite3",
+      "mounts": [
+        "/app/data",
+        "/home/da40_ai_gb10/knowledge-base/data",
+        "/app/config"
+      ]
+    },
+    "beat": {
+      "container_id": "1cc9b337ac57327c5f0e9a30fa6c7b049923c3c3e803cc9041bb84db1bd96e53",
+      "image_id": "sha256:8b567b21a37535bc1b986992aebb69bf6087242a8e6d650633b8808e84cb1f09",
+      "running": true,
+      "metadata": {
+        "KM_GIT_COMMIT": "34a937cdabe1a3c9aafd7c91e45de42badb33973",
+        "KM_RELEASE_ID": "wp1-lease-reconciliation-20260826-r1",
+        "KM_IMAGE_DIGEST": "sha256:8b567b21a37535bc1b986992aebb69bf6087242a8e6d650633b8808e84cb1f09",
+        "KM_BUILD_TIMESTAMP": "2026-08-26T13:58:10+08:00"
+      },
+      "ledger_path": "/home/da40_ai_gb10/knowledge-base/data/job-ledger.sqlite3",
+      "mounts": [
+        "/home/da40_ai_gb10/knowledge-base/data",
+        "/app/config",
+        "/app/data"
+      ]
+    }
+  },
+  "version": {
+    "status": 200,
+    "data": {
+      "service": "knowledge-base-api",
+      "version": "1.0.0",
+      "environment": "development",
+      "commit": "34a937cdabe1a3c9aafd7c91e45de42badb33973",
+      "release_id": "wp1-lease-reconciliation-20260826-r1",
+      "image_digest": "sha256:8b567b21a37535bc1b986992aebb69bf6087242a8e6d650633b8808e84cb1f09",
+      "build_timestamp": "2026-08-26T13:58:10+08:00"
+    },
+    "error": null,
+    "trace_id": "130e9d3d1f8a4fb39823f356aefd5511"
+  },
+  "result": "PASS"
+}

@@ -1,0 +1,12 @@
+{
+  "schema": "km.wp1.release-candidate-build.v1",
+  "release_candidate_commit": "34a937cdabe1a3c9aafd7c91e45de42badb33973",
+  "release_id": "wp1-lease-reconciliation-20260826-r1",
+  "build_timestamp": "2026-08-26T13:58:10+08:00",
+  "image_tag": "kb-wp1-release:wp1-lease-reconciliation-20260826-r1",
+  "image_id": "sha256:8b567b21a37535bc1b986992aebb69bf6087242a8e6d650633b8808e84cb1f09",
+  "image_digest_source": "local docker image ID; registry digest requires a separately approved registry push",
+  "production_touched": false,
+  "deployed": false,
+  "secrets_included": false
+}
