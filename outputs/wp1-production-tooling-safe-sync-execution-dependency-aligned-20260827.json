@@ -1,0 +1,58 @@
+{
+  "schema": "km.wp1.production-tooling-safe-sync-execution-dependency-aligned.v1",
+  "status": "PASS_NON_DEPLOYMENT_SYNC",
+  "production_checkout": "/home/da40_ai_gb10/knowledge-base",
+  "production_branch": "agent/km-r0-r2-progress-review-20260813",
+  "production_head": "59dd8bfed85e1dbd89860e765bfa8b7559088cd6",
+  "canonical_branch": "agent/km-plan-v2.6-anderson",
+  "canonical_sha": "07c36e123a92dc1b2774f99c647eddf504d673e2",
+  "production_touched": false,
+  "production_deployment": false,
+  "production_restart": false,
+  "container_image_runtime_mutation": false,
+  "sync_method": "clean_three_way_merge_plus_approved_file_additions",
+  "restart_kb": {
+    "before_sha256": "d58b975c6bc5b978c62503428157d34ae6467945ac8680d0c33d6db774a9d0fc",
+    "after_sha256": "fb7a7243b57b86b9691b2f78c558e47a2f16d2109a2d5d743a58f34ec40420a4",
+    "three_way_merge": "clean",
+    "deploy_pinned_help": true
+  },
+  "dependency_files": {
+    "app/core/release_metadata.py": {
+      "status": "added",
+      "sha256": "59d5c5c29ab19a3bf553a6a6b6b59ad4ac6187f5dbcf3f6be807e08f7cf0c3a9"
+    },
+    "tests/test_release_metadata.py": {"status": "added"}
+  },
+  "tooling_files": [
+    "scripts/check_deployment_readiness.py",
+    "scripts/generate_release_compose_override.py",
+    "tests/test_deployment_readiness.py",
+    "tests/test_release_compose_override.py",
+    "tests/test_ingress_failure_capture_contract.py"
+  ],
+  "validation": {
+    "shell_syntax": "PASS",
+    "python_compile": "PASS",
+    "focused_suite": "17 passed",
+    "tooling_diff_check": "PASS",
+    "unrelated_dirty_inventory_before_count": 93,
+    "unrelated_dirty_inventory_after_count": 93,
+    "unrelated_dirty_inventory_unchanged": true
+  },
+  "failure_handling": {
+    "first_validation_failure": "missing app.core.release_metadata before dependency approval",
+    "fail_closed_restore": "PASS",
+    "pre_sync_restart_sha_restored_before_retry": true
+  },
+  "prohibited_actions": {
+    "reset": false,
+    "clean": false,
+    "stash": false,
+    "forced_checkout": false,
+    "redis_ledger_mutation": false,
+    "migration_restore": false,
+    "wp2": false
+  },
+  "recommendation": "Tooling sync validation PASS; production deployment remains separately gated"
+}
