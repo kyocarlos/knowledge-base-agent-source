@@ -1,0 +1,52 @@
+{
+  "schema": "km.wp1.lease-reconciliation-production-preflight-refresh.v1",
+  "read_only_after_checkpoint": true,
+  "production_touched": false,
+  "candidate": {
+    "source_commit": "34a937cdabe1a3c9aafd7c91e45de42badb33973",
+    "release_id": "wp1-lease-reconciliation-20260826-r1",
+    "image_digest": "sha256:8b567b21a37535bc1b986992aebb69bf6087242a8e6d650633b8808e84cb1f09",
+    "build_timestamp": "2026-08-26T13:58:10+08:00",
+    "local_image_available": true,
+    "exact_image_pin": "PASS",
+    "four_service_metadata": "PASS",
+    "shared_ledger": "PASS"
+  },
+  "current_production": {
+    "application_image": "sha256:18039a96b063b3fd85d7c40b975b323f25de71b169efcd9a7d20c2f0f7a5a749",
+    "source_commit": "2ef93d6b47d05b1acbc05fadc0df8393fefd41a0",
+    "release_id": "wp0-e2e-auth-metadata-fix-20260824-r1",
+    "health": "PASS",
+    "version": "PASS",
+    "application_services": "4 running",
+    "celery_nodes": 2,
+    "active_reserved_scheduled": "empty",
+    "queues": "empty",
+    "ledger_path": "/home/da40_ai_gb10/knowledge-base/data/job-ledger.sqlite3",
+    "frontend_mount": "/home/da40_ai_gb10/knowledge-base/.frontend-build-runtime-user8:/usr/share/nginx/html:ro"
+  },
+  "checkpoint": {
+    "path": "/tmp/kb-pre-wp01-backups/pre-deploy-wp1-lease-current-runtime-20260826-145148",
+    "storage_status": "TEMPORARY_DUE_TO_EXECUTION_ENVIRONMENT",
+    "created_at": "2026-08-26T06:52:04.621217+00:00",
+    "checksum_manifest_sha256": "1801a67e87c5f1019587052e4b1e4d53f258334c3f806ab829c11ca889c3a4e5",
+    "verification": "PASS",
+    "checkpoint_application_image": "sha256:18039a96b063b3fd85d7c40b975b323f25de71b169efcd9a7d20c2f0f7a5a749",
+    "current_production_image": "sha256:18039a96b063b3fd85d7c40b975b323f25de71b169efcd9a7d20c2f0f7a5a749",
+    "rollback_target_matches_current_runtime": true,
+    "rollback_readiness": "PASS",
+    "production_drift": false
+  },
+  "post_checkpoint_recheck": {
+    "health": "PASS",
+    "wp0_wp1_runtime_gates": "PASS",
+    "celery_nodes": 2,
+    "active_reserved_scheduled": "empty",
+    "queues": "empty",
+    "services_restored": true
+  },
+  "decision": "NO-GO_PERSISTENT_CHECKPOINT_STORAGE_REQUIRED",
+  "reason": "Checkpoint content and identity verification passed, but this execution environment cannot write the checkpoint to the required persistent rollback storage. No candidate deployment is authorized by this record.",
+  "forbidden_actions_performed": false,
+  "secrets_included": false
+}
