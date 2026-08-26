@@ -24,6 +24,7 @@ WAIT_TIMEOUT="${KB_RESTART_WAIT_TIMEOUT_SECONDS:-120}"
 BASE_URL="${KB_INTERNAL_BASE_URL:-https://127.0.0.1:${KB_HTTPS_PORT:-3030}}"
 EXTERNAL_URL="${KB_EXTERNAL_URL:-$BASE_URL}"
 DIRECT_BACKEND_URL="${KB_DIRECT_BACKEND_URL:-http://127.0.0.1:8000}"
+LAST_READINESS_OUTPUT=""
 FRONTEND_BUILD_DIR="${KB_FRONTEND_BUILD_DIR:-$ROOT_DIR/.frontend-build-runtime-user8}"
 REPORT_ENV_FILE="${KB_REPORT_ENV_FILE:-$ROOT_DIR/config/report-ingest.env}"
 REPORT_ENV_EXAMPLE="${KB_REPORT_ENV_EXAMPLE:-$ROOT_DIR/config/report-ingest.env.example}"
@@ -297,6 +298,7 @@ wait_for_http_200() {
 
 run_bounded_deployment_readiness() {
     local output="$ROOT_DIR/outputs/deployment-readiness/$(date +%Y%m%d-%H%M%S).json"
+    LAST_READINESS_OUTPUT="$output"
     local args=(
         --direct-base-url "$DIRECT_BACKEND_URL"
         --ingress-base-url "$BASE_URL"
@@ -314,6 +316,70 @@ run_bounded_deployment_readiness() {
         )
     fi
     python3 "$ROOT_DIR/scripts/check_deployment_readiness.py" "${args[@]}"
+}
+
+capture_ingress_failure_diagnostics() {
+    local output_dir="$ROOT_DIR/outputs/ingress-failure-diagnostics/$(date +%Y%m%d-%H%M%S)"
+    local web_id nginx_id web_network nginx_network web_ip nginx_ip
+    mkdir -p "$output_dir" 2>/dev/null || return 0
+
+    web_id="$(docker inspect kb-web --format '{{.Id}}' 2>/dev/null || true)"
+    nginx_id="$(docker inspect kb-nginx --format '{{.Id}}' 2>/dev/null || true)"
+    web_network="$(docker inspect kb-web --format '{{range $key, $value := .NetworkSettings.Networks}}{{$key}} {{end}}' 2>/dev/null || true)"
+    nginx_network="$(docker inspect kb-nginx --format '{{range $key, $value := .NetworkSettings.Networks}}{{$key}} {{end}}' 2>/dev/null || true)"
+    web_ip="$(docker inspect kb-web --format '{{range $key, $value := .NetworkSettings.Networks}}{{$value.IPAddress}} {{end}}' 2>/dev/null || true)"
+    nginx_ip="$(docker inspect kb-nginx --format '{{range $key, $value := .NetworkSettings.Networks}}{{$value.IPAddress}} {{end}}' 2>/dev/null || true)"
+
+    printf '%s\n' "$web_id" >"$output_dir/web-container-id.txt" 2>/dev/null || true
+    printf '%s\n' "$nginx_id" >"$output_dir/nginx-container-id.txt" 2>/dev/null || true
+    printf '%s\n' "$web_network" >"$output_dir/web-network.txt" 2>/dev/null || true
+    printf '%s\n' "$nginx_network" >"$output_dir/nginx-network.txt" 2>/dev/null || true
+    printf '%s\n' "$web_ip" >"$output_dir/web-ip.txt" 2>/dev/null || true
+    printf '%s\n' "$nginx_ip" >"$output_dir/nginx-ip.txt" 2>/dev/null || true
+    docker exec kb-nginx getent hosts web >"$output_dir/docker-dns-web.txt" 2>&1 || true
+    docker exec kb-nginx wget -qSO- --timeout=5 http://web:8000/health >"$output_dir/nginx-to-web-health.txt" 2>&1 || true
+    docker exec kb-nginx wget -qSO- --timeout=5 http://web:8000/api/v1/version >"$output_dir/nginx-to-web-version.txt" 2>&1 || true
+    curl -k -sS --max-time 5 -D "$output_dir/formal-health-headers.txt" \
+        -o "$output_dir/formal-health-body.txt" "$BASE_URL/health" 2>&1 || true
+    curl -k -sS --max-time 5 -D "$output_dir/formal-version-headers.txt" \
+        -o "$output_dir/formal-version-body.txt" "$BASE_URL/api/v1/version" 2>&1 || true
+    docker logs --since 3m kb-nginx 2>&1 | \
+        sed -E \
+            -e 's/(Authorization:|Cookie:)[^[:space:]]+/\1 [REDACTED]/Ig' \
+            -e 's/((password|passwd|token|secret|api[_-]?key)[=:])[^[:space:]&]+/\1[REDACTED]/Ig' \
+        >"$output_dir/nginx-logs-redacted.txt" || true
+    docker exec kb-nginx nginx -T 2>&1 | \
+        sed -E \
+            -e 's/(Authorization:|Cookie:)[^[:space:]]+/\1 [REDACTED]/Ig' \
+            -e 's/((password|passwd|token|secret|api[_-]?key)[=:])[^[:space:]&]+/\1[REDACTED]/Ig' \
+        >"$output_dir/nginx-config-redacted.txt" || true
+    python3 - "$output_dir" "$LAST_READINESS_OUTPUT" "$web_id" "$nginx_id" "$web_network" "$nginx_network" "$web_ip" "$nginx_ip" <<'PY' 2>/dev/null || true
+import json
+import sys
+from pathlib import Path
+
+directory, readiness, web_id, nginx_id, web_network, nginx_network, web_ip, nginx_ip = sys.argv[1:]
+Path(directory, "manifest.json").write_text(json.dumps({
+    "schema": "km.ingress-failure-diagnostics.v1",
+    "readiness_evidence": readiness,
+    "candidate_web_container_id": web_id,
+    "nginx_container_id": nginx_id,
+    "web_network": web_network,
+    "nginx_network": nginx_network,
+    "web_ip": web_ip,
+    "nginx_ip": nginx_ip,
+    "docker_dns_capture": "docker-dns-web.txt",
+    "nginx_upstream_capture": ["nginx-to-web-health.txt", "nginx-to-web-version.txt"],
+    "formal_ingress_capture": ["formal-health-headers.txt", "formal-health-body.txt", "formal-version-headers.txt", "formal-version-body.txt"],
+    "nginx_logs": "nginx-logs-redacted.txt",
+    "effective_nginx_config": "nginx-config-redacted.txt",
+    "read_only": True,
+    "capture_failure_must_not_block_rollback": True,
+    "secrets_included": False,
+}, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+PY
+    printf 'Ingress failure diagnostics captured (best-effort): %s\n' "$output_dir" >&2
+    return 0
 }
 
 check_wp0_contract() {
@@ -752,6 +818,7 @@ PY
         fail "pinned candidate containers failed to start; rollback completed"
     fi
     if ! run_bounded_deployment_readiness; then
+        capture_ingress_failure_diagnostics
         rollback_deploy
         fail "bounded deployment readiness gate failed; rollback completed"
     fi
