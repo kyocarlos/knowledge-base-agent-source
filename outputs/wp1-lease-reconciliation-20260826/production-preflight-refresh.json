@@ -26,8 +26,8 @@
     "frontend_mount": "/home/da40_ai_gb10/knowledge-base/.frontend-build-runtime-user8:/usr/share/nginx/html:ro"
   },
   "checkpoint": {
-    "path": "/tmp/kb-pre-wp01-backups/pre-deploy-wp1-lease-current-runtime-20260826-145148",
-    "storage_status": "TEMPORARY_DUE_TO_EXECUTION_ENVIRONMENT",
+    "path": "/home/da40_ai_gb10/knowledge-base/outputs/current-runtime-checkpoints/pre-deploy-wp1-lease-current-runtime-20260826-145148",
+    "storage_status": "PERSISTENT_NON_TMP",
     "created_at": "2026-08-26T06:52:04.621217+00:00",
     "checksum_manifest_sha256": "1801a67e87c5f1019587052e4b1e4d53f258334c3f806ab829c11ca889c3a4e5",
     "verification": "PASS",
@@ -45,8 +45,8 @@
     "queues": "empty",
     "services_restored": true
   },
-  "decision": "NO-GO_PERSISTENT_CHECKPOINT_STORAGE_REQUIRED",
-  "reason": "Checkpoint content and identity verification passed, but this execution environment cannot write the checkpoint to the required persistent rollback storage. No candidate deployment is authorized by this record.",
+  "decision": "READY_FOR_PRODUCTION_GO_REVIEW",
+  "reason": "The verified current-runtime checkpoint was copied byte-for-byte to persistent non-/tmp rollback storage; manifest and checkpoint verification remain unchanged. This record does not authorize deployment.",
   "forbidden_actions_performed": false,
   "secrets_included": false
 }
