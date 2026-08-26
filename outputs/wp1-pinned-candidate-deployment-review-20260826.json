@@ -1,0 +1,43 @@
+{
+  "schema": "km.wp1-pinned-candidate-deployment-review.v1",
+  "review": "WP1 Pinned Candidate Deployment Review",
+  "validation_mode": "isolated_dry_run",
+  "production_touched": false,
+  "containers_changed": false,
+  "working_tree_changed": false,
+  "git_reset_checkout_clean_stash_used": false,
+  "docker_build_performed": false,
+  "dynamic_deployment_tag_created": false,
+  "candidate": {
+    "release_tag": "kb-wp1-release:wp1-deployment-metadata-yaml-quoting-fix-20260826-r1",
+    "image_id": "sha256:54650d64a2867be1ee21bbcb47951d5bc28d85ef76fcac370310b36a9c80bee3",
+    "source_commit": "914d7c829269779f13c47d71ebd27ecb9dde84ec",
+    "release_id": "wp1-deployment-metadata-yaml-quoting-fix-20260826-r1",
+    "build_timestamp": "2026-08-26T15:21:36+08:00"
+  },
+  "deployment_mode": {
+    "pinned_mode": "restart_kb.sh --deploy-pinned",
+    "pull_policy": "never",
+    "no_build": true,
+    "services": ["web", "celery_search_worker", "celery_ingest_worker", "celery_beat"],
+    "checkpoint_required": true,
+    "readiness_before_acceptance": true
+  },
+  "dry_run": {
+    "image_id_gate": "PASS",
+    "checkpoint_checksum_verification": "PASS",
+    "compose_configuration": "PASS",
+    "shared_ledger_path": "PASS",
+    "four_service_image_and_metadata_render": "PASS",
+    "pull_policy_render": "PASS",
+    "container_mutation": false,
+    "working_tree_mutation": false
+  },
+  "tests": {
+    "readiness_and_compose_tests": "5 passed",
+    "shell_syntax": "PASS",
+    "caller_contract": "PASS"
+  },
+  "secrets_included": false,
+  "result": "PASS"
+}

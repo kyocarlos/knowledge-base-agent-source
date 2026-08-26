@@ -27,6 +27,7 @@ def build_override(metadata: dict[str, str], image: str) -> dict:
     for name in SERVICES:
         services[name] = {
             "image": str(image),
+            "pull_policy": "never",
             "environment": {
                 **{key: str(value) for key, value in metadata.items()},
                 "KB_JOB_LEDGER_PATH": "/home/da40_ai_gb10/knowledge-base/data/job-ledger.sqlite3",

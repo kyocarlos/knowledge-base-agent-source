@@ -12,6 +12,12 @@ RUNTIME_ENV_FILE="${KB_RUNTIME_ENV_FILE:-}"
 CHECKPOINT=""
 CONFIRM_DEPLOY=""
 ALLOW_DIRTY=false
+DRY_RUN=false
+PINNED_RELEASE_TAG=""
+PINNED_IMAGE_ID=""
+PINNED_COMMIT=""
+PINNED_RELEASE_ID=""
+PINNED_BUILD_TIMESTAMP=""
 WAIT_TIMEOUT="${KB_RESTART_WAIT_TIMEOUT_SECONDS:-120}"
 BASE_URL="${KB_INTERNAL_BASE_URL:-https://127.0.0.1:${KB_HTTPS_PORT:-3030}}"
 EXTERNAL_URL="${KB_EXTERNAL_URL:-$BASE_URL}"
@@ -30,6 +36,7 @@ Usage:
   ./restart_kb.sh [--status]
   ./restart_kb.sh --restart [--env-file FILE]
   ./restart_kb.sh --deploy --confirm-deploy DEPLOY_WP01 [options]
+  ./restart_kb.sh --deploy-pinned --confirm-deploy DEPLOY_WP01 [options]
 
 Modes:
   --status       Read-only WP0/WP1 health, worker, queue and WebSocket checks.
@@ -38,6 +45,8 @@ Modes:
                  and never removes Redis, Neo4j, Qdrant or PostgreSQL.
   --deploy       Create/use a rollback checkpoint, build a candidate image,
                  recreate application containers and run WP0/WP1 gates.
+  --deploy-pinned Deploy an existing approved release tag without rebuilding;
+                  requires an exact image-ID gate and a verified checkpoint.
 
 Deploy options:
   --confirm-deploy DEPLOY_WP01  Required production deployment confirmation.
@@ -47,6 +56,7 @@ Deploy options:
 Common options:
   --env-file FILE               Load an additional protected runtime env file.
   --wait-timeout SECONDS        Readiness timeout (default: 120).
+  --dry-run                     Validate pinned deployment without changing containers.
   -h, --help                    Show this help.
 
 The script always aborts restart/deploy when Celery has active, reserved,
@@ -80,7 +90,7 @@ load_env_file() {
 parse_args() {
     while (($#)); do
         case "$1" in
-            --status|--restart|--deploy)
+            --status|--restart|--deploy|--deploy-pinned)
                 [[ "$MODE_SET" == false ]] || fail "select exactly one mode"
                 MODE="${1#--}"
                 MODE_SET=true
@@ -103,6 +113,34 @@ parse_args() {
             --allow-dirty)
                 ALLOW_DIRTY=true
                 ;;
+            --dry-run)
+                DRY_RUN=true
+                ;;
+            --release-tag)
+                (($# >= 2)) || fail "--release-tag requires a value"
+                PINNED_RELEASE_TAG="$2"
+                shift
+                ;;
+            --expected-image-id)
+                (($# >= 2)) || fail "--expected-image-id requires a value"
+                PINNED_IMAGE_ID="$2"
+                shift
+                ;;
+            --expected-commit)
+                (($# >= 2)) || fail "--expected-commit requires a value"
+                PINNED_COMMIT="$2"
+                shift
+                ;;
+            --expected-release-id)
+                (($# >= 2)) || fail "--expected-release-id requires a value"
+                PINNED_RELEASE_ID="$2"
+                shift
+                ;;
+            --expected-build-timestamp)
+                (($# >= 2)) || fail "--expected-build-timestamp requires a value"
+                PINNED_BUILD_TIMESTAMP="$2"
+                shift
+                ;;
             --wait-timeout)
                 (($# >= 2)) || fail "--wait-timeout requires a value"
                 WAIT_TIMEOUT="$2"
@@ -120,6 +158,18 @@ parse_args() {
     done
 
     [[ "$WAIT_TIMEOUT" =~ ^[1-9][0-9]*$ ]] || fail "--wait-timeout must be a positive integer"
+    if [[ "$MODE" == "deploy-pinned" ]]; then
+        [[ -n "$CHECKPOINT" ]] || fail "--deploy-pinned requires --checkpoint"
+        [[ "$PINNED_RELEASE_TAG" == kb-wp1-release:* ]] || fail \
+            "--deploy-pinned requires an approved kb-wp1-release tag"
+        [[ "$PINNED_IMAGE_ID" =~ ^sha256:[0-9a-f]{64}$ ]] || fail \
+            "--expected-image-id must be a sha256 image ID"
+        [[ "$PINNED_COMMIT" =~ ^[0-9a-f]{40}$ && -n "$PINNED_RELEASE_ID" && \
+           -n "$PINNED_BUILD_TIMESTAMP" ]] || fail \
+            "pinned deployment requires complete expected release metadata"
+    fi
+    [[ "$MODE" == "deploy-pinned" || "$DRY_RUN" == false ]] || fail \
+        "--dry-run is supported only with --deploy-pinned"
     if [[ -n "$RUNTIME_ENV_FILE" && ! -f "$RUNTIME_ENV_FILE" ]]; then
         fail "runtime env file does not exist: $RUNTIME_ENV_FILE"
     fi
@@ -591,6 +641,83 @@ run_deploy() {
         "$release_tag" "$release_tag" "$CHECKPOINT"
 }
 
+validate_pinned_candidate() {
+    local observed
+    observed="$(docker image inspect "$PINNED_RELEASE_TAG" --format '{{.Id}}' 2>/dev/null || true)"
+    [[ "$observed" == "$PINNED_IMAGE_ID" ]] || fail \
+        "pinned image identity mismatch: tag=$PINNED_RELEASE_TAG observed=$observed expected=$PINNED_IMAGE_ID"
+    printf 'Pinned candidate image: %s (%s)\n' "$PINNED_RELEASE_TAG" "$observed"
+}
+
+configure_pinned_compose() {
+    local override="${TMPDIR:-/tmp}/kb-pinned-release-$$.yml"
+    export KM_GIT_COMMIT="$PINNED_COMMIT"
+    export KM_RELEASE_ID="$PINNED_RELEASE_ID"
+    export KM_IMAGE_DIGEST="$PINNED_IMAGE_ID"
+    export KM_BUILD_TIMESTAMP="$PINNED_BUILD_TIMESTAMP"
+    export KB_JOB_LEDGER_PATH="/home/da40_ai_gb10/knowledge-base/data/job-ledger.sqlite3"
+    python3 "$ROOT_DIR/scripts/generate_release_compose_override.py" \
+        --image "$PINNED_RELEASE_TAG" \
+        --commit "$PINNED_COMMIT" \
+        --release-id "$PINNED_RELEASE_ID" \
+        --image-digest "$PINNED_IMAGE_ID" \
+        --build-timestamp "$PINNED_BUILD_TIMESTAMP" \
+        --output "$override" >/dev/null
+    COMPOSE=(docker compose -f "$ROOT_DIR/docker-compose.yml" -f "$override")
+    printf 'Pinned Compose override: %s\n' "$override"
+}
+
+run_deploy_pinned() {
+    [[ "$CONFIRM_DEPLOY" == "DEPLOY_WP01" ]] || fail \
+        "--deploy-pinned requires --confirm-deploy DEPLOY_WP01"
+    configure_pinned_compose
+    validate_pinned_candidate
+    compose_preflight
+    CHECKPOINT="$(realpath "$CHECKPOINT")"
+    validate_checkpoint "$CHECKPOINT"
+    printf 'Using verified rollback checkpoint: %s\n' "$CHECKPOINT"
+    if [[ "$DRY_RUN" == true ]]; then
+        local rendered
+        rendered="$("${COMPOSE[@]}" --profile scheduler config --format json)"
+        python3 - "$rendered" "$PINNED_RELEASE_TAG" "$PINNED_IMAGE_ID" <<'PY'
+import json
+import sys
+
+config = json.loads(sys.argv[1])
+services = config.get("services", {})
+expected_image, expected_id = sys.argv[2:]
+for name in ("web", "celery_search_worker", "celery_ingest_worker", "celery_beat"):
+    service = services[name]
+    assert service["image"] == expected_image, (name, service["image"])
+    assert service.get("pull_policy") == "never", (name, service.get("pull_policy"))
+    env = service["environment"]
+    assert env["KM_IMAGE_DIGEST"] == expected_id
+    assert env["KB_JOB_LEDGER_PATH"] == "/home/da40_ai_gb10/knowledge-base/data/job-ledger.sqlite3"
+print("pinned deployment dry-run render: PASS")
+PY
+        printf 'No container/image/working-tree mutation performed.\n'
+        return 0
+    fi
+    require_idle_tasks
+
+    info "Recreating four application services from pinned release tag"
+    if ! "${COMPOSE[@]}" --profile scheduler up -d --no-build --pull never --force-recreate \
+        web celery_search_worker celery_ingest_worker celery_beat; then
+        rollback_deploy
+        fail "pinned candidate containers failed to start; rollback completed"
+    fi
+    if ! run_bounded_deployment_readiness; then
+        rollback_deploy
+        fail "bounded deployment readiness gate failed; rollback completed"
+    fi
+    if ! run_acceptance_gates; then
+        rollback_deploy
+        fail "pinned candidate failed WP0/WP1 gates; rollback completed"
+    fi
+    printf '\nPinned deployment gates completed.\nRelease: %s\nImage: %s\nCheckpoint: %s\n' \
+        "$PINNED_RELEASE_ID" "$PINNED_IMAGE_ID" "$CHECKPOINT"
+}
+
 main() {
     parse_args "$@"
     require_command docker
@@ -601,6 +728,7 @@ main() {
         status) run_status ;;
         restart) run_restart ;;
         deploy) run_deploy ;;
+        deploy-pinned) run_deploy_pinned ;;
         *) fail "unsupported mode: $MODE" ;;
     esac
 }
