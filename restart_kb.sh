@@ -15,6 +15,7 @@ ALLOW_DIRTY=false
 WAIT_TIMEOUT="${KB_RESTART_WAIT_TIMEOUT_SECONDS:-120}"
 BASE_URL="${KB_INTERNAL_BASE_URL:-https://127.0.0.1:${KB_HTTPS_PORT:-3030}}"
 EXTERNAL_URL="${KB_EXTERNAL_URL:-$BASE_URL}"
+DIRECT_BACKEND_URL="${KB_DIRECT_BACKEND_URL:-http://127.0.0.1:8000}"
 FRONTEND_BUILD_DIR="${KB_FRONTEND_BUILD_DIR:-$ROOT_DIR/.frontend-build-runtime-user8}"
 REPORT_ENV_FILE="${KB_REPORT_ENV_FILE:-$ROOT_DIR/config/report-ingest.env}"
 REPORT_ENV_EXAMPLE="${KB_REPORT_ENV_EXAMPLE:-$ROOT_DIR/config/report-ingest.env.example}"
@@ -232,6 +233,27 @@ wait_for_http_200() {
     done
     printf 'Timed out waiting for %s (last HTTP %s)\n' "$url" "$code" >&2
     return 1
+}
+
+run_bounded_deployment_readiness() {
+    local output="$ROOT_DIR/outputs/deployment-readiness/$(date +%Y%m%d-%H%M%S).json"
+    local args=(
+        --direct-base-url "$DIRECT_BACKEND_URL"
+        --ingress-base-url "$BASE_URL"
+        --timeout-seconds "$WAIT_TIMEOUT"
+        --interval-seconds 2
+        --output "$output"
+    )
+    if [[ -n "${KM_GIT_COMMIT:-}" && -n "${KM_RELEASE_ID:-}" &&
+          -n "${KM_IMAGE_DIGEST:-}" && -n "${KM_BUILD_TIMESTAMP:-}" ]]; then
+        args+=(
+            --expected-commit "$KM_GIT_COMMIT"
+            --expected-release-id "$KM_RELEASE_ID"
+            --expected-image-digest "$KM_IMAGE_DIGEST"
+            --expected-build-timestamp "$KM_BUILD_TIMESTAMP"
+        )
+    fi
+    python3 "$ROOT_DIR/scripts/check_deployment_readiness.py" "${args[@]}"
 }
 
 check_wp0_contract() {
@@ -552,6 +574,11 @@ run_deploy() {
         restore_frontend "$frontend_previous"
         rollback_deploy
         fail "candidate containers failed to start; rollback completed"
+    fi
+    if ! run_bounded_deployment_readiness; then
+        restore_frontend "$frontend_previous"
+        rollback_deploy
+        fail "bounded deployment readiness gate failed; rollback completed"
     fi
     if ! run_acceptance_gates; then
         restore_frontend "$frontend_previous"

@@ -1,0 +1,16 @@
+{
+  "schema": "km.deployment-readiness-validation.v1",
+  "validation_mode": "isolated_ephemeral_http_server",
+  "timeout_seconds": 3.0,
+  "retry_interval_seconds": 0.01,
+  "bounded_polling": true,
+  "direct_backend_health": "PASS",
+  "direct_backend_version": "PASS",
+  "formal_ingress_health": "PASS",
+  "formal_ingress_version": "PASS",
+  "metadata_exact_round_trip": "PASS",
+  "first_success_recorded": true,
+  "production_touched": false,
+  "secrets_included": false,
+  "result": "PASS"
+}
