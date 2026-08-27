@@ -17,6 +17,8 @@
   },
   "run": {
     "run_id": "TR-E2E-WP1-PROD-IDENTITY-20260827-163555-6937da3f",
+    "run_id_reuse_audit": "FAIL_REUSED_FROM_PRIOR_ATTEMPT",
+    "new_production_run_id_required": true,
     "health": 200,
     "version": 200,
     "search": 200,
@@ -55,5 +57,6 @@
     "wp2": false,
     "real_instrument": false,
     "secrets_included": false
-  }
+  },
+  "audit_correction": "This retry reused the prior failed attempt run ID. The acceptance is invalid for final approval on this procedural basis in addition to the ingest failure; no further retry is authorized in this window."
 }
