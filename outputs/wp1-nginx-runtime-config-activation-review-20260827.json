@@ -1,0 +1,42 @@
+{
+  "schema": "km.wp1.nginx-runtime-config-activation-review.v1",
+  "review": "WP1 Nginx Runtime Config Activation Review",
+  "production_activation": "NOT_PERFORMED",
+  "production_touched": false,
+  "production_runtime": {
+    "container_id": "e98fc3c8ca15e2208cd0a1579e6ca58268a0b6cb215261ce8eb5d03ca61cc641",
+    "master_pid_in_container": 1,
+    "worker_pid_observed": 30,
+    "config_sha256": "7696757b4800ec6b8778e17a4fc9222aee2c90242a87a0a7b57b4d18f2e86e93",
+    "nginx_t_test": "PASS",
+    "dynamic_config_loaded": true,
+    "baseline_ingress_health": 200,
+    "baseline_ingress_version": 200
+  },
+  "activation_method": {
+    "method": "nginx -s reload",
+    "container_recreate": false,
+    "application_restart": false,
+    "rollback_required": false
+  },
+  "isolated_validation": {
+    "nginx_version": "1.31.0",
+    "reload_config_test": "PASS",
+    "master_pid_before": 1,
+    "master_pid_after": 1,
+    "worker_pid_before": 29,
+    "worker_pid_after": 51,
+    "master_pid_unchanged": true,
+    "worker_generation_changed": true,
+    "health_after_reload": 200,
+    "graceful_reload": "PASS",
+    "dynamic_dns_a_to_b_validation": "PASS"
+  },
+  "safety": {
+    "synthetic_write": false,
+    "stuck_task_modified": false,
+    "redis_ledger_mutated": false,
+    "secrets_included": false
+  },
+  "result": "PASS_ISOLATED_READY_FOR_PRODUCTION_ACTIVATION_REVIEW"
+}
