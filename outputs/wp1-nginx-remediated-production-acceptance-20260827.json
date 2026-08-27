@@ -1,0 +1,39 @@
+{
+  "schema": "km.wp1.nginx-remediated-production-acceptance.v1",
+  "review": "WP1 Production Acceptance Final Review - Nginx Remediated",
+  "production_acceptance": "FAIL_BEFORE_SYNTHETIC_ACCEPTANCE",
+  "production_gate": "NO-GO",
+  "candidate_application_regression": "NO_EVIDENCE",
+  "rollback": {"performed": true, "result": "PASS"},
+  "candidate": {
+    "source_commit": "914d7c829269779f13c47d71ebd27ecb9dde84ec",
+    "release_id": "wp1-deployment-metadata-yaml-quoting-fix-20260826-r1",
+    "image_id": "sha256:54650d64a2867be1ee21bbcb47951d5bc28d85ef76fcac370310b36a9c80bee3"
+  },
+  "readiness": {
+    "timeout_seconds": 120.0,
+    "retry_interval_seconds": 2.0,
+    "attempts": 60,
+    "direct_first_success": "2026-08-27T01:41:25.852318+00:00",
+    "formal_ingress_first_success": null,
+    "last_ingress_probe": "status=0 unavailable_or_invalid_json",
+    "diagnostic_interpretation": "formal ingress failure requires separate readiness/TLS diagnosis; no application regression established"
+  },
+  "failure_evidence": {
+    "readiness": "/home/da40_ai_gb10/knowledge-base/outputs/deployment-readiness/20260827-094123.json",
+    "diagnostic_bundle": "/home/da40_ai_gb10/knowledge-base/outputs/ingress-failure-diagnostics/20260827-094324",
+    "nginx_config_loaded_dynamic_resolver": true,
+    "first_failure_upstream_old_ip": "172.20.0.6",
+    "candidate_web_ip": "172.20.0.7",
+    "nginx_to_web_direct_probe": "PASS",
+    "formal_ingress_capture": "HTTP 502 during failure window"
+  },
+  "safety": {
+    "synthetic_acceptance_started": false,
+    "stuck_task_modified": false,
+    "redis_ledger_mutated": false,
+    "migration_restore": false,
+    "secrets_included": false
+  },
+  "next_action": "WP1 Ingress/Readiness Diagnostic Review; do not retry deployment until approved"
+}
