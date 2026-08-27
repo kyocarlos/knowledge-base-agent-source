@@ -1,0 +1,9 @@
+  HTTP/1.1 200 OK
+  date: Thu, 27 Aug 2026 01:11:13 GMT
+  server: uvicorn
+  content-length: 401
+  content-type: application/json
+  x-trace-id: 9c612b1622644a2eafbe4172d00ad7b0
+  connection: close
+  
+{"data":{"service":"knowledge-base-api","version":"1.0.0","environment":"development","commit":"914d7c829269779f13c47d71ebd27ecb9dde84ec","release_id":"wp1-deployment-metadata-yaml-quoting-fix-20260826-r1","image_digest":"sha256:54650d64a2867be1ee21bbcb47951d5bc28d85ef76fcac370310b36a9c80bee3","build_timestamp":"2026-08-26T15:21:36+08:00"},"error":null,"trace_id":"9c612b1622644a2eafbe4172d00ad7b0"}
