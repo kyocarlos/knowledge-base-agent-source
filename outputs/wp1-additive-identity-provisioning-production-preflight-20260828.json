@@ -1,0 +1,86 @@
+{
+  "schema": "km.wp1.additive-identity-provisioning-production-preflight.v1",
+  "result": "PASS_READ_ONLY_PREFLIGHT",
+  "production_touched": false,
+  "production_deploy": false,
+  "production_restart": false,
+  "production_write": false,
+  "current_runtime": {
+    "project": "knowledge-base",
+    "application_image": "sha256:18039a96b063b3fd85d7c40b975b323f25de71b169efcd9a7d20c2f0f7a5a749",
+    "nginx_image": "sha256:c4ebb06c9c9db8551ac0f15d3b7b37589c7cbc04e78cbfb4ac33bd57193db776",
+    "network": "knowledge-base_default",
+    "health": "PASS_HTTP_200",
+    "version": {
+      "http_status": 200,
+      "baseline_metadata": "legacy_null_observation",
+      "note": "Baseline metadata is not used as candidate identity. Candidate exact metadata is a post-deploy hard gate."
+    },
+    "celery_nodes": 2,
+    "active": 0,
+    "reserved": 0,
+    "scheduled": 0,
+    "queues": 0,
+    "frontend_mount": "/home/da40_ai_gb10/knowledge-base/.frontend-build-runtime-user8:/usr/share/nginx/html:ro",
+    "nginx_dynamic_resolver": "PASS: resolver 127.0.0.11 valid=5s ipv6=off; variable-based web upstream"
+  },
+  "checkpoint": {
+    "path": "/home/da40_ai_gb10/knowledge-base/outputs/current-runtime-checkpoints/pre-deploy-wp1-lease-current-runtime-20260826-145148",
+    "verification": "PASS",
+    "rollback_readiness": "PASS",
+    "rollback_target_matches_current_runtime": true,
+    "production_drift": false,
+    "current_application_image_match": true
+  },
+  "candidate": {
+    "source_commit": "914d7c829269779f13c47d71ebd27ecb9dde84ec",
+    "release_id": "wp1-deployment-metadata-yaml-quoting-fix-20260826-r1",
+    "release_tag": "kb-wp1-release:wp1-deployment-metadata-yaml-quoting-fix-20260826-r1",
+    "image_id": "sha256:54650d64a2867be1ee21bbcb47951d5bc28d85ef76fcac370310b36a9c80bee3",
+    "build_timestamp": "2026-08-26T15:21:36+08:00",
+    "local_image_available": true,
+    "exact_image_pin": "PASS",
+    "compose_project": "knowledge-base",
+    "pinned_dry_run": "PASS",
+    "pull_policy": "never",
+    "application_services_only": true,
+    "no_deps": true,
+    "no_build": true,
+    "force_recreate": true
+  },
+  "planned_runtime_contract": {
+    "services": ["web", "celery_search_worker", "celery_ingest_worker", "celery_beat"],
+    "metadata_exact": true,
+    "ledger_path": "/home/da40_ai_gb10/knowledge-base/data/job-ledger.sqlite3",
+    "shared_mount_required": true,
+    "metadata_render_contract": "PASS",
+    "runner_matches_isolated_pass": true,
+    "pre_network_identity_contract_gate": true,
+    "temporary_identity": {
+      "method": "additive runtime provisioning",
+      "existing_mapping_preserved": true,
+      "both_upload_and_self_read_mappings_required": true,
+      "removal_deterministic": true,
+      "post_removal_fail_closed": true,
+      "secrets_in_evidence": false
+    }
+  },
+  "tooling": {
+    "restart_kb_help_deploy_pinned": true,
+    "readiness_checker_present": true,
+    "readiness_checker_sha256": "ab465816bfec9e269b94cf7fd6b1d77b5f0b96946ecf97a7798fb00a61654a82",
+    "runner_sha256": "20a402c874cb2ec27d3df656379edc0bd5cf99eb334f82517676203f51b34418",
+    "runtime_env_generator_sha256": "da0d9411a50951c02079663be72ffb12311743c3fc37291463dbc37144ae8eaf",
+    "dry_run_mutation": false
+  },
+  "recommendation": "READY_FOR_SUPERVISOR_PRODUCTION_GO_REVIEW",
+  "safety": {
+    "stuck_task_touched": false,
+    "redis_or_ledger_mutation": false,
+    "migration": false,
+    "restore": false,
+    "wp2": false,
+    "real_instrument": false,
+    "credential_material_recorded": false
+  }
+}
