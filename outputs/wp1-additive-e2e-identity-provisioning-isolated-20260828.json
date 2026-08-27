@@ -1,0 +1,80 @@
+{
+  "schema": "km.wp1.additive-e2e-identity-provisioning-isolated.v1",
+  "review": "WP1 Additive E2E Identity Provisioning Isolated Validation",
+  "result": "PASS",
+  "production_touched": false,
+  "secrets_included": false,
+  "runtime": {
+    "source_commit": "914d7c829269779f13c47d71ebd27ecb9dde84ec",
+    "release_id": "wp1-deployment-metadata-yaml-quoting-fix-20260826-r1",
+    "image": "sha256:54650d64a2867be1ee21bbcb47951d5bc28d85ef76fcac370310b36a9c80bee3",
+    "metadata": {
+      "commit": "914d7c829269779f13c47d71ebd27ecb9dde84ec",
+      "release_id": "wp1-deployment-metadata-yaml-quoting-fix-20260826-r1",
+      "image_digest": "sha256:54650d64a2867be1ee21bbcb47951d5bc28d85ef76fcac370310b36a9c80bee3",
+      "build_timestamp": "2026-08-26T15:21:36+08:00"
+    },
+    "services": ["web", "search_worker", "ingest_worker", "beat"]
+  },
+  "full_additive_runner": {
+    "run_id": "TR-E2E-WP1-PROD-IDENTITY-ISOLATED-20260827-160753-004f1c73",
+    "runner_result": "PASS",
+    "upload": 202,
+    "approve": 200,
+    "self_read": 200,
+    "duplicate": {"status": 202, "duplicate": true},
+    "ingest_terminal_state": "completed",
+    "worker_completion": true,
+    "cleanup_dry_run": 200,
+    "cleanup_apply": 200,
+    "post_cleanup_submission": 404,
+    "residual_count": 0,
+    "websocket": {"handshake": true, "response": true, "close_code": 1000},
+    "isolated_compose_teardown": "PASS"
+  },
+  "auth_contract_matrix": {
+    "existing_regular_identity_preserved": true,
+    "partial_provisioning": {
+      "e2e_mapping_present": true,
+      "temporary_regular_mapping_present": false,
+      "upload_authentication": {"result": "PASS", "scope": "report:upload"},
+      "self_read_authentication": {"result": "FAIL_CLOSED", "status": 403},
+      "expected": "Upload auth succeeds; self-read rejects incomplete provisioning"
+    },
+    "full_additive_provisioning": {
+      "e2e_mapping_present": true,
+      "temporary_regular_mapping_present": true,
+      "existing_regular_identity_preserved": true,
+      "upload_authentication": {"result": "PASS", "scope": "report:upload"},
+      "self_read_authentication": {"result": "PASS", "scope": "report:upload"},
+      "expected": "Both Upload and self-read authentication succeed"
+    },
+    "after_removal": {
+      "e2e_mapping_present": false,
+      "temporary_regular_mapping_present": false,
+      "existing_regular_identity_preserved": true,
+      "upload_authentication": {"result": "FAIL_CLOSED", "status": 403},
+      "self_read_authentication": {"result": "FAIL_CLOSED", "status": 403},
+      "expected": "Temporary identity cannot authenticate after removal"
+    }
+  },
+  "cleanup": {
+    "synthetic_residual_count": 0,
+    "temporary_mapping_removed": true,
+    "removal_is_idempotent": true
+  },
+  "safety": {
+    "isolated_only": true,
+    "production_write": false,
+    "production_deploy": false,
+    "migration": false,
+    "restore": false,
+    "real_instrument": false,
+    "wp2": false,
+    "credential_material_recorded": false
+  },
+  "audit_notes": [
+    "The full runner run ID contains 20260827 because the isolated runtime clock produced that date; no credential or production data is included.",
+    "The partial matrix is an auth-contract probe; the full candidate runner supplies endpoint-level Upload/self-read/cleanup evidence."
+  ]
+}
