@@ -1,0 +1,27 @@
+{
+  "schema": "km.wp1.readiness-probe-false-negative-remediation.v1",
+  "review": "WP1 Deployment Readiness Probe False-Negative Remediation Review",
+  "integration_base": "agent/km-plan-v2.6-anderson@07c36e123a92dc1b2774f99c647eddf504d673e2",
+  "source_scope": [
+    "scripts/check_deployment_readiness.py",
+    "tests/test_deployment_readiness.py"
+  ],
+  "root_cause": "READINESS_PROBE_FALSE_NEGATIVE / READINESS_OBSERVATION_MISMATCH",
+  "fix": {
+    "https_tls_handling": "explicit unverified TLS context for HTTPS, equivalent to controlled curl -k probe",
+    "http_status_preserved": true,
+    "json_validation_preserved": true,
+    "metadata_exact_match_preserved": true,
+    "last_success_written_to_evidence": true
+  },
+  "tests": {
+    "focused": "3 passed",
+    "python_compile": "PASS",
+    "git_diff_check": "PASS"
+  },
+  "historical_nginx_remediation_reintroduced": false,
+  "old_failure_bundle_reintroduced": false,
+  "production_touched": false,
+  "secrets_included": false,
+  "result": "PASS_CANDIDATE_FOR_CANONICAL_INTEGRATION"
+}
