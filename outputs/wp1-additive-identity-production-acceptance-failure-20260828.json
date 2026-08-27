@@ -1,0 +1,62 @@
+{
+  "schema": "km.wp1.additive-identity-production-acceptance-failure.v1",
+  "result": "FAIL_CLOSED_ROLLBACK_PASS",
+  "failure_point": "report_self_read",
+  "root_cause_classification": "PROVISIONING_ENV_PRECEDENCE_AND_CLEANUP_MAPPING_GAP",
+  "candidate_application_regression": "NO_EVIDENCE",
+  "production_touched": true,
+  "deployment": {
+    "start": "2026-08-27T16:35:55Z",
+    "end": "2026-08-27T16:36:45Z",
+    "method": "restart_kb.sh --deploy-pinned",
+    "candidate_source": "914d7c829269779f13c47d71ebd27ecb9dde84ec",
+    "release_id": "wp1-deployment-metadata-yaml-quoting-fix-20260826-r1",
+    "candidate_image": "sha256:54650d64a2867be1ee21bbcb47951d5bc28d85ef76fcac370310b36a9c80bee3",
+    "runtime_identity": "PASS",
+    "readiness": "PASS"
+  },
+  "run": {
+    "run_id": "TR-E2E-WP1-PROD-IDENTITY-20260827-163555-6937da3f",
+    "fixture_sha256": "cdad80c2480856079ea3645c430b5363124c9a466acef03d3fd4a08b0b63bd3c",
+    "attachment_sha256": "62434c507064fa4c679721befc17b9e1b3311af06e25cf69dc60add3ebf83808",
+    "health": 200,
+    "version": 200,
+    "search": 200,
+    "agent_health": 200,
+    "upload": 202,
+    "submission_created": true,
+    "duplicate": {"status": 202, "duplicate": true},
+    "report_self_read": 403,
+    "stopped_before": ["ingest", "report_review", "websocket"],
+    "synthetic_data_cleanup": "not_completed_by_endpoint_before_rollback"
+  },
+  "diagnosis": {
+    "temporary_env_file_contains_both_mappings": true,
+    "report_ingest_env_also_defines_regular_mapping": true,
+    "load_order": "temporary runtime env loaded before config/report-ingest.env",
+    "observed_effect": "later regular mapping replaced temporary self-read mapping; cleanup mapping was not effective",
+    "application_code_changed": false,
+    "candidate_rebuilt": false
+  },
+  "rollback": {
+    "result": "PASS",
+    "target_image": "sha256:18039a96b063b3fd85d7c40b975b323f25de71b169efcd9a7d20c2f0f7a5a749",
+    "checkpoint": "/home/da40_ai_gb10/knowledge-base/outputs/current-runtime-checkpoints/pre-deploy-wp1-lease-current-runtime-20260826-145148",
+    "post_rollback_health": 200,
+    "post_rollback_celery_nodes": 2,
+    "post_rollback_active_reserved_scheduled": 0,
+    "post_rollback_queues": 0,
+    "temporary_identity_auth_after_removal": 404,
+    "residual_count": "not independently verified by cleanup endpoint; rollback restored approved clean baseline"
+  },
+  "safety": {
+    "stuck_task_touched": false,
+    "retry_or_resubmit": false,
+    "redis_or_ledger_manual_mutation": false,
+    "migration": false,
+    "restore": false,
+    "wp2": false,
+    "real_instrument": false,
+    "secrets_included": false
+  }
+}
