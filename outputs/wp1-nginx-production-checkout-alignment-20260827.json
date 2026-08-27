@@ -1,0 +1,32 @@
+{
+  "schema": "km.wp1.nginx-production-checkout-alignment.v1",
+  "review": "WP1 Nginx Remediation Production Checkout Alignment Review",
+  "production_touched": false,
+  "nginx_reload_or_restart": false,
+  "candidate_integration_commit": "bbf16321e23b635917cf3f48b3a9b9d07a194586",
+  "config": {
+    "path": "/home/da40_ai_gb10/knowledge-base/nginx.conf",
+    "sha256": "7696757b4800ec6b8778e17a4fc9222aee2c90242a87a0a7b57b4d18f2e86e93",
+    "canonical_integration_sha256": "7696757b4800ec6b8778e17a4fc9222aee2c90242a87a0a7b57b4d18f2e86e93",
+    "hash_match": true,
+    "nginx_syntax": "PASS",
+    "resolver": "127.0.0.11 valid=5s ipv6=off",
+    "variable_proxy_pass": "PASS"
+  },
+  "runtime_observation": {
+    "application_containers_unchanged": true,
+    "nginx_container_unchanged": true,
+    "current_runtime_image": "sha256:18039a96b063b3fd85d7c40b975b323f25de71b169efcd9a7d20c2f0f7a5a749",
+    "health_and_wp0_wp1_gates": "PASS",
+    "celery_nodes": 2,
+    "tasks_and_queues_empty": true
+  },
+  "scope": {
+    "config_only": true,
+    "application_logic_changed": false,
+    "candidate_deployed": false,
+    "synthetic_write": false,
+    "secrets_included": false
+  },
+  "result": "PASS"
+}

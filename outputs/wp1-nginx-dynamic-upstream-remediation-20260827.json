@@ -1,0 +1,43 @@
+{
+  "schema": "km.wp1.nginx-dynamic-upstream-remediation.v1",
+  "review": "WP1 Nginx Dynamic Upstream Resolution Remediation Review",
+  "root_cause": "STALE_NGINX_UPSTREAM_RESOLUTION",
+  "production_touched": false,
+  "production_deployment": false,
+  "fix": {
+    "resolver": "127.0.0.11",
+    "valid_seconds": 5,
+    "proxy_strategy": "variable_based_proxy_pass",
+    "application_logic_changed": false,
+    "production_nginx_reloaded": false
+  },
+  "isolated_validation": {
+    "nginx_version": "1.31.0",
+    "config_syntax": "PASS",
+    "initial_web_ip": "172.24.0.2",
+    "initial_health_response": "backend=A",
+    "recreated_web_ip": "172.24.0.4",
+    "ip_changed": true,
+    "nginx_reloaded": false,
+    "docker_dns_updated": true,
+    "post_recreate_health_response": "backend=B",
+    "old_ip_used_after_recreate": false,
+    "route_probes": {
+      "/health": 200,
+      "/api/test": 200,
+      "/search": 200,
+      "/tasks/test": 200,
+      "/ws": 200
+    },
+    "result": "PASS"
+  },
+  "contract_scope": {
+    "resolver_runtime_re_resolution": "PASS",
+    "api_routes": "PASS",
+    "search_route": "PASS",
+    "tasks_routes": "PASS",
+    "websocket_proxy_route_configured": "PASS",
+    "websocket_protocol_lifecycle": "NOT_RUN_WITH_STATIC_MOCK_BACKEND"
+  },
+  "tests": {"static_contract": "PASS", "secrets_included": false}
+}

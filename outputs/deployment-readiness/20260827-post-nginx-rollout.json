@@ -1,0 +1,67 @@
+{
+  "schema": "km.deployment-readiness.v1",
+  "started_at": "2026-08-27T02:32:12.850161+00:00",
+  "completed_at": "2026-08-27T02:34:13.415619+00:00",
+  "timeout_seconds": 120.0,
+  "retry_interval_seconds": 2.0,
+  "attempts": 60,
+  "first_success_at": {
+    "direct": "2026-08-27T02:32:12.869402+00:00",
+    "ingress": null
+  },
+  "expected_metadata": {
+    "commit": "914d7c829269779f13c47d71ebd27ecb9dde84ec",
+    "release_id": "wp1-deployment-metadata-yaml-quoting-fix-20260826-r1",
+    "image_digest": "sha256:54650d64a2867be1ee21bbcb47951d5bc28d85ef76fcac370310b36a9c80bee3",
+    "build_timestamp": "2026-08-26T15:21:36+08:00"
+  },
+  "last_result": {
+    "direct": {
+      "health": {
+        "url": "http://127.0.0.1:8000/health",
+        "status": 200,
+        "content_type": "application/json",
+        "json": {
+          "status": "healthy"
+        }
+      },
+      "version": {
+        "url": "http://127.0.0.1:8000/api/v1/version",
+        "status": 200,
+        "content_type": "application/json",
+        "json": {
+          "data": {
+            "service": "knowledge-base-api",
+            "version": "1.0.0",
+            "environment": "development",
+            "commit": null,
+            "release_id": null,
+            "image_digest": null,
+            "build_timestamp": null
+          },
+          "error": null,
+          "trace_id": "3f77b0a1bcbf46dbad2df0d8add41ddb"
+        }
+      },
+      "passed": false
+    },
+    "ingress": {
+      "health": {
+        "url": "https://127.0.0.1:3030/health",
+        "status": 0,
+        "content_type": "",
+        "error": "unavailable_or_invalid_json"
+      },
+      "version": {
+        "url": "https://127.0.0.1:3030/api/v1/version",
+        "status": 0,
+        "content_type": "",
+        "error": "unavailable_or_invalid_json"
+      },
+      "passed": false
+    }
+  },
+  "result": "FAIL",
+  "production_touched": false,
+  "secrets_included": false
+}

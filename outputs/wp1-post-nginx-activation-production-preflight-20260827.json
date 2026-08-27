@@ -1,0 +1,54 @@
+{
+  "schema": "km.wp1.post-nginx-activation-production-preflight.v1",
+  "review": "WP1 Post-Nginx-Activation Production Preflight Revalidation",
+  "result": "PASS_READ_ONLY_PRODUCTION_PREFLIGHT",
+  "production_mutation": false,
+  "current_runtime": {
+    "application_image": "sha256:18039a96b063b3fd85d7c40b975b323f25de71b169efcd9a7d20c2f0f7a5a749",
+    "nginx_config_sha256": "7696757b4800ec6b8778e17a4fc9222aee2c90242a87a0a7b57b4d18f2e86e93",
+    "frontend_mount": "/home/da40_ai_gb10/knowledge-base/.frontend-build-runtime-user8:/usr/share/nginx/html:ro",
+    "health": 200,
+    "version": 200
+  },
+  "runtime_gates": {
+    "wp0": "PASS",
+    "wp1": "PASS",
+    "celery_nodes": 2,
+    "active": "empty",
+    "reserved": "empty",
+    "scheduled": "empty",
+    "queues": "empty"
+  },
+  "checkpoint": {
+    "path": "/home/da40_ai_gb10/knowledge-base/outputs/current-runtime-checkpoints/pre-deploy-wp1-lease-current-runtime-20260826-145148",
+    "verification": "PASS",
+    "sha256": "1801a67e87c5f1019587052e4b1e4d53f258334c3f806ab829c11ca889c3a4e5",
+    "rollback_readiness": "PASS",
+    "rollback_target_matches_current_runtime": true,
+    "production_drift": false
+  },
+  "candidate": {
+    "source": "914d7c829269779f13c47d71ebd27ecb9dde84ec",
+    "release_id": "wp1-deployment-metadata-yaml-quoting-fix-20260826-r1",
+    "tag": "kb-wp1-release:wp1-deployment-metadata-yaml-quoting-fix-20260826-r1",
+    "image_id": "sha256:54650d64a2867be1ee21bbcb47951d5bc28d85ef76fcac370310b36a9c80bee3",
+    "build_timestamp": "2026-08-26T15:21:36+08:00",
+    "local_image_available": true,
+    "exact_image_pin": "PASS",
+    "compose_metadata": "PASS",
+    "shared_ledger": "PASS"
+  },
+  "pinned_dry_run": {
+    "result": "PASS",
+    "command": "restart_kb.sh --deploy-pinned --dry-run",
+    "pull_policy": "never",
+    "no_build": true,
+    "no_deps": true,
+    "force_recreate": true,
+    "compose_project": "knowledge-base",
+    "mutation_performed": false,
+    "rollback_helper": "/home/da40_ai_gb10/knowledge-base/scripts/rollback_pre_wp01.py",
+    "rollback_helper_executable": true
+  },
+  "secrets_included": false
+}

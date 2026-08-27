@@ -1,0 +1,37 @@
+{
+  "schema": "km.wp1.nginx-remediation-production-go-review.v1",
+  "review": "WP1 Nginx Remediation Production GO Review",
+  "production_gate": "NO-GO_PENDING_SUPERVISOR_GO",
+  "production_deployment_performed": false,
+  "exact_head_ci": {"backend": "PASS", "frontend": "PASS", "repository_hygiene": "PASS", "e2e_firefox": "SKIPPED"},
+  "candidate": {
+    "source_commit": "914d7c829269779f13c47d71ebd27ecb9dde84ec",
+    "release_id": "wp1-deployment-metadata-yaml-quoting-fix-20260826-r1",
+    "release_tag": "kb-wp1-release:wp1-deployment-metadata-yaml-quoting-fix-20260826-r1",
+    "image_id": "sha256:54650d64a2867be1ee21bbcb47951d5bc28d85ef76fcac370310b36a9c80bee3",
+    "tag_image_gate": "PASS"
+  },
+  "current_runtime": {
+    "image_id": "sha256:18039a96b063b3fd85d7c40b975b323f25de71b169efcd9a7d20c2f0f7a5a749",
+    "health": "PASS",
+    "celery_nodes": 2,
+    "active_reserved_scheduled_empty": true,
+    "queues_empty": true,
+    "production_drift": false
+  },
+  "checkpoint": {
+    "path": "/home/da40_ai_gb10/knowledge-base/outputs/current-runtime-checkpoints/pre-deploy-wp1-lease-current-runtime-20260826-145148",
+    "sha256s_manifest": "1801a67e87c5f1019587052e4b1e4d53f258334c3f806ab829c11ca889c3a4e5",
+    "verification": "PASS",
+    "rollback_readiness": "PASS",
+    "rollback_target_matches_current_runtime": true
+  },
+  "production_config": {
+    "nginx_conf_sha256": "7696757b4800ec6b8778e17a4fc9222aee2c90242a87a0a7b57b4d18f2e86e93",
+    "frontend_mount": "/home/da40_ai_gb10/knowledge-base/.frontend-build-runtime-user8:/usr/share/nginx/html:ro",
+    "shared_ledger_path": "/home/da40_ai_gb10/knowledge-base/data/job-ledger.sqlite3"
+  },
+  "pinned_dry_run": {"result": "PASS", "exit_code": 0, "mutation": false},
+  "secrets_included": false,
+  "next_step": "Supervisor Production GO decision"
+}
