@@ -1,0 +1,129 @@
+{
+  "schema": "km.wp1.production-ingest-failure-diagnostic.v1",
+  "review": "WP1 Production Ingest Failure Diagnostic Review",
+  "result": "DIAGNOSIS_COMPLETE_NO_RETRY",
+  "production_gate": "NO-GO",
+  "root_cause": "NOT_DETERMINABLE_BEYOND_TERMINAL_GENERIC_ERROR",
+  "root_cause_classification": {
+    "production_configuration_path_mismatch": "NOT_DETERMINED",
+    "stale_or_foreign_lease": "NOT_DETERMINABLE",
+    "application_lease_logic": "NOT_DETERMINABLE",
+    "celery_delivery_recovery": "NOT_DETERMINABLE",
+    "parser_file_content_failure": "NOT_DETERMINABLE",
+    "worker_dependency_filesystem_db_failure": "NOT_DETERMINABLE",
+    "candidate_application_regression": "NO_EVIDENCE"
+  },
+  "attempt": {
+    "run_id": "TR-E2E-WP1-PROD-IDENTITY-20260827-163555-6937da3f",
+    "run_id_uniqueness_gate": "NOT_IMPLEMENTED_AND_VIOLATED",
+    "run_id_reuse_audit": "FAIL_REUSED_FROM_PRIOR_PRODUCTION_ATTEMPT",
+    "submission_id": "report_20260827_163838_cbe0d655",
+    "ingest_task_id": "ingest_20260827_164650_dccd36af",
+    "celery_task_id": "33496dd6-9f5d-49ab-b5ed-c4ba98271408",
+    "production_write_performed": true,
+    "manual_task_or_state_mutation": false,
+    "retry_or_resubmit_performed": false
+  },
+  "candidate": {
+    "source_commit": "914d7c829269779f13c47d71ebd27ecb9dde84ec",
+    "release_id": "wp1-deployment-metadata-yaml-quoting-fix-20260826-r1",
+    "image": "sha256:54650d64a2867be1ee21bbcb47951d5bc28d85ef76fcac370310b36a9c80bee3",
+    "build_timestamp": "2026-08-26T15:21:36+08:00",
+    "runtime_identity_at_readiness": "PASS"
+  },
+  "request_and_fixture": {
+    "upload_status": 202,
+    "duplicate_result": "duplicate=true",
+    "approval_status": 200,
+    "self_read_status": 200,
+    "production_fixture_sha256": "cdad80c2480856079ea3645c430b5363124c9a466acef03d3fd4a08b0b63bd3c",
+    "production_attachment_sha256": "62434c507064fa4c679721befc17b9e1b3311af06e25cf69dc60add3ebf83808",
+    "isolated_reference_fixture_sha256": "b97edb653eabbd522db50398f3c32c25dbe6e69d671682c83bf9bd0d6edd589e",
+    "fixture_hash_difference_interpretation": "EXPECTED_PER_RUN_FIXTURE_VARIATION; NOT_PROOF_OF_CONTENT_REGRESSION",
+    "request_contract_mismatch_evidence": "NONE_OBSERVED",
+    "request_body_persistence": "NOT_AVAILABLE_REDACTED"
+  },
+  "state_reconciliation": {
+    "report_registry": {
+      "status": "ingest_failed",
+      "error": "攝入文件失敗"
+    },
+    "redis_task_state": {
+      "status": "failed",
+      "error": "攝入文件失敗",
+      "ingested": false,
+      "progress": 0,
+      "trace_id": null
+    },
+    "ledger": {
+      "status": "failed",
+      "attempt": 1,
+      "owner": null,
+      "lease_until": 0.0,
+      "recovery_count": 0,
+      "completed_at": null
+    },
+    "celery_result_backend": "NOT_AVAILABLE_AFTER_ROLLBACK",
+    "state_consistency": "REPORT_REDIS_LEDGER_ALL_TERMINAL_FAILED"
+  },
+  "lease_and_delivery": {
+    "lease_owner": "NOT_DETERMINABLE",
+    "acquired_at": "NOT_DETERMINABLE",
+    "heartbeat": "NOT_DETERMINABLE",
+    "expires_at": "NOT_DETERMINABLE",
+    "stale_or_foreign_lease": "NOT_DETERMINABLE",
+    "worker_ack_or_redelivery": "NOT_DETERMINABLE",
+    "worker_receipt_log": "FAILURE_WINDOW_NOT_RETAINED_AFTER_ROLLBACK",
+    "why_claim_failed_or_blocked": "NOT_DETERMINABLE_FROM_PERSISTED_EVIDENCE"
+  },
+  "runtime_contract": {
+    "kb_job_ledger_path": "/home/da40_ai_gb10/knowledge-base/data/job-ledger.sqlite3",
+    "shared_ledger_path_consistency": "PASS_AT_DEPLOYMENT_READINESS",
+    "worker_metadata": "EXACT_CANDIDATE_AT_READINESS",
+    "approval_state": "PASS_BEFORE_INGEST",
+    "ingest_terminal_state": "failed"
+  },
+  "cleanup_503": {
+    "dry_run_status": 503,
+    "apply_status": 503,
+    "detail": "E2E cleanup backend unavailable",
+    "classification": "INDEPENDENT_CLEANUP_BACKEND_FAILURE",
+    "classification_confidence": "MEDIUM",
+    "reasoning": "Cleanup endpoint failed independently at its backend availability boundary; no evidence proves it was caused by ingest failure. Exact cleanup backend subcause remains undetermined.",
+    "residual_before_rollback": "NOT_VERIFIED_BY_CLEANUP_ENDPOINT",
+    "rollback_clean_baseline": "RESTORED_APPROVED_CHECKPOINT_BASELINE"
+  },
+  "failure_window_evidence": {
+    "worker_logs": "NOT_RETAINED_AFTER_ROLLBACK",
+    "nginx_or_ingress": "NOT_RELEVANT_TO_INGEST_FAILURE",
+    "lower_level_exception": "NOT_AVAILABLE",
+    "terminal_error_is_generic": true
+  },
+  "post_rollback": {
+    "result": "PASS",
+    "checkpoint": "/home/da40_ai_gb10/knowledge-base/outputs/current-runtime-checkpoints/pre-deploy-wp1-lease-current-runtime-20260826-145148",
+    "baseline_image": "sha256:18039a96b063b3fd85d7c40b975b323f25de71b169efcd9a7d20c2f0f7a5a749",
+    "health": 200,
+    "version": 200,
+    "celery_nodes": 2,
+    "active_reserved_scheduled": 0,
+    "queues": 0,
+    "temporary_identity_auth": 404
+  },
+  "run_id_uniqueness_control": {
+    "required_rule": "current_run_id NOT IN prior_production_attempt_run_ids",
+    "current_implementation": "NOT_IMPLEMENTED",
+    "future_evidence_required": "run_id_uniqueness_gate=PASS",
+    "must_fail_before_network_or_write": true
+  },
+  "safety": {
+    "secrets_included": false,
+    "stuck_task_modified": false,
+    "redis_or_ledger_manually_modified": false,
+    "migration": false,
+    "restore": false,
+    "wp2": false,
+    "real_instrument": false,
+    "production_retry_after_failure": false
+  }
+}
