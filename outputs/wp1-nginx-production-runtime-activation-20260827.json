@@ -1,0 +1,62 @@
+{
+  "schema": "km.wp1.nginx-production-runtime-activation.v1",
+  "review": "WP1 Nginx Production Runtime Activation Acceptance Review",
+  "activation": {
+    "method": "nginx -s reload",
+    "start": "2026-08-27T10:16:52+08:00",
+    "end": "2026-08-27T10:16:52+08:00",
+    "production_activation": "PASS",
+    "container_recreate": false,
+    "application_restart": false,
+    "candidate_deployment": false
+  },
+  "nginx": {
+    "container_name": "kb-nginx",
+    "container_id": "e98fc3c8ca15e2208cd0a1579e6ca58268a0b6cb215261ce8eb5d03ca61cc641",
+    "image": "kb-pre-wp01/nginx:pre-deploy-wp1-lease-current-runtime-20260826-145148",
+    "config_sha256": "7696757b4800ec6b8778e17a4fc9222aee2c90242a87a0a7b57b4d18f2e86e93",
+    "nginx_t_test": "PASS",
+    "master_pid_before": 1,
+    "master_pid_after": 1,
+    "worker_pids_before": [
+      30
+    ],
+    "worker_pids_after": [
+      114
+    ],
+    "master_pid_unchanged": true,
+    "worker_generation_changed": true,
+    "container_id_unchanged": true,
+    "loaded_contract": {
+      "resolver": "127.0.0.11 valid=5s ipv6=off",
+      "upstream": "variable-based web:8000"
+    }
+  },
+  "ingress": {
+    "health_before": 200,
+    "version_before": 200,
+    "health_after": 200,
+    "version_after": 200,
+    "formal_ingress_pass": true,
+    "version_metadata_observation": "current rollback baseline returns HTTP 200 with null release metadata; no application candidate was deployed in this activation-only change"
+  },
+  "runtime_gates": {
+    "wp0": "PASS",
+    "wp1": "PASS",
+    "celery_nodes": 2,
+    "active": "empty",
+    "reserved": "empty",
+    "scheduled": "empty",
+    "queues": "empty"
+  },
+  "safety": {
+    "synthetic_write": false,
+    "stuck_task_modified": false,
+    "redis_ledger_mutated": false,
+    "application_containers_modified": false,
+    "candidate_image_changed": false,
+    "secrets_included": false,
+    "rollback_required": false
+  },
+  "result": "PASS_ACTIVATION_ONLY_NEXT_STEP_READ_ONLY_PRODUCTION_PREFLIGHT"
+}

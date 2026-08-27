@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import ssl
 import time
 import urllib.error
 import urllib.request
@@ -18,15 +19,24 @@ def now() -> str:
 
 def probe(url: str) -> dict[str, object]:
     try:
-        with urllib.request.urlopen(url, timeout=5) as response:
+        # The formal local ingress uses a deployment-managed certificate; match
+        # the existing curl -k probe while keeping the scheme decision explicit.
+        context = ssl._create_unverified_context() if url.lower().startswith("https://") else None
+        with urllib.request.urlopen(url, timeout=5, context=context) as response:
             raw = response.read()
             content_type = response.headers.get("Content-Type", "")
             payload = json.loads(raw.decode("utf-8"))
             return {"url": url, "status": response.status, "content_type": content_type, "json": payload}
     except urllib.error.HTTPError as exc:
         return {"url": url, "status": exc.code, "content_type": exc.headers.get("Content-Type", ""), "error": "http_error"}
-    except (OSError, ValueError):
-        return {"url": url, "status": 0, "content_type": "", "error": "unavailable_or_invalid_json"}
+    except (OSError, ValueError) as exc:
+        return {
+            "url": url,
+            "status": 0,
+            "content_type": "",
+            "error": "unavailable_or_invalid_json",
+            "error_type": type(exc).__name__,
+        }
 
 
 def version_matches(result: dict[str, object], expected: dict[str, str]) -> bool:
