@@ -1,0 +1,55 @@
+{
+  "schema": "km.wp1.production-acceptance-failure-rollback.v1",
+  "review": "WP1 Production Acceptance Final Review – Post-Nginx-Activation",
+  "candidate": {
+    "source": "914d7c829269779f13c47d71ebd27ecb9dde84ec",
+    "release_id": "wp1-deployment-metadata-yaml-quoting-fix-20260826-r1",
+    "tag": "kb-wp1-release:wp1-deployment-metadata-yaml-quoting-fix-20260826-r1",
+    "image_id": "sha256:54650d64a2867be1ee21bbcb47951d5bc28d85ef76fcac370310b36a9c80bee3",
+    "build_timestamp": "2026-08-26T15:21:36+08:00"
+  },
+  "readiness": {
+    "result": "FAIL",
+    "started_at": "2026-08-27T02:31:35.603617+00:00",
+    "completed_at": "2026-08-27T02:33:36.153534+00:00",
+    "attempts": 60,
+    "timeout_seconds": 120.0,
+    "retry_interval_seconds": 2.0,
+    "direct_health": 200,
+    "direct_version": 200,
+    "direct_metadata_exact": true,
+    "formal_ingress_health": "no valid response",
+    "formal_ingress_version": "no valid response"
+  },
+  "failure_classification": {
+    "candidate_application_regression": "NO_EVIDENCE",
+    "root_cause": "NOT_DETERMINABLE",
+    "note": "Direct backend and nginx-to-web probes succeeded, but formal ingress did not return a valid response during bounded readiness."
+  },
+  "diagnostics": {
+    "bundle": "outputs/ingress-failure-diagnostics/20260827-103336",
+    "capture_before_rollback": true,
+    "secrets_included": false
+  },
+  "rollback": {
+    "result": "PASS",
+    "baseline_application_image": "sha256:18039a96b063b3fd85d7c40b975b323f25de71b169efcd9a7d20c2f0f7a5a749",
+    "checkpoint": "/home/da40_ai_gb10/knowledge-base/outputs/current-runtime-checkpoints/pre-deploy-wp1-lease-current-runtime-20260826-145148",
+    "post_rollback_health": "PASS",
+    "post_rollback_celery_nodes": 2,
+    "post_rollback_tasks": "empty",
+    "post_rollback_queues": "empty"
+  },
+  "production_change": {
+    "controlled_application_recreate_attempted": true,
+    "application_services_recreated_then_rolled_back": true,
+    "synthetic_write": false,
+    "business_data_mutation": false,
+    "stuck_task_modified": false,
+    "redis_ledger_mutated": false,
+    "migration": false,
+    "restore": false,
+    "real_instrument": false
+  },
+  "final_status": "BASELINE_RESTORED_PRODUCTION_GATE_NO_GO"
+}
