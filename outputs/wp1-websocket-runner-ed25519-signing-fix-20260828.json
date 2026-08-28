@@ -1,0 +1,81 @@
+{
+  "schema": "km.wp1.websocket-runner-ed25519-signing-fix.v1",
+  "environment": "isolated-localhost",
+  "production_touched": false,
+  "secrets_included": false,
+  "candidate_unchanged": true,
+  "candidate": {
+    "source": "914d7c829269779f13c47d71ebd27ecb9dde84ec",
+    "release": "wp1-deployment-metadata-yaml-quoting-fix-20260826-r1",
+    "image": "sha256:54650d64a2867be1ee21bbcb47951d5bc28d85ef76fcac370310b36a9c80bee3"
+  },
+  "runner_crypto_implementation_sha256": "eabed02c15d4234e99188e572616aa2132446b19e5a96b186427ac39d926501b",
+  "validation_matrix": {
+    "ed25519_valid_signature": "PASS",
+    "altered_payload": "PASS_FAIL_CLOSED",
+    "wrong_public_key": "PASS_FAIL_CLOSED",
+    "rsa_explicit_branch": "PASS",
+    "empty_key": "PASS_FAIL_CLOSED",
+    "unsupported_key": "PASS_FAIL_CLOSED",
+    "payload_serialization_deterministic": true,
+    "network_started": false
+  },
+  "lifecycle": {
+    "crypto_preflight": {
+      "key_type": "Ed25519",
+      "local_sign": "PASS",
+      "local_verify": "PASS",
+      "payload_sha256": "d3802fbb443578111ef8b20622a8672f235fe0d3850b4f09f782f88fd0e25315"
+    },
+    "challenge_crypto_preflight": {
+      "key_type": "Ed25519",
+      "local_sign": "PASS",
+      "local_verify": "PASS",
+      "payload_sha256": "a384335234edc174d59e0425ea9550e1324cceb81aacd5de51c67badd0e5db56"
+    },
+    "network_started_after_crypto_preflight": true,
+    "ready_ack": true,
+    "chat_send_after_ready": true,
+    "final_event": true,
+    "close_code": 1000,
+    "chronology": [
+      {
+        "step": "T0",
+        "event": "crypto_preflight",
+        "result": "PASS",
+        "network_started": false
+      },
+      {
+        "step": "T1",
+        "direction": "gateway_to_runner",
+        "event": "connect.challenge"
+      },
+      {
+        "step": "T2",
+        "direction": "runner_to_gateway",
+        "event": "req.connect",
+        "signature": "verified"
+      },
+      {
+        "step": "T3",
+        "direction": "gateway_to_runner",
+        "event": "res.connect",
+        "ok": true
+      },
+      {
+        "step": "T4",
+        "direction": "runner_to_gateway",
+        "event": "chat.send",
+        "request_id": "ws-e2e-1"
+      },
+      {
+        "step": "T5",
+        "direction": "gateway_to_runner",
+        "event": "queue_ack_final"
+      }
+    ]
+  },
+  "result": "PASS",
+  "created_at": "2026-08-28T01:35:00.951451+00:00",
+  "production_gate": "NO-GO_PENDING_SUPERVISOR_REVIEW"
+}
