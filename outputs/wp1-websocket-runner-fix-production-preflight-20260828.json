@@ -1,0 +1,87 @@
+{
+  "schema": "km.wp1.websocket-runner-fix-production-preflight.v1",
+  "generated_at": "2026-08-28T13:36:58+00:00",
+  "run_id": "TR-E2E-WP1-PROD-WS-CRYPTO-PREFLIGHT-20260828-213658-3ee9e169",
+  "environment": "production-read-only-preflight",
+  "result": "PASS_READY_FOR_PRODUCTION_GO_REVIEW",
+  "production_touched": false,
+  "production_restart": false,
+  "production_write": false,
+  "secrets_included": false,
+  "baseline": {
+    "application_image_id": "sha256:18039a96b063b3fd85d7c40b975b323f25de71b169efcd9a7d20c2f0f7a5a749",
+    "health": {
+      "direct": 200,
+      "formal_ingress": 200
+    },
+    "version": {
+      "formal_ingress_status": 200,
+      "baseline_metadata_null": true
+    },
+    "runtime_gates": "WP0_WP1_PASS",
+    "celery": {
+      "nodes": 2,
+      "active": 0,
+      "reserved": 0,
+      "scheduled": 0,
+      "queues_empty": true
+    },
+    "nginx_dynamic_resolver": {
+      "active": true,
+      "config_sha256": "7696757b4800ec6b8778e17a4fc9222aee2c90242a87a0a7b57b4d18f2e86e93",
+      "resolver": "127.0.0.11",
+      "variable_upstream": "$web_upstream"
+    }
+  },
+  "candidate": {
+    "source_commit": "914d7c829269779f13c47d71ebd27ecb9dde84ec",
+    "release_id": "wp1-deployment-metadata-yaml-quoting-fix-20260826-r1",
+    "release_tag": "kb-wp1-release:wp1-deployment-metadata-yaml-quoting-fix-20260826-r1",
+    "image_id": "sha256:54650d64a2867be1ee21bbcb47951d5bc28d85ef76fcac370310b36a9c80bee3",
+    "build_timestamp": "2026-08-26T15:21:36+08:00",
+    "local_image_id_gate": "PASS",
+    "pinned_dry_run": "PASS"
+  },
+  "rollback": {
+    "checkpoint": "/home/da40_ai_gb10/knowledge-base/outputs/current-runtime-checkpoints/pre-deploy-wp1-lease-current-runtime-20260826-145148",
+    "checkpoint_sha256s_sha256": "1801a67e87c5f1019587052e4b1e4d53f258334c3f806ab829c11ca889c3a4e5",
+    "verification": "PASS",
+    "rollback_helper_absolute_and_executable": true,
+    "rollback_readiness": "PASS",
+    "production_drift": false
+  },
+  "runner": {
+    "isolated_pass_evidence_commit": "920b9ac3aa85f2ac2933256db7adf8207ff3b2ec",
+    "crypto_implementation_sha256": "eabed02c15d4234e99188e572616aa2132446b19e5a96b186427ac39d926501b",
+    "runner_sha_matches_isolated_pass": true,
+    "focused_tests": {
+      "websocket_crypto": "4_PASS",
+      "run_id_and_acceptance_hard_gates": "11_PASS"
+    },
+    "run_id_uniqueness_gate": "PASS",
+    "prior_production_attempt_count": 8,
+    "fixture_multipart_contract": "PASS",
+    "fixture_scope": "disposable_tmp_only",
+    "failure_window_persistence": "READY",
+    "capture_failure_does_not_block_rollback": "PASS"
+  },
+  "identity_and_cleanup": {
+    "protected_runtime_secret_availability": "PASS",
+    "additive_identity_provisioning": "PASS_BY_ACCEPTED_ISOLATED_EVIDENCE",
+    "identity_contract_gate": "READY_PRE_NETWORK",
+    "cleanup_backend_availability": "PASS_BY_ACCEPTED_HARD_GATE_EVIDENCE",
+    "existing_mappings_preservation": "REQUIRED_AND_READY",
+    "removal_plan": "DETERMINISTIC_AND_READY"
+  },
+  "websocket_crypto_preflight": {
+    "token_source_present": true,
+    "key_type": "Ed25519",
+    "local_sign_verify": "PASS",
+    "payload_serialization_deterministic": true,
+    "websocket_session_created": false,
+    "chat_send_before_connect_ready": false,
+    "required_ready_ack": "res(id=c1, ok=true)",
+    "fail_closed_before_network": true
+  },
+  "next_step": "SUPERVISOR_PRODUCTION_GO_REVIEW"
+}
