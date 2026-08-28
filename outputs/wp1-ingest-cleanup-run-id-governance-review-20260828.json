@@ -1,0 +1,20 @@
+{
+  "schema": "km.wp1.ingest-cleanup-run-id-governance-review.v1",
+  "review": "WP1 Isolated Ingest Failure Reproduction & Cleanup 503 & Run ID Uniqueness Review",
+  "production_touched": false,
+  "production_retry_performed": false,
+  "ingest_failure_reproduction": {"evidence": "outputs/wp1-isolated-ingest-failure-reproduction-20260828.json", "result": "PASS_CONTROLLED_FAILURE_CAPTURE", "capture_before_cleanup": true},
+  "cleanup_503_diagnosis": {"evidence": "outputs/wp1-isolated-cleanup-backend-503-diagnostic-20260828.json", "result": "PASS_CLASSIFICATION_MATRIX", "classification": "INDEPENDENT_CLEANUP_BACKEND_FAILURE"},
+  "run_id_uniqueness_gate": {
+    "implementation": "scripts/production_run_id_gate.py",
+    "integrated_before_network_or_write": true,
+    "prior_production_evidence_scan": "read_only_json_scan",
+    "reused_run_id": "FAIL_CLOSED",
+    "isolated_evidence_excluded": true,
+    "test_result": "4_PASS"
+  },
+  "focused_tests": {"command": "python3 -m unittest -v tests.test_production_run_id_gate tests.test_wp1_isolated_diagnostics", "result": "7_PASS"},
+  "validation": {"python_compile": "PASS", "git_diff_check": "PASS", "secrets_included": false},
+  "production_gate": "NO-GO",
+  "next_step": "isolated reproduction with retained real failure-window logs and independent cleanup backend diagnosis; no production retry authorized"
+}

@@ -1,0 +1,14 @@
+{
+  "schema": "km.wp1.isolated-cleanup-backend-503-diagnostic.v1",
+  "review": "WP1 Isolated Cleanup Backend 503 Diagnostic Review",
+  "environment": "isolated_non_production",
+  "production_touched": false,
+  "run_id": "TR-E2E-WP1-ISOLATED-CLEANUP-503-DIAG-20260828-01",
+  "scenarios": [
+    {"name": "backend_unavailable", "cleanup_status": 503, "classification": "INDEPENDENT_CLEANUP_BACKEND_FAILURE", "downstream_cleanup_started": false},
+    {"name": "ingest_failed_backend_available", "cleanup_status": 200, "classification": "NOT_SECONDARY_TO_INGEST", "downstream_cleanup_started": true},
+    {"name": "ingest_failed_backend_unavailable", "cleanup_status": 503, "classification": "INDEPENDENT_CLEANUP_BACKEND_FAILURE", "downstream_cleanup_started": false}
+  ],
+  "secrets_included": false,
+  "result": "PASS_CLASSIFICATION_MATRIX"
+}
