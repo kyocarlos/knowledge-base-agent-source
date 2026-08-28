@@ -4,6 +4,8 @@
 from __future__ import annotations
 
 import argparse
+import base64
+import hashlib
 import json
 import os
 import secrets
@@ -20,6 +22,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import yaml
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from production_run_id_gate import check_unique_production_run_id
@@ -190,10 +194,17 @@ def main() -> int:
     parser.add_argument("--expected-image-digest")
     parser.add_argument("--expected-build-timestamp")
     parser.add_argument("--prior-production-evidence-root", type=Path)
+    parser.add_argument("--versioned-runner-fixture", type=Path)
+    parser.add_argument("--versioned-runner-run-id")
+    parser.add_argument("--runner-python", type=Path)
     args = parser.parse_args()
 
     if args.prior_production_evidence_root and args.write_test_run_id:
         check_unique_production_run_id(args.write_test_run_id, args.prior_production_evidence_root.resolve())
+    if bool(args.versioned_runner_fixture) != bool(args.versioned_runner_run_id):
+        raise ValueError("--versioned-runner-fixture and --versioned-runner-run-id must be provided together")
+    if args.versioned_runner_fixture and not args.prior_production_evidence_root:
+        raise ValueError("versioned runner validation requires --prior-production-evidence-root")
 
     source = args.source_root.resolve()
     stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -222,9 +233,26 @@ def main() -> int:
         (openclaw_dir / "identity").mkdir(parents=True)
         (openclaw_dir / "workspace" / "memory").mkdir(parents=True)
         isolated_gateway_token = "isolated-gateway-token"
+        device_key = Ed25519PrivateKey.generate()
+        private_pem = device_key.private_bytes(
+            serialization.Encoding.PEM,
+            serialization.PrivateFormat.PKCS8,
+            serialization.NoEncryption(),
+        ).decode("utf-8")
+        public_pem = device_key.public_key().public_bytes(
+            serialization.Encoding.PEM,
+            serialization.PublicFormat.SubjectPublicKeyInfo,
+        ).decode("utf-8")
+        public_raw = base64.urlsafe_b64encode(device_key.public_key().public_bytes(
+            serialization.Encoding.Raw, serialization.PublicFormat.Raw
+        )).decode("ascii").rstrip("=")
         (openclaw_dir / "openclaw.json").write_text(json.dumps({"gateway": {"auth": {"token": isolated_gateway_token}, "port": 8765}}) + "\n", encoding="utf-8")
-        (openclaw_dir / "identity" / "device.json").write_text('{}\n', encoding="utf-8")
-        (openclaw_dir / "identity" / "device-auth.json").write_text('{}\n', encoding="utf-8")
+        (openclaw_dir / "identity" / "device.json").write_text(json.dumps({
+            "deviceId": "isolated-device", "privateKeyPem": private_pem, "publicKeyPem": public_pem,
+        }) + "\n", encoding="utf-8")
+        (openclaw_dir / "identity" / "device-auth.json").write_text(json.dumps({
+            "tokens": {"operator": {"token": "isolated-device-token", "scopes": ["operator.read", "operator.write"]}},
+        }) + "\n", encoding="utf-8")
         gateway_script = work / "gateway.py"
         gateway_script.write_text(
             "import asyncio,json,time\nimport websockets\n"
@@ -250,7 +278,10 @@ def main() -> int:
             "asyncio.run(main())\n",
             encoding='utf-8'
         )
-        config = yaml.safe_load((source / "config/config.yaml").read_text())
+        config_path = source / "config/config.yaml"
+        if not config_path.is_file():
+            config_path = source / "config/config.yaml.example"
+        config = yaml.safe_load(config_path.read_text())
         config.setdefault("neo4j", {})["uri"] = "bolt://neo4j:7687"
         config["neo4j"]["user"] = "neo4j"
         config["neo4j"]["password"] = neo_password
@@ -282,7 +313,6 @@ def main() -> int:
     pull_policy: never
     environment:
       NEO4J_AUTH: neo4j/{neo_password}
-      NEO4J_PLUGINS: '[\"apoc\"]'
     healthcheck:
       test: [\"CMD-SHELL\", \"/var/lib/neo4j/bin/cypher-shell -u neo4j -p \\\"$${{NEO4J_AUTH#neo4j/}}\\\" 'RETURN 1'\"]
       interval: 3s
@@ -575,9 +605,40 @@ def main() -> int:
             )
             if search_status != 200 or not json.loads(search_body).get("task_id"):
                 raise RuntimeError(f"candidate search submission failed: {search_status} {search_body}")
-            evidence["websocket"] = websocket_chat_exchange(f"ws://127.0.0.1:{port}/ws", source, isolated_gateway_token)
-            if not evidence["websocket"].get("handshake"):
-                raise RuntimeError(f"candidate WebSocket handshake failed: {evidence['websocket']}")
+            if args.versioned_runner_fixture:
+                runner = source / "scripts/run_wp1_production_acceptance.py"
+                runner_evidence = report_dir / "versioned-runner-evidence.json"
+                runner_python = args.runner_python or source / ".venv/bin/python"
+                runner_command = [
+                    str(runner_python if runner_python.is_file() else Path(sys.executable)), str(runner),
+                    "--base-url", f"http://127.0.0.1:{port}",
+                    "--run-id", args.versioned_runner_run_id,
+                    "--fixture", str(args.versioned_runner_fixture.resolve()),
+                    "--attachment", str((args.versioned_runner_fixture.resolve().parent / "synthetic-e2e-log.txt")),
+                    "--credentials-env", str(args.e2e_secret_file.resolve()),
+                    "--production-evidence-root", str(args.prior_production_evidence_root.resolve()),
+                    "--source-root", str(source),
+                    "--expected-git-head", subprocess.check_output(["git", "-C", str(source), "rev-parse", "HEAD"], text=True).strip(),
+                    "--expected-runner-sha256", hashlib.sha256(runner.read_bytes()).hexdigest(),
+                    "--expected-crypto-sha256", hashlib.sha256((source / "scripts/websocket_crypto_preflight.py").read_bytes()).hexdigest(),
+                    "--expected-commit", args.expected_commit,
+                    "--expected-release-id", args.expected_release_id,
+                    "--expected-image-id", args.expected_image_digest,
+                    "--expected-build-timestamp", args.expected_build_timestamp,
+                    "--evidence-out", str(runner_evidence),
+                ]
+                result = subprocess.run(runner_command, text=True, capture_output=True, check=False)
+                if result.returncode != 0 or not runner_evidence.is_file():
+                    raise RuntimeError("versioned production acceptance runner failed in isolated Compose")
+                versioned = json.loads(runner_evidence.read_text(encoding="utf-8"))
+                if versioned.get("result") != "PASS":
+                    raise RuntimeError("versioned production acceptance runner did not pass")
+                evidence["versioned_runner"] = versioned
+                evidence["websocket"] = versioned["websocket"]
+            else:
+                evidence["websocket"] = websocket_chat_exchange(f"ws://127.0.0.1:{port}/ws", source, isolated_gateway_token)
+                if not evidence["websocket"].get("handshake"):
+                    raise RuntimeError(f"candidate WebSocket handshake failed: {evidence['websocket']}")
             evidence["websocket"]["gateway_frames"] = []
             gateway_log = data_dir / "gateway-frames.jsonl"
             if gateway_log.is_file():
