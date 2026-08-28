@@ -1,0 +1,60 @@
+{
+  "schema": "km.wp1.exact-head-production-runner-isolated-revalidation.v1",
+  "result": "PASS",
+  "run_id": "TR-E2E-WP1-PROD-RUNNER-ISOLATED-20260829-002434-ae228a7e",
+  "environment": "isolated-disposable-compose",
+  "production_touched": false,
+  "secrets_included": false,
+  "candidate": {
+    "source_commit": "914d7c829269779f13c47d71ebd27ecb9dde84ec",
+    "release_id": "wp1-deployment-metadata-yaml-quoting-fix-20260826-r1",
+    "image_id": "sha256:54650d64a2867be1ee21bbcb47951d5bc28d85ef76fcac370310b36a9c80bee3",
+    "build_timestamp": "2026-08-26T15:21:36+08:00"
+  },
+  "runner_identity": {
+    "git_head": "04ab05526ee00ac1e62788bf61d22470c2b463ad",
+    "runner_path": "scripts/run_wp1_production_acceptance.py",
+    "runner_sha256": "5f9be73c25148c035644f5d1ca78d5b95ed86e20aca637b4f03df1c8b15b3cd8",
+    "crypto_helper_path": "scripts/websocket_crypto_preflight.py",
+    "crypto_sha256": "eabed02c15d4234e99188e572616aa2132446b19e5a96b186427ac39d926501b"
+  },
+  "pre_network_identity_gate": {
+    "git_head_exact_match": "PASS",
+    "runner_sha_exact_match": "PASS",
+    "crypto_sha_exact_match": "PASS",
+    "candidate_identity_exact_match": "PASS",
+    "run_id_uniqueness_gate": "PASS",
+    "fixture_multipart_contract": "PASS"
+  },
+  "runtime": {
+    "four_service_metadata": "PASS",
+    "health": 200,
+    "version": 200
+  },
+  "acceptance": {
+    "search": "PASS",
+    "upload_status": 202,
+    "submission_id_present": true,
+    "duplicate": true,
+    "self_read_status": 200,
+    "approve_status": 200,
+    "ingest_terminal": "completed",
+    "websocket": {
+      "connect_challenge": "PASS",
+      "signed_connect": "PASS",
+      "ready_ack": "res(id=c1,ok=true)",
+      "chat_send": "PASS",
+      "final_event": "PASS",
+      "close_code": 1000
+    },
+    "cleanup_dry_run": "PASS",
+    "cleanup_apply": "PASS",
+    "post_cleanup_lookup": 404,
+    "residual_count": 0
+  },
+  "cleanup": {
+    "isolated_containers_cleaned": true,
+    "isolated_data_cleaned": true
+  },
+  "next_step": "WP1_EXACT_HEAD_RUNNER_REVALIDATION_REVIEW"
+}
