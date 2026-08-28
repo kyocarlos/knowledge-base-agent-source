@@ -1,0 +1,64 @@
+{
+  "schema": "km.wp1.production-acceptance-runner-identity-alignment.v1",
+  "result": "PASS_WITH_VERSIONED_RUNNER_AND_DOCUMENTED_REVISION_DELTA",
+  "production_touched": false,
+  "secrets_included": false,
+  "candidate": {
+    "source_commit": "914d7c829269779f13c47d71ebd27ecb9dde84ec",
+    "release_id": "wp1-deployment-metadata-yaml-quoting-fix-20260826-r1",
+    "image_id": "sha256:54650d64a2867be1ee21bbcb47951d5bc28d85ef76fcac370310b36a9c80bee3",
+    "build_timestamp": "2026-08-26T15:21:36+08:00"
+  },
+  "identity_chain": {
+    "crypto_review_commit": "920b9ac3aa85f2ac2933256db7adf8207ff3b2ec",
+    "crypto_helper_path": "scripts/websocket_crypto_preflight.py",
+    "crypto_implementation_sha256": "eabed02c15d4234e99188e572616aa2132446b19e5a96b186427ac39d926501b",
+    "runner_introduction_commit": "714e5a33ee33c4a3b0da7423a6460cd4dc7a1d46",
+    "runner_fail_closed_evidence_commit": "ae7f78cff4efd0c08bec7aab434b1ca13b48e6d7",
+    "runner_path": "scripts/run_wp1_production_acceptance.py",
+    "runner_sha256": "5f9be73c25148c035644f5d1ca78d5b95ed86e20aca637b4f03df1c8b15b3cd8",
+    "runner_directly_imports_crypto_helper": true,
+    "production_only_crypto_implementation": false
+  },
+  "pre_network_hard_gate": {
+    "git_head_exact_match": "PASS",
+    "runner_sha_exact_match": "PASS",
+    "crypto_sha_exact_match": "PASS",
+    "candidate_identity_exact_match": "PASS",
+    "run_id_uniqueness": "PASS",
+    "fixture_multipart_contract": "PASS",
+    "mismatch_behavior": "FAIL_CLOSED_BEFORE_NETWORK_WRITE"
+  },
+  "isolated_exact_candidate_runner_execution": {
+    "run_id": "TR-E2E-WP1-PROD-RUNNER-ISOLATED-20260829-000447-db53535e",
+    "runner_sha256_at_execution": "0b9f12ef1a1fd73111767d47f57ab0c83c24b3b4b55de8e99d6eacf10a1c0798",
+    "crypto_sha256": "eabed02c15d4234e99188e572616aa2132446b19e5a96b186427ac39d926501b",
+    "four_service_metadata": "PASS",
+    "upload": 202,
+    "duplicate": "PASS",
+    "self_read": 200,
+    "approve": 200,
+    "ingest": "completed",
+    "websocket": {
+      "challenge": "PASS",
+      "signed_connect": "PASS",
+      "ready_ack": "res(id=c1,ok=true)",
+      "chat_send": "PASS",
+      "final_event": "PASS",
+      "close_code": 1000
+    },
+    "cleanup": "PASS",
+    "post_cleanup_lookup": 404,
+    "residual_count": 0,
+    "isolated_containers_cleaned": true
+  },
+  "revision_delta": {
+    "from_runner_sha256": "0b9f12ef1a1fd73111767d47f57ab0c83c24b3b4b55de8e99d6eacf10a1c0798",
+    "to_runner_sha256": "5f9be73c25148c035644f5d1ca78d5b95ed86e20aca637b4f03df1c8b15b3cd8",
+    "change": "Persist sanitized evidence when runtime identity probing fails after the pre-network gate.",
+    "success_path_contract_changed": false,
+    "focused_tests": "10_PASS",
+    "exact_head_pre_network_probe": "PASS"
+  },
+  "decision": "READY_FOR_SUPERVISOR_RUNNER_IDENTITY_ALIGNMENT_REVIEW"
+}

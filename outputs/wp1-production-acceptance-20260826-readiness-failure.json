@@ -1,0 +1,50 @@
+{
+  "schema": "km.wp1-production-acceptance.v1",
+  "result": "FAIL_BEFORE_SYNTHETIC_WRITE",
+  "production_touched": true,
+  "synthetic_write_performed": false,
+  "candidate": {
+    "source_commit": "914d7c829269779f13c47d71ebd27ecb9dde84ec",
+    "release_id": "wp1-deployment-metadata-yaml-quoting-fix-20260826-r1",
+    "release_tag": "kb-wp1-release:wp1-deployment-metadata-yaml-quoting-fix-20260826-r1",
+    "image_id": "sha256:54650d64a2867be1ee21bbcb47951d5bc28d85ef76fcac370310b36a9c80bee3",
+    "build_timestamp": "2026-08-26T15:21:36+08:00"
+  },
+  "deployment": {
+    "caller": "restart_kb.sh --deploy-pinned",
+    "compose_project": "knowledge-base",
+    "services_selected": ["web", "celery_search_worker", "celery_ingest_worker", "celery_beat"],
+    "flags": ["--no-deps", "--no-build", "--pull never", "--force-recreate"],
+    "image_id_gate": "PASS",
+    "rollback_helper_gate": "PASS",
+    "checkpoint_gate": "PASS",
+    "task_drain_gate": "PASS"
+  },
+  "readiness": {
+    "script": "scripts/check_deployment_readiness.py",
+    "timeout_seconds": 120.0,
+    "retry_interval_seconds": 2.0,
+    "attempts": 60,
+    "direct_health": "PASS",
+    "direct_version": "PASS",
+    "direct_metadata_exact": "PASS",
+    "ingress_health": "FAIL_NO_VALID_RESPONSE",
+    "ingress_version": "FAIL_NO_VALID_RESPONSE",
+    "first_direct_success_at": "2026-08-26T10:22:13.227801+00:00",
+    "first_ingress_success_at": null,
+    "evidence_path": "outputs/deployment-readiness/20260826-182211.json"
+  },
+  "rollback": {
+    "performed": true,
+    "result": "PASS",
+    "checkpoint": "/home/da40_ai_gb10/knowledge-base/outputs/current-runtime-checkpoints/pre-deploy-wp1-lease-current-runtime-20260826-145148",
+    "post_rollback_health": "PASS",
+    "post_rollback_celery_nodes": 2,
+    "post_rollback_tasks_and_queues": "empty",
+    "post_rollback_image": "sha256:18039a96b063b3fd85d7c40b975b323f25de71b169efcd9a7d20c2f0f7a5a749"
+  },
+  "stuck_task_touched": false,
+  "redis_or_ledger_manually_mutated": false,
+  "migration_or_restore_performed": false,
+  "secrets_included": false
+}

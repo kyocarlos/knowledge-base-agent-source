@@ -1,0 +1,30 @@
+{
+  "schema": "km.wp1.isolated-ingest-failure-reproduction.v1",
+  "review": "WP1 Isolated Ingest Failure Reproduction & Failure-Window Capture Review",
+  "environment": "isolated_non_production",
+  "production_touched": false,
+  "production_write_performed": false,
+  "candidate": "isolated synthetic harness; no production image or endpoint",
+  "run_id": "TR-E2E-WP1-ISOLATED-INGEST-DIAG-20260828-01",
+  "scenario": "worker receives task and raises a controlled synthetic ingest exception",
+  "capture_order": ["fixture_preflight", "dispatch", "worker_receipt", "exception", "terminal_state", "capture", "cleanup"],
+  "failure_window_capture": {
+    "worker_receipt_logged": true,
+    "task_id": "isolated-ingest-task-01",
+    "exception_type": "SyntheticIngestFailure",
+    "exception_message": "synthetic parser failure; no user content",
+    "trace_id": "isolated-trace-01",
+    "captured_before_cleanup": true,
+    "secrets_included": false
+  },
+  "state_reconciliation": {
+    "celery_state": "FAILURE",
+    "ledger_state": "failed",
+    "registry_state": "ingest_failed",
+    "states_consistent": true,
+    "lease_owner": null,
+    "attempt": 1
+  },
+  "cleanup": {"dry_run": "PASS", "apply": "PASS", "residual_count": 0},
+  "result": "PASS_CONTROLLED_FAILURE_CAPTURE"
+}

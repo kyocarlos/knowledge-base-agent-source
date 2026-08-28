@@ -1,0 +1,44 @@
+{
+  "schema": "km.wp1-pinned-deployment-isolation-review.v1",
+  "review": "WP1 Pinned Deployment Isolation / Rollback Path Review",
+  "validation_mode": "isolated_dry_run",
+  "production_touched": false,
+  "container_mutation": false,
+  "working_tree_mutation": false,
+  "candidate": {
+    "release_tag": "kb-wp1-release:wp1-deployment-metadata-yaml-quoting-fix-20260826-r1",
+    "image_id": "sha256:54650d64a2867be1ee21bbcb47951d5bc28d85ef76fcac370310b36a9c80bee3",
+    "source_commit": "914d7c829269779f13c47d71ebd27ecb9dde84ec",
+    "release_id": "wp1-deployment-metadata-yaml-quoting-fix-20260826-r1",
+    "build_timestamp": "2026-08-26T15:21:36+08:00"
+  },
+  "recreate_contract": {
+    "flags": ["--no-deps", "--no-build", "--pull never", "--force-recreate"],
+    "services": ["web", "celery_search_worker", "celery_ingest_worker", "celery_beat"],
+    "dependency_services_started": false,
+    "dependency_services_modified": false,
+    "existing_kb_neo4j_conflict_avoided": true,
+    "candidate_identity_unchanged": true
+  },
+  "rollback_contract": {
+    "helper_path": "/home/da40_ai_gb10/knowledge-base/scripts/rollback_pre_wp01.py",
+    "absolute_path_required": true,
+    "existence_and_executable_checked_before_recreate": true,
+    "missing_helper_exit_nonzero_before_recreate": true,
+    "rollback_target": "/home/da40_ai_gb10/knowledge-base/outputs/current-runtime-checkpoints/pre-deploy-wp1-lease-current-runtime-20260826-145148"
+  },
+  "ordering": {
+    "checkpoint_and_helper_validation_before_recreate": true,
+    "readiness_after_recreate": true,
+    "acceptance_after_readiness_pass": true,
+    "readiness_failure_rolls_back_and_exits": true
+  },
+  "validation": {
+    "valid_pinned_dry_run": "PASS",
+    "invalid_helper_fail_closed": "PASS",
+    "shell_syntax": "PASS",
+    "tests": "5 passed"
+  },
+  "secrets_included": false,
+  "result": "PASS"
+}

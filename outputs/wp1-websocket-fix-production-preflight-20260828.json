@@ -1,0 +1,65 @@
+{
+  "schema": "km.wp1.websocket-fix-production-preflight.v1",
+  "run_id": "TR-E2E-WP1-PROD-WS-PREFLIGHT-20260828-RO-092300-d355eb14",
+  "environment": "production-read-only-preflight",
+  "production_write": false,
+  "production_restart": false,
+  "candidate": {
+    "source_commit": "914d7c829269779f13c47d71ebd27ecb9dde84ec",
+    "release_id": "wp1-deployment-metadata-yaml-quoting-fix-20260826-r1",
+    "release_tag": "kb-wp1-release:wp1-deployment-metadata-yaml-quoting-fix-20260826-r1",
+    "image_id": "sha256:54650d64a2867be1ee21bbcb47951d5bc28d85ef76fcac370310b36a9c80bee3",
+    "build_timestamp": "2026-08-26T15:21:36+08:00",
+    "local_image_available": true,
+    "exact_tag_image_gate": "PASS",
+    "pinned_dry_run": "PASS"
+  },
+  "baseline": {
+    "application_image": "sha256:18039a96b063b3fd85d7c40b975b323f25de71b169efcd9a7d20c2f0f7a5a749",
+    "health": 200,
+    "version": 200,
+    "wp0_gate": "PASS",
+    "wp1_gate": "PASS",
+    "celery_nodes": 2,
+    "active": 0,
+    "reserved": 0,
+    "scheduled": 0,
+    "queues": 0
+  },
+  "checkpoint": {
+    "path": "/home/da40_ai_gb10/knowledge-base/outputs/current-runtime-checkpoints/pre-deploy-wp1-lease-current-runtime-20260826-145148",
+    "sha256": "1801a67e87c5f1019587052e4b1e4d53f258334c3f806ab829c11ca889c3a4e5",
+    "verification": "PASS",
+    "rollback_readiness": "PASS",
+    "rollback_target_matches_current_runtime": true,
+    "production_drift": false
+  },
+  "nginx": {
+    "dynamic_resolver_active": true,
+    "config_sha256": "7696757b4800ec6b8778e17a4fc9222aee2c90242a87a0a7b57b4d18f2e86e93",
+    "formal_ingress_health": 200,
+    "formal_ingress_version": 200
+  },
+  "gates": {
+    "runner_sha": {"value": "62b8410dcf0711589082374409dcc29fd6332804", "matches_isolated_pass_runner": true},
+    "run_id_uniqueness": "PASS",
+    "fixture_multipart_contract": "PASS",
+    "additive_identity_provisioning": "PASS",
+    "cleanup_backend_availability": "PASS",
+    "protected_runtime_secret": "PASS",
+    "websocket_token_source_available": true,
+    "websocket_auth_hard_gate": "PASS",
+    "websocket_protocol_version": 3,
+    "failure_window_persistence": "PASS",
+    "secrets_included": false
+  },
+  "planned_acceptance": {
+    "new_production_run_id_required": true,
+    "empty_token_allowed": false,
+    "chat_send_before_connect_ack_allowed": false,
+    "isolated_protocol_evidence": "outputs/wp1-openclaw-websocket-auth-protocol-diagnostic-20260828.json",
+    "production_go_recommendation": "REQUEST_SUPERVISOR_GO_REVIEW"
+  },
+  "result": "PASS_READ_ONLY_PREFLIGHT",
+  "production_gate": "NO-GO_PENDING_SUPERVISOR_GO"
+}

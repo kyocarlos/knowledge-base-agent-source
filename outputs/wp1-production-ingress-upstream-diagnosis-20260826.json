@@ -1,0 +1,61 @@
+{
+  "schema": "km.wp1-production-ingress-upstream-diagnosis.v1",
+  "review": "WP1 Production Ingress Upstream Resolution Review",
+  "validation_mode": "read_only",
+  "production_touched": false,
+  "production_retry_performed": false,
+  "current_runtime": {
+    "nginx": {
+      "container_name": "kb-nginx",
+      "compose_project": "knowledge-base",
+      "compose_service": "nginx",
+      "network": "knowledge-base_default",
+      "ip": "172.20.0.9",
+      "image_id": "sha256:c4ebb06c9c9db8551ac0f15d3b7b37589c7cbc04e78cbfb4ac33bd57193db776"
+    },
+    "web": {
+      "container_name": "kb-web",
+      "compose_project": "knowledge-base",
+      "compose_service": "web",
+      "network": "knowledge-base_default",
+      "ip": "172.20.0.6",
+      "image_id": "sha256:18039a96b063b3fd85d7c40b975b323f25de71b169efcd9a7d20c2f0f7a5a749"
+    },
+    "network_shared": true
+  },
+  "nginx_configuration": {
+    "api_upstream": "http://web:8000",
+    "health_upstream": "http://web:8000",
+    "version_location": "/api/ location -> http://web:8000",
+    "formal_listener": "https://127.0.0.1:3030",
+    "config_syntax": "PASS"
+  },
+  "connectivity": {
+    "nginx_dns_web": {"resolved_ip": "172.20.0.6", "result": "PASS"},
+    "nginx_to_web_health": {"status": 200, "result": "PASS"},
+    "nginx_to_web_version": {"status": 200, "result": "PASS"},
+    "current_formal_ingress_health": {"status": 200, "result": "PASS"}
+  },
+  "failure_window": {
+    "readiness_evidence": "outputs/deployment-readiness/20260826-182211.json",
+    "attempts": 60,
+    "duration_seconds": 120,
+    "direct_backend": "PASS",
+    "formal_ingress": "no valid response",
+    "nginx_failure_window_logs": "not_available_after_rollback_recreated_nginx",
+    "candidate_web_ip": "NOT_DETERMINABLE_FROM_RETAINED_EVIDENCE",
+    "rollback_baseline_web_ip": "NOT_DETERMINABLE_FROM_CHECKPOINT"
+  },
+  "root_cause_classification": {
+    "stale_upstream_ip_or_hostname": "NOT_CONFIRMED",
+    "confirmed_current_config_problem": false,
+    "classification": "NOT_DETERMINABLE",
+    "reason": "current DNS/upstream connectivity is healthy, but the original ingress failure logs and candidate IP were not retained through rollback"
+  },
+  "deterministic_remediation": {
+    "proposed": "retain nginx/web network-resolution and upstream probes across the recreate failure window before rollback; do not restart nginx or increase timeout as the sole fix",
+    "implemented": false
+  },
+  "secrets_included": false,
+  "result": "DIAGNOSIS_INCONCLUSIVE"
+}

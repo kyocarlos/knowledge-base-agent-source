@@ -1,0 +1,26 @@
+{
+  "schema": "km.ingress-failure-diagnostics.v1",
+  "readiness_evidence": "/home/da40_ai_gb10/knowledge-base/outputs/deployment-readiness/20260827-090913.json",
+  "candidate_web_container_id": "8b9d40649019e997548fc1f8d3838861437387808a648340b5a4fc07793ff47f",
+  "nginx_container_id": "06ab64209befaabc71a8816f01730e3f31d9deabc52eb1974ad95bee381a15a5",
+  "web_network": "knowledge-base_default ",
+  "nginx_network": "knowledge-base_default ",
+  "web_ip": "172.20.0.5 ",
+  "nginx_ip": "172.20.0.9 ",
+  "docker_dns_capture": "docker-dns-web.txt",
+  "nginx_upstream_capture": [
+    "nginx-to-web-health.txt",
+    "nginx-to-web-version.txt"
+  ],
+  "formal_ingress_capture": [
+    "formal-health-headers.txt",
+    "formal-health-body.txt",
+    "formal-version-headers.txt",
+    "formal-version-body.txt"
+  ],
+  "nginx_logs": "nginx-logs-redacted.txt",
+  "effective_nginx_config": "nginx-config-redacted.txt",
+  "read_only": true,
+  "capture_failure_must_not_block_rollback": true,
+  "secrets_included": false
+}

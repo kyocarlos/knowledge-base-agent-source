@@ -1,0 +1,62 @@
+{
+  "schema": "km.wp1.additive-identity-production-acceptance-retry2-failure.v1",
+  "result": "FAIL_CLOSED_ROLLBACK_PASS",
+  "failure_point": "ingest",
+  "root_cause": "PENDING_INGEST_FAILURE_DIAGNOSIS",
+  "candidate_application_regression": "NO_EVIDENCE",
+  "production_touched": true,
+  "deployment": {
+    "start": "2026-08-27T16:45:04Z",
+    "end": "2026-08-27T16:45:54Z",
+    "method": "restart_kb.sh --deploy-pinned",
+    "source": "914d7c829269779f13c47d71ebd27ecb9dde84ec",
+    "release_id": "wp1-deployment-metadata-yaml-quoting-fix-20260826-r1",
+    "image": "sha256:54650d64a2867be1ee21bbcb47951d5bc28d85ef76fcac370310b36a9c80bee3",
+    "readiness": "PASS",
+    "runtime_identity": "PASS"
+  },
+  "run": {
+    "run_id": "TR-E2E-WP1-PROD-IDENTITY-20260827-163555-6937da3f",
+    "run_id_reuse_audit": "FAIL_REUSED_FROM_PRIOR_ATTEMPT",
+    "new_production_run_id_required": true,
+    "health": 200,
+    "version": 200,
+    "search": 200,
+    "agent_health": 200,
+    "upload": 202,
+    "duplicate": {"status": 202, "duplicate": true},
+    "report_self_read": 200,
+    "approve": 200,
+    "ingest": {"status": "ingest_failed", "task_id_present": true},
+    "stopped_before": ["websocket", "cleanup_success"],
+    "cleanup_endpoint": {"dry_run_status": 503, "apply_status": 503, "detail": "E2E cleanup backend unavailable"}
+  },
+  "identity_contract": {
+    "e2e_upload_mapping_present": true,
+    "regular_self_read_mapping_present": true,
+    "existing_mapping_preserved": true,
+    "credential_values_recorded": false
+  },
+  "rollback": {
+    "result": "PASS",
+    "target_image": "sha256:18039a96b063b3fd85d7c40b975b323f25de71b169efcd9a7d20c2f0f7a5a749",
+    "checkpoint": "/home/da40_ai_gb10/knowledge-base/outputs/current-runtime-checkpoints/pre-deploy-wp1-lease-current-runtime-20260826-145148",
+    "post_rollback_health": 200,
+    "post_rollback_celery_nodes": 2,
+    "post_rollback_active_reserved_scheduled": 0,
+    "post_rollback_queues": 0,
+    "temporary_identity_auth_after_removal": 404,
+    "residual_count": "not independently verified by cleanup endpoint; rollback restored approved clean baseline"
+  },
+  "safety": {
+    "stuck_task_touched": false,
+    "retry_or_resubmit": false,
+    "redis_or_ledger_manual_mutation": false,
+    "migration": false,
+    "restore": false,
+    "wp2": false,
+    "real_instrument": false,
+    "secrets_included": false
+  },
+  "audit_correction": "This retry reused the prior failed attempt run ID. The acceptance is invalid for final approval on this procedural basis in addition to the ingest failure; no further retry is authorized in this window."
+}

@@ -1,0 +1,70 @@
+{
+  "schema": "km.wp1.final-controlled-retry-production-acceptance.v1",
+  "review": "WP1 Final Controlled-Retry Production Acceptance Review",
+  "run_id": "TR-E2E-WP1-PROD-FINAL-20260828-010339-47887e26",
+  "production_acceptance": "FAIL_CLOSED",
+  "failure_gate": "WEBSOCKET_APPLICATION_AUTH_PROTOCOL",
+  "candidate_application_regression": "NO_EVIDENCE",
+  "production_gate": "NO-GO",
+  "candidate": {
+    "source_commit": "914d7c829269779f13c47d71ebd27ecb9dde84ec",
+    "release_id": "wp1-deployment-metadata-yaml-quoting-fix-20260826-r1",
+    "image_id": "sha256:54650d64a2867be1ee21bbcb47951d5bc28d85ef76fcac370310b36a9c80bee3",
+    "build_timestamp": "2026-08-26T15:21:36+08:00"
+  },
+  "gates": {
+    "run_id_uniqueness": "PASS",
+    "fixture_multipart_contract": "PASS",
+    "additive_identity_contract": "PASS",
+    "protected_secret": "PASS",
+    "pinned_deployment": "PASS",
+    "bounded_readiness": "PASS",
+    "health": 200,
+    "search": 200,
+    "agent_health": 200,
+    "upload": 202,
+    "duplicate": "PASS duplicate=true",
+    "self_read": 200,
+    "approve": 200,
+    "ingest": "completed",
+    "cleanup_dry_run": 200,
+    "cleanup_apply": 200,
+    "post_cleanup_lookup": 404,
+    "residual_count": 0
+  },
+  "websocket": {
+    "handshake": "PASS",
+    "request_sent": "chat.send synthetic lifecycle probe",
+    "expected_response": "NOT_RECEIVED",
+    "received_close_code": 4401,
+    "close_reason": "authentication failure at gateway/proxy protocol layer",
+    "application_response": "FAIL",
+    "acceptance_decision": "STOP_BEFORE_ANY_FURTHER_WRITE"
+  },
+  "failure_capture": {
+    "triggered": false,
+    "reason": "failure was WebSocket gate after ingest cleanup; no ingest failure occurred",
+    "persistence_ready": true,
+    "secrets_included": false
+  },
+  "rollback": {
+    "performed": true,
+    "result": "PASS",
+    "checkpoint": "/home/da40_ai_gb10/knowledge-base/outputs/current-runtime-checkpoints/pre-deploy-wp1-lease-current-runtime-20260826-145148",
+    "baseline_image": "sha256:18039a96b063b3fd85d7c40b975b323f25de71b169efcd9a7d20c2f0f7a5a749",
+    "post_rollback_health": 200,
+    "post_rollback_celery_nodes": 2,
+    "post_rollback_tasks_and_queues": 0,
+    "temporary_identity_auth_after_removal": 403
+  },
+  "safety": {
+    "stuck_task_touched": false,
+    "retry_or_resubmit": false,
+    "redis_or_ledger_manual_mutation": false,
+    "migration": false,
+    "restore": false,
+    "wp2": false,
+    "real_instrument": false,
+    "secrets_included": false
+  }
+}

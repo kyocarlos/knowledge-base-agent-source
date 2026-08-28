@@ -1,0 +1,43 @@
+{
+  "schema": "km.wp1.production-acceptance-review.v1",
+  "review": "WP1 Production Acceptance Final Review",
+  "production_acceptance": "FAIL_BEFORE_SYNTHETIC_ACCEPTANCE",
+  "production_gate": "NO-GO",
+  "rollback": {"performed": true, "result": "PASS"},
+  "candidate": {
+    "source_commit": "914d7c829269779f13c47d71ebd27ecb9dde84ec",
+    "release_id": "wp1-deployment-metadata-yaml-quoting-fix-20260826-r1",
+    "image_id": "sha256:54650d64a2867be1ee21bbcb47951d5bc28d85ef76fcac370310b36a9c80bee3",
+    "build_timestamp": "2026-08-26T15:21:36+08:00",
+    "release_tag": "kb-wp1-release:wp1-deployment-metadata-yaml-quoting-fix-20260826-r1"
+  },
+  "deployment": {
+    "scope": ["web", "celery_search_worker", "celery_ingest_worker", "celery_beat"],
+    "synthetic_acceptance_started": false,
+    "readiness": {
+      "result": "FAIL",
+      "timeout_seconds": 120.0,
+      "retry_interval_seconds": 2.0,
+      "attempts": 60,
+      "direct_first_success": "2026-08-27T01:09:15.109242+00:00",
+      "ingress_first_success": null,
+      "failure": "formal ingress health and version returned unavailable_or_invalid_json"
+    },
+    "diagnostic_bundle": "/home/da40_ai_gb10/knowledge-base/outputs/ingress-failure-diagnostics/20260827-091113",
+    "readiness_evidence": "/home/da40_ai_gb10/knowledge-base/outputs/deployment-readiness/20260827-090913.json"
+  },
+  "rollback_baseline": {
+    "checkpoint": "/home/da40_ai_gb10/knowledge-base/outputs/current-runtime-checkpoints/pre-deploy-wp1-lease-current-runtime-20260826-145148",
+    "checkpoint_sha256": "1801a67e87c5f1019587052e4b1e4d53f258334c3f806ab829c11ca889c3a4e5",
+    "image_id": "sha256:18039a96b063b3fd85d7c40b975b323f25de71b169efcd9a7d20c2f0f7a5a749",
+    "post_rollback_health": "PASS",
+    "post_rollback_wp0_wp1_gates": "PASS",
+    "post_rollback_celery_nodes": 2,
+    "post_rollback_tasks_and_queues_empty": true
+  },
+  "production_touched": true,
+  "synthetic_data_written": false,
+  "stuck_task_retried": false,
+  "secrets_included": false,
+  "root_cause_status": "INGRESS_FAILURE_DIAGNOSIS_REQUIRED"
+}

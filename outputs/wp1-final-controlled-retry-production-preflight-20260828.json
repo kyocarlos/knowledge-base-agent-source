@@ -1,0 +1,60 @@
+{
+  "schema": "km.wp1.final-controlled-retry-production-preflight.v1",
+  "run_id": "TR-E2E-WP1-PREFLIGHT-20260828-READONLY-01",
+  "mode": "read-only",
+  "production_touched": false,
+  "production_retry_performed": false,
+  "decision": "NO-GO_CONFIGURATION_PREFLIGHT_BLOCKED",
+  "gates": {
+    "baseline_health": "PASS_HTTP_200",
+    "baseline_version": "PASS_HTTP_200_LEGACY_METADATA_NULL_RECORDED",
+    "wp0_wp1_runtime_gates": "PASS",
+    "celery_nodes": 2,
+    "active_reserved_scheduled": 0,
+    "queues": 0,
+    "checkpoint_verification": "PASS",
+    "rollback_readiness": "PASS",
+    "production_drift": false,
+    "nginx_dynamic_resolver": "PASS_PREVIOUSLY_ACTIVATED_READ_ONLY_BASELINE",
+    "candidate_tag_image": "PASS",
+    "run_id_uniqueness_gate": "PASS_NEW_READ_ONLY_PROBE",
+    "fixture_multipart_contract": "PASS_IMPLEMENTED_AND_ISOLATED_VALIDATED",
+    "additive_identity_plan": "PASS_ISOLATED_VALIDATED",
+    "cleanup_backend_availability_probe": "PASS_ISOLATED_CONTRACT",
+    "failure_window_persistence": "PASS",
+    "runner_sha_match": "PASS"
+  },
+  "candidate": {
+    "source_commit": "914d7c829269779f13c47d71ebd27ecb9dde84ec",
+    "release_id": "wp1-deployment-metadata-yaml-quoting-fix-20260826-r1",
+    "release_tag": "kb-wp1-release:wp1-deployment-metadata-yaml-quoting-fix-20260826-r1",
+    "image_id": "sha256:54650d64a2867be1ee21bbcb47951d5bc28d85ef76fcac370310b36a9c80bee3",
+    "build_timestamp": "2026-08-26T15:21:36+08:00",
+    "local_image_inspect": "PASS_EXACT_ID"
+  },
+  "checkpoint": {
+    "path": "/home/da40_ai_gb10/knowledge-base/outputs/current-runtime-checkpoints/pre-deploy-wp1-lease-current-runtime-20260826-145148",
+    "verification": "PASS",
+    "rollback_helper": "/home/da40_ai_gb10/knowledge-base/scripts/rollback_pre_wp01.py",
+    "rollback_helper_executable": true
+  },
+  "pinned_dry_run": {
+    "result": "FAIL_CLOSED_BEFORE_MUTATION",
+    "command": "restart_kb.sh --deploy-pinned --dry-run with approved tag/image/metadata/checkpoint",
+    "failure": "NEO4J_PASSWORD is missing; no container has been changed",
+    "mutation": false,
+    "required_follow_up": "provide approved existing runtime secret environment through the established protected procedure; do not use temporary or chat-provided values"
+  },
+  "safety": {
+    "containers_restarted": false,
+    "candidate_recreated": false,
+    "synthetic_write": false,
+    "stuck_task_touched": false,
+    "redis_or_ledger_mutation": false,
+    "migration": false,
+    "restore": false,
+    "wp2": false,
+    "real_instrument": false,
+    "secrets_included": false
+  }
+}

@@ -1,0 +1,9 @@
+  HTTP/1.1 200 OK
+  date: Thu, 27 Aug 2026 01:11:13 GMT
+  server: uvicorn
+  content-length: 20
+  content-type: application/json
+  x-trace-id: 0d00b176e4984f42b5bb1566eacaeff0
+  connection: close
+  
+{"status":"healthy"}

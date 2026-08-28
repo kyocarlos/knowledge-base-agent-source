@@ -1,0 +1,35 @@
+{
+  "schema": "km.wp1.ingress-failure-diagnostic-review.v1",
+  "review": "WP1 Ingress Failure Diagnostic Bundle Review",
+  "production_acceptance": "FAIL_BEFORE_SYNTHETIC_ACCEPTANCE",
+  "root_cause_classification": "NOT_DETERMINABLE",
+  "candidate": {
+    "source_commit": "914d7c829269779f13c47d71ebd27ecb9dde84ec",
+    "release_id": "wp1-deployment-metadata-yaml-quoting-fix-20260826-r1",
+    "image_id": "sha256:54650d64a2867be1ee21bbcb47951d5bc28d85ef76fcac370310b36a9c80bee3"
+  },
+  "readiness": {
+    "timeout_seconds": 120.0,
+    "retry_interval_seconds": 2.0,
+    "attempts": 60,
+    "direct_first_success": "2026-08-27T01:09:15.109242+00:00",
+    "formal_ingress_first_success": null
+  },
+  "bundle": {
+    "path": "/home/da40_ai_gb10/knowledge-base/outputs/ingress-failure-diagnostics/20260827-091113",
+    "manifest": "manifest.json",
+    "candidate_web": ["web-container-id.txt", "web-ip.txt", "web-network.txt", "nginx-to-web-health.txt", "nginx-to-web-version.txt"],
+    "nginx": ["nginx-container-id.txt", "nginx-ip.txt", "nginx-network.txt", "docker-dns-web.txt"],
+    "formal_ingress": ["formal-health-headers.txt", "formal-health-body.txt", "formal-version-headers.txt", "formal-version-body.txt"],
+    "logs_and_config": ["nginx-logs-redacted.txt", "nginx-config-redacted.txt"]
+  },
+  "observations": {
+    "capture_read_only": true,
+    "capture_failure_would_not_block_rollback": true,
+    "secrets_included": false,
+    "synthetic_write_started": false,
+    "stuck_task_modified": false,
+    "rollback": "PASS"
+  },
+  "next_action": "主管先審查 diagnostic bundle；在根因確認前不得調整 timeout 或再次部署。"
+}

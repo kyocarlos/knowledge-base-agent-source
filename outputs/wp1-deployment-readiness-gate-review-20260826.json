@@ -1,0 +1,44 @@
+{
+  "schema": "km.wp1-deployment-readiness-gate-review.v1",
+  "review": "WP1 Production Readiness Wiring Review",
+  "validation_mode": "isolated_non_production",
+  "production_touched": false,
+  "synthetic_write_performed": false,
+  "stuck_task_touched": false,
+  "redis_or_ledger_mutated": false,
+  "caller": {
+    "script": "restart_kb.sh",
+    "deployment_function": "run_deploy",
+    "readiness_script": "scripts/check_deployment_readiness.py",
+    "caller_invokes_readiness": true,
+    "prior_deployment_wait_path_used": false,
+    "prior_wait_path_formal_rollout": "not used by run_deploy; wait_for_http_200 remains only for generic readiness/status gates"
+  },
+  "readiness_contract": {
+    "direct_backend_url": "${KB_DIRECT_BACKEND_URL:-http://127.0.0.1:8000}",
+    "formal_ingress_url": "${KB_INTERNAL_BASE_URL:-https://127.0.0.1:${KB_HTTPS_PORT:-3030}}",
+    "timeout_seconds": "${KB_RESTART_WAIT_TIMEOUT_SECONDS:-120}",
+    "retry_interval_seconds": 2,
+    "probes": ["direct /health", "direct /api/v1/version", "ingress /health", "ingress /api/v1/version"],
+    "expected_metadata_forwarded": ["commit", "release_id", "image_digest", "build_timestamp"],
+    "nonzero_readiness_exit_fail_closed": true,
+    "acceptance_after_readiness_pass_only": true
+  },
+  "isolated_validation": {
+    "readiness_delayed_start_test": "PASS",
+    "readiness_records_attempts_and_first_success": "PASS",
+    "readiness_unavailable_endpoint_exit": 1,
+    "readiness_unavailable_endpoint_result": "FAIL",
+    "fail_closed_assertion": "PASS",
+    "compose_and_metadata_tests": "5 passed",
+    "shell_syntax": "PASS",
+    "caller_static_contract": "PASS"
+  },
+  "acceptance_order": {
+    "service_recreate": "before readiness",
+    "bounded_readiness": "before run_acceptance_gates",
+    "synthetic_write": "not executed in this review"
+  },
+  "secrets_included": false,
+  "result": "PASS"
+}

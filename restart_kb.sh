@@ -12,9 +12,19 @@ RUNTIME_ENV_FILE="${KB_RUNTIME_ENV_FILE:-}"
 CHECKPOINT=""
 CONFIRM_DEPLOY=""
 ALLOW_DIRTY=false
+DRY_RUN=false
+PINNED_RELEASE_TAG=""
+PINNED_IMAGE_ID=""
+PINNED_COMMIT=""
+PINNED_RELEASE_ID=""
+PINNED_BUILD_TIMESTAMP=""
+ROLLBACK_HELPER="${KB_ROLLBACK_HELPER:-/home/da40_ai_gb10/knowledge-base/scripts/rollback_pre_wp01.py}"
+EXPECTED_COMPOSE_PROJECT="${KB_COMPOSE_PROJECT_NAME:-knowledge-base}"
 WAIT_TIMEOUT="${KB_RESTART_WAIT_TIMEOUT_SECONDS:-120}"
 BASE_URL="${KB_INTERNAL_BASE_URL:-https://127.0.0.1:${KB_HTTPS_PORT:-3030}}"
 EXTERNAL_URL="${KB_EXTERNAL_URL:-$BASE_URL}"
+DIRECT_BACKEND_URL="${KB_DIRECT_BACKEND_URL:-http://127.0.0.1:8000}"
+LAST_READINESS_OUTPUT=""
 FRONTEND_BUILD_DIR="${KB_FRONTEND_BUILD_DIR:-$ROOT_DIR/.frontend-build-runtime-user8}"
 REPORT_ENV_FILE="${KB_REPORT_ENV_FILE:-$ROOT_DIR/config/report-ingest.env}"
 REPORT_ENV_EXAMPLE="${KB_REPORT_ENV_EXAMPLE:-$ROOT_DIR/config/report-ingest.env.example}"
@@ -29,6 +39,7 @@ Usage:
   ./restart_kb.sh [--status]
   ./restart_kb.sh --restart [--env-file FILE]
   ./restart_kb.sh --deploy --confirm-deploy DEPLOY_WP01 [options]
+  ./restart_kb.sh --deploy-pinned --confirm-deploy DEPLOY_WP01 [options]
 
 Modes:
   --status       Read-only WP0/WP1 health, worker, queue and WebSocket checks.
@@ -37,6 +48,8 @@ Modes:
                  and never removes Redis, Neo4j, Qdrant or PostgreSQL.
   --deploy       Create/use a rollback checkpoint, build a candidate image,
                  recreate application containers and run WP0/WP1 gates.
+  --deploy-pinned Deploy an existing approved release tag without rebuilding;
+                  requires an exact image-ID gate and a verified checkpoint.
 
 Deploy options:
   --confirm-deploy DEPLOY_WP01  Required production deployment confirmation.
@@ -46,6 +59,8 @@ Deploy options:
 Common options:
   --env-file FILE               Load an additional protected runtime env file.
   --wait-timeout SECONDS        Readiness timeout (default: 120).
+  --dry-run                     Validate pinned deployment without changing containers.
+  --rollback-helper FILE        Absolute executable rollback helper path.
   -h, --help                    Show this help.
 
 The script always aborts restart/deploy when Celery has active, reserved,
@@ -79,7 +94,7 @@ load_env_file() {
 parse_args() {
     while (($#)); do
         case "$1" in
-            --status|--restart|--deploy)
+            --status|--restart|--deploy|--deploy-pinned)
                 [[ "$MODE_SET" == false ]] || fail "select exactly one mode"
                 MODE="${1#--}"
                 MODE_SET=true
@@ -102,6 +117,39 @@ parse_args() {
             --allow-dirty)
                 ALLOW_DIRTY=true
                 ;;
+            --dry-run)
+                DRY_RUN=true
+                ;;
+            --rollback-helper)
+                (($# >= 2)) || fail "--rollback-helper requires a value"
+                ROLLBACK_HELPER="$2"
+                shift
+                ;;
+            --release-tag)
+                (($# >= 2)) || fail "--release-tag requires a value"
+                PINNED_RELEASE_TAG="$2"
+                shift
+                ;;
+            --expected-image-id)
+                (($# >= 2)) || fail "--expected-image-id requires a value"
+                PINNED_IMAGE_ID="$2"
+                shift
+                ;;
+            --expected-commit)
+                (($# >= 2)) || fail "--expected-commit requires a value"
+                PINNED_COMMIT="$2"
+                shift
+                ;;
+            --expected-release-id)
+                (($# >= 2)) || fail "--expected-release-id requires a value"
+                PINNED_RELEASE_ID="$2"
+                shift
+                ;;
+            --expected-build-timestamp)
+                (($# >= 2)) || fail "--expected-build-timestamp requires a value"
+                PINNED_BUILD_TIMESTAMP="$2"
+                shift
+                ;;
             --wait-timeout)
                 (($# >= 2)) || fail "--wait-timeout requires a value"
                 WAIT_TIMEOUT="$2"
@@ -119,6 +167,20 @@ parse_args() {
     done
 
     [[ "$WAIT_TIMEOUT" =~ ^[1-9][0-9]*$ ]] || fail "--wait-timeout must be a positive integer"
+    if [[ "$MODE" == "deploy-pinned" ]]; then
+        [[ -n "$CHECKPOINT" ]] || fail "--deploy-pinned requires --checkpoint"
+        [[ "$PINNED_RELEASE_TAG" == kb-wp1-release:* ]] || fail \
+            "--deploy-pinned requires an approved kb-wp1-release tag"
+        [[ "$PINNED_IMAGE_ID" =~ ^sha256:[0-9a-f]{64}$ ]] || fail \
+            "--expected-image-id must be a sha256 image ID"
+        [[ "$PINNED_COMMIT" =~ ^[0-9a-f]{40}$ && -n "$PINNED_RELEASE_ID" && \
+           -n "$PINNED_BUILD_TIMESTAMP" ]] || fail \
+            "pinned deployment requires complete expected release metadata"
+        [[ "$ROLLBACK_HELPER" == /* ]] || fail \
+            "--deploy-pinned requires an absolute rollback helper path"
+    fi
+    [[ "$MODE" == "deploy-pinned" || "$DRY_RUN" == false ]] || fail \
+        "--dry-run is supported only with --deploy-pinned"
     if [[ -n "$RUNTIME_ENV_FILE" && ! -f "$RUNTIME_ENV_FILE" ]]; then
         fail "runtime env file does not exist: $RUNTIME_ENV_FILE"
     fi
@@ -232,6 +294,92 @@ wait_for_http_200() {
     done
     printf 'Timed out waiting for %s (last HTTP %s)\n' "$url" "$code" >&2
     return 1
+}
+
+run_bounded_deployment_readiness() {
+    local output="$ROOT_DIR/outputs/deployment-readiness/$(date +%Y%m%d-%H%M%S).json"
+    LAST_READINESS_OUTPUT="$output"
+    local args=(
+        --direct-base-url "$DIRECT_BACKEND_URL"
+        --ingress-base-url "$BASE_URL"
+        --timeout-seconds "$WAIT_TIMEOUT"
+        --interval-seconds 2
+        --output "$output"
+    )
+    if [[ -n "${KM_GIT_COMMIT:-}" && -n "${KM_RELEASE_ID:-}" &&
+          -n "${KM_IMAGE_DIGEST:-}" && -n "${KM_BUILD_TIMESTAMP:-}" ]]; then
+        args+=(
+            --expected-commit "$KM_GIT_COMMIT"
+            --expected-release-id "$KM_RELEASE_ID"
+            --expected-image-digest "$KM_IMAGE_DIGEST"
+            --expected-build-timestamp "$KM_BUILD_TIMESTAMP"
+        )
+    fi
+    python3 "$ROOT_DIR/scripts/check_deployment_readiness.py" "${args[@]}"
+}
+
+capture_ingress_failure_diagnostics() {
+    local output_dir="$ROOT_DIR/outputs/ingress-failure-diagnostics/$(date +%Y%m%d-%H%M%S)"
+    local web_id nginx_id web_network nginx_network web_ip nginx_ip
+    mkdir -p "$output_dir" 2>/dev/null || return 0
+
+    web_id="$(docker inspect kb-web --format '{{.Id}}' 2>/dev/null || true)"
+    nginx_id="$(docker inspect kb-nginx --format '{{.Id}}' 2>/dev/null || true)"
+    web_network="$(docker inspect kb-web --format '{{range $key, $value := .NetworkSettings.Networks}}{{$key}} {{end}}' 2>/dev/null || true)"
+    nginx_network="$(docker inspect kb-nginx --format '{{range $key, $value := .NetworkSettings.Networks}}{{$key}} {{end}}' 2>/dev/null || true)"
+    web_ip="$(docker inspect kb-web --format '{{range $key, $value := .NetworkSettings.Networks}}{{$value.IPAddress}} {{end}}' 2>/dev/null || true)"
+    nginx_ip="$(docker inspect kb-nginx --format '{{range $key, $value := .NetworkSettings.Networks}}{{$value.IPAddress}} {{end}}' 2>/dev/null || true)"
+
+    printf '%s\n' "$web_id" >"$output_dir/web-container-id.txt" 2>/dev/null || true
+    printf '%s\n' "$nginx_id" >"$output_dir/nginx-container-id.txt" 2>/dev/null || true
+    printf '%s\n' "$web_network" >"$output_dir/web-network.txt" 2>/dev/null || true
+    printf '%s\n' "$nginx_network" >"$output_dir/nginx-network.txt" 2>/dev/null || true
+    printf '%s\n' "$web_ip" >"$output_dir/web-ip.txt" 2>/dev/null || true
+    printf '%s\n' "$nginx_ip" >"$output_dir/nginx-ip.txt" 2>/dev/null || true
+    docker exec kb-nginx getent hosts web >"$output_dir/docker-dns-web.txt" 2>&1 || true
+    docker exec kb-nginx wget -qSO- --timeout=5 http://web:8000/health >"$output_dir/nginx-to-web-health.txt" 2>&1 || true
+    docker exec kb-nginx wget -qSO- --timeout=5 http://web:8000/api/v1/version >"$output_dir/nginx-to-web-version.txt" 2>&1 || true
+    curl -k -sS --max-time 5 -D "$output_dir/formal-health-headers.txt" \
+        -o "$output_dir/formal-health-body.txt" "$BASE_URL/health" 2>&1 || true
+    curl -k -sS --max-time 5 -D "$output_dir/formal-version-headers.txt" \
+        -o "$output_dir/formal-version-body.txt" "$BASE_URL/api/v1/version" 2>&1 || true
+    docker logs --since 3m kb-nginx 2>&1 | \
+        sed -E \
+            -e 's/(Authorization:|Cookie:)[^[:space:]]+/\1 [REDACTED]/Ig' \
+            -e 's/((password|passwd|token|secret|api[_-]?key)[=:])[^[:space:]&]+/\1[REDACTED]/Ig' \
+        >"$output_dir/nginx-logs-redacted.txt" || true
+    docker exec kb-nginx nginx -T 2>&1 | \
+        sed -E \
+            -e 's/(Authorization:|Cookie:)[^[:space:]]+/\1 [REDACTED]/Ig' \
+            -e 's/((password|passwd|token|secret|api[_-]?key)[=:])[^[:space:]&]+/\1[REDACTED]/Ig' \
+        >"$output_dir/nginx-config-redacted.txt" || true
+    python3 - "$output_dir" "$LAST_READINESS_OUTPUT" "$web_id" "$nginx_id" "$web_network" "$nginx_network" "$web_ip" "$nginx_ip" <<'PY' 2>/dev/null || true
+import json
+import sys
+from pathlib import Path
+
+directory, readiness, web_id, nginx_id, web_network, nginx_network, web_ip, nginx_ip = sys.argv[1:]
+Path(directory, "manifest.json").write_text(json.dumps({
+    "schema": "km.ingress-failure-diagnostics.v1",
+    "readiness_evidence": readiness,
+    "candidate_web_container_id": web_id,
+    "nginx_container_id": nginx_id,
+    "web_network": web_network,
+    "nginx_network": nginx_network,
+    "web_ip": web_ip,
+    "nginx_ip": nginx_ip,
+    "docker_dns_capture": "docker-dns-web.txt",
+    "nginx_upstream_capture": ["nginx-to-web-health.txt", "nginx-to-web-version.txt"],
+    "formal_ingress_capture": ["formal-health-headers.txt", "formal-health-body.txt", "formal-version-headers.txt", "formal-version-body.txt"],
+    "nginx_logs": "nginx-logs-redacted.txt",
+    "effective_nginx_config": "nginx-config-redacted.txt",
+    "read_only": True,
+    "capture_failure_must_not_block_rollback": True,
+    "secrets_included": False,
+}, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+PY
+    printf 'Ingress failure diagnostics captured (best-effort): %s\n' "$output_dir" >&2
+    return 0
 }
 
 check_wp0_contract() {
@@ -498,10 +646,43 @@ prepare_checkpoint() {
 
 rollback_deploy() {
     printf '\nDeployment gate failed; restoring application images from %s\n' "$CHECKPOINT" >&2
-    python3 scripts/rollback_pre_wp01.py \
+    python3 "$ROLLBACK_HELPER" \
         --checkpoint "$CHECKPOINT" \
         --execute \
         --confirm-production PRE_WP01_ROLLBACK
+}
+
+validate_rollback_helper() {
+    [[ "$ROLLBACK_HELPER" == /* ]] || fail "rollback helper path must be absolute"
+    [[ -f "$ROLLBACK_HELPER" && -x "$ROLLBACK_HELPER" ]] || fail \
+        "rollback helper is missing or not executable: $ROLLBACK_HELPER"
+    printf 'Rollback helper: %s (executable)\n' "$ROLLBACK_HELPER"
+}
+
+validate_application_container_contract() {
+    local name service project network
+    for name in kb-web kb-celery-search kb-celery-ingest kb-celery-beat; do
+        docker inspect "$name" >/dev/null 2>&1 || fail \
+            "required application container is missing: $name"
+    done
+    for service in web celery_search_worker celery_ingest_worker celery_beat; do
+        case "$service" in
+            web) name=kb-web ;;
+            celery_search_worker) name=kb-celery-search ;;
+            celery_ingest_worker) name=kb-celery-ingest ;;
+            celery_beat) name=kb-celery-beat ;;
+        esac
+        project="$(docker inspect "$name" --format '{{index .Config.Labels "com.docker.compose.project"}}')"
+        network="$(docker inspect "$name" --format '{{range $key, $value := .NetworkSettings.Networks}}{{$key}} {{end}}')"
+        [[ "$project" == "$EXPECTED_COMPOSE_PROJECT" ]] || fail \
+            "$name has unexpected Compose project: $project"
+        [[ "$(docker inspect "$name" --format '{{index .Config.Labels "com.docker.compose.service"}}')" == "$service" ]] || fail \
+            "$name has unexpected Compose service label"
+        [[ "$network" == *"${EXPECTED_COMPOSE_PROJECT}_default"* ]] || fail \
+            "$name is not attached to ${EXPECTED_COMPOSE_PROJECT}_default"
+    done
+    export COMPOSE_PROJECT_NAME="$EXPECTED_COMPOSE_PROJECT"
+    printf 'Application container lifecycle contract: PASS (%s)\n' "$EXPECTED_COMPOSE_PROJECT"
 }
 
 restore_frontend() {
@@ -553,6 +734,11 @@ run_deploy() {
         rollback_deploy
         fail "candidate containers failed to start; rollback completed"
     fi
+    if ! run_bounded_deployment_readiness; then
+        restore_frontend "$frontend_previous"
+        rollback_deploy
+        fail "bounded deployment readiness gate failed; rollback completed"
+    fi
     if ! run_acceptance_gates; then
         restore_frontend "$frontend_previous"
         rollback_deploy
@@ -562,6 +748,86 @@ run_deploy() {
     docker image tag "$candidate_id" "kb-wp01-live:$release_tag"
     printf '\nDeployment completed.\nCandidate: kb-wp01-candidate:%s\nLive: kb-wp01-live:%s\nCheckpoint: %s\n' \
         "$release_tag" "$release_tag" "$CHECKPOINT"
+}
+
+validate_pinned_candidate() {
+    local observed
+    observed="$(docker image inspect "$PINNED_RELEASE_TAG" --format '{{.Id}}' 2>/dev/null || true)"
+    [[ "$observed" == "$PINNED_IMAGE_ID" ]] || fail \
+        "pinned image identity mismatch: tag=$PINNED_RELEASE_TAG observed=$observed expected=$PINNED_IMAGE_ID"
+    printf 'Pinned candidate image: %s (%s)\n' "$PINNED_RELEASE_TAG" "$observed"
+}
+
+configure_pinned_compose() {
+    local override="${TMPDIR:-/tmp}/kb-pinned-release-$$.yml"
+    export KM_GIT_COMMIT="$PINNED_COMMIT"
+    export KM_RELEASE_ID="$PINNED_RELEASE_ID"
+    export KM_IMAGE_DIGEST="$PINNED_IMAGE_ID"
+    export KM_BUILD_TIMESTAMP="$PINNED_BUILD_TIMESTAMP"
+    export KB_JOB_LEDGER_PATH="/home/da40_ai_gb10/knowledge-base/data/job-ledger.sqlite3"
+    python3 "$ROOT_DIR/scripts/generate_release_compose_override.py" \
+        --image "$PINNED_RELEASE_TAG" \
+        --commit "$PINNED_COMMIT" \
+        --release-id "$PINNED_RELEASE_ID" \
+        --image-digest "$PINNED_IMAGE_ID" \
+        --build-timestamp "$PINNED_BUILD_TIMESTAMP" \
+        --output "$override" >/dev/null
+    COMPOSE=(docker compose -f "$ROOT_DIR/docker-compose.yml" -f "$override")
+    printf 'Pinned Compose override: %s\n' "$override"
+}
+
+run_deploy_pinned() {
+    [[ "$CONFIRM_DEPLOY" == "DEPLOY_WP01" ]] || fail \
+        "--deploy-pinned requires --confirm-deploy DEPLOY_WP01"
+    configure_pinned_compose
+    validate_pinned_candidate
+    compose_preflight
+    CHECKPOINT="$(realpath "$CHECKPOINT")"
+    validate_checkpoint "$CHECKPOINT"
+    printf 'Using verified rollback checkpoint: %s\n' "$CHECKPOINT"
+    validate_rollback_helper
+    validate_application_container_contract
+    if [[ "$DRY_RUN" == true ]]; then
+        local rendered
+        rendered="$("${COMPOSE[@]}" --profile scheduler config --format json)"
+        python3 - "$rendered" "$PINNED_RELEASE_TAG" "$PINNED_IMAGE_ID" <<'PY'
+import json
+import sys
+
+config = json.loads(sys.argv[1])
+services = config.get("services", {})
+expected_image, expected_id = sys.argv[2:]
+for name in ("web", "celery_search_worker", "celery_ingest_worker", "celery_beat"):
+    service = services[name]
+    assert service["image"] == expected_image, (name, service["image"])
+    assert service.get("pull_policy") == "never", (name, service.get("pull_policy"))
+    env = service["environment"]
+    assert env["KM_IMAGE_DIGEST"] == expected_id
+    assert env["KB_JOB_LEDGER_PATH"] == "/home/da40_ai_gb10/knowledge-base/data/job-ledger.sqlite3"
+print("pinned deployment dry-run render: PASS")
+PY
+        printf 'No container/image/working-tree mutation performed.\n'
+        return 0
+    fi
+    require_idle_tasks
+
+    info "Recreating four application services from pinned release tag"
+    if ! "${COMPOSE[@]}" --profile scheduler up -d --no-deps --no-build --pull never --force-recreate \
+        web celery_search_worker celery_ingest_worker celery_beat; then
+        rollback_deploy
+        fail "pinned candidate containers failed to start; rollback completed"
+    fi
+    if ! run_bounded_deployment_readiness; then
+        capture_ingress_failure_diagnostics
+        rollback_deploy
+        fail "bounded deployment readiness gate failed; rollback completed"
+    fi
+    if ! run_acceptance_gates; then
+        rollback_deploy
+        fail "pinned candidate failed WP0/WP1 gates; rollback completed"
+    fi
+    printf '\nPinned deployment gates completed.\nRelease: %s\nImage: %s\nCheckpoint: %s\n' \
+        "$PINNED_RELEASE_ID" "$PINNED_IMAGE_ID" "$CHECKPOINT"
 }
 
 main() {
@@ -574,6 +840,7 @@ main() {
         status) run_status ;;
         restart) run_restart ;;
         deploy) run_deploy ;;
+        deploy-pinned) run_deploy_pinned ;;
         *) fail "unsupported mode: $MODE" ;;
     esac
 }
