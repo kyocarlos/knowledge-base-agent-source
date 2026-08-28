@@ -14,6 +14,7 @@ from production_acceptance_hard_gates import (
     evaluate_cleanup_probe,
     validate_failure_bundle,
     validate_production_evidence_root,
+    validate_runner_sha,
 )
 
 
@@ -61,6 +62,11 @@ class ProductionAcceptanceHardGateTests(unittest.TestCase):
             path.write_text(json.dumps({}), encoding="utf-8")
             with self.assertRaises(ValueError):
                 validate_failure_bundle(path)
+
+    def test_runner_sha_mismatch_fails_closed(self):
+        with self.assertRaises(ValueError):
+            validate_runner_sha("actual", "isolated")
+        self.assertTrue(validate_runner_sha("same", "same")["runner_sha_match"])
 
 
 if __name__ == "__main__":

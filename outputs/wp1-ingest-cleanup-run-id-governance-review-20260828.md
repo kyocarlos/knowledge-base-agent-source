@@ -13,7 +13,7 @@ All three requested tracks were completed in isolated/non-production scope. Prod
 
 ## Verification
 
-Python compile, `git diff --check`, and focused tests passed (`13 tests`). Additional hard gates validate a non-empty read-only production evidence root, cleanup backend availability, and failure capture persistence. Diagnostic capture is best-effort and rollback remains unconditional if capture fails. No secrets or credential material were included. The previously reused production Run ID remains an audit failure; it was not rewritten.
+Python compile, `git diff --check`, and focused tests passed (`14 tests`). Additional hard gates validate a non-empty read-only production evidence root, cleanup backend availability, failure capture persistence, and runner SHA equality with the isolated PASS runner. Diagnostic capture is best-effort and rollback remains unconditional if capture fails. No secrets or credential material were included. The previously reused production Run ID remains an audit failure; it was not rewritten.
 
 ## Limits
 

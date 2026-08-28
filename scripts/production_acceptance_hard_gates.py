@@ -42,3 +42,9 @@ def validate_failure_bundle(bundle_path: Path) -> dict[str, object]:
     if not isinstance(payload, dict) or not payload.get("failure_window"):
         raise ValueError("failure bundle must contain failure_window evidence")
     return {"persisted": True, "path": str(path), "secrets_included": False}
+
+
+def validate_runner_sha(actual_sha: str, isolated_pass_sha: str) -> dict[str, object]:
+    if not actual_sha or actual_sha != isolated_pass_sha:
+        raise ValueError("runner SHA does not match isolated PASS runner")
+    return {"runner_sha_match": True, "actual_sha": actual_sha}

@@ -29,9 +29,10 @@
     "cleanup_backend_availability_probe": "FAIL_CLOSED_PASS",
     "failure_capture_before_rollback": "PASS",
     "capture_failure_does_not_block_rollback": "PASS",
-    "tests": "6_PASS"
+    "runner_sha_match": "FAIL_CLOSED_PASS",
+    "tests": "7_PASS"
   },
-  "focused_tests": {"command": "python3 -m unittest -v tests.test_production_run_id_gate tests.test_wp1_isolated_diagnostics tests.test_production_acceptance_hard_gates", "result": "13_PASS"},
+  "focused_tests": {"command": "python3 -m unittest -v tests.test_production_run_id_gate tests.test_wp1_isolated_diagnostics tests.test_production_acceptance_hard_gates", "result": "14_PASS"},
   "validation": {"python_compile": "PASS", "git_diff_check": "PASS", "secrets_included": false},
   "production_gate": "NO-GO",
   "next_step": "isolated reproduction with retained real failure-window logs and independent cleanup backend diagnosis; no production retry authorized"
