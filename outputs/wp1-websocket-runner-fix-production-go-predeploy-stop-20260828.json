@@ -1,0 +1,42 @@
+{
+  "schema": "km.wp1.websocket-runner-fix-predeploy-stop.v1",
+  "generated_at": "2026-08-28T13:45:00+00:00",
+  "result": "FAIL_CLOSED_BEFORE_DEPLOYMENT",
+  "classification": "RUNNER_EXECUTABLE_IDENTITY_ALIGNMENT_GAP",
+  "approved_candidate": {
+    "source_commit": "914d7c829269779f13c47d71ebd27ecb9dde84ec",
+    "release_id": "wp1-deployment-metadata-yaml-quoting-fix-20260826-r1",
+    "image_id": "sha256:54650d64a2867be1ee21bbcb47951d5bc28d85ef76fcac370310b36a9c80bee3"
+  },
+  "approved_runner": {
+    "commit": "920b9ac3aa85f2ac2933256db7adf8207ff3b2ec",
+    "crypto_implementation_sha256": "eabed02c15d4234e99188e572616aa2132446b19e5a96b186427ac39d926501b"
+  },
+  "finding": {
+    "approved_commit_contains_production_acceptance_runner": false,
+    "approved_commit_files": [
+      "scripts/websocket_crypto_preflight.py",
+      "scripts/validate_websocket_runner_ed25519.py",
+      "tests/test_websocket_crypto_preflight.py",
+      "outputs/wp1-websocket-runner-ed25519-signing-fix-20260828.json",
+      "outputs/wp1-websocket-runner-ed25519-signing-fix-20260828.md"
+    ],
+    "only_available_production_acceptance_runner": "unversioned temporary artifact",
+    "temporary_runner_sha_matches_approved_runner_commit": false,
+    "reason": "A temporary, unversioned runner cannot satisfy the required reviewed runner SHA/crypto implementation identity gate."
+  },
+  "predeployment_gates_observed": {
+    "baseline_health_and_runtime": "PASS",
+    "checkpoint_verification": "PASS",
+    "candidate_local_image_id": "PASS",
+    "pinned_dry_run": "PASS",
+    "websocket_crypto_preflight": "PASS"
+  },
+  "production_touched": false,
+  "container_recreate": false,
+  "production_restart": false,
+  "production_write": false,
+  "websocket_session_created": false,
+  "secrets_included": false,
+  "required_next_review": "WP1_PRODUCTION_ACCEPTANCE_RUNNER_IDENTITY_ALIGNMENT_REVIEW"
+}
