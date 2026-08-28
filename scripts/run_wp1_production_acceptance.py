@@ -221,13 +221,13 @@ def run_acceptance(args: argparse.Namespace) -> dict[str, object]:
     secrets = read_env(args.credentials_env)
     evidence: dict[str, object] = {"run_id": args.run_id, "production_touched": args.production, "secrets_included": False}
     evidence["pre_network_identity_gate"] = pre_network_identity_gate(args, secrets)
-    evidence["runtime_identity"] = verify_runtime_identity(args.base_url.rstrip("/"), args)
     base = args.base_url.rstrip("/")
     agent = {"Authorization": f"Bearer {secrets['E2E_AGENT_TOKEN']}", "X-E2E-Agent-ID": secrets["E2E_AGENT_ID"], "X-E2E-Test-Mode": "true", "X-E2E-Test-Run-ID": args.run_id, "Idempotency-Key": args.run_id}
     reviewer = {"Authorization": f"Bearer {secrets['E2E_REVIEWER_TOKEN']}", "X-E2E-Reviewer-ID": secrets["E2E_REVIEWER_ID"], "X-E2E-Test-Mode": "true"}
     cleanup = {"Authorization": f"Bearer {secrets['E2E_CLEANUP_TOKEN']}", "X-E2E-Cleanup-ID": secrets["E2E_CLEANUP_ID"]}
     submission_id: str | None = None
     try:
+        evidence["runtime_identity"] = verify_runtime_identity(base, args)
         search_status, search_body = post_json(f"{base}/search", {"query": "synthetic acceptance probe", "mode": "basic", "sources_only": True}, {"X-Trace-ID": args.run_id})
         evidence["search"] = {"status": search_status, "task_id_present": bool(parse_json(search_body, "search").get("task_id"))}
         if search_status != 200 or not evidence["search"]["task_id_present"]:

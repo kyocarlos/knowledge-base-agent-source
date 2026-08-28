@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import tempfile
+import urllib.error
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -136,3 +137,18 @@ class ProductionAcceptanceRunnerTests(unittest.TestCase):
         self.assertEqual(sequence, ["search", "upload", "upload", "approve", "cleanup"])
         websocket.assert_called_once_with(args.base_url, args.run_id)
         self.assertEqual(json.loads(args.evidence_out.read_text(encoding="utf-8"))["residual_count"], 0)
+
+    def test_runtime_probe_failure_is_persisted_after_identity_gate(self) -> None:
+        args = self.args()
+        args.base_url = "http://127.0.0.1:18888"
+        args.credentials_env = self.credentials
+        args.evidence_out = self.root / "failed-runner-evidence.json"
+        args.production = False
+        with mock.patch.object(runner, "git_head", return_value="approved-head"), \
+             mock.patch.object(runner, "verify_runtime_identity", side_effect=urllib.error.URLError("offline")):
+            with self.assertRaises(urllib.error.URLError):
+                runner.run_acceptance(args)
+        evidence = json.loads(args.evidence_out.read_text(encoding="utf-8"))
+        self.assertEqual(evidence["pre_network_identity_gate"]["run_id_uniqueness_gate"], "PASS")
+        self.assertEqual(evidence["result"], "FAIL")
+        self.assertEqual(evidence["error_type"], "URLError")
