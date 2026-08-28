@@ -115,22 +115,29 @@ def e2e_environment(hash_file: Path | None, prefix: str) -> str:
     return yaml.safe_dump(environment, default_flow_style=False, sort_keys=False).rstrip()
 
 
-def websocket_chat_exchange(url: str, source_root: Path) -> dict[str, object]:
-    """Check handshake and a synthetic upstream chat response without storing content."""
+def websocket_chat_exchange(url: str, source_root: Path, auth_token: str = "") -> dict[str, object]:
+    """Exercise the authenticated OpenClaw challenge/connect/chat sequence."""
     probe = (
         "import asyncio,json,sys\nimport websockets\n"
         "async def main():\n"
-        " r={'handshake':False,'response':False,'closed':False,'close_code':None,'frames':[]}\n"
+        " r={'handshake':False,'auth_sent':False,'ready':False,'chat_sent':False,'response':False,'closed':False,'close_code':None,'frames':[]}\n"
         " try:\n"
         "  async with websockets.connect(sys.argv[1],open_timeout=10,close_timeout=5) as ws:\n"
         "   r['handshake']=True\n"
-        "   await ws.send(json.dumps({'type':'auth','token':''})); r['frames'].append({'direction':'client_to_candidate','type':'auth'})\n"
-        "   await ws.send(json.dumps({'type':'req','id':'ws-e2e-1','method':'chat.send','params':{'message':'synthetic gateway probe','sessionKey':'agent:isolated:e2e'}})); r['frames'].append({'direction':'client_to_candidate','type':'req','id':'ws-e2e-1','method':'chat.send','session_key':'agent:isolated:e2e'})\n"
-        "   for _ in range(10):\n"
+        "   await ws.send(json.dumps({'type':'auth','token':sys.argv[2]})); r['auth_sent']=True; r['frames'].append({'direction':'client_to_candidate','type':'auth','token_present':bool(sys.argv[2])})\n"
+        "   for _ in range(20):\n"
         "    try: msg=json.loads(await asyncio.wait_for(ws.recv(),timeout=10))\n"
-        "    except Exception as exc: r['frames'].append({'direction':'candidate_to_client','exception':type(exc).__name__}); break\n"
-        "    r['frames'].append({'direction':'candidate_to_client','type':msg.get('type'),'event':msg.get('event'),'id':msg.get('id'),'state':(msg.get('payload') or {}).get('state')})\n"
-        "    if msg.get('event')=='chat' and (msg.get('payload') or {}).get('state') in ('final','end'):\n"
+        "    except Exception as exc: r['frames'].append({'direction':'candidate_to_client','exception':type(exc).__name__,'close_code':getattr(ws,'close_code',None)}); break\n"
+        "    frame={'direction':'candidate_to_client','type':msg.get('type'),'event':msg.get('event'),'method':msg.get('method'),'id':msg.get('id'),'state':(msg.get('payload') or {}).get('state')}\n"
+        "    r['frames'].append(frame)\n"
+        "    if msg.get('event')=='connect.challenge':\n"
+        "     p=msg.get('payload') or {}; connect={'type':'req','id':'c1','method':'connect','params':{'minProtocol':3,'maxProtocol':3,'client':{'id':'cli','version':'1.0.0','platform':'linux','mode':'cli'},'role':'operator','scopes':['operator.read','operator.write'],'auth':{'token':sys.argv[2],'deviceToken':'isolated-device-token'},'device':{'id':'isolated-device','publicKey':'redacted','signature':'redacted','signedAt':p.get('ts'),'nonce':p.get('nonce')},'locale':'zh-TW','userAgent':'openclaw-e2e/1.0.0'}}\n"
+        "     await ws.send(json.dumps(connect)); r['frames'].append({'direction':'client_to_candidate','type':'req','method':'connect','id':'c1','auth_token_present':bool(sys.argv[2]),'device_signature':'redacted'})\n"
+        "    elif msg.get('type')=='res' and msg.get('id')=='c1' and msg.get('ok'):\n"
+        "     r['ready']=True\n"
+        "     chat={'type':'req','id':'ws-e2e-1','method':'chat.send','params':{'message':'synthetic gateway probe','sessionKey':'agent:isolated:e2e','idempotencyKey':'ws-e2e-1'}}\n"
+        "     await ws.send(json.dumps(chat)); r['chat_sent']=True; r['frames'].append({'direction':'client_to_candidate','type':'req','method':'chat.send','id':'ws-e2e-1','session_key':'agent:isolated:e2e'})\n"
+        "    elif msg.get('event')=='chat' and (msg.get('payload') or {}).get('state') in ('final','end'):\n"
         "     r['response']=True; break\n"
         "   await ws.close()\n"
         "   r['closed']=True; r['close_code']=getattr(ws,'close_code',None)\n"
@@ -140,7 +147,7 @@ def websocket_chat_exchange(url: str, source_root: Path) -> dict[str, object]:
     python = source_root / ".venv/bin/python"
     if not python.is_file():
         return {"handshake": False, "error": "websocket runtime unavailable"}
-    result = subprocess.run([str(python), "-c", probe, url], capture_output=True, text=True, check=False)
+    result = subprocess.run([str(python), "-c", probe, url, auth_token], capture_output=True, text=True, check=False)
     try:
         return json.loads(result.stdout)
     except json.JSONDecodeError:
@@ -214,20 +221,30 @@ def main() -> int:
         openclaw_dir = work / "openclaw"
         (openclaw_dir / "identity").mkdir(parents=True)
         (openclaw_dir / "workspace" / "memory").mkdir(parents=True)
-        (openclaw_dir / "openclaw.json").write_text('{"gateway":{"auth":{"token":""},"port":8765}}\n', encoding="utf-8")
+        isolated_gateway_token = "isolated-gateway-token"
+        (openclaw_dir / "openclaw.json").write_text(json.dumps({"gateway": {"auth": {"token": isolated_gateway_token}, "port": 8765}}) + "\n", encoding="utf-8")
         (openclaw_dir / "identity" / "device.json").write_text('{}\n', encoding="utf-8")
         (openclaw_dir / "identity" / "device-auth.json").write_text('{}\n', encoding="utf-8")
         gateway_script = work / "gateway.py"
         gateway_script.write_text(
-            "import asyncio,json\nimport websockets\n"
+            "import asyncio,json,time\nimport websockets\n"
+            "TOKEN='isolated-gateway-token'\n"
+            "async def record(frame):\n"
+            " with open('/app/data/gateway-frames.jsonl','a',encoding='utf-8') as f: f.write(json.dumps(frame,sort_keys=True)+'\\n')\n"
             "async def handler(ws):\n"
+            " await ws.send(json.dumps({'type':'event','event':'connect.challenge','payload':{'nonce':'isolated-nonce','ts':int(time.time()*1000)}}))\n"
+            " ready=False\n"
             " async for raw in ws:\n"
-            "  m=json.loads(raw)\n"
-            "  with open('/app/data/gateway-frames.jsonl','a',encoding='utf-8') as f: f.write(json.dumps({'direction':'gateway_received','type':m.get('type'),'method':m.get('method'),'id':m.get('id'),'session_key':(m.get('params') or {}).get('sessionKey')})+'\\n')\n"
-            "  if m.get('method')=='chat.send':\n"
-            "   r={'type':'event','event':'chat','payload':{'state':'final','sessionKey':(m.get('params') or {}).get('sessionKey'),'message':{'content':[{'type':'text','text':'synthetic gateway response'}]}}}\n"
-            "   await ws.send(json.dumps(r))\n"
-            "   with open('/app/data/gateway-frames.jsonl','a',encoding='utf-8') as f: f.write(json.dumps({'direction':'gateway_sent','type':'event','event':'chat','state':'final','session_key':(m.get('params') or {}).get('sessionKey')})+'\\n')\n"
+            "  m=json.loads(raw); await record({'direction':'gateway_received','type':m.get('type'),'method':m.get('method'),'id':m.get('id'),'session_key':(m.get('params') or {}).get('sessionKey'),'auth_token_present':bool(((m.get('params') or {}).get('auth') or {}).get('token'))})\n"
+            "  if m.get('type')=='req' and m.get('method')=='connect':\n"
+            "   auth=(m.get('params') or {}).get('auth') or {}\n"
+            "   if auth.get('token') != TOKEN:\n"
+            "    await ws.close(code=4401,reason='invalid gateway token'); return\n"
+            "   ready=True; await ws.send(json.dumps({'type':'res','id':m.get('id'),'ok':True,'payload':{'protocol':3}})); continue\n"
+            "  if m.get('type')=='req' and m.get('method')=='chat.send':\n"
+            "   if not ready: await ws.close(code=4401,reason='connect required'); return\n"
+            "   await ws.send(json.dumps({'type':'res','id':m.get('id'),'ok':True,'payload':{'status':'queued'}}))\n"
+            "   await ws.send(json.dumps({'type':'event','event':'chat','payload':{'state':'final','sessionKey':(m.get('params') or {}).get('sessionKey'),'message':{'content':[{'type':'text','text':'synthetic gateway response'}]}}}))\n"
             "async def main():\n"
             " async with websockets.serve(handler,'0.0.0.0',8765): await asyncio.Future()\n"
             "asyncio.run(main())\n",
@@ -558,7 +575,7 @@ def main() -> int:
             )
             if search_status != 200 or not json.loads(search_body).get("task_id"):
                 raise RuntimeError(f"candidate search submission failed: {search_status} {search_body}")
-            evidence["websocket"] = websocket_chat_exchange(f"ws://127.0.0.1:{port}/ws", source)
+            evidence["websocket"] = websocket_chat_exchange(f"ws://127.0.0.1:{port}/ws", source, isolated_gateway_token)
             if not evidence["websocket"].get("handshake"):
                 raise RuntimeError(f"candidate WebSocket handshake failed: {evidence['websocket']}")
             evidence["websocket"]["gateway_frames"] = []

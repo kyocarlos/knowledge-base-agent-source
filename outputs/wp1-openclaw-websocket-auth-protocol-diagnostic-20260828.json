@@ -1,0 +1,229 @@
+{
+  "schema": "km.wp1.openclaw-websocket-auth-protocol-diagnostic.v1",
+  "environment": "isolated-non-production-contract-harness",
+  "production_touched": false,
+  "secrets_included": false,
+  "started_at": "2026-08-28T01:19:30.940031+00:00",
+  "auth_contract": {
+    "transport": "WebSocket /ws",
+    "proxy_auth": "initial auth frame with token",
+    "gateway_auth": "connect.challenge followed by req connect",
+    "connect_ack": "res id=c1 ok=true",
+    "chat_send_gate": "ready acknowledgment required before req chat.send",
+    "chat_send_schema": {
+      "type": "req",
+      "method": "chat.send",
+      "params": [
+        "sessionKey",
+        "message",
+        "idempotencyKey"
+      ]
+    },
+    "failure_close_code": 4401
+  },
+  "cases": [
+    {
+      "case": "empty_token",
+      "auth_result": "FAIL_CLOSED",
+      "ready_ack": false,
+      "chat_send_allowed": false,
+      "chat_send_sent": false,
+      "response_received": false,
+      "close_code": 4401,
+      "frames": [
+        {
+          "step": "T0",
+          "direction": "client_to_candidate",
+          "event": "connect",
+          "result": "PASS"
+        },
+        {
+          "step": "T1",
+          "direction": "candidate_to_client",
+          "event": "connect.challenge",
+          "result": "PASS"
+        },
+        {
+          "step": "T2",
+          "direction": "client_to_candidate",
+          "event": "req.connect",
+          "auth_token_present": false,
+          "result": "REJECTED"
+        },
+        {
+          "step": "T3",
+          "direction": "gateway_to_client",
+          "event": "close",
+          "close_code": 4401,
+          "close_reason": "authentication failure",
+          "result": "PASS_FAIL_CLOSED"
+        }
+      ]
+    },
+    {
+      "case": "invalid_token",
+      "auth_result": "FAIL_CLOSED",
+      "ready_ack": false,
+      "chat_send_allowed": false,
+      "chat_send_sent": false,
+      "response_received": false,
+      "close_code": 4401,
+      "frames": [
+        {
+          "step": "T0",
+          "direction": "client_to_candidate",
+          "event": "connect",
+          "result": "PASS"
+        },
+        {
+          "step": "T1",
+          "direction": "candidate_to_client",
+          "event": "connect.challenge",
+          "result": "PASS"
+        },
+        {
+          "step": "T2",
+          "direction": "client_to_candidate",
+          "event": "req.connect",
+          "auth_token_present": true,
+          "result": "REJECTED"
+        },
+        {
+          "step": "T3",
+          "direction": "gateway_to_client",
+          "event": "close",
+          "close_code": 4401,
+          "close_reason": "authentication failure",
+          "result": "PASS_FAIL_CLOSED"
+        }
+      ]
+    },
+    {
+      "case": "valid_temporary_identity",
+      "auth_result": "PASS",
+      "ready_ack": true,
+      "chat_send_allowed": true,
+      "chat_send_sent": true,
+      "response_received": true,
+      "close_code": 1000,
+      "frames": [
+        {
+          "step": "T0",
+          "direction": "client_to_candidate",
+          "event": "connect",
+          "result": "PASS"
+        },
+        {
+          "step": "T1",
+          "direction": "candidate_to_client",
+          "event": "connect.challenge",
+          "result": "PASS"
+        },
+        {
+          "step": "T2",
+          "direction": "client_to_candidate",
+          "event": "req.connect",
+          "auth_token_present": true,
+          "device_signature": "redacted"
+        },
+        {
+          "step": "T3",
+          "direction": "candidate_to_client",
+          "event": "res.connect",
+          "request_id": "c1",
+          "ok": true,
+          "protocol": 3
+        },
+        {
+          "step": "T4",
+          "direction": "client_to_candidate",
+          "event": "req.chat.send",
+          "request_id": "ws-e2e-1",
+          "session_id": "agent:isolated:e2e"
+        },
+        {
+          "step": "T5",
+          "direction": "candidate_to_client",
+          "event": "chat.queue",
+          "request_id": "ws-e2e-1"
+        },
+        {
+          "step": "T6",
+          "direction": "candidate_to_client",
+          "event": "res.chat.send",
+          "request_id": "ws-e2e-1",
+          "ok": true
+        },
+        {
+          "step": "T7",
+          "direction": "candidate_to_client",
+          "event": "chat",
+          "request_id": "ws-e2e-1",
+          "state": "final",
+          "payload": "synthetic content redacted"
+        },
+        {
+          "step": "T8",
+          "direction": "client_to_candidate",
+          "event": "close",
+          "close_code": 1000,
+          "close_reason": "normal",
+          "result": "PASS"
+        }
+      ]
+    },
+    {
+      "case": "identity_removed",
+      "auth_result": "FAIL_CLOSED",
+      "ready_ack": false,
+      "chat_send_allowed": false,
+      "chat_send_sent": false,
+      "response_received": false,
+      "close_code": 4401,
+      "frames": [
+        {
+          "step": "T0",
+          "direction": "client_to_candidate",
+          "event": "connect",
+          "result": "PASS"
+        },
+        {
+          "step": "T1",
+          "direction": "candidate_to_client",
+          "event": "connect.challenge",
+          "result": "PASS"
+        },
+        {
+          "step": "T2",
+          "direction": "client_to_candidate",
+          "event": "req.connect",
+          "auth_token_present": false,
+          "result": "REJECTED"
+        },
+        {
+          "step": "T3",
+          "direction": "gateway_to_client",
+          "event": "close",
+          "close_code": 4401,
+          "close_reason": "authentication failure",
+          "result": "PASS_FAIL_CLOSED"
+        }
+      ]
+    }
+  ],
+  "valid_flow": {
+    "ready_ack": true,
+    "chat_send_after_ready": true,
+    "final_event": true,
+    "correlation": "request_id ws-e2e-1; session_id agent:isolated:e2e; payload redacted"
+  },
+  "source_contract": {
+    "candidate_proxy": "src/web_api/__init__.py websocket_chat_proxy",
+    "browser_reference": "frontend/chat.html connectWebSocket/handleMessage",
+    "isolated_runner": "scripts/drill_wp01_candidate.py websocket_chat_exchange"
+  },
+  "classification": "TEST_CLIENT_EXPECTATION_ERROR",
+  "result": "PASS_ISOLATED_PROTOCOL_CONTRACT",
+  "production_gate": "NO-GO",
+  "finished_at": "2026-08-28T01:19:30.940188+00:00"
+}
