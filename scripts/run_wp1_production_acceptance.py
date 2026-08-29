@@ -14,14 +14,17 @@ import base64
 import hashlib
 import json
 import os
+import re
 import ssl
 import subprocess
 import sys
 import time
 import urllib.error
 import urllib.request
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlsplit, urlunsplit
 
 try:  # Support both `python scripts/...py` and test-module imports.
     from .prepare_wp1_acceptance_fixture import validate_request_contract
@@ -66,15 +69,72 @@ def read_env(path: Path) -> dict[str, str]:
     return values
 
 
-def request(url: str, headers: dict[str, str] | None = None, *, method: str = "GET", body: bytes | None = None) -> tuple[int, str]:
+_SENSITIVE_NAME = ("authorization", "cookie", "token", "secret", "password", "passwd", "api-key", "apikey", "signature", "private")
+
+
+def _safe_url(url: str) -> str:
+    parts = urlsplit(url)
+    return urlunsplit((parts.scheme, parts.netloc, parts.path, "<redacted>" if parts.query else "", ""))
+
+
+def _safe_headers(headers: Any) -> dict[str, str]:
+    if not hasattr(headers, "items"):
+        return {}
+    return {
+        str(key): str(value)[:200]
+        for key, value in headers.items()
+        if not any(term in str(key).lower() for term in _SENSITIVE_NAME)
+    }
+
+
+def _safe_body(body: str) -> str:
+    try:
+        value = json.loads(body)
+        def redact(item: Any) -> Any:
+            if isinstance(item, dict):
+                return {
+                    key: "[REDACTED]" if any(term in key.lower() for term in _SENSITIVE_NAME) else redact(val)
+                    for key, val in item.items()
+                }
+            if isinstance(item, list):
+                return [redact(val) for val in item]
+            return item
+        return json.dumps(redact(value), ensure_ascii=False, separators=(",", ":"))[:4096]
+    except (TypeError, ValueError):
+        return re.sub(
+            r"(?i)((?:authorization|cookie|token|secret|password|passwd|api[_-]?key|signature|private)[=: ]+)[^\\s,;]+",
+            r"\1[REDACTED]",
+            body,
+        )[:4096]
+
+
+def request_observed(url: str, headers: dict[str, str] | None = None, *, method: str = "GET", body: bytes | None = None) -> tuple[int, str, dict[str, object]]:
     request_headers = dict(headers or {})
     target = urllib.request.Request(url, headers=request_headers, data=body, method=method)
     context = ssl._create_unverified_context() if url.startswith("https://") else None
+    observation: dict[str, object] = {
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "method": method,
+        "url": _safe_url(url),
+        "request_headers": _safe_headers(request_headers),
+    }
     try:
         with urllib.request.urlopen(target, timeout=25, context=context) as response:
-            return response.status, response.read().decode("utf-8", "replace")
+            response_body = response.read().decode("utf-8", "replace")
+            observation.update({"status": response.status, "response_headers": _safe_headers(response.headers), "server": response.headers.get("Server", ""), "body": _safe_body(response_body)})
+            return response.status, response_body, observation
     except urllib.error.HTTPError as exc:
-        return exc.code, exc.read().decode("utf-8", "replace")
+        response_body = exc.read().decode("utf-8", "replace")
+        observation.update({"status": exc.code, "response_headers": _safe_headers(exc.headers), "server": exc.headers.get("Server", ""), "body": _safe_body(response_body)})
+        return exc.code, response_body, observation
+    except (urllib.error.URLError, TimeoutError, OSError) as exc:
+        observation.update({"status": 0, "error_type": type(exc).__name__, "error_reason": str(exc).splitlines()[0][:200]})
+        return 0, "", observation
+
+
+def request(url: str, headers: dict[str, str] | None = None, *, method: str = "GET", body: bytes | None = None) -> tuple[int, str]:
+    status, response_body, _ = request_observed(url, headers, method=method, body=body)
+    return status, response_body
 
 
 def post_json(url: str, payload: dict[str, object], headers: dict[str, str] | None = None) -> tuple[int, str]:
@@ -87,6 +147,12 @@ def post_json(url: str, payload: dict[str, object], headers: dict[str, str] | No
 
 
 def post_multipart(url: str, fixture: Path, attachment: Path, headers: dict[str, str]) -> tuple[int, str]:
+    status, response_body, _ = post_multipart_observed(url, fixture, attachment, headers)
+    return status, response_body
+    return status, response_body
+
+
+def post_multipart_observed(url: str, fixture: Path, attachment: Path, headers: dict[str, str]) -> tuple[int, str, dict[str, object]]:
     boundary = f"----kb-wp1-{hashlib.sha256(os.urandom(32)).hexdigest()}"
     files = (
         ("file", fixture, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"),
@@ -94,15 +160,9 @@ def post_multipart(url: str, fixture: Path, attachment: Path, headers: dict[str,
     )
     parts: list[bytes] = []
     for field, path, mime_type in files:
-        parts.extend((
-            f"--{boundary}\r\n".encode(),
-            f'Content-Disposition: form-data; name="{field}"; filename="{path.name}"\r\n'.encode(),
-            f"Content-Type: {mime_type}\r\n\r\n".encode(),
-            path.read_bytes(),
-            b"\r\n",
-        ))
+        parts.extend((f"--{boundary}\r\n".encode(), f'Content-Disposition: form-data; name="{field}"; filename="{path.name}"\r\n'.encode(), f"Content-Type: {mime_type}\r\n\r\n".encode(), path.read_bytes(), b"\r\n"))
     body = b"".join(parts) + f"--{boundary}--\r\n".encode()
-    return request(url, {**headers, "Content-Type": f"multipart/form-data; boundary={boundary}", "Content-Length": str(len(body))}, method="POST", body=body)
+    return request_observed(url, {**headers, "Content-Type": f"multipart/form-data; boundary={boundary}", "Content-Length": str(len(body))}, method="POST", body=body)
 
 
 def parse_json(body: str, label: str) -> dict[str, Any]:
@@ -217,9 +277,50 @@ def websocket_exchange(base_url: str, run_id: str) -> dict[str, object]:
     return result
 
 
+def _capture_failure_window(args: argparse.Namespace, evidence: dict[str, object]) -> dict[str, object]:
+    """Best-effort, redacted runtime correlation; never blocks rollback."""
+    directory = args.evidence_out.parent / f"failure-window-{args.run_id}"
+    result: dict[str, object] = {"status": "PARTIAL_FAIL", "directory": str(directory), "secrets_included": False}
+    try:
+        directory.mkdir(parents=True, exist_ok=True)
+        commands = {
+            "web_container_identity.txt": ["docker", "inspect", "kb-web", "--format", "{{.Id}} {{.Image}}"],
+            "nginx_container_identity.txt": ["docker", "inspect", "kb-nginx", "--format", "{{.Id}} {{.Image}}"],
+            "web_logs.txt": ["docker", "logs", "--since", "5m", "kb-web"],
+            "nginx_logs.txt": ["docker", "logs", "--since", "5m", "kb-nginx"],
+        }
+        command_results: dict[str, int] = {}
+        for filename, command in commands.items():
+            completed = subprocess.run(command, check=False, capture_output=True, text=True, timeout=10)
+            command_results[filename] = completed.returncode
+            raw = completed.stdout + completed.stderr
+            redacted = raw
+            redacted = re.sub(
+                r"(?i)((?:authorization|cookie|token|secret|password|passwd|api[_-]?key|signature|private)[=: ]+)[^\\s,;]+",
+                r"\1[REDACTED]",
+                redacted,
+            )
+            directory.joinpath(filename).write_text(redacted[-20000:], encoding="utf-8")
+        directory.joinpath("manifest.json").write_text(json.dumps({
+            "schema": "km.wp1.upload-failure-window.v1",
+            "run_id": args.run_id,
+            "captured_at": datetime.now(timezone.utc).isoformat(),
+            "request_observations": evidence.get("request_observations", []),
+            "candidate_runtime_identity": evidence.get("runtime_identity"),
+            "files": sorted(path.name for path in directory.iterdir() if path.name != "manifest.json"),
+            "command_results": command_results,
+            "capture_failure_must_not_block_rollback": True,
+            "secrets_included": False,
+        }, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        result["status"] = "PASS" if all(code == 0 for code in command_results.values()) else "PARTIAL_FAIL"
+    except Exception as exc:  # noqa: BLE001
+        result["error_type"] = type(exc).__name__
+    return result
+
+
 def run_acceptance(args: argparse.Namespace) -> dict[str, object]:
     secrets = read_env(args.credentials_env)
-    evidence: dict[str, object] = {"run_id": args.run_id, "production_touched": args.production, "secrets_included": False}
+    evidence: dict[str, object] = {"run_id": args.run_id, "production_touched": args.production, "secrets_included": False, "request_observations": []}
     evidence["pre_network_identity_gate"] = pre_network_identity_gate(args, secrets)
     base = args.base_url.rstrip("/")
     agent = {"Authorization": f"Bearer {secrets['E2E_AGENT_TOKEN']}", "X-E2E-Agent-ID": secrets["E2E_AGENT_ID"], "X-E2E-Test-Mode": "true", "X-E2E-Test-Run-ID": args.run_id, "Idempotency-Key": args.run_id}
@@ -232,13 +333,15 @@ def run_acceptance(args: argparse.Namespace) -> dict[str, object]:
         evidence["search"] = {"status": search_status, "task_id_present": bool(parse_json(search_body, "search").get("task_id"))}
         if search_status != 200 or not evidence["search"]["task_id_present"]:
             raise AcceptanceGateError("Search gate failed")
-        upload_status, upload_body = post_multipart(f"{base}/api/agent/v1/reports", args.fixture, args.attachment, agent)
+        upload_status, upload_body, upload_observation = post_multipart_observed(f"{base}/api/agent/v1/reports", args.fixture, args.attachment, agent)
+        evidence["request_observations"].append(upload_observation)
         upload = parse_json(upload_body, "upload")
         submission_id = str(upload.get("submission_id") or "") or None
         evidence["upload"] = {"status": upload_status, "submission_id_present": bool(submission_id)}
         if upload_status != 202 or not submission_id:
             raise AcceptanceGateError("Upload gate failed")
-        duplicate_status, duplicate_body = post_multipart(f"{base}/api/agent/v1/reports", args.fixture, args.attachment, agent)
+        duplicate_status, duplicate_body, duplicate_observation = post_multipart_observed(f"{base}/api/agent/v1/reports", args.fixture, args.attachment, agent)
+        evidence["request_observations"].append(duplicate_observation)
         duplicate = parse_json(duplicate_body, "duplicate")
         evidence["duplicate"] = {"status": duplicate_status, "duplicate": duplicate.get("duplicate")}
         if duplicate_status != 202 or duplicate.get("duplicate") is not True:
@@ -277,6 +380,7 @@ def run_acceptance(args: argparse.Namespace) -> dict[str, object]:
         evidence.update({"residual_count": 0, "result": "PASS"})
     except Exception as exc:  # cleanup is best effort; the caller owns rollback.
         evidence.update({"result": "FAIL", "error_type": type(exc).__name__, "error": str(exc)})
+        evidence["failure_window_capture"] = _capture_failure_window(args, evidence)
         if submission_id:
             try:
                 status, _ = post_json(f"{base}/api/internal/e2e/v1/runs/{args.run_id}/cleanup", {"environment": "anritsu", "apply": True}, cleanup)
