@@ -302,6 +302,7 @@ run_bounded_deployment_readiness() {
     local args=(
         --direct-base-url "$DIRECT_BACKEND_URL"
         --ingress-base-url "$BASE_URL"
+        --allow-insecure-ingress-tls
         --timeout-seconds "$WAIT_TIMEOUT"
         --interval-seconds 2
         --output "$output"
