@@ -561,6 +561,8 @@ run_acceptance_gates() {
     check_wp1_runtime || failed=1
 
     info "Legacy compatibility gates"
+    python3 "$ROOT_DIR/scripts/validate_frontend_runtime_artifacts.py" \
+        --artifact-root "$FRONTEND_BUILD_DIR" || failed=1
     [[ "$(http_code "$BASE_URL/chat.html")" == "200" ]] || failed=1
     check_websocket_proxy || failed=1
 
@@ -602,6 +604,9 @@ build_frontend() {
     install -m 0644 frontend/chat.html "$target/chat.html"
     install -m 0644 frontend/lib/marked.min.js "$target/lib/marked.min.js"
     install -m 0644 frontend/lib/compare-rules.js "$target/lib/compare-rules.js"
+    python3 "$ROOT_DIR/scripts/validate_frontend_runtime_artifacts.py" \
+        --artifact-root "$target" \
+        --manifest "$target/runtime-artifact-manifest.json"
 }
 
 run_restart() {
