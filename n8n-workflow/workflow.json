@@ -1,0 +1,84 @@
+{
+  "meta": {
+    "templateId": "1",
+    "templateName": "Manual"
+  },
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cron",
+              "expression": "0 9 * * *"
+            }
+          ]
+        }
+      },
+      "id": "10000000-0000-0000-0000-000000000001",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [100, 300]
+    },
+    {
+      "parameters": {
+        "fileSelection": {
+          "value": {
+            "path": "/home/da40_ai_gb10/knowledge-base/data/watch/*"
+          },
+          "mode": "name",
+          "resolution": "file"
+        }
+      },
+      "id": "10000000-0000-0000-0000-000000000002",
+      "name": "Read Files",
+      "type": "n8n-nodes-base.readBinaryFile",
+      "typeVersion": 1,
+      "position": [300, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:8000/upload",
+        "sendBody": true,
+        "bodyContentType": "multipartFormData",
+        "binaryPropertyName": "file"
+      },
+      "id": "10000000-0000-0000-0000-000000000003",
+      "name": "Upload to KB",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [500, 300]
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Read Files",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Files": {
+      "main": [
+        [
+          {
+            "node": "Upload to KB",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "tags": [],
+  "staticId": "kb001"
+}

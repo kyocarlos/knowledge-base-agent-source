@@ -1,0 +1,32 @@
+{
+  "approved_historical_lineage": {
+    "8c35ff5148695915ede2a6c14143d62d8f1958f5": "integration provenance evidence",
+    "c1fc346865c63a08094040eb9bcfdf5eecc4e1ba": "restart helper executable mode",
+    "cf99be184c81648fc4be99d5c39a7b5eee8a7f12": "operational tooling integration",
+    "e3f7a6a56a1ae2b5e0127c7daa68b7fca21ea4ac": "alignment commit"
+  },
+  "copied_file_count": 220,
+  "excluded_categories": {
+    "cache_or_build_artifact": 2728,
+    "generated_binary_artifact": 47,
+    "generated_or_ignored_artifact": 1,
+    "runtime_artifact": 1,
+    "runtime_or_historical_artifact": 49093,
+    "secret_or_runtime_config": 1
+  },
+  "original_production_head": "59dd8bfed85e1dbd89860e765bfa8b7559088cd6",
+  "production_touched": false,
+  "purpose": "WP1 Production Operational Provenance Re-baseline",
+  "reason": "GitHub 2 GiB push limit and historical tracked .venv artifacts",
+  "runner_crypto_nginx_hashes": {
+    "nginx.conf": "7696757b4800ec6b8778e17a4fc9222aee2c90242a87a0a7b57b4d18f2e86e93",
+    "restart_kb.sh": "61f7e7456c11f56875ac0b60f68564bc56b54399a96c0ff64fdd9fa98b3d2172",
+    "scripts/run_wp1_production_acceptance.py": "5f9be73c25148c035644f5d1ca78d5b95ed86e20aca637b4f03df1c8b15b3cd8",
+    "scripts/websocket_crypto_preflight.py": "eabed02c15d4234e99188e572616aa2132446b19e5a96b186427ac39d926501b"
+  },
+  "runtime_mutation": false,
+  "schema_version": "1.0",
+  "secrets_included": false,
+  "source_checkout": "/srv/knowledge-base-production",
+  "source_head": "8c35ff5148695915ede2a6c14143d62d8f1958f5"
+}

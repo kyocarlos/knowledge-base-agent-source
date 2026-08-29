@@ -1,0 +1,69 @@
+{
+  "base_url": "https://61.216.9.52:3030/chat.html",
+  "headless": true,
+  "timeout_seconds": 120,
+  "retry_count": 2,
+  "question_delay_ms": 1000,
+  "slots": [
+    {
+      "id": "s1_morning",
+      "label": "09:00 早上健康檢查",
+      "cron": "0 9 * * 1-5",
+      "questions": [
+        {
+          "id": "health_01",
+          "text": "你好"
+        },
+        {
+          "id": "wifi_01",
+          "text": "請整理 TP-Link Archer BE805 的 5GHz 80MHz 與 160MHz 數據"
+        }
+      ]
+    },
+    {
+      "id": "s2_noon",
+      "label": "12:30 中午觀察",
+      "cron": "30 12 * * 1-5",
+      "questions": [
+        {
+          "id": "lab_01",
+          "text": "請整理 3GPP TS 38.300 中第 9.2.6 Random Access Procedure 的重點"
+        },
+        {
+          "id": "boundary_01",
+          "text": "請用白話解釋這份文件"
+        }
+      ]
+    },
+    {
+      "id": "s3_evening",
+      "label": "18:30 下午壓力觀察",
+      "cron": "30 18 * * 1-5",
+      "questions": [
+        {
+          "id": "compare_01",
+          "text": "TP-Link Archer BE805 的 2.4GHz 和 5GHz 表現有什麼差異"
+        },
+        {
+          "id": "long_01",
+          "text": "請整理 TS 38.300 裡與 Handover、Conditional Handover、RACH-less handover 相關的內容，並說明它們的差異"
+        }
+      ]
+    },
+    {
+      "id": "s4_night",
+      "label": "23:00 夜間穩定性",
+      "cron": "0 23 * * 1-5",
+      "questions": [
+        {
+          "id": "health_02",
+          "text": "請簡單說明你能做什麼"
+        },
+        {
+          "id": "scope_01",
+          "text": "請整理第 4 章 Overall Architecture and Functional Split 的重點"
+        }
+      ]
+    }
+  ]
+}

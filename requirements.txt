@@ -1,0 +1,41 @@
+# 知識庫系統相依套件
+# 安裝方式：pip install -r requirements.txt
+
+# 檔案轉換
+markitdown[all]>=0.1.0
+openpyxl>=3.1.0
+
+# 知識圖譜
+langchain>=0.3.0
+langchain-community>=0.3.0
+neo4j>=5.0.0
+
+# 向量資料庫（選擇性，用於基本 RAG 模式）
+chromadb>=0.5.0
+
+# Embedding 模型
+sentence-transformers>=3.0.0
+
+# LLM 用戶端
+openai>=1.30.0
+ollama>=0.3.0
+
+# 向量資料庫客戶端
+qdrant-client>=1.11.0
+
+# ===== Web / 任務佇列 =====
+fastapi>=0.115.0
+uvicorn[standard]>=0.30.0
+celery>=5.4.0
+redis>=5.0.0
+python-multipart>=0.0.9
+websockets>=12.0.0
+psycopg[binary]>=3.2.0
+requests>=2.32.0
+
+# 設定檔處理
+pyyaml>=6.0
+
+# 工具類
+tiktoken>=0.7.0
+pydantic>=2.0

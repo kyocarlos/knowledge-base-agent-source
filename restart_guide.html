@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Knowledge Base 系統架構圖</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', 'Microsoft JhengHei', sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            min-height: 100vh;
+            padding: 40px;
+            color: #fff;
+        }
+        h1 {
+            text-align: center;
+            margin-bottom: 40px;
+            font-size: 2.5em;
+            background: linear-gradient(90deg, #00d4ff, #7b2cbf);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .architecture { max-width: 1400px; margin: 0 auto; }
+        .section {
+            background: rgba(255,255,255,0.03);
+            border-radius: 20px;
+            padding: 30px;
+            margin-bottom: 30px;
+        }
+        .section h2 {
+            color: #00d4ff;
+            margin-bottom: 20px;
+            font-size: 1.8em;
+            border-bottom: 2px solid rgba(0,212,255,0.3);
+            padding-bottom: 10px;
+        }
+        .flow {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin: 20px 0;
+        }
+        .flow-item {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 15px 25px;
+            border-radius: 25px;
+            font-weight: bold;
+        }
+        .flow-arrow { font-size: 1.5em; color: #00d4ff; }
+        .status-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+        .status-item {
+            background: rgba(0,212,255,0.1);
+            padding: 15px;
+            border-radius: 10px;
+            text-align: center;
+        }
+        .status-item span { font-size: 0.9em; color: #aaa; }
+        .status-item strong {
+            display: block;
+            font-size: 1.2em;
+            color: #00d4ff;
+            margin-top: 5px;
+        }
+        .path-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+        .path-table th, .path-table td {
+            padding: 12px 15px;
+            text-align: left;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+        .path-table th {
+            background: rgba(0,212,255,0.2);
+            color: #00d4ff;
+            font-weight: bold;
+        }
+        .path-table tr:hover { background: rgba(255,255,255,0.05); }
+        .path-table td:first-child {
+            font-family: 'Consolas', monospace;
+            color: #7fff7f;
+            word-break: break-all;
+        }
+        .path-table td:last-child { color: #aaa; }
+        .path-tag {
+            display: inline-block;
+            padding: 3px 8px;
+            border-radius: 5px;
+            font-size: 0.8em;
+            margin-left: 8px;
+        }
+        .tag-folder { background: rgba(100, 100, 255, 0.3); }
+        .tag-db { background: rgba(255, 100, 100, 0.3); }
+        .tag-config { background: rgba(100, 255, 100, 0.3); }
+        .tag-log { background: rgba(255, 200, 100, 0.3); }
+        .tag-code { background: rgba(100, 255, 200, 0.3); }
+        .note {
+            background: rgba(255, 193, 7, 0.1);
+            border-left: 4px solid #ffc107;
+            padding: 15px 20px;
+            border-radius: 0 10px 10px 0;
+            margin: 15px 0;
+        }
+        .note strong { color: #ffc107; }
+    </style>
+</head>
+<body>
+    <div class="architecture">
+        <h1>🔧 Knowledge Base 系統架構圖</h1>
+
+        <!-- 系統架構概覽 -->
+        <div class="section">
+            <h2>📊 系統架構概覽</h2>
+            <div class="flow">
+                <div class="flow-item">📁 Watch Folder</div>
+                <div class="flow-arrow">→</div>
+                <div class="flow-item">⚙️ Celery Beat</div>
+                <div class="flow-arrow">→</div>
+                <div class="flow-item">👷 Celery Worker</div>
+                <div class="flow-arrow">→</div>
+                <div class="flow-item">🔄 Converter</div>
+                <div class="flow-arrow">→</div>
+                <div class="flow-item">📦 Neo4j + QDrant</div>
+            </div>
+            <div class="status-grid">
+                <div class="status-item"><span>前端 (Vue)</span><strong>Port 3000</strong></div>
+                <div class="status-item"><span>API (FastAPI)</span><strong>Port 8000</strong></div>
+                <div class="status-item"><span>圖資料庫 (Neo4j)</span><strong>Port 7687/7474</strong></div>
+                <div class="status-item"><span>向量庫 (QDrant)</span><strong>Port 6333</strong></div>
+                <div class="status-item"><span>快取/佇列 (Redis)</span><strong>Port 6379</strong></div>
+            </div>
+        </div>
+
+        <!-- 實體路徑總覽 -->
+        <div class="section">
+            <h2>📂 實體路徑完整總覽</h2>
+            <table class="path-table">
+                <thead>
+                    <tr><th>路徑</th><th>用途說明</th><th>類型</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td colspan="3" style="background:rgba(0,212,255,0.1);color:#00d4ff;font-weight:bold;">⚙️ 設定檔</td></tr>
+                    <tr><td>/home/da40_ai_gb10/knowledge-base/config/config.yaml</td><td>系統設定檔 (排程、Neo4j、QDrant、Ollama 等)</td><td><span class="path-tag tag-config">設定</span></td></tr>
+                    <tr><td>/home/da40_ai_gb10/knowledge-base/config/config.yaml.example</td><td>設定檔範本</td><td><span class="path-tag tag-config">範本</span></td></tr>
+                    
+                    <tr><td colspan="3" style="background:rgba(100,100,255,0.1);color:#6464ff;font-weight:bold;">📁 資料夾結構</td></tr>
+                    <tr><td>/home/da40_ai_gb10/knowledge-base/</td><td>專案根目錄</td><td><span class="path-tag tag-folder">目錄</span></td></tr>
+                    <tr><td>/home/da40_ai_gb10/knowledge-base/data/</td><td>資料主目錄</td><td><span class="path-tag tag-folder">目錄</span></td></tr>
+                    <tr><td>/home/da40_ai_gb10/knowledge-base/data/watch/</td><td>監控資料夾 - 放入待處理檔案，Celery Beat 自動掃描轉換</td><td><span class="path-tag tag-folder">資料夾</span></td></tr>
+                    <tr><td>/home/da40_ai_gb10/knowledge-base/data/processed/</td><td>已處理資料夾 - 轉換後的 Markdown 檔案與原始檔案</td><td><span class="path-tag tag-folder">資料夾</span></td></tr>
+                    <tr><td>/home/da40_ai_gb10/knowledge-base/data/raw/</td><td>原始資料資料夾</td><td><span class="path-tag tag-folder">資料夾</span></td></tr>
+                    
+                    <tr><td colspan="3" style="background:rgba(100,255,200,0.1);color:#64ffc8;font-weight:bold;">💻 程式碼 (src/)</td></tr>
+                    <tr><td>/home/da40_ai_gb10/knowledge-base/src/</td><td>Python 程式碼主目錄</td><td><span class="path-tag tag-code">程式</span></td></tr>
+                    <tr><td>/home/da40_ai_gb10/knowledge-base/src/web_api/</td><td>FastAPI + Celery tasks</td><td><span class="path-tag tag-code">程式</span></td></tr>
+                    <tr><td>/home/da40_ai_gb10/knowledge-base/src/converter/</td><td>檔案轉換器 (Excel/PDF/Doc → Markdown)</td><td><span class="path-tag tag-code">程式</span></td></tr>
+                    <tr><td>/home/da40_ai_gb10/knowledge-base/src/extract_entities.py</td><td>實體萃取程式 (LLM + GraphRAG)</td><td><span class="path-tag tag-code">程式</span></td></tr>
+                    <tr><td>/home/da40_ai_gb10/knowledge-base/src/ingest.py</td><td>攝入程式 (存入 Neo4j + QDrant)</td><td><span class="path-tag tag-code">程式</span></td></tr>
+                    <tr><td>/home/da40_ai_gb10/knowledge-base/src/search/</td><td>搜尋程式 (向量 + 圖檢索)</td><td><span class="path-tag tag-code">程式</span></td></tr>
+                    <tr><td>/home/da40_ai_gb10/knowledge-base/src/graphrag/</td><td>GraphRAG 圖形檢索相關程式</td><td><span class="path-tag tag-code">程式</span></td></tr>
+                    <tr><td>/home/da40_ai_gb10/knowledge-base/src/vector_store/</td><td>向量資料庫介面 (QDrant)</td><td><span class="path-tag tag-code">程式</span></td></tr>
+                    
+                    <tr><td colspan="3" style="background:rgba(100,255,200,0.1);color:#64ffc8;font-weight:bold;">🌐 前端 (frontend/)</td></tr>
+                    <tr><td>/home/da40_ai_gb10/knowledge-base/frontend/</td><td>Vue 前端專案目錄</td><td><span class="path-tag tag-code">前端</span></td></tr>
+                    <tr><td>/home/da40_ai_gb10/knowledge-base/frontend/src/views/AdminView.vue</td><td>管理後台頁面 (排程控制、Graph Stats)</td><td><span class="path-tag tag-code">前端</span></td></tr>
+                    <tr><td>/home/da40_ai_gb10/knowledge-base/frontend/src/views/SearchView.vue</td><td>搜尋頁面</td><td><span class="path-tag tag-code">前端</span></td></tr>
+                    <tr><td>/home/da40_ai_gb10/knowledge-base/frontend/src/views/UploadView.vue</td><td>上傳頁面</td><td><span class="path-tag tag-code">前端</span></td></tr>
+                    <tr><td>/home/da40_ai_gb10/knowledge-base/frontend/src/services/api.js</td><td>前端 API 服務</td><td><span class="path-tag tag-code">前端</span></td></tr>
+                    
+                    <tr><td colspan="3" style="background:rgba(100,255,100,0.1);color:#64ff64;font-weight:bold;">📜 重啟腳本與文件</td></tr>
+                    <tr><td>/home/da40_ai_gb10/knowledge-base/restart_kb.sh</td><td>一鍵系統重啟腳本</td><td><span class="path-tag tag-config">腳本</span></td></tr>
+                    <tr><td>/home/da40_ai_gb10/knowledge-base/restart_guide.html</td><td>本檔案 - 系統架構圖</td><td><span class="path-tag tag-config">文件</span></td></tr>
+                    <tr><td>/home/da40_ai_gb10/knowledge-base/docker-compose.yml</td><td>Docker Compose 設定 (QDrant、Redis)</td><td><span class="path-tag tag-config">Docker</span></td></tr>
+                    <tr><td>/home/da40_ai_gb10/knowledge-base/Dockerfile</td><td>Docker 映像檔定義</td><td><span class="path-tag tag-config">Docker</span></td></tr>
+                    
+                    <tr><td colspan="3" style="background:rgba(255,200,100,0.1);color:#ffc864;font-weight:bold;">📝 日誌 (/tmp/)</td></tr>
+                    <tr><td>/tmp/kb_api.log</td><td>FastAPI 日誌</td><td><span class="path-tag tag-log">日誌</span></td></tr>
+                    <tr><td>/tmp/celery_worker.log</td><td>Celery Worker 日誌</td><td><span class="path-tag tag-log">日誌</span></td></tr>
+                    <tr><td>/tmp/celery_beat.log</td><td>Celery Beat 日誌</td><td><span class="path-tag tag-log">日誌</span></td></tr>
+                    <tr><td>/tmp/kb_frontend.log</td><td>Vue Frontend 日誌</td><td><span class="path-tag tag-log">日誌</span></td></tr>
+                    
+                    <tr><td colspan="3" style="background:rgba(255,100,100,0.1);color:#ff6464;font-weight:bold;">🗄️ Neo4j (主機)</td></tr>
+                    <tr><td>/var/lib/neo4j/</td><td>Neo4j 根目錄</td><td><span class="path-tag tag-db">資料庫</span></td></tr>
+                    <tr><td>/var/lib/neo4j/data/</td><td>Neo4j 圖形資料存放</td><td><span class="path-tag tag-db">資料庫</span></td></tr>
+                    <tr><td>/var/lib/neo4j/logs/</td><td>Neo4j 日誌目錄</td><td><span class="path-tag tag-db">日誌</span></td></tr>
+                    <tr><td>/var/lib/neo4j/conf/</td><td>Neo4j 設定目錄</td><td><span class="path-tag tag-db">設定</span></td></tr>
+                    
+                    <tr><td colspan="3" style="background:rgba(255,100,100,0.1);color:#ff6464;font-weight:bold;">📊 QDrant (Docker 容器內)</td></tr>
+                    <tr><td>/qdrant/storage/</td><td>QDrant 儲存根目錄 (容器內)</td><td><span class="path-tag tag-db">資料庫</span></td></tr>
+                    <tr><td>/qdrant/storage/collections/</td><td>QDrant Collections 儲存目錄</td><td><span class="path-tag tag-db">資料庫</span></td></tr>
+                    <tr><td>/qdrant/storage/collections/knowledge_base/</td><td>預設 collection 資料</td><td><span class="path-tag tag-db">Collection</span></td></tr>
+                    <tr><td>/qdrant/storage/.../vector_storage/vectors/chunk_0.mmap</td><td>QDrant 向量資料檔 (mmap 格式)</td><td><span class="path-tag tag-db">向量</span></td></tr>
+                    <tr><td>/qdrant/storage/.../payload_storage/page_0.dat</td><td>QDrant 文字內容資料檔</td><td><span class="path-tag tag-db">Payload</span></td></tr>
+                    
+                    <tr><td colspan="3" style="background:rgba(100,100,255,0.1);color:#6464ff;font-weight:bold;">🔧 n8n / Node 相關</td></tr>
+                    <tr><td>/home/da40_ai_gb10/knowledge-base/n8n-workflow/</td><td>n8n 工作流目錄</td><td><span class="path-tag tag-folder">目錄</span></td></tr>
+                    <tr><td>/home/da40_ai_gb10/.n8n-files/</td><td>n8n 檔案上傳目錄</td><td><span class="path-tag tag-folder">資料夾</span></td></tr>
+                    <tr><td>/home/da40_ai_gb10/.n8n-files/watch/</td><td>n8n 監控的 watch 資料夾</td><td><span class="path-tag tag-folder">資料夾</span></td></tr>
+                    <tr><td>/home/da40_ai_gb10/.npm-global/</td><td>全域 npm 安裝目錄 (n8n, openclaw)</td><td><span class="path-tag tag-folder">目錄</span></td></tr>
+                    
+                    <tr><td colspan="3" style="background:rgba(100,100,255,0.1);color:#6464ff;font-weight:bold;">🤖 OpenClaw / 工作區</td></tr>
+                    <tr><td>/home/da40_ai_gb10/.openclaw/</td><td>OpenClaw 設定與工作區目錄</td><td><span class="path-tag tag-folder">目錄</span></td></tr>
+                    <tr><td>/home/da40_ai_gb10/.openclaw/workspace/</td><td>AI 工作區 (記憶、SOUL、IDENTITY 等)</td><td><span class="path-tag tag-folder">工作區</span></td></tr>
+                    <tr><td>/home/da40_ai_gb10/.openclaw/workspace/memory/</td><td>AI 每日記憶目錄</td><td><span class="path-tag tag-folder">記憶</span></td></tr>
+                    <tr><td>/home/da40_ai_gb10/.openclaw/workspace/memory/2026-04-21.md</td><td>今日 AI 記憶檔案</td><td><span class="path-tag tag-config">記憶</span></td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- 架構圖示 -->
+        <div class="section">
+            <h2>🔲 系統架構圖</h2>
+            <pre style="background:rgba(0,0,0,0.3);padding:20px;border-radius:10px;font-family:monospace;line-height:1.8">
+
+    ┌─────────────────────────────────────────────────────────────────┐
+    │                        使用者 (Browser)                         │
+    └────────────────────────────┬────────────────────────────────────┘
+                                 │
+                                 ▼
+    ┌─────────────────────────────────────────────────────────────────┐
+    │                     Vue Frontend (Port 3000)                     │
+    │                      http://localhost:3000                       │
+    └────────────────────────────┬────────────────────────────────────┘
+                                 │ HTTP
+                                 ▼
+    ┌─────────────────────────────────────────────────────────────────┐
+    │                    FastAPI (Port 8000)                          │
+    │                  http://localhost:8000                          │
+    │  ┌─────────────┐  ┌──────────────┐  ┌────────────────────────┐ │
+    │  │  /search    │  │  /admin/*    │  │  /upload/*             │ │
+    │  └─────────────┘  └──────────────┘  └────────────────────────┘ │
+    └────┬────────────┬───────────────┬──────────────────────────────┘
+         │            │               │
+         ▼            ▼               ▼
+    ┌────────┐   ┌─────────┐   ┌────────────────┐
+    │ Redis  │   │ Celery  │   │  Ollama LLM    │
+    │  6379  │   │ Worker  │   │  (6 instances) │
+    └────────┘   └────┬────┘   └────────────────┘
+                     │                ▲
+         ┌───────────┴───────────────┘
+         ▼
+    ┌─────────────────────────────────────────┐
+    │           Celery Beat (排程)            │
+    │  每 1 分鐘執行 watch_folder_scan        │
+    └────┬────────────────────────────────────┘
+         │
+         ▼
+    ┌─────────────────────────────────────────┐
+    │           /data/watch (監控資料夾)       │
+    │      放入檔案 → 自動轉換 → 存入         │
+    └────┬────────────────────────────────────┘
+         │
+         ▼
+    ┌─────────────────────────────────────────┐
+    │            轉換流程 (Converter)          │
+    │  Excel/PDF/Doc → Markdown               │
+    └────┬────────────────────────────────────┘
+         │
+         ▼
+    ┌─────────────────────────────────────────┐
+    │              攝入流程 (Ingest)          │
+    │  萃取 Entity → 存入 Neo4j + QDrant       │
+    └────┬────────────────────────────────────┘
+         │
+         ▼
+    ┌──────────────┐     ┌──────────────────┐
+    │    Neo4j     │     │     QDrant       │
+    │  (圖資料庫)  │     │   (向量資料庫)   │
+    │  Port 7687  │     │   Port 6333     │
+    └──────────────┘     └──────────────────┘
+
+            </pre>
+        </div>
+
+        <!-- 注意事項 -->
+        <div class="section">
+            <h2>⚠️ 注意事項</h2>
+            <div class="note">
+                <strong>排程設定：</strong>Celery Beat 啟動時會自動讀取 <code>config/config.yaml</code> 的 <code>auto_ingest</code> 設定
+            </div>
+            <div class="note">
+                <strong>QDrant 資料：</strong>在 Docker 容器內，需用 <code>docker exec qdrant ls -laR /qdrant/storage/collections/</code> 查看
+            </div>
+            <div class="note">
+                <strong>日誌位置：</strong>API: <code>/tmp/kb_api.log</code> | Worker: <code>/tmp/celery_worker.log</code> | Beat: <code>/tmp/celery_beat.log</code>
+            </div>
+            <div class="note">
+                <strong>一鍵重啟：</strong><code>/home/da40_ai_gb10/knowledge-base/restart_kb.sh</code>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
