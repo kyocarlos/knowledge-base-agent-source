@@ -31,3 +31,14 @@ accidental-path guards and do not prevent deliberate caller forgery.
 
 Production activation is not authorized by this file alone. It requires the
 separate supervisor GO and isolated validation of this script.
+
+The same versioned script supports two explicit execution profiles. The default
+`production` profile uses the approved operational Compose file, fixed
+production inspect targets, and the production base URL; it rejects isolated
+profile inputs. The `isolated` profile requires an explicit Compose project,
+Compose file, base URL, inspect targets, container prefix, non-production port
+set, and non-production data/config/ledger roots. It adds the project name to
+every Compose invocation and uses the configured inspect targets and base URL.
+Isolated roots, ports, container names, and project names must not collide with
+production. The Compose profile is responsible for binding those roots and
+ports; the orchestrator records `execution_mode` in every orchestration event.

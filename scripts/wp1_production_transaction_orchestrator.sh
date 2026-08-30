@@ -8,8 +8,8 @@ set -o pipefail
 die() { printf 'FAIL_CLOSED: %s\n' "$1" >&2; exit 1; }
 need() { [ -n "${!1:-}" ] || die "missing $1"; }
 event() {
-    printf '{"event":"%s","recorded_at":"%s","secrets_included":false}\n' \
-        "$1" "$(date -u +%FT%TZ)" >> "$ORCH_LOG"
+    printf '{"event":"%s","execution_mode":"%s","recorded_at":"%s","secrets_included":false}\n' \
+        "$1" "$EXECUTION_MODE" "$(date -u +%FT%TZ)" >> "$ORCH_LOG"
 }
 
 need WP1_RUN_ID
@@ -29,6 +29,12 @@ need WP1_EXPECTED_RELEASE_ID
 need WP1_EXPECTED_IMAGE_ID
 need WP1_EXPECTED_BUILD_TIMESTAMP
 
+EXECUTION_MODE="${WP1_EXECUTION_MODE:-production}"
+case "$EXECUTION_MODE" in
+  production|isolated) ;;
+  *) die 'execution mode must be production or isolated' ;;
+esac
+
 case "$WP1_RUN_ID" in
   TR-E2E-WP1-PROD-*) ;;
   *) die 'run ID does not use the approved production prefix' ;;
@@ -41,6 +47,45 @@ RESULT_FILE="$TX_DIR/transaction-result.json"
 ACCEPTANCE_FILE="$TX_DIR/acceptance.json"
 mkdir -p "$TX_DIR"
 chmod 700 "$TX_DIR"
+
+if [ "$EXECUTION_MODE" = production ]; then
+    for isolated_key in WP1_COMPOSE_PROJECT WP1_COMPOSE_FILE WP1_ISOLATED_BASE_URL \
+        WP1_ISOLATED_DATA_ROOT WP1_ISOLATED_CONFIG_ROOT WP1_ISOLATED_LEDGER_PATH \
+        WP1_ISOLATED_CONTAINER_PREFIX WP1_ISOLATED_PORTS; do
+        [ -z "${!isolated_key:-}" ] || die "isolated input is not allowed in production mode: $isolated_key"
+    done
+    WP1_WEB_TARGET="kb-web"
+    WP1_INGEST_TARGET="kb-celery-ingest"
+    WP1_SEARCH_TARGET="kb-celery-search"
+    WP1_BEAT_TARGET="kb-celery-beat"
+    WP1_BASE_URL="https://127.0.0.1:3030"
+    COMPOSE_PROJECT_ARGS=()
+    COMPOSE_FILE_ARGS=(-f "$WP1_PROD/docker-compose.yml" -f "$WP1_PINNED_OVERRIDE")
+else
+    need WP1_COMPOSE_PROJECT
+    need WP1_COMPOSE_FILE
+    need WP1_ISOLATED_BASE_URL
+    need WP1_ISOLATED_DATA_ROOT
+    need WP1_ISOLATED_CONFIG_ROOT
+    need WP1_ISOLATED_LEDGER_PATH
+    need WP1_ISOLATED_CONTAINER_PREFIX
+    need WP1_ISOLATED_PORTS
+    case "$WP1_COMPOSE_PROJECT" in knowledge-base|kb|production|prod) die 'isolated project collides with production' ;; esac
+    case "$WP1_ISOLATED_CONTAINER_PREFIX" in kb-*|production-*|prod-*) die 'isolated container prefix collides with production' ;; esac
+    case "$WP1_ISOLATED_BASE_URL" in https://127.0.0.1:3030|http://127.0.0.1:8000) die 'isolated base URL collides with production' ;; esac
+    case "$WP1_ISOLATED_DATA_ROOT:$WP1_ISOLATED_CONFIG_ROOT:$WP1_ISOLATED_LEDGER_PATH" in
+        /srv/knowledge-base-production-*:*|*:/srv/knowledge-base-production-*:*|*:*:/srv/knowledge-base-production-*) die 'isolated path points to production' ;;
+        */knowledge-base/data:*|*:*/*/knowledge-base/data:*|*:*:*/*/knowledge-base/data/*) die 'isolated path points to production data' ;;
+    esac
+    [ -r "$WP1_COMPOSE_FILE" ] || die 'isolated Compose file is not readable'
+    WP1_WEB_TARGET="${WP1_WEB_TARGET:?missing WP1_WEB_TARGET}"
+    WP1_INGEST_TARGET="${WP1_INGEST_TARGET:?missing WP1_INGEST_TARGET}"
+    WP1_SEARCH_TARGET="${WP1_SEARCH_TARGET:?missing WP1_SEARCH_TARGET}"
+    WP1_BEAT_TARGET="${WP1_BEAT_TARGET:?missing WP1_BEAT_TARGET}"
+    WP1_BASE_URL="$WP1_ISOLATED_BASE_URL"
+    COMPOSE_PROJECT_ARGS=(--project-name "$WP1_COMPOSE_PROJECT")
+    COMPOSE_FILE_ARGS=(-f "$WP1_COMPOSE_FILE" -f "$WP1_PINNED_OVERRIDE")
+fi
 
 [ -n "$(git -C "$WP1_PROD" rev-parse --git-dir 2>/dev/null)" ] || die 'production checkout is missing'
 [ "$(git -C "$WP1_PROD" rev-parse HEAD)" = "$WP1_EXPECTED_GIT_HEAD" ] || die 'unexpected operational HEAD'
@@ -59,14 +104,14 @@ for key in KB_E2E_WRITE_MODE_ENABLED KB_E2E_AGENT_TOKEN_HASHES_JSON \
     grep -q "^${key}=" "$WP1_OVERLAY" || die "overlay missing $key"
 done
 
-COMPOSE_BASE=(docker compose --env-file "$WP1_BASE_ENV" -f "$WP1_PROD/docker-compose.yml" -f "$WP1_PINNED_OVERRIDE")
-COMPOSE_E2E=(docker compose --env-file "$WP1_BASE_ENV" --env-file "$WP1_OVERLAY" -f "$WP1_PROD/docker-compose.yml" -f "$WP1_PINNED_OVERRIDE")
+COMPOSE_BASE=(docker compose "${COMPOSE_PROJECT_ARGS[@]}" --env-file "$WP1_BASE_ENV" "${COMPOSE_FILE_ARGS[@]}")
+COMPOSE_E2E=(docker compose "${COMPOSE_PROJECT_ARGS[@]}" --env-file "$WP1_BASE_ENV" --env-file "$WP1_OVERLAY" "${COMPOSE_FILE_ARGS[@]}")
 
 inspect_env() {
     docker inspect "$1" --format '{{range .Config.Env}}{{println .}}{{end}}'
 }
 mode_value() {
-    inspect_env kb-web | awk -F= '$1=="KB_E2E_WRITE_MODE_ENABLED"{print $2}'
+    inspect_env "$WP1_WEB_TARGET" | awk -F= '$1=="KB_E2E_WRITE_MODE_ENABLED"{print $2}'
 }
 has_key() {
     inspect_env "$1" | awk -F= -v wanted="$2" '$1==wanted{found=1} END{exit found ? 0 : 1}'
@@ -98,7 +143,7 @@ restore_web() {
     local compose_rc=$?
     if [ "$compose_rc" -eq 0 ] && { [ "$(mode_value)" = false ] || [ -z "$(mode_value)" ]; } && \
         python3 "$SOURCE_ROOT/scripts/wp1_negative_e2e_probe.py" \
-            --base-url https://127.0.0.1:3030 --run-id "$WP1_RUN_ID" \
+            --base-url "$WP1_BASE_URL" --run-id "$WP1_RUN_ID" \
             --fixture "$WP1_FIXTURE" --attachment "$WP1_ATTACHMENT" \
             --credentials-env "$WP1_CREDENTIALS_ENV" \
             --evidence-out "$TX_DIR/negative-probe.json"; then
@@ -145,15 +190,15 @@ rc=$?
 for key in KB_E2E_WRITE_MODE_ENABLED KB_E2E_AGENT_TOKEN_HASHES_JSON \
     KB_E2E_REVIEWER_TOKEN_HASHES_JSON KB_E2E_CLEANUP_ENABLED \
     KB_E2E_CLEANUP_TOKEN_HASHES_JSON KB_E2E_CLEANUP_TEST_RUN_ID_PREFIX; do
-    has_key kb-web "$key" || exit 1
+    has_key "$WP1_WEB_TARGET" "$key" || exit 1
 done
 for key in KB_E2E_AGENT_TOKEN_HASHES_JSON KB_E2E_REVIEWER_TOKEN_HASHES_JSON \
     KB_E2E_CLEANUP_ENABLED KB_E2E_CLEANUP_TOKEN_HASHES_JSON \
     KB_E2E_CLEANUP_TEST_RUN_ID_PREFIX; do
-    has_key kb-celery-ingest "$key" || exit 1
+    has_key "$WP1_INGEST_TARGET" "$key" || exit 1
 done
-no_e2e_keys kb-celery-search || exit 1
-no_e2e_keys kb-celery-beat || exit 1
+no_e2e_keys "$WP1_SEARCH_TARGET" || exit 1
+no_e2e_keys "$WP1_BEAT_TARGET" || exit 1
 event enablement_verified
 
 EVIDENCE_DIR="$TX_DIR"
@@ -163,7 +208,7 @@ python3 "$SOURCE_ROOT/scripts/wp1_maintenance_entrypoint.py" \
     --evidence-file "$TX_DIR/wrapper-result.json" \
     --orchestration-log "$ORCH_LOG" \
     -- python3 "$SOURCE_ROOT/scripts/run_wp1_production_acceptance.py" \
-    --base-url https://127.0.0.1:3030 \
+    --base-url "$WP1_BASE_URL" \
     --run-id "$WP1_RUN_ID" \
     --fixture "$WP1_FIXTURE" \
     --attachment "$WP1_ATTACHMENT" \

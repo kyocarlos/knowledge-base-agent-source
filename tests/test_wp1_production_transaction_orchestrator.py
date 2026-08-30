@@ -61,15 +61,19 @@ def _isolated_fixture(tmp_path, runner_exit=0, sleep_runner=False):
         #!/usr/bin/env bash
         set -u
         state="${MOCK_STATE:?}"
+        web_target="${MOCK_WEB_TARGET:-kb-web}"
+        ingest_target="${MOCK_INGEST_TARGET:-kb-celery-ingest}"
+        search_target="${MOCK_SEARCH_TARGET:-kb-celery-search}"
+        beat_target="${MOCK_BEAT_TARGET:-kb-celery-beat}"
         if [ "${1:-}" = inspect ]; then
           service="${2:-}"
           mode=$(sed -n 's/^mode=//p' "$state")
-          if [ "$service" = kb-web ]; then
+          if [ "$service" = "$web_target" ]; then
             printf 'KB_E2E_WRITE_MODE_ENABLED=%s\\n' "$mode"
             if [ "$mode" = true ]; then
               printf '%s\\n' KB_E2E_AGENT_TOKEN_HASHES_JSON KB_E2E_REVIEWER_TOKEN_HASHES_JSON KB_E2E_CLEANUP_ENABLED KB_E2E_CLEANUP_TOKEN_HASHES_JSON KB_E2E_CLEANUP_TEST_RUN_ID_PREFIX
             fi
-          elif [ "$service" = kb-celery-ingest ]; then
+          elif [ "$service" = "$ingest_target" ]; then
             printf '%s\\n' KB_E2E_AGENT_TOKEN_HASHES_JSON KB_E2E_REVIEWER_TOKEN_HASHES_JSON KB_E2E_CLEANUP_ENABLED KB_E2E_CLEANUP_TOKEN_HASHES_JSON KB_E2E_CLEANUP_TEST_RUN_ID_PREFIX
           fi
           exit 0
@@ -127,6 +131,14 @@ def _isolated_fixture(tmp_path, runner_exit=0, sleep_runner=False):
     env.update({
         "PATH": f"{bin_dir}:{env['PATH']}", "MOCK_STATE": str(state), "MOCK_OVERLAY": str(overlay),
         "MOCK_RUNNER_EXIT": str(runner_exit), "MOCK_SLEEP_RUNNER": "1" if sleep_runner else "0",
+        "WP1_EXECUTION_MODE": "isolated", "WP1_COMPOSE_PROJECT": "wp1-isolated-test",
+        "WP1_COMPOSE_FILE": str(prod / "docker-compose.yml"), "WP1_ISOLATED_BASE_URL": "http://127.0.0.1:13030",
+        "WP1_ISOLATED_DATA_ROOT": str(tmp_path / "data"), "WP1_ISOLATED_CONFIG_ROOT": str(tmp_path / "config"),
+        "WP1_ISOLATED_LEDGER_PATH": str(tmp_path / "data" / "job-ledger.sqlite3"),
+        "WP1_ISOLATED_CONTAINER_PREFIX": "wp1iso-", "WP1_ISOLATED_PORTS": "13030:443",
+        "WP1_WEB_TARGET": "wp1iso-web", "WP1_INGEST_TARGET": "wp1iso-ingest",
+        "WP1_SEARCH_TARGET": "wp1iso-search", "WP1_BEAT_TARGET": "wp1iso-beat",
+        "MOCK_WEB_TARGET": "wp1iso-web", "MOCK_INGEST_TARGET": "wp1iso-ingest",
         "WP1_RUN_ID": "TR-E2E-WP1-PROD-ISOLATED-20260830-0001",
         "WP1_PROD": str(prod), "WP1_EVIDENCE_ROOT": str(evidence), "WP1_BASE_ENV": str(base_env),
         "WP1_OVERLAY": str(overlay), "WP1_PINNED_OVERRIDE": str(tmp_path / "pinned.yml"),
@@ -200,3 +212,12 @@ def test_isolated_precondition_failure_does_not_recreate(tmp_path):
     assert result.returncode != 0
     assert "recreate=web" not in state.read_text()
     assert not (evidence / env["WP1_RUN_ID"] / "transaction-result.json").exists()
+
+
+def test_production_profile_rejects_isolated_inputs(tmp_path):
+    env, evidence, state = _isolated_fixture(tmp_path)
+    env["WP1_EXECUTION_MODE"] = "production"
+    result = subprocess.run(["bash", str(SCRIPT)], env=env, capture_output=True, text=True, timeout=10)
+    assert result.returncode != 0
+    assert "isolated input is not allowed in production mode" in result.stderr
+    assert "recreate=web" not in state.read_text()
