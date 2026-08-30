@@ -89,6 +89,12 @@ services:
       - KB_REPORT_STAGING_ROOT=/app/data/report-staging
       - KB_AGENT_TOKEN_HASHES_JSON=${KB_AGENT_TOKEN_HASHES_JSON:-{}}
       - KB_REVIEWER_TOKEN_HASHES_JSON=${KB_REVIEWER_TOKEN_HASHES_JSON:-{}}
+      - KB_E2E_WRITE_MODE_ENABLED=${KB_E2E_WRITE_MODE_ENABLED:-false}
+      - KB_E2E_AGENT_TOKEN_HASHES_JSON=${KB_E2E_AGENT_TOKEN_HASHES_JSON:-{}}
+      - KB_E2E_REVIEWER_TOKEN_HASHES_JSON=${KB_E2E_REVIEWER_TOKEN_HASHES_JSON:-{}}
+      - KB_E2E_CLEANUP_ENABLED=${KB_E2E_CLEANUP_ENABLED:-false}
+      - KB_E2E_CLEANUP_TOKEN_HASHES_JSON=${KB_E2E_CLEANUP_TOKEN_HASHES_JSON:-{}}
+      - KB_E2E_CLEANUP_TEST_RUN_ID_PREFIX=${KB_E2E_CLEANUP_TEST_RUN_ID_PREFIX:-}
     volumes:
       - /home/da40_ai_gb10/.openclaw:/home/da40_ai_gb10/.openclaw:ro
       - ${KB_CONFIG_ROOT:-./config}:/app/config:ro
@@ -150,6 +156,11 @@ services:
       - KB_INGEST_REGISTRY_URL=sqlite:////home/da40_ai_gb10/knowledge-base/data/ingestion-registry.sqlite3
       - KB_REPORT_REGISTRY_URL=postgresql://kb_report:${KB_REPORT_DB_PASSWORD}@report_registry:5432/kb_reports
       - KB_REPORT_STAGING_ROOT=/app/data/report-staging
+      - KB_E2E_AGENT_TOKEN_HASHES_JSON=${KB_E2E_AGENT_TOKEN_HASHES_JSON:-{}}
+      - KB_E2E_REVIEWER_TOKEN_HASHES_JSON=${KB_E2E_REVIEWER_TOKEN_HASHES_JSON:-{}}
+      - KB_E2E_CLEANUP_ENABLED=${KB_E2E_CLEANUP_ENABLED:-false}
+      - KB_E2E_CLEANUP_TOKEN_HASHES_JSON=${KB_E2E_CLEANUP_TOKEN_HASHES_JSON:-{}}
+      - KB_E2E_CLEANUP_TEST_RUN_ID_PREFIX=${KB_E2E_CLEANUP_TEST_RUN_ID_PREFIX:-}
     volumes:
       - ${KB_CONFIG_ROOT:-./config}:/app/config:ro
       - ${KB_DATA_ROOT:-./data}:/home/da40_ai_gb10/knowledge-base/data
