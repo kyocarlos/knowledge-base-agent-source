@@ -42,7 +42,7 @@ ACCEPTANCE_FILE="$TX_DIR/acceptance.json"
 mkdir -p "$TX_DIR"
 chmod 700 "$TX_DIR"
 
-[ -d "$WP1_PROD/.git" ] || die 'production checkout is missing'
+[ -n "$(git -C "$WP1_PROD" rev-parse --git-dir 2>/dev/null)" ] || die 'production checkout is missing'
 [ "$(git -C "$WP1_PROD" rev-parse HEAD)" = "$WP1_EXPECTED_GIT_HEAD" ] || die 'unexpected operational HEAD'
 [ -z "$(git -C "$WP1_PROD" status --porcelain)" ] || die 'production worktree is not clean'
 [ -r "$WP1_BASE_ENV" ] || die 'baseline env is not readable'
