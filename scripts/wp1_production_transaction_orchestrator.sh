@@ -124,6 +124,50 @@ no_e2e_keys() {
     ! inspect_env "$1" | awk -F= '$1 ~ /^KB_E2E_/{found=1} END{exit found ? 0 : 1}'
 }
 
+READINESS_INTERVAL_SECONDS="${WP1_READINESS_INTERVAL_SECONDS:-1}"
+READINESS_TIMEOUT_SECONDS="${WP1_READINESS_TIMEOUT_SECONDS:-60}"
+READINESS_CURL_TIMEOUT_SECONDS="${WP1_READINESS_CURL_TIMEOUT_SECONDS:-5}"
+case "$READINESS_INTERVAL_SECONDS:$READINESS_TIMEOUT_SECONDS:$READINESS_CURL_TIMEOUT_SECONDS" in
+    *[!0-9:]*|:*|*::|*:) die 'readiness timing values must be non-negative integers' ;;
+esac
+[ "$READINESS_TIMEOUT_SECONDS" -gt 0 ] || die 'readiness timeout must be positive'
+[ "$READINESS_CURL_TIMEOUT_SECONDS" -gt 0 ] || die 'readiness curl timeout must be positive'
+
+readiness_event() {
+    local first_success_json=null
+    [ -n "${5:-}" ] && first_success_json="\"$5\""
+    printf '{"event":"%s","execution_mode":"%s","attempt_count":%s,"interval_seconds":%s,"timeout_seconds":%s,"health_status":"%s","version_status":"%s","first_success_at":%s,"last_error":"%s","recorded_at":"%s","secrets_included":false}\n' \
+        "$1" "$EXECUTION_MODE" "$2" "$READINESS_INTERVAL_SECONDS" "$READINESS_TIMEOUT_SECONDS" \
+        "${3:-unknown}" "${4:-unknown}" "$first_success_json" "${6:-}" "$(date -u +%FT%TZ)" >> "$ORCH_LOG"
+}
+
+wait_for_readiness() {
+    local phase="$1"
+    local started_at attempts=0 health_status=000 version_status=000 last_error=not_started first_success_at=""
+    started_at="$(date +%s)"
+    event "${phase}_readiness_started"
+    while :; do
+        attempts=$((attempts + 1))
+        health_status="$(curl -sk --max-time "$READINESS_CURL_TIMEOUT_SECONDS" -o /dev/null -w '%{http_code}' "$WP1_BASE_URL/health" 2>/dev/null)" || health_status=000
+        version_status="$(curl -sk --max-time "$READINESS_CURL_TIMEOUT_SECONDS" -o /dev/null -w '%{http_code}' "$WP1_BASE_URL/api/v1/version" 2>/dev/null)" || version_status=000
+        if [ "$health_status" = 200 ] && [ "$version_status" = 200 ]; then
+            first_success_at="$(date -u +%FT%TZ)"
+            readiness_event "${phase}_readiness_passed" "$attempts" "$health_status" "$version_status" "$first_success_at" ""
+            return 0
+        fi
+        if [ "$health_status" != 200 ]; then
+            last_error="health_status_${health_status}"
+        else
+            last_error="version_status_${version_status}"
+        fi
+        if [ $(( $(date +%s) - started_at )) -ge "$READINESS_TIMEOUT_SECONDS" ]; then
+            readiness_event "${phase}_readiness_failed" "$attempts" "$health_status" "$version_status" "" "$last_error"
+            return 1
+        fi
+        sleep "$READINESS_INTERVAL_SECONDS"
+    done
+}
+
 event precondition_start
 [ "$(mode_value)" = false ] || die 'baseline write mode is not false'
 "${COMPOSE_BASE[@]}" config --quiet || die 'baseline Compose config failed'
@@ -143,9 +187,11 @@ restore_web() {
     unset KB_E2E_WRITE_MODE_ENABLED KB_E2E_AGENT_TOKEN_HASHES_JSON \
         KB_E2E_REVIEWER_TOKEN_HASHES_JSON KB_E2E_CLEANUP_ENABLED \
         KB_E2E_CLEANUP_TOKEN_HASHES_JSON KB_E2E_CLEANUP_TEST_RUN_ID_PREFIX
+    event post_restore_recreate_started
     "${COMPOSE_BASE[@]}" up -d --no-build --no-deps --force-recreate web
     local compose_rc=$?
     if [ "$compose_rc" -eq 0 ] && { [ "$(mode_value)" = false ] || [ -z "$(mode_value)" ]; } && \
+        wait_for_readiness post_restore && \
         python3 "$SOURCE_ROOT/scripts/wp1_negative_e2e_probe.py" \
             --base-url "$WP1_BASE_URL" --run-id "$WP1_RUN_ID" \
             --fixture "$WP1_FIXTURE" --attachment "$WP1_ATTACHMENT" \
@@ -186,6 +232,7 @@ trap 'exit 129' HUP
 
 event enablement_start
 MUTATION_STARTED=1
+event post_enable_recreate_started
 "${COMPOSE_E2E[@]}" up -d --no-build --no-deps --force-recreate web
 rc=$?
 [ "$rc" -eq 0 ] || exit 1
@@ -203,6 +250,7 @@ for key in KB_E2E_AGENT_TOKEN_HASHES_JSON KB_E2E_REVIEWER_TOKEN_HASHES_JSON \
 done
 no_e2e_keys "$WP1_SEARCH_TARGET" || exit 1
 no_e2e_keys "$WP1_BEAT_TARGET" || exit 1
+wait_for_readiness post_enable || exit 1
 event enablement_verified
 
 EVIDENCE_DIR="$TX_DIR"

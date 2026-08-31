@@ -117,6 +117,25 @@ def _isolated_fixture(tmp_path, runner_exit=0, sleep_runner=False):
     """), encoding="utf-8")
     fake_python.chmod(0o755)
 
+    fake_curl = bin_dir / "curl"
+    fake_curl.write_text(textwrap.dedent("""\
+        #!/usr/bin/env bash
+        set -u
+        calls_file="${MOCK_CURL_CALLS:?}"
+        calls=0
+        [ -f "$calls_file" ] && calls=$(cat "$calls_file")
+        calls=$((calls + 1))
+        printf '%s\n' "$calls" > "$calls_file"
+        code=200
+        if [ "${MOCK_READINESS_ALWAYS_FAIL:-0}" = 1 ]; then
+          code=503
+        elif [ "$calls" -lt "${MOCK_READINESS_READY_AFTER_CALLS:-1}" ]; then
+          code=503
+        fi
+        printf '%s' "$code"
+    """), encoding="utf-8")
+    fake_curl.chmod(0o755)
+
     overlay = tmp_path / "overlay.env"
     overlay.write_text("\n".join([
         "KB_E2E_WRITE_MODE_ENABLED=true", "KB_E2E_AGENT_TOKEN_HASHES_JSON=redacted",
@@ -133,6 +152,7 @@ def _isolated_fixture(tmp_path, runner_exit=0, sleep_runner=False):
     env = os.environ.copy()
     env.update({
         "PATH": f"{bin_dir}:{env['PATH']}", "MOCK_STATE": str(state), "MOCK_OVERLAY": str(overlay),
+        "MOCK_CURL_CALLS": str(tmp_path / "curl-calls.txt"), "MOCK_READINESS_READY_AFTER_CALLS": "1",
         "MOCK_RUNNER_ARGS_FILE": str(tmp_path / "runner-args.txt"),
         "MOCK_RUNNER_EXIT": str(runner_exit), "MOCK_SLEEP_RUNNER": "1" if sleep_runner else "0",
         "WP1_EXECUTION_MODE": "isolated", "WP1_COMPOSE_PROJECT": "wp1-isolated-test",
@@ -151,6 +171,7 @@ def _isolated_fixture(tmp_path, runner_exit=0, sleep_runner=False):
         "WP1_EXPECTED_RUNNER_SHA": "runner", "WP1_EXPECTED_CRYPTO_SHA": "crypto",
         "WP1_EXPECTED_COMMIT": "commit", "WP1_EXPECTED_RELEASE_ID": "release",
         "WP1_EXPECTED_IMAGE_ID": "image", "WP1_EXPECTED_BUILD_TIMESTAMP": "timestamp",
+        "WP1_READINESS_INTERVAL_SECONDS": "0", "WP1_READINESS_TIMEOUT_SECONDS": "1",
     })
     return env, evidence, state
 
@@ -234,6 +255,30 @@ def test_isolated_runner_command_omits_production_flag(tmp_path):
     assert "--production" not in args
     assert "--base-url" in args
     assert "http://127.0.0.1:13030" in args
+
+
+def test_delayed_readiness_is_bounded_and_runner_starts_after_pass(tmp_path):
+    env, evidence, state = _isolated_fixture(tmp_path)
+    env["MOCK_READINESS_READY_AFTER_CALLS"] = "3"
+    result = subprocess.run(["bash", str(SCRIPT)], env=env, capture_output=True, text=True, timeout=10)
+    assert result.returncode == 0, result.stderr
+    tx = evidence / env["WP1_RUN_ID"]
+    log = (tx / "orchestration.jsonl").read_text()
+    assert '"event":"post_enable_readiness_passed"' in log
+    assert '"event":"post_restore_readiness_passed"' in log
+    assert log.index('"event":"post_enable_readiness_passed"') < log.index('"event":"runner_launch"')
+
+
+def test_never_ready_fails_closed_without_runner(tmp_path):
+    env, evidence, state = _isolated_fixture(tmp_path)
+    env["MOCK_READINESS_ALWAYS_FAIL"] = "1"
+    result = subprocess.run(["bash", str(SCRIPT)], env=env, capture_output=True, text=True, timeout=10)
+    assert result.returncode != 0
+    tx = evidence / env["WP1_RUN_ID"]
+    log = (tx / "orchestration.jsonl").read_text()
+    assert '"event":"post_enable_readiness_failed"' in log
+    assert '"event":"runner_launch"' not in log
+    assert state.read_text().splitlines().count("recreate=web") == 2
 
 
 def test_production_runner_command_includes_production_flag(tmp_path):
