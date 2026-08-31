@@ -106,6 +106,9 @@ def _isolated_fixture(tmp_path, runner_exit=0, sleep_runner=False):
           printf '{"status":%s,"secrets_included":false}\\n' "${MOCK_PROBE_STATUS:-404}" > "$out"
           exit 0
         fi
+        if [[ "$args" == *run_wp1_production_acceptance.py* && -n "${MOCK_RUNNER_ARGS_FILE:-}" ]]; then
+          printf '%s\n' "$@" > "$MOCK_RUNNER_ARGS_FILE"
+        fi
         if [[ "$args" == *wp1_maintenance_entrypoint.py* ]]; then
           [ "${MOCK_SLEEP_RUNNER:-0}" = 1 ] && sleep 30
           exit "${MOCK_RUNNER_EXIT:-0}"
@@ -130,6 +133,7 @@ def _isolated_fixture(tmp_path, runner_exit=0, sleep_runner=False):
     env = os.environ.copy()
     env.update({
         "PATH": f"{bin_dir}:{env['PATH']}", "MOCK_STATE": str(state), "MOCK_OVERLAY": str(overlay),
+        "MOCK_RUNNER_ARGS_FILE": str(tmp_path / "runner-args.txt"),
         "MOCK_RUNNER_EXIT": str(runner_exit), "MOCK_SLEEP_RUNNER": "1" if sleep_runner else "0",
         "WP1_EXECUTION_MODE": "isolated", "WP1_COMPOSE_PROJECT": "wp1-isolated-test",
         "WP1_COMPOSE_FILE": str(prod / "docker-compose.yml"), "WP1_ISOLATED_BASE_URL": "http://127.0.0.1:13030",
@@ -221,3 +225,34 @@ def test_production_profile_rejects_isolated_inputs(tmp_path):
     assert result.returncode != 0
     assert "isolated input is not allowed in production mode" in result.stderr
     assert "recreate=web" not in state.read_text()
+
+
+def test_isolated_runner_command_omits_production_flag(tmp_path):
+    result, tx, _ = _run_isolated(tmp_path)
+    assert result.returncode == 0, result.stderr
+    args = (tmp_path / "runner-args.txt").read_text().splitlines()
+    assert "--production" not in args
+    assert "--base-url" in args
+    assert "http://127.0.0.1:13030" in args
+
+
+def test_production_runner_command_includes_production_flag(tmp_path):
+    env, evidence, state = _isolated_fixture(tmp_path)
+    for key in (
+        "WP1_COMPOSE_PROJECT", "WP1_COMPOSE_FILE", "WP1_ISOLATED_BASE_URL",
+        "WP1_ISOLATED_DATA_ROOT", "WP1_ISOLATED_CONFIG_ROOT", "WP1_ISOLATED_LEDGER_PATH",
+        "WP1_ISOLATED_CONTAINER_PREFIX", "WP1_ISOLATED_PORTS", "WP1_WEB_TARGET",
+        "WP1_INGEST_TARGET", "WP1_SEARCH_TARGET", "WP1_BEAT_TARGET",
+    ):
+        env.pop(key, None)
+    env["WP1_EXECUTION_MODE"] = "production"
+    env["MOCK_WEB_TARGET"] = "kb-web"
+    env["MOCK_INGEST_TARGET"] = "kb-celery-ingest"
+    env["MOCK_SEARCH_TARGET"] = "kb-celery-search"
+    env["MOCK_RUNNER_EXIT"] = "0"
+    result = subprocess.run(["bash", str(SCRIPT)], env=env, capture_output=True, text=True, timeout=10)
+    assert result.returncode == 0, result.stderr
+    args = (tmp_path / "runner-args.txt").read_text().splitlines()
+    assert "--production" in args
+    assert "--base-url" in args
+    assert "https://127.0.0.1:3030" in args

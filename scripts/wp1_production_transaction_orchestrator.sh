@@ -106,6 +106,10 @@ done
 
 COMPOSE_BASE=(docker compose "${COMPOSE_PROJECT_ARGS[@]}" --env-file "$WP1_BASE_ENV" "${COMPOSE_FILE_ARGS[@]}")
 COMPOSE_E2E=(docker compose "${COMPOSE_PROJECT_ARGS[@]}" --env-file "$WP1_BASE_ENV" --env-file "$WP1_OVERLAY" "${COMPOSE_FILE_ARGS[@]}")
+RUNNER_MODE_ARGS=()
+if [ "$EXECUTION_MODE" = production ]; then
+    RUNNER_MODE_ARGS=(--production)
+fi
 
 inspect_env() {
     docker inspect "$1" --format '{{range .Config.Env}}{{println .}}{{end}}'
@@ -223,7 +227,7 @@ python3 "$SOURCE_ROOT/scripts/wp1_maintenance_entrypoint.py" \
     --expected-image-id "$WP1_EXPECTED_IMAGE_ID" \
     --expected-build-timestamp "$WP1_EXPECTED_BUILD_TIMESTAMP" \
     --evidence-out "$ACCEPTANCE_FILE" \
-    --production
+    "${RUNNER_MODE_ARGS[@]}"
 RUNNER_EXIT=$?
 if [ "$RUNNER_EXIT" -eq 0 ]; then ACCEPTANCE_RESULT=PASS; else ACCEPTANCE_RESULT=FAIL_CLOSED; fi
 event runner_complete
