@@ -39,5 +39,8 @@ async def version(request: Request) -> ApiResponse[VersionData]:
             version=settings.version,
             environment=settings.environment,
             commit=settings.commit,
+            release_id=settings.release_id,
+            image_digest=settings.image_digest,
+            build_timestamp=settings.build_timestamp,
         ),
     )

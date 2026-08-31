@@ -46,7 +46,30 @@ def test_health_live_ready_and_version_use_the_v1_envelope():
         "version": "9.8.7",
         "environment": "test",
         "commit": "abc123",
+        "release_id": None,
+        "image_digest": None,
+        "build_timestamp": None,
     }
+
+
+def test_version_exposes_release_metadata_when_configured():
+    with build_client() as client:
+        app = client.app
+        app.state.settings = AppSettings(
+            service_name="kb-contract-test",
+            version="9.8.7",
+            environment="test",
+            commit="abc123",
+            release_id="wp1-selfread-auth-20260831-r1",
+            image_digest="sha256:" + "b" * 64,
+            build_timestamp="2026-08-31T15:46:55.251425676+08:00",
+        )
+        response = client.get("/api/v1/version")
+
+    assert response.status_code == 200
+    assert response.json()["data"]["release_id"] == "wp1-selfread-auth-20260831-r1"
+    assert response.json()["data"]["image_digest"] == "sha256:" + "b" * 64
+    assert response.json()["data"]["build_timestamp"] == "2026-08-31T15:46:55.251425676+08:00"
 
 
 def test_invalid_trace_header_is_replaced_and_same_id_is_logged(caplog):
