@@ -67,6 +67,13 @@ def _isolated_fixture(tmp_path, runner_exit=0, sleep_runner=False):
         beat_target="${MOCK_BEAT_TARGET:-kb-celery-beat}"
         if [ "${1:-}" = inspect ]; then
           service="${2:-}"
+          if [[ "${4:-}" == *Config.Labels* ]]; then
+            printf '%s\n' "${MOCK_COMPOSE_PROJECT:-wp1-isolated-test}"
+            exit 0
+          fi
+          if [ "${MOCK_WEB_ABSENT:-0}" = 1 ] && [ "$service" = "$web_target" ] && ! grep -q '^web_exists=1$' "$state"; then
+            exit 1
+          fi
           mode=$(sed -n 's/^mode=//p' "$state")
           if [ "$service" = "$web_target" ]; then
             printf 'KB_E2E_WRITE_MODE_ENABLED=%s\\n' "$mode"
@@ -84,9 +91,15 @@ def _isolated_fixture(tmp_path, runner_exit=0, sleep_runner=False):
           case " $* " in
             *" config --quiet "*) exit 0 ;;
             *" up "*)
-              if [ "$has_overlay" -eq 0 ] && [ "${MOCK_RESTORE_FAIL:-0}" = 1 ]; then exit 9; fi
+              if [ "$has_overlay" -eq 0 ] && [ "${MOCK_RESTORE_FAIL:-0}" = 1 ] && grep -q '^recreate=web$' "$state"; then exit 9; fi
               printf 'recreate=web\\n' >> "$state"
+              sed -i '/^web_exists=/d' "$state"
+              printf 'web_exists=1\\n' >> "$state"
               if [ "$has_overlay" -eq 1 ]; then sed -i 's/^mode=.*/mode=true/' "$state"; else sed -i 's/^mode=.*/mode=false/' "$state"; fi
+              exit 0 ;;
+            *" down "*)
+              printf 'teardown=isolated\\n' >> "$state"
+              sed -i '/^web_exists=/d' "$state"
               exit 0 ;;
           esac
         fi
@@ -144,10 +157,10 @@ def _isolated_fixture(tmp_path, runner_exit=0, sleep_runner=False):
     ]) + "\n", encoding="utf-8")
     overlay.chmod(0o600)
     base_env = tmp_path / "base.env"
-    base_env.write_text("BASE=1\n", encoding="utf-8")
+    base_env.write_text("BASE=1\nKB_E2E_WRITE_MODE_ENABLED=false\n", encoding="utf-8")
     for path in (tmp_path / "credentials.env", tmp_path / "fixture.xlsx", tmp_path / "pinned.yml"):
         path.write_text("isolated\n", encoding="utf-8")
-    state.write_text("mode=false\n", encoding="utf-8")
+    state.write_text("mode=false\nweb_exists=0\n", encoding="utf-8")
     evidence = tmp_path / "evidence"
     env = os.environ.copy()
     env.update({
@@ -155,14 +168,16 @@ def _isolated_fixture(tmp_path, runner_exit=0, sleep_runner=False):
         "MOCK_CURL_CALLS": str(tmp_path / "curl-calls.txt"), "MOCK_READINESS_READY_AFTER_CALLS": "1",
         "MOCK_RUNNER_ARGS_FILE": str(tmp_path / "runner-args.txt"),
         "MOCK_RUNNER_EXIT": str(runner_exit), "MOCK_SLEEP_RUNNER": "1" if sleep_runner else "0",
+        "MOCK_WEB_ABSENT": "1",
+        "MOCK_COMPOSE_PROJECT": "wp1-isolated-test",
         "WP1_EXECUTION_MODE": "isolated", "WP1_COMPOSE_PROJECT": "wp1-isolated-test",
         "WP1_COMPOSE_FILE": str(prod / "docker-compose.yml"), "WP1_ISOLATED_BASE_URL": "http://127.0.0.1:13030",
         "WP1_ISOLATED_DATA_ROOT": str(tmp_path / "data"), "WP1_ISOLATED_CONFIG_ROOT": str(tmp_path / "config"),
         "WP1_ISOLATED_LEDGER_PATH": str(tmp_path / "data" / "job-ledger.sqlite3"),
         "WP1_ISOLATED_CONTAINER_PREFIX": "wp1iso-", "WP1_ISOLATED_PORTS": "13030:443",
-        "WP1_WEB_TARGET": "wp1iso-web", "WP1_INGEST_TARGET": "wp1iso-ingest",
-        "WP1_SEARCH_TARGET": "wp1iso-search", "WP1_BEAT_TARGET": "wp1iso-beat",
-        "MOCK_WEB_TARGET": "wp1iso-web", "MOCK_INGEST_TARGET": "wp1iso-ingest",
+        "WP1_WEB_TARGET": "wp1-isolated-test-web", "WP1_INGEST_TARGET": "wp1-isolated-test-ingest",
+        "WP1_SEARCH_TARGET": "wp1-isolated-test-search", "WP1_BEAT_TARGET": "wp1-isolated-test-beat",
+        "MOCK_WEB_TARGET": "wp1-isolated-test-web", "MOCK_INGEST_TARGET": "wp1-isolated-test-ingest",
         "WP1_RUN_ID": "TR-E2E-WP1-PROD-ISOLATED-20260830-0001",
         "WP1_PROD": str(prod), "WP1_EVIDENCE_ROOT": str(evidence), "WP1_BASE_ENV": str(base_env),
         "WP1_OVERLAY": str(overlay), "WP1_PINNED_OVERRIDE": str(tmp_path / "pinned.yml"),
@@ -188,7 +203,9 @@ def test_isolated_success_recreates_only_web_and_restores(tmp_path):
     assert result.returncode == 0, result.stderr
     payload = json.loads((tx / "transaction-result.json").read_text())
     assert payload["transaction_result"] == "PASS"
-    assert state.read_text().splitlines().count("recreate=web") == 2
+    assert state.read_text().splitlines().count("recreate=web") == 3
+    assert "teardown=isolated" in state.read_text()
+    assert '"event":"isolated_baseline_verified"' in (tx / "orchestration.jsonl").read_text()
     assert "restoration_verified" in (tx / "orchestration.jsonl").read_text()
 
 
@@ -198,7 +215,7 @@ def test_isolated_runner_failure_stays_fail_closed_and_restores(tmp_path):
     payload = json.loads((tx / "transaction-result.json").read_text())
     assert payload["acceptance_result"] == "FAIL_CLOSED"
     assert payload["transaction_result"] == "FAIL_CLOSED"
-    assert state.read_text().splitlines().count("recreate=web") == 2
+    assert state.read_text().splitlines().count("recreate=web") == 3
 
 
 @pytest.mark.parametrize("sig,expected", [(signal.SIGINT, 130), (signal.SIGTERM, 143), (signal.SIGHUP, 129)])
@@ -215,7 +232,7 @@ def test_isolated_signal_restores_and_stays_fail_closed(tmp_path, sig, expected)
     payload = json.loads((tx / "transaction-result.json").read_text())
     assert proc.returncode == expected
     assert payload["transaction_result"] == "FAIL_CLOSED"
-    assert state.read_text().splitlines().count("recreate=web") == 2
+    assert state.read_text().splitlines().count("recreate=web") == 3
 
 
 def test_isolated_restoration_failure_stays_fail_closed(tmp_path):
@@ -227,16 +244,43 @@ def test_isolated_restoration_failure_stays_fail_closed(tmp_path):
     assert result.returncode != 0
     assert payload["restoration_result"] == "FAIL_CLOSED"
     assert payload["transaction_result"] == "FAIL_CLOSED"
-    assert state.read_text().splitlines().count("recreate=web") == 1
+    assert state.read_text().splitlines().count("recreate=web") == 2
 
 
 def test_isolated_precondition_failure_does_not_recreate(tmp_path):
     env, evidence, state = _isolated_fixture(tmp_path)
-    state.write_text("mode=unexpected\n", encoding="utf-8")
+    state.write_text("mode=unexpected\nweb_exists=1\n", encoding="utf-8")
     result = subprocess.run(["bash", str(SCRIPT)], env=env, capture_output=True, text=True, timeout=10)
     assert result.returncode != 0
     assert "recreate=web" not in state.read_text()
-    assert not (evidence / env["WP1_RUN_ID"] / "transaction-result.json").exists()
+    payload = json.loads((evidence / env["WP1_RUN_ID"] / "transaction-result.json").read_text())
+    assert payload["transaction_result"] == "FAIL_CLOSED"
+
+
+def test_isolated_true_baseline_env_fails_before_bootstrap(tmp_path):
+    env, evidence, state = _isolated_fixture(tmp_path)
+    Path(env["WP1_BASE_ENV"]).write_text("BASE=1\nKB_E2E_WRITE_MODE_ENABLED=true\n", encoding="utf-8")
+    result = subprocess.run(["bash", str(SCRIPT)], env=env, capture_output=True, text=True, timeout=10)
+    assert result.returncode != 0
+    assert "baseline env write mode is not false" in result.stderr
+    assert "recreate=web" not in state.read_text()
+
+
+def test_production_mode_skips_isolated_baseline_bootstrap(tmp_path):
+    env, evidence, state = _isolated_fixture(tmp_path)
+    for key in (
+        "WP1_COMPOSE_PROJECT", "WP1_COMPOSE_FILE", "WP1_ISOLATED_BASE_URL",
+        "WP1_ISOLATED_DATA_ROOT", "WP1_ISOLATED_CONFIG_ROOT", "WP1_ISOLATED_LEDGER_PATH",
+        "WP1_ISOLATED_CONTAINER_PREFIX", "WP1_ISOLATED_PORTS", "WP1_WEB_TARGET",
+        "WP1_INGEST_TARGET", "WP1_SEARCH_TARGET", "WP1_BEAT_TARGET",
+    ):
+        env.pop(key, None)
+    env.update({"WP1_EXECUTION_MODE": "production", "MOCK_WEB_TARGET": "kb-web", "MOCK_INGEST_TARGET": "kb-celery-ingest"})
+    env.pop("MOCK_WEB_ABSENT", None)
+    result = subprocess.run(["bash", str(SCRIPT)], env=env, capture_output=True, text=True, timeout=10)
+    assert result.returncode == 0, result.stderr
+    log = (evidence / env["WP1_RUN_ID"] / "orchestration.jsonl").read_text()
+    assert "isolated_baseline_bootstrap" not in log
 
 
 def test_production_profile_rejects_isolated_inputs(tmp_path):
@@ -276,9 +320,9 @@ def test_never_ready_fails_closed_without_runner(tmp_path):
     assert result.returncode != 0
     tx = evidence / env["WP1_RUN_ID"]
     log = (tx / "orchestration.jsonl").read_text()
-    assert '"event":"post_enable_readiness_failed"' in log
+    assert '"event":"isolated_baseline_readiness_failed"' in log
     assert '"event":"runner_launch"' not in log
-    assert state.read_text().splitlines().count("recreate=web") == 2
+    assert state.read_text().splitlines().count("recreate=web") == 1
 
 
 def test_production_runner_command_includes_production_flag(tmp_path):
@@ -292,6 +336,7 @@ def test_production_runner_command_includes_production_flag(tmp_path):
         env.pop(key, None)
     env["WP1_EXECUTION_MODE"] = "production"
     env["MOCK_WEB_TARGET"] = "kb-web"
+    env.pop("MOCK_WEB_ABSENT", None)
     env["MOCK_INGEST_TARGET"] = "kb-celery-ingest"
     env["MOCK_SEARCH_TARGET"] = "kb-celery-search"
     env["MOCK_RUNNER_EXIT"] = "0"

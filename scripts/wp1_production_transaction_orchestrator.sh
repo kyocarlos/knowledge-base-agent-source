@@ -123,6 +123,17 @@ has_key() {
 no_e2e_keys() {
     ! inspect_env "$1" | awk -F= '$1 ~ /^KB_E2E_/{found=1} END{exit found ? 0 : 1}'
 }
+container_exists() {
+    docker inspect "$1" >/dev/null 2>&1
+}
+verify_isolated_container_identity() {
+    case "$WP1_WEB_TARGET" in
+        "$WP1_COMPOSE_PROJECT"-*) ;;
+        *) die 'isolated web target does not belong to the isolated project' ;;
+    esac
+    compose_project="$(docker inspect "$WP1_WEB_TARGET" --format '{{index .Config.Labels "com.docker.compose.project"}}' 2>/dev/null)"
+    [ "$compose_project" = "$WP1_COMPOSE_PROJECT" ] || die 'isolated web target has an unexpected Compose project'
+}
 
 READINESS_INTERVAL_SECONDS="${WP1_READINESS_INTERVAL_SECONDS:-1}"
 READINESS_TIMEOUT_SECONDS="${WP1_READINESS_TIMEOUT_SECONDS:-60}"
@@ -169,15 +180,35 @@ wait_for_readiness() {
 }
 
 event precondition_start
-[ "$(mode_value)" = false ] || die 'baseline write mode is not false'
+if [ "$EXECUTION_MODE" = production ]; then
+    [ "$(mode_value)" = false ] || die 'baseline write mode is not false'
+fi
 "${COMPOSE_BASE[@]}" config --quiet || die 'baseline Compose config failed'
 event precondition_pass
 
 MUTATION_STARTED=0
+ISOLATED_BOOTSTRAPPED=0
+ISOLATED_TORN_DOWN=0
 RESTORE_RUNNING=0
 RESTORE_DONE=0
 RUNNER_EXIT=125
 RESTORE_EXIT=125
+
+teardown_isolated() {
+    [ "$EXECUTION_MODE" = isolated ] || return 0
+    [ "$ISOLATED_BOOTSTRAPPED" -eq 1 ] || return 0
+    [ "$ISOLATED_TORN_DOWN" -eq 0 ] || return 0
+    ISOLATED_TORN_DOWN=1
+    event isolated_teardown_started
+    "${COMPOSE_BASE[@]}" down --remove-orphans --volumes
+    local teardown_rc=$?
+    if [ "$teardown_rc" -eq 0 ]; then
+        event isolated_teardown_completed
+    else
+        event isolated_teardown_failed
+    fi
+    return "$teardown_rc"
+}
 
 restore_web() {
     [ "$RESTORE_DONE" -eq 0 ] || return 0
@@ -211,10 +242,11 @@ on_exit() {
         restore_web
         RESTORE_EXIT=$?
         [ "$RESTORE_EXIT" -eq 0 ] || rc=1
-    else
-        event no_mutation_restore_required
-        RESTORE_EXIT=0
     fi
+    [ "$MUTATION_STARTED" -eq 1 ] || event no_mutation_restore_required
+    [ "$MUTATION_STARTED" -eq 1 ] || RESTORE_EXIT=0
+    teardown_isolated
+    [ "$?" -eq 0 ] || rc=1
     printf '{"runner_exit":%s,"acceptance_result":"%s","restoration_result":"%s","transaction_result":"%s","secrets_included":false}\n' \
         "$RUNNER_EXIT" "${ACCEPTANCE_RESULT:-NOT_STARTED}" \
         "$([ "$RESTORE_EXIT" -eq 0 ] && echo PASS || echo FAIL_CLOSED)" \
@@ -229,6 +261,31 @@ trap on_exit EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
 trap 'exit 129' HUP
+
+if [ "$EXECUTION_MODE" = isolated ]; then
+    baseline_mode="$(awk -F= '$1=="KB_E2E_WRITE_MODE_ENABLED"{print $2}' "$WP1_BASE_ENV")"
+    [ "$baseline_mode" = false ] || die 'isolated baseline env write mode is not false'
+    ! grep -q '^KB_E2E_WRITE_MODE_ENABLED=true$' "$WP1_BASE_ENV" || die 'isolated baseline env contains temporary write mode'
+    event isolated_baseline_bootstrap_started
+    if container_exists "$WP1_WEB_TARGET"; then
+        verify_isolated_container_identity
+    else
+        "${COMPOSE_BASE[@]}" config --quiet || die 'isolated baseline Compose config failed'
+        ISOLATED_BOOTSTRAPPED=1
+        "${COMPOSE_BASE[@]}" up -d --no-build
+        rc=$?
+        [ "$rc" -eq 0 ] || die 'isolated baseline bootstrap failed'
+        verify_isolated_container_identity
+    fi
+    event isolated_baseline_bootstrap_completed
+    [ "$(mode_value)" = false ] || die 'isolated baseline write mode is not false'
+    ! has_key "$WP1_WEB_TARGET" KB_E2E_AGENT_TOKEN_HASHES_JSON || die 'isolated baseline has temporary agent mapping'
+    ! has_key "$WP1_WEB_TARGET" KB_E2E_REVIEWER_TOKEN_HASHES_JSON || die 'isolated baseline has temporary reviewer mapping'
+    ! has_key "$WP1_WEB_TARGET" KB_E2E_CLEANUP_TOKEN_HASHES_JSON || die 'isolated baseline has temporary cleanup mapping'
+    wait_for_readiness isolated_baseline || die 'isolated baseline readiness failed'
+    event isolated_baseline_readiness_passed
+    event isolated_baseline_verified
+fi
 
 event enablement_start
 MUTATION_STARTED=1
