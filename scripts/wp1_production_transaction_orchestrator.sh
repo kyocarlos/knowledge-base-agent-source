@@ -35,10 +35,11 @@ case "$EXECUTION_MODE" in
   *) die 'execution mode must be production or isolated' ;;
 esac
 
-case "$WP1_RUN_ID" in
-  TR-E2E-WP1-PROD-*) ;;
-  *) die 'run ID does not use the approved production prefix' ;;
-esac
+if [ "$EXECUTION_MODE" = production ]; then
+    case "$WP1_RUN_ID" in TR-E2E-WP1-PROD-*) ;; *) die 'run ID does not use the approved production prefix' ;; esac
+else
+    case "$WP1_RUN_ID" in TR-E2E-WP1-GATEB-ISOLATED-*) ;; *) die 'run ID does not use the approved isolated prefix' ;; esac
+fi
 
 SOURCE_ROOT="$WP1_PROD"
 TX_DIR="$WP1_EVIDENCE_ROOT/$WP1_RUN_ID"
@@ -323,6 +324,7 @@ python3 "$SOURCE_ROOT/scripts/wp1_maintenance_entrypoint.py" \
     --attachment "$WP1_ATTACHMENT" \
     --credentials-env "$WP1_CREDENTIALS_ENV" \
     --production-evidence-root "$WP1_EVIDENCE_ROOT" \
+    --execution-mode "$EXECUTION_MODE" \
     --source-root "$SOURCE_ROOT" \
     --expected-git-head "$WP1_EXPECTED_GIT_HEAD" \
     --expected-runner-sha256 "$WP1_EXPECTED_RUNNER_SHA" \

@@ -29,6 +29,14 @@ cannot change an acceptance failure to `PASS`. This is an orchestration
 contract, not a security authorization boundary: environment markers remain
 accidental-path guards and do not prevent deliberate caller forgery.
 
+Run IDs are mode-scoped and must be validated with an explicit execution mode;
+the mode is never inferred from a prefix. Production uses only
+`TR-E2E-WP1-PROD-*` and its uniqueness gate scans the production evidence
+namespace. Isolated Gate-B uses only `TR-E2E-WP1-GATEB-ISOLATED-*` and scans its
+isolated evidence namespace. Fixture manifests, request headers, cleanup IDs,
+and evidence paths must carry the same authoritative ID. A production ID is
+rejected by isolated mode and an isolated ID is rejected by production mode.
+
 Production activation is not authorized by this file alone. It requires the
 separate supervisor GO and isolated validation of this script.
 

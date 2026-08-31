@@ -28,7 +28,7 @@ from urllib.parse import urlsplit, urlunsplit
 
 try:  # Support both `python scripts/...py` and test-module imports.
     from .prepare_wp1_acceptance_fixture import validate_request_contract
-    from .production_run_id_gate import check_unique_production_run_id
+    from .production_run_id_gate import check_unique_run_id
     from .websocket_crypto_preflight import (
         CryptoPreflightError,
         crypto_preflight,
@@ -37,7 +37,7 @@ try:  # Support both `python scripts/...py` and test-module imports.
     )
 except ImportError:  # pragma: no cover - exercised by direct CLI invocation.
     from prepare_wp1_acceptance_fixture import validate_request_contract
-    from production_run_id_gate import check_unique_production_run_id
+    from production_run_id_gate import check_unique_run_id
     from websocket_crypto_preflight import (
         CryptoPreflightError,
         crypto_preflight,
@@ -195,7 +195,7 @@ def pre_network_identity_gate(args: argparse.Namespace, secrets: dict[str, str])
         raise AcceptanceGateError("required attachment is unavailable")
     if any(not secrets.get(key) for key in EXPECTED_SECRET_KEYS):
         raise AcceptanceGateError("temporary E2E identity credentials are incomplete")
-    run_gate = check_unique_production_run_id(args.run_id, args.production_evidence_root)
+    run_gate = check_unique_run_id(args.run_id, args.production_evidence_root, args.execution_mode)
     contract = validate_request_contract(args.fixture, args.run_id)
     return {
         "git_head": args.expected_git_head,
@@ -418,10 +418,13 @@ def main() -> int:
     parser.add_argument("--expected-image-id", required=True)
     parser.add_argument("--expected-build-timestamp", required=True)
     parser.add_argument("--evidence-out", type=Path, required=True)
+    parser.add_argument("--execution-mode", choices=("production", "isolated"), default="production")
     parser.add_argument("--ingest-poll-attempts", type=int, default=45)
     parser.add_argument("--ingest-poll-interval", type=float, default=2.0)
     parser.add_argument("--production", action="store_true")
     args = parser.parse_args()
+    if args.production != (args.execution_mode == "production"):
+        raise AcceptanceGateError("execution mode and production flag disagree")
     if args.production and args.base_url not in {"https://127.0.0.1:3030", "https://localhost:3030"}:
         raise AcceptanceGateError("production runner accepts only the approved local formal ingress")
     if not args.production and not args.base_url.startswith(("http://127.0.0.1:", "http://localhost:")):

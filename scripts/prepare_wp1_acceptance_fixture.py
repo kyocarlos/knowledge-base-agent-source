@@ -12,22 +12,29 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from production_run_id_gate import check_unique_production_run_id
+from production_run_id_gate import RUN_ID_PATTERNS, check_unique_run_id
 
 from openpyxl import Workbook, load_workbook
 
 RUN_PREFIX = "TR-E2E-WP1-PROD-"
+ISOLATED_RUN_PREFIX = "TR-E2E-WP1-GATEB-ISOLATED-"
 
 
-def new_run_id() -> str:
+def new_run_id(execution_mode: str = "production") -> str:
     stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
-    return f"{RUN_PREFIX}{stamp}-{secrets.token_hex(4)}"
+    prefix = RUN_PREFIX if execution_mode == "production" else ISOLATED_RUN_PREFIX
+    if execution_mode not in RUN_ID_PATTERNS:
+        raise ValueError("execution_mode must be production or isolated")
+    return f"{prefix}{stamp}-{secrets.token_hex(4)}"
 
 
-def build_fixture(output_dir: Path, run_id: str | None = None) -> dict[str, str]:
-    authoritative_id = run_id or new_run_id()
-    if not authoritative_id.startswith(RUN_PREFIX):
-        raise ValueError(f"run_id must start with {RUN_PREFIX}")
+def build_fixture(output_dir: Path, run_id: str | None = None, execution_mode: str = "production") -> dict[str, str]:
+    pattern = RUN_ID_PATTERNS.get(execution_mode)
+    if pattern is None:
+        raise ValueError("execution_mode must be production or isolated")
+    authoritative_id = run_id or new_run_id(execution_mode)
+    if not pattern.fullmatch(authoritative_id):
+        raise ValueError(f"run_id does not match the {execution_mode} E2E format")
     output_dir.mkdir(parents=True, exist_ok=True)
     attachment = output_dir / "synthetic-e2e-log.txt"
     attachment.write_text("synthetic WP1 acceptance artifact; no real user data\n", encoding="utf-8")
@@ -109,11 +116,12 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--run-id")
+    parser.add_argument("--execution-mode", choices=tuple(RUN_ID_PATTERNS), default="production")
     parser.add_argument("--prior-production-evidence-root", type=Path)
     args = parser.parse_args()
     if args.prior_production_evidence_root and args.run_id:
-        check_unique_production_run_id(args.run_id, args.prior_production_evidence_root.resolve())
-    result = build_fixture(args.output_dir.resolve(), args.run_id)
+        check_unique_run_id(args.run_id, args.prior_production_evidence_root.resolve(), args.execution_mode)
+    result = build_fixture(args.output_dir.resolve(), args.run_id, args.execution_mode)
     if fixture_run_id(Path(result["fixture"])) != result["run_id"]:
         raise RuntimeError("generated fixture run ID verification failed")
     print(json.dumps({**result, "request_contract": validate_request_contract(Path(result["fixture"]), result["run_id"]), "secrets_included": False}, indent=2))

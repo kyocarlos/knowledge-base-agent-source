@@ -178,7 +178,7 @@ def _isolated_fixture(tmp_path, runner_exit=0, sleep_runner=False):
         "WP1_WEB_TARGET": "wp1-isolated-test-web", "WP1_INGEST_TARGET": "wp1-isolated-test-ingest",
         "WP1_SEARCH_TARGET": "wp1-isolated-test-search", "WP1_BEAT_TARGET": "wp1-isolated-test-beat",
         "MOCK_WEB_TARGET": "wp1-isolated-test-web", "MOCK_INGEST_TARGET": "wp1-isolated-test-ingest",
-        "WP1_RUN_ID": "TR-E2E-WP1-PROD-ISOLATED-20260830-0001",
+        "WP1_RUN_ID": "TR-E2E-WP1-GATEB-ISOLATED-20260830-0001",
         "WP1_PROD": str(prod), "WP1_EVIDENCE_ROOT": str(evidence), "WP1_BASE_ENV": str(base_env),
         "WP1_OVERLAY": str(overlay), "WP1_PINNED_OVERRIDE": str(tmp_path / "pinned.yml"),
         "WP1_CREDENTIALS_ENV": str(tmp_path / "credentials.env"), "WP1_FIXTURE": str(tmp_path / "fixture.xlsx"),
@@ -268,6 +268,7 @@ def test_isolated_true_baseline_env_fails_before_bootstrap(tmp_path):
 
 def test_production_mode_skips_isolated_baseline_bootstrap(tmp_path):
     env, evidence, state = _isolated_fixture(tmp_path)
+    env["WP1_RUN_ID"] = "TR-E2E-WP1-PROD-test-production-skip"
     for key in (
         "WP1_COMPOSE_PROJECT", "WP1_COMPOSE_FILE", "WP1_ISOLATED_BASE_URL",
         "WP1_ISOLATED_DATA_ROOT", "WP1_ISOLATED_CONFIG_ROOT", "WP1_ISOLATED_LEDGER_PATH",
@@ -285,6 +286,7 @@ def test_production_mode_skips_isolated_baseline_bootstrap(tmp_path):
 
 def test_production_profile_rejects_isolated_inputs(tmp_path):
     env, evidence, state = _isolated_fixture(tmp_path)
+    env["WP1_RUN_ID"] = "TR-E2E-WP1-PROD-test-reject"
     env["WP1_EXECUTION_MODE"] = "production"
     result = subprocess.run(["bash", str(SCRIPT)], env=env, capture_output=True, text=True, timeout=10)
     assert result.returncode != 0
@@ -327,6 +329,7 @@ def test_never_ready_fails_closed_without_runner(tmp_path):
 
 def test_production_runner_command_includes_production_flag(tmp_path):
     env, evidence, state = _isolated_fixture(tmp_path)
+    env["WP1_RUN_ID"] = "TR-E2E-WP1-PROD-test-runner"
     for key in (
         "WP1_COMPOSE_PROJECT", "WP1_COMPOSE_FILE", "WP1_ISOLATED_BASE_URL",
         "WP1_ISOLATED_DATA_ROOT", "WP1_ISOLATED_CONFIG_ROOT", "WP1_ISOLATED_LEDGER_PATH",
