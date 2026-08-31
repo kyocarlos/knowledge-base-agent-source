@@ -66,6 +66,20 @@ def authenticate_reviewer(request: Request) -> dict:
     raise HTTPException(status_code=403, detail="Reviewer token 無效")
 
 
+def authenticate_e2e_cleanup(request: Request) -> dict:
+    """Authenticate the separately scoped, normally disabled E2E cleanup API."""
+    cleanup_id = request.headers.get("X-E2E-Cleanup-ID", "").strip()
+    if not cleanup_id:
+        raise HTTPException(status_code=401, detail="缺少 X-E2E-Cleanup-ID")
+    config = _load_json_env("KB_E2E_CLEANUP_TOKEN_HASHES_JSON")
+    expected = config.get(cleanup_id)
+    expected_hash = expected.get("token_sha256") if isinstance(expected, dict) else expected
+    actual = token_sha256(_bearer_token(request))
+    if not expected_hash or not hmac.compare_digest(str(expected_hash).lower(), actual):
+        raise HTTPException(status_code=403, detail="E2E cleanup token 無效")
+    return {"cleanup_id": cleanup_id, "scope": "e2e:cleanup"}
+
+
 def _authenticate_e2e_identity(request: Request, config_name: str, header_name: str, scope: str) -> dict:
     identity = request.headers.get(header_name, "").strip()
     if not identity:
@@ -96,6 +110,14 @@ def authenticate_e2e_reviewer(request: Request) -> dict:
 
 def e2e_write_enabled() -> bool:
     return os.getenv("KB_E2E_WRITE_MODE_ENABLED", "false").lower() in {"1", "true", "yes"}
+
+
+def validate_e2e_test_run_id(test_run_id: str) -> str:
+    prefix = os.getenv("KB_E2E_CLEANUP_TEST_RUN_ID_PREFIX", "").strip()
+    value = str(test_run_id or "").strip()
+    if not prefix or not SAFE_TEST_RUN_ID.fullmatch(value) or not value.startswith(prefix):
+        raise HTTPException(status_code=422, detail="test_run_id 不符合 E2E 測試 prefix")
+    return value
 
 
 def authenticate_report_agent(request: Request) -> dict:
