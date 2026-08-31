@@ -13,7 +13,7 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
-from ..test_reports.auth import authenticate_agent, authenticate_reviewer
+from ..test_reports.auth import authenticate_report_agent, authenticate_report_reviewer
 from ..test_reports.excel_contract import ReportValidationError, parse_and_validate_report
 from ..test_reports.registry import SubmissionConflict, SubmissionRegistry
 from app.core.job_config import celery_headers
@@ -50,14 +50,14 @@ def _public(item: dict) -> dict:
 
 @router.get("/api/agent/v1/health")
 async def report_agent_health(request: Request):
-    identity = authenticate_agent(request)
+    identity = authenticate_report_agent(request)
     _registry()
     return {"status": "ok", **identity, "schema_versions": ["1.0"]}
 
 
 @router.post("/api/agent/v1/reports", status_code=202)
 async def upload_report(request: Request):
-    identity = authenticate_agent(request)
+    identity = authenticate_report_agent(request)
     form = await request.form(max_files=30, max_fields=50, max_part_size=MAX_PART_SIZE)
     report_file = form.get("file")
     if report_file is None:
@@ -123,7 +123,7 @@ async def upload_report(request: Request):
 
 @router.get("/api/agent/v1/reports/{submission_id}")
 async def get_agent_report(submission_id: str, request: Request):
-    identity = authenticate_agent(request)
+    identity = authenticate_report_agent(request)
     registry = _registry()
     item = registry.get(submission_id)
     if not item or item["agent_id"] != identity["agent_id"]:
@@ -141,13 +141,13 @@ async def get_agent_report(submission_id: str, request: Request):
 
 @router.get("/api/admin/v1/report-submissions")
 async def list_report_submissions(request: Request, status: str | None = None, limit: int = 100):
-    authenticate_reviewer(request)
+    authenticate_report_reviewer(request)
     return {"items": [_public(item) for item in _registry().list(status=status, limit=limit)]}
 
 
 @router.get("/api/admin/v1/report-submissions/{submission_id}")
 async def get_report_submission(submission_id: str, request: Request):
-    authenticate_reviewer(request)
+    authenticate_report_reviewer(request)
     item = _registry().get(submission_id)
     if not item:
         raise HTTPException(status_code=404, detail="找不到 report submission")
@@ -156,7 +156,7 @@ async def get_report_submission(submission_id: str, request: Request):
 
 @router.get("/api/admin/v1/report-submissions/{submission_id}/download")
 async def download_report_submission(submission_id: str, request: Request):
-    authenticate_reviewer(request)
+    authenticate_report_reviewer(request)
     item = _registry().get(submission_id)
     if not item:
         raise HTTPException(status_code=404, detail="找不到 report submission")
@@ -168,7 +168,7 @@ async def download_report_submission(submission_id: str, request: Request):
 
 @router.post("/api/admin/v1/report-submissions/{submission_id}/approve")
 async def approve_report_submission(submission_id: str, decision: ReviewDecision, request: Request):
-    reviewer = authenticate_reviewer(request)
+    reviewer = authenticate_report_reviewer(request)
     registry = _registry()
     reviewed_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
     try:
@@ -215,7 +215,7 @@ async def approve_report_submission(submission_id: str, decision: ReviewDecision
 
 @router.post("/api/admin/v1/report-submissions/{submission_id}/reject")
 async def reject_report_submission(submission_id: str, decision: ReviewDecision, request: Request):
-    reviewer = authenticate_reviewer(request)
+    reviewer = authenticate_report_reviewer(request)
     if not decision.comment.strip():
         raise HTTPException(status_code=422, detail="退回時必須填寫原因")
     try:
