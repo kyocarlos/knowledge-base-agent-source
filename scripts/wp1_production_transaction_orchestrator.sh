@@ -11,6 +11,14 @@ event() {
     printf '{"event":"%s","execution_mode":"%s","recorded_at":"%s","secrets_included":false}\n' \
         "$1" "$EXECUTION_MODE" "$(date -u +%FT%TZ)" >> "$ORCH_LOG"
 }
+gate_result() {
+    printf '{"event":"%s","gate":"%s","status":"%s","execution_mode":"%s","reason":"%s","command_exit":%s,"recorded_at":"%s","secrets_included":false}\n' \
+        "$1" "$2" "$3" "$EXECUTION_MODE" "${4:-}" "${5:-null}" "$(date -u +%FT%TZ)" >> "$ORCH_LOG"
+}
+fail_gate() {
+    gate_result "${1}_failed" "$1" FAIL_CLOSED "$2" "${3:-null}"
+    die "$2"
+}
 
 need WP1_RUN_ID
 need WP1_PROD
@@ -331,28 +339,50 @@ if [ "$EXECUTION_MODE" = isolated ]; then
     event isolated_baseline_verified
 fi
 
-event enablement_start
+event temporary_enablement_started
 MUTATION_STARTED=1
-event post_enable_recreate_started
+event temporary_enablement_recreate_started
 "${COMPOSE_E2E[@]}" up -d --no-build --no-deps --force-recreate web
 rc=$?
-[ "$rc" -eq 0 ] || exit 1
+if [ "$rc" -ne 0 ]; then
+    fail_gate temporary_enablement_recreate "isolated web recreate failed" "$rc"
+fi
+gate_result temporary_enablement_recreate_completed temporary_enablement_recreate PASS "web recreate completed" "$rc"
 
-[ "$(mode_value)" = true ] || exit 1
-has_key "$WP1_WEB_TARGET" KB_E2E_WRITE_MODE_ENABLED || exit 1
-mapping_is_nonempty_object "$WP1_WEB_TARGET" KB_E2E_AGENT_TOKEN_HASHES_JSON || exit 1
-mapping_is_nonempty_object "$WP1_WEB_TARGET" KB_E2E_REVIEWER_TOKEN_HASHES_JSON || exit 1
-has_key "$WP1_WEB_TARGET" KB_E2E_CLEANUP_ENABLED || exit 1
-mapping_is_nonempty_object "$WP1_WEB_TARGET" KB_E2E_CLEANUP_TOKEN_HASHES_JSON || exit 1
-has_key "$WP1_WEB_TARGET" KB_E2E_CLEANUP_TEST_RUN_ID_PREFIX || exit 1
-mapping_is_nonempty_object "$WP1_INGEST_TARGET" KB_E2E_AGENT_TOKEN_HASHES_JSON || exit 1
-mapping_is_nonempty_object "$WP1_INGEST_TARGET" KB_E2E_REVIEWER_TOKEN_HASHES_JSON || exit 1
-has_key "$WP1_INGEST_TARGET" KB_E2E_CLEANUP_ENABLED || exit 1
-mapping_is_nonempty_object "$WP1_INGEST_TARGET" KB_E2E_CLEANUP_TOKEN_HASHES_JSON || exit 1
-has_key "$WP1_INGEST_TARGET" KB_E2E_CLEANUP_TEST_RUN_ID_PREFIX || exit 1
-no_e2e_keys "$WP1_SEARCH_TARGET" || exit 1
-no_e2e_keys "$WP1_BEAT_TARGET" || exit 1
-wait_for_readiness post_enable || exit 1
+if [ "$(mode_value)" != true ]; then
+    fail_gate temporary_enablement_mode_verification "effective write mode is not true"
+fi
+gate_result temporary_enablement_mode_verified temporary_enablement_mode PASS "effective write mode is true"
+
+if ! mapping_is_nonempty_object "$WP1_WEB_TARGET" KB_E2E_AGENT_TOKEN_HASHES_JSON; then
+    fail_gate temporary_enablement_agent_mapping "web agent mapping is not a non-empty JSON object"
+fi
+gate_result temporary_enablement_agent_mapping_verified temporary_enablement_agent_mapping PASS "web agent mapping verified"
+if ! mapping_is_nonempty_object "$WP1_WEB_TARGET" KB_E2E_REVIEWER_TOKEN_HASHES_JSON; then
+    fail_gate temporary_enablement_reviewer_mapping "web reviewer mapping is not a non-empty JSON object"
+fi
+gate_result temporary_enablement_reviewer_mapping_verified temporary_enablement_reviewer_mapping PASS "web reviewer mapping verified"
+if ! mapping_is_nonempty_object "$WP1_WEB_TARGET" KB_E2E_CLEANUP_TOKEN_HASHES_JSON; then
+    fail_gate temporary_enablement_cleanup_mapping "web cleanup mapping is not a non-empty JSON object"
+fi
+gate_result temporary_enablement_cleanup_mapping_verified temporary_enablement_cleanup_mapping PASS "web cleanup mapping verified"
+
+if ! mapping_is_nonempty_object "$WP1_INGEST_TARGET" KB_E2E_AGENT_TOKEN_HASHES_JSON || \
+   ! mapping_is_nonempty_object "$WP1_INGEST_TARGET" KB_E2E_REVIEWER_TOKEN_HASHES_JSON || \
+   ! mapping_is_nonempty_object "$WP1_INGEST_TARGET" KB_E2E_CLEANUP_TOKEN_HASHES_JSON || \
+   ! has_key "$WP1_INGEST_TARGET" KB_E2E_CLEANUP_ENABLED || \
+   ! has_key "$WP1_INGEST_TARGET" KB_E2E_CLEANUP_TEST_RUN_ID_PREFIX; then
+    fail_gate temporary_enablement_ingest_mapping "ingest E2E mapping contract failed"
+fi
+gate_result temporary_enablement_ingest_mapping_verified temporary_enablement_ingest_mapping PASS "ingest mappings verified"
+
+if ! no_e2e_keys "$WP1_SEARCH_TARGET" || ! no_e2e_keys "$WP1_BEAT_TARGET"; then
+    fail_gate temporary_enablement_search_beat_isolation "search or beat has unexpected E2E variables"
+fi
+gate_result temporary_enablement_search_beat_isolation_verified temporary_enablement_search_beat_isolation PASS "search and beat isolation verified"
+if ! wait_for_readiness post_enable; then
+    fail_gate post_enable_readiness "post-enable readiness failed"
+fi
 event enablement_verified
 
 EVIDENCE_DIR="$TX_DIR"

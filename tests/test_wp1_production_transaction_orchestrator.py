@@ -78,7 +78,12 @@ def _isolated_fixture(tmp_path, runner_exit=0, sleep_runner=False):
           if [ "$service" = "$web_target" ]; then
             printf 'KB_E2E_WRITE_MODE_ENABLED=%s\\n' "$mode"
             if [ "$mode" = true ]; then
-              printf '%s\\n' 'KB_E2E_AGENT_TOKEN_HASHES_JSON={"e2e-agent-01":{}}' 'KB_E2E_REVIEWER_TOKEN_HASHES_JSON={"e2e-reviewer-01":{}}' KB_E2E_CLEANUP_ENABLED 'KB_E2E_CLEANUP_TOKEN_HASHES_JSON={"e2e-cleanup-01":{}}' KB_E2E_CLEANUP_TEST_RUN_ID_PREFIX
+              [ "${MOCK_MODE_FAIL:-0}" = 1 ] && exit 0
+              [ "${MOCK_AGENT_MAPPING_FAIL:-0}" = 1 ] || printf '%s\\n' 'KB_E2E_AGENT_TOKEN_HASHES_JSON={"e2e-agent-01":{}}'
+              [ "${MOCK_REVIEWER_MAPPING_FAIL:-0}" = 1 ] || printf '%s\\n' 'KB_E2E_REVIEWER_TOKEN_HASHES_JSON={"e2e-reviewer-01":{}}'
+              printf '%s\\n' KB_E2E_CLEANUP_ENABLED
+              [ "${MOCK_CLEANUP_MAPPING_FAIL:-0}" = 1 ] || printf '%s\\n' 'KB_E2E_CLEANUP_TOKEN_HASHES_JSON={"e2e-cleanup-01":{}}'
+              printf '%s\\n' KB_E2E_CLEANUP_TEST_RUN_ID_PREFIX
             elif [ -n "${MOCK_BASELINE_MAPPING:-}" ]; then
               case "$MOCK_BASELINE_MAPPING" in
                 empty) printf '%s\\n' 'KB_E2E_AGENT_TOKEN_HASHES_JSON={}' ;;
@@ -92,6 +97,8 @@ def _isolated_fixture(tmp_path, runner_exit=0, sleep_runner=False):
             if [ "$mode" = true ]; then
               printf '%s\\n' 'KB_E2E_AGENT_TOKEN_HASHES_JSON={"e2e-agent-01":{}}' 'KB_E2E_REVIEWER_TOKEN_HASHES_JSON={"e2e-reviewer-01":{}}' KB_E2E_CLEANUP_ENABLED 'KB_E2E_CLEANUP_TOKEN_HASHES_JSON={"e2e-cleanup-01":{}}' KB_E2E_CLEANUP_TEST_RUN_ID_PREFIX
             fi
+          elif [ "$service" = "$search_target" ] && [ "${MOCK_SEARCH_E2E_FAIL:-0}" = 1 ]; then
+            printf 'KB_E2E_UNEXPECTED=1\\n'
           fi
           exit 0
         fi
@@ -101,11 +108,18 @@ def _isolated_fixture(tmp_path, runner_exit=0, sleep_runner=False):
           case " $* " in
             *" config --quiet "*) exit 0 ;;
             *" up "*)
+              if [ "$has_overlay" -eq 1 ] && [ "${MOCK_ENABLE_RECREATE_FAIL:-0}" = 1 ]; then exit 9; fi
               if [ "$has_overlay" -eq 0 ] && [ "${MOCK_RESTORE_FAIL:-0}" = 1 ] && grep -q '^recreate=web$' "$state"; then exit 9; fi
               printf 'recreate=web\\n' >> "$state"
               sed -i '/^web_exists=/d' "$state"
               printf 'web_exists=1\\n' >> "$state"
-              if [ "$has_overlay" -eq 1 ]; then sed -i 's/^mode=.*/mode=true/' "$state"; else sed -i 's/^mode=.*/mode=false/' "$state"; fi
+              if [ "$has_overlay" -eq 1 ] && [ "${MOCK_MODE_FAIL:-0}" = 1 ]; then
+                sed -i 's/^mode=.*/mode=false/' "$state"
+              elif [ "$has_overlay" -eq 1 ]; then
+                sed -i 's/^mode=.*/mode=true/' "$state"
+              else
+                sed -i 's/^mode=.*/mode=false/' "$state"
+              fi
               exit 0 ;;
             *" down "*)
               printf 'teardown=isolated\\n' >> "$state"
@@ -188,6 +202,7 @@ def _isolated_fixture(tmp_path, runner_exit=0, sleep_runner=False):
         "WP1_WEB_TARGET": "wp1-isolated-test-web", "WP1_INGEST_TARGET": "wp1-isolated-test-ingest",
         "WP1_SEARCH_TARGET": "wp1-isolated-test-search", "WP1_BEAT_TARGET": "wp1-isolated-test-beat",
         "MOCK_WEB_TARGET": "wp1-isolated-test-web", "MOCK_INGEST_TARGET": "wp1-isolated-test-ingest",
+        "MOCK_SEARCH_TARGET": "wp1-isolated-test-search", "MOCK_BEAT_TARGET": "wp1-isolated-test-beat",
         "WP1_RUN_ID": "TR-E2E-WP1-GATEB-ISOLATED-20260830-0001",
         "WP1_PROD": str(prod), "WP1_EVIDENCE_ROOT": str(evidence), "WP1_BASE_ENV": str(base_env),
         "WP1_OVERLAY": str(overlay), "WP1_PINNED_OVERRIDE": str(tmp_path / "pinned.yml"),
@@ -294,6 +309,41 @@ def test_isolated_empty_baseline_mapping_is_allowed(tmp_path, mapping):
     result = subprocess.run(["bash", str(SCRIPT)], env=env, capture_output=True, text=True, timeout=10)
     assert result.returncode == 0, result.stderr
     assert state.read_text().splitlines().count("recreate=web") == 3
+
+
+def test_post_enable_recreate_failure_is_persisted_before_restore(tmp_path):
+    env, evidence, state = _isolated_fixture(tmp_path)
+    env["MOCK_ENABLE_RECREATE_FAIL"] = "1"
+    result = subprocess.run(["bash", str(SCRIPT)], env=env, capture_output=True, text=True, timeout=10)
+    assert result.returncode != 0
+    log = (evidence / env["WP1_RUN_ID"] / "orchestration.jsonl").read_text()
+    assert '"event":"temporary_enablement_recreate_failed"' in log
+    assert '"gate":"temporary_enablement_recreate"' in log
+    assert '"command_exit":9' in log
+    assert '"event":"post_enable_readiness_started"' not in log
+    assert '"event":"restoration_verified"' in log
+
+
+@pytest.mark.parametrize(
+    "flag,event_name",
+    [
+        ("MOCK_MODE_FAIL", "temporary_enablement_mode_verification_failed"),
+        ("MOCK_AGENT_MAPPING_FAIL", "temporary_enablement_agent_mapping_failed"),
+        ("MOCK_REVIEWER_MAPPING_FAIL", "temporary_enablement_reviewer_mapping_failed"),
+        ("MOCK_CLEANUP_MAPPING_FAIL", "temporary_enablement_cleanup_mapping_failed"),
+        ("MOCK_SEARCH_E2E_FAIL", "temporary_enablement_search_beat_isolation_failed"),
+    ],
+)
+def test_post_enable_gate_failure_is_persisted_and_runner_not_started(tmp_path, flag, event_name):
+    env, evidence, state = _isolated_fixture(tmp_path)
+    env[flag] = "1"
+    result = subprocess.run(["bash", str(SCRIPT)], env=env, capture_output=True, text=True, timeout=10)
+    assert result.returncode != 0
+    log = (evidence / env["WP1_RUN_ID"] / "orchestration.jsonl").read_text()
+    assert f'"event":"{event_name}"' in log
+    assert '"status":"FAIL_CLOSED"' in log
+    assert '"event":"runner_launch"' not in log
+    assert '"event":"restoration_verified"' in log
 
 
 def test_production_mode_skips_isolated_baseline_bootstrap(tmp_path):
