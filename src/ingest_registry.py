@@ -94,6 +94,24 @@ class IngestRegistry:
         with self._connection() as connection:
             return self._decode(connection.execute("SELECT * FROM ingestion_requests WHERE task_id = ?", (task_id,)).fetchone())
 
+    def find_by_run(self, run_id: str) -> list[dict]:
+        with self._connection() as connection:
+            rows = connection.execute(
+                "SELECT * FROM ingestion_requests WHERE run_id = ? ORDER BY created_at DESC",
+                (run_id,),
+            ).fetchall()
+        return [self._decode(row) for row in rows]
+
+    def delete_by_run(self, run_id: str) -> int:
+        with self._connection() as connection:
+            connection.execute(
+                "DELETE FROM ingestion_events WHERE task_id IN "
+                "(SELECT task_id FROM ingestion_requests WHERE run_id = ?)",
+                (run_id,),
+            )
+            cursor = connection.execute("DELETE FROM ingestion_requests WHERE run_id = ?", (run_id,))
+        return cursor.rowcount
+
     def register(self, identity: dict, task_id: str) -> tuple[dict, bool]:
         existing = self.find_by_idempotency(identity["idempotency_key"])
         if existing:
