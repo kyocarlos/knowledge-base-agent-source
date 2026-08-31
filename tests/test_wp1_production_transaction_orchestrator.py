@@ -78,10 +78,20 @@ def _isolated_fixture(tmp_path, runner_exit=0, sleep_runner=False):
           if [ "$service" = "$web_target" ]; then
             printf 'KB_E2E_WRITE_MODE_ENABLED=%s\\n' "$mode"
             if [ "$mode" = true ]; then
-              printf '%s\\n' KB_E2E_AGENT_TOKEN_HASHES_JSON KB_E2E_REVIEWER_TOKEN_HASHES_JSON KB_E2E_CLEANUP_ENABLED KB_E2E_CLEANUP_TOKEN_HASHES_JSON KB_E2E_CLEANUP_TEST_RUN_ID_PREFIX
+              printf '%s\\n' 'KB_E2E_AGENT_TOKEN_HASHES_JSON={"e2e-agent-01":{}}' 'KB_E2E_REVIEWER_TOKEN_HASHES_JSON={"e2e-reviewer-01":{}}' KB_E2E_CLEANUP_ENABLED 'KB_E2E_CLEANUP_TOKEN_HASHES_JSON={"e2e-cleanup-01":{}}' KB_E2E_CLEANUP_TEST_RUN_ID_PREFIX
+            elif [ -n "${MOCK_BASELINE_MAPPING:-}" ]; then
+              case "$MOCK_BASELINE_MAPPING" in
+                empty) printf '%s\\n' 'KB_E2E_AGENT_TOKEN_HASHES_JSON={}' ;;
+                whitespace) printf '%s\\n' 'KB_E2E_AGENT_TOKEN_HASHES_JSON=   {}   ' ;;
+                nonempty) printf '%s\\n' 'KB_E2E_AGENT_TOKEN_HASHES_JSON={"e2e-agent-01":{}}' ;;
+                malformed) printf '%s\\n' 'KB_E2E_AGENT_TOKEN_HASHES_JSON={bad' ;;
+                array) printf '%s\\n' 'KB_E2E_AGENT_TOKEN_HASHES_JSON=[]' ;;
+              esac
             fi
           elif [ "$service" = "$ingest_target" ]; then
-            printf '%s\\n' KB_E2E_AGENT_TOKEN_HASHES_JSON KB_E2E_REVIEWER_TOKEN_HASHES_JSON KB_E2E_CLEANUP_ENABLED KB_E2E_CLEANUP_TOKEN_HASHES_JSON KB_E2E_CLEANUP_TEST_RUN_ID_PREFIX
+            if [ "$mode" = true ]; then
+              printf '%s\\n' 'KB_E2E_AGENT_TOKEN_HASHES_JSON={"e2e-agent-01":{}}' 'KB_E2E_REVIEWER_TOKEN_HASHES_JSON={"e2e-reviewer-01":{}}' KB_E2E_CLEANUP_ENABLED 'KB_E2E_CLEANUP_TOKEN_HASHES_JSON={"e2e-cleanup-01":{}}' KB_E2E_CLEANUP_TEST_RUN_ID_PREFIX
+            fi
           fi
           exit 0
         fi
@@ -264,6 +274,26 @@ def test_isolated_true_baseline_env_fails_before_bootstrap(tmp_path):
     assert result.returncode != 0
     assert "baseline env write mode is not false" in result.stderr
     assert "recreate=web" not in state.read_text()
+
+
+@pytest.mark.parametrize("mapping", ["nonempty", "malformed", "array"])
+def test_isolated_nonempty_or_invalid_baseline_mapping_fails_closed(tmp_path, mapping):
+    env, evidence, state = _isolated_fixture(tmp_path)
+    env["MOCK_BASELINE_MAPPING"] = mapping
+    result = subprocess.run(["bash", str(SCRIPT)], env=env, capture_output=True, text=True, timeout=10)
+    assert result.returncode != 0
+    assert "recreate=web" in state.read_text()
+    payload = json.loads((evidence / env["WP1_RUN_ID"] / "transaction-result.json").read_text())
+    assert payload["transaction_result"] == "FAIL_CLOSED"
+
+
+@pytest.mark.parametrize("mapping", ["empty", "whitespace"])
+def test_isolated_empty_baseline_mapping_is_allowed(tmp_path, mapping):
+    env, evidence, state = _isolated_fixture(tmp_path)
+    env["MOCK_BASELINE_MAPPING"] = mapping
+    result = subprocess.run(["bash", str(SCRIPT)], env=env, capture_output=True, text=True, timeout=10)
+    assert result.returncode == 0, result.stderr
+    assert state.read_text().splitlines().count("recreate=web") == 3
 
 
 def test_production_mode_skips_isolated_baseline_bootstrap(tmp_path):

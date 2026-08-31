@@ -121,6 +121,49 @@ mode_value() {
 has_key() {
     inspect_env "$1" | awk -F= -v wanted="$2" '$1==wanted{found=1} END{exit found ? 0 : 1}'
 }
+mapping_is_empty_or_absent() {
+    local target="$1" key="$2" value="" found=0 line
+    while IFS= read -r line; do
+        case "$line" in
+            "$key"=*) value="${line#*=}"; found=1 ;;
+            "$key") value=""; found=1 ;;
+        esac
+    done < <(inspect_env "$target")
+    [ "$found" -eq 0 ] && return 0
+    printf '%s' "$value" | python3 -c '
+import json
+import sys
+
+raw = sys.stdin.read().strip()
+if not raw:
+    raise SystemExit(0)
+try:
+    value = json.loads(raw)
+except json.JSONDecodeError:
+    raise SystemExit(1)
+raise SystemExit(0 if isinstance(value, dict) and not value else 1)
+'
+}
+mapping_is_nonempty_object() {
+    local target="$1" key="$2" value="" found=0 line
+    while IFS= read -r line; do
+        case "$line" in
+            "$key"=*) value="${line#*=}"; found=1 ;;
+            "$key") value=""; found=1 ;;
+        esac
+    done < <(inspect_env "$target")
+    [ "$found" -eq 1 ] || return 1
+    printf '%s' "$value" | python3 -c '
+import json
+import sys
+
+try:
+    value = json.loads(sys.stdin.read())
+except json.JSONDecodeError:
+    raise SystemExit(1)
+raise SystemExit(0 if isinstance(value, dict) and bool(value) else 1)
+'
+}
 no_e2e_keys() {
     ! inspect_env "$1" | awk -F= '$1 ~ /^KB_E2E_/{found=1} END{exit found ? 0 : 1}'
 }
@@ -280,9 +323,9 @@ if [ "$EXECUTION_MODE" = isolated ]; then
     fi
     event isolated_baseline_bootstrap_completed
     [ "$(mode_value)" = false ] || die 'isolated baseline write mode is not false'
-    ! has_key "$WP1_WEB_TARGET" KB_E2E_AGENT_TOKEN_HASHES_JSON || die 'isolated baseline has temporary agent mapping'
-    ! has_key "$WP1_WEB_TARGET" KB_E2E_REVIEWER_TOKEN_HASHES_JSON || die 'isolated baseline has temporary reviewer mapping'
-    ! has_key "$WP1_WEB_TARGET" KB_E2E_CLEANUP_TOKEN_HASHES_JSON || die 'isolated baseline has temporary cleanup mapping'
+    mapping_is_empty_or_absent "$WP1_WEB_TARGET" KB_E2E_AGENT_TOKEN_HASHES_JSON || die 'isolated baseline has temporary agent mapping'
+    mapping_is_empty_or_absent "$WP1_WEB_TARGET" KB_E2E_REVIEWER_TOKEN_HASHES_JSON || die 'isolated baseline has temporary reviewer mapping'
+    mapping_is_empty_or_absent "$WP1_WEB_TARGET" KB_E2E_CLEANUP_TOKEN_HASHES_JSON || die 'isolated baseline has temporary cleanup mapping'
     wait_for_readiness isolated_baseline || die 'isolated baseline readiness failed'
     event isolated_baseline_readiness_passed
     event isolated_baseline_verified
@@ -296,16 +339,17 @@ rc=$?
 [ "$rc" -eq 0 ] || exit 1
 
 [ "$(mode_value)" = true ] || exit 1
-for key in KB_E2E_WRITE_MODE_ENABLED KB_E2E_AGENT_TOKEN_HASHES_JSON \
-    KB_E2E_REVIEWER_TOKEN_HASHES_JSON KB_E2E_CLEANUP_ENABLED \
-    KB_E2E_CLEANUP_TOKEN_HASHES_JSON KB_E2E_CLEANUP_TEST_RUN_ID_PREFIX; do
-    has_key "$WP1_WEB_TARGET" "$key" || exit 1
-done
-for key in KB_E2E_AGENT_TOKEN_HASHES_JSON KB_E2E_REVIEWER_TOKEN_HASHES_JSON \
-    KB_E2E_CLEANUP_ENABLED KB_E2E_CLEANUP_TOKEN_HASHES_JSON \
-    KB_E2E_CLEANUP_TEST_RUN_ID_PREFIX; do
-    has_key "$WP1_INGEST_TARGET" "$key" || exit 1
-done
+has_key "$WP1_WEB_TARGET" KB_E2E_WRITE_MODE_ENABLED || exit 1
+mapping_is_nonempty_object "$WP1_WEB_TARGET" KB_E2E_AGENT_TOKEN_HASHES_JSON || exit 1
+mapping_is_nonempty_object "$WP1_WEB_TARGET" KB_E2E_REVIEWER_TOKEN_HASHES_JSON || exit 1
+has_key "$WP1_WEB_TARGET" KB_E2E_CLEANUP_ENABLED || exit 1
+mapping_is_nonempty_object "$WP1_WEB_TARGET" KB_E2E_CLEANUP_TOKEN_HASHES_JSON || exit 1
+has_key "$WP1_WEB_TARGET" KB_E2E_CLEANUP_TEST_RUN_ID_PREFIX || exit 1
+mapping_is_nonempty_object "$WP1_INGEST_TARGET" KB_E2E_AGENT_TOKEN_HASHES_JSON || exit 1
+mapping_is_nonempty_object "$WP1_INGEST_TARGET" KB_E2E_REVIEWER_TOKEN_HASHES_JSON || exit 1
+has_key "$WP1_INGEST_TARGET" KB_E2E_CLEANUP_ENABLED || exit 1
+mapping_is_nonempty_object "$WP1_INGEST_TARGET" KB_E2E_CLEANUP_TOKEN_HASHES_JSON || exit 1
+has_key "$WP1_INGEST_TARGET" KB_E2E_CLEANUP_TEST_RUN_ID_PREFIX || exit 1
 no_e2e_keys "$WP1_SEARCH_TARGET" || exit 1
 no_e2e_keys "$WP1_BEAT_TARGET" || exit 1
 wait_for_readiness post_enable || exit 1
