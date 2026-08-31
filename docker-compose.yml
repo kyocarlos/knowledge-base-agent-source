@@ -100,6 +100,7 @@ services:
       - ${KB_CONFIG_ROOT:-./config}:/app/config:ro
       - ${KB_DATA_ROOT:-./data}:/home/da40_ai_gb10/knowledge-base/data
       - ${KB_UPLOAD_ROOT:-./data/uploads}:/app/data/uploads
+      - ${KB_REPORT_STAGING_ROOT_HOST:-./data/report-staging}:/app/data/report-staging
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:
@@ -165,6 +166,7 @@ services:
       - ${KB_CONFIG_ROOT:-./config}:/app/config:ro
       - ${KB_DATA_ROOT:-./data}:/home/da40_ai_gb10/knowledge-base/data
       - ${KB_UPLOAD_ROOT:-./data/uploads}:/app/data/uploads
+      - ${KB_REPORT_STAGING_ROOT_HOST:-./data/report-staging}:/app/data/report-staging
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:
