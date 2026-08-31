@@ -346,7 +346,15 @@ def run_acceptance(args: argparse.Namespace) -> dict[str, object]:
         evidence["duplicate"] = {"status": duplicate_status, "duplicate": duplicate.get("duplicate")}
         if duplicate_status != 202 or duplicate.get("duplicate") is not True:
             raise AcceptanceGateError("Duplicate/idempotency gate failed")
-        self_read_status, _ = request(f"{base}/api/agent/v1/reports/{submission_id}", {"Authorization": agent["Authorization"], "X-Agent-ID": agent["X-E2E-Agent-ID"]})
+        self_read_status, _ = request(
+            f"{base}/api/agent/v1/reports/{submission_id}",
+            {
+                "Authorization": agent["Authorization"],
+                "X-E2E-Agent-ID": agent["X-E2E-Agent-ID"],
+                "X-E2E-Test-Mode": agent["X-E2E-Test-Mode"],
+                "X-E2E-Test-Run-ID": agent["X-E2E-Test-Run-ID"],
+            },
+        )
         evidence["self_read"] = self_read_status
         if self_read_status != 200:
             raise AcceptanceGateError("Report self-read gate failed")
