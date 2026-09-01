@@ -1,0 +1,33 @@
+{
+  "feature": "KM-001 Knowledge Package v1",
+  "validation_type": "RUNTIME_VALIDATED",
+  "runtime": "disposable production-compatible Docker stack",
+  "image": "km001-runtime-validation:20260901",
+  "source_branch": "phase1-km001-km014-implementation-20260901",
+  "document": {
+    "document_id": "km001-real-document",
+    "document_version": "1.0.0",
+    "chunk_count": 2
+  },
+  "qdrant": {
+    "write": "PASS",
+    "point_id_type": "UUID",
+    "vector_dimension": 768,
+    "document_version": "1.0.0",
+    "package_id_match": true,
+    "publish_status": "draft"
+  },
+  "neo4j": {
+    "write": "PASS",
+    "document_count": 1,
+    "document_version": "1.0.0",
+    "package_id_match": true,
+    "publish_status": "draft",
+    "is_current": false
+  },
+  "result": "PASS",
+  "production_touched": false,
+  "secrets_included": false,
+  "user_visible_validated": false,
+  "note": "User-visible chat/search validation remains pending; this evidence proves real document processing and store writes only."
+}
