@@ -281,8 +281,6 @@ def websocket_exchange(base_url: str, run_id: str) -> dict[str, object]:
         result: dict[str, object] = {"handshake": False, "ready": False, "chat_sent": False, "final": False, "close_code": None, "frames": chronology}
         async with websockets.connect(ws_url, ssl=tls, open_timeout=15, close_timeout=5) as ws:
             result["handshake"] = True
-            await ws.send(json.dumps({"type": "auth", "token": config["authToken"]}))
-            chronology.append({"direction": "client_to_gateway", "event": "auth", "token_present": True})
             for _ in range(30):
                 message = parse_json(await asyncio.wait_for(ws.recv(), timeout=20), "WebSocket frame")
                 chronology.append({"direction": "gateway_to_client", "type": message.get("type"), "event": message.get("event"), "id": message.get("id"), "ok": message.get("ok"), "state": (message.get("payload") or {}).get("state")})

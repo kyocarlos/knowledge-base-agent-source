@@ -62,3 +62,9 @@ def test_connect_request_uses_schema_safe_default_client():
         "platform": "linux",
         "mode": "cli",
     }
+
+
+def test_runner_does_not_send_legacy_auth_frame_before_connect():
+    source = (Path(__file__).parents[1] / "scripts" / "run_wp1_production_acceptance.py").read_text()
+
+    assert 'json.dumps({"type": "auth"' not in source
