@@ -67,3 +67,31 @@ def test_qdrant_point_id_is_uuid_and_chunk_identity_is_payload():
         point = store.client.upsert.call_args.kwargs["points"][0]
         assert point.id == "00000000-0000-0000-0000-000000000001"
         assert point.payload["chunk_id"] == document["metadata"]["chunk_id"]
+
+
+def test_search_source_projection_preserves_package_identity():
+    from src.search import SearchEngine
+
+    engine = object.__new__(SearchEngine)
+    engine.default_basic_top_k = 3
+    engine.vector_store = MagicMock()
+    engine.vector_store.search.return_value = [{
+        "doc_name": "doc-real",
+        "content": "retrievable content",
+        "score": 0.9,
+        "chunk_index": 0,
+        "document_id": "doc-real",
+        "package_id": "package-real",
+        "document_version": "3.1.0",
+        "chunk_id": "doc-real@3.1.0::chunk::0::abc",
+        "publish_status": "draft",
+        "is_current": False,
+    }]
+    engine._extract_case_hints = lambda query: []
+    engine._is_numeric_extraction_query = lambda query: False
+    engine._rank_vector_results = lambda results, query, top_k: results
+    result = engine._vector_search_raw("retrievable content")
+    source = result["sources"][0]
+    assert source["package_id"] == "package-real"
+    assert source["document_version"] == "3.1.0"
+    assert source["chunk_id"] == "doc-real@3.1.0::chunk::0::abc"

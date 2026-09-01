@@ -1,6 +1,6 @@
 {
   "feature": "KM-001 Knowledge Package v1",
-  "validation_type": "RUNTIME_VALIDATED",
+  "validation_type": "USER_VISIBLE_VALIDATED",
   "runtime": "disposable production-compatible Docker stack",
   "image": "km001-runtime-validation:20260901",
   "source_branch": "phase1-km001-km014-implementation-20260901",
@@ -25,9 +25,22 @@
     "publish_status": "draft",
     "is_current": false
   },
+  "search_api": {
+    "entrypoint": "/search -> /tasks/{task_id}",
+    "submission": "PASS",
+    "task_status": "completed",
+    "matched_document": true,
+    "source_count": 2,
+    "source_identity_fields": [
+      "package_id",
+      "document_id",
+      "document_version",
+      "chunk_id"
+    ]
+  },
   "result": "PASS",
   "production_touched": false,
   "secrets_included": false,
-  "user_visible_validated": false,
-  "note": "User-visible chat/search validation remains pending; this evidence proves real document processing and store writes only."
+  "user_visible_validated": true,
+  "note": "Real FastAPI /search and /tasks endpoints completed through the disposable app and search worker; returned sources matched the ingested document and exposed package identity."
 }
