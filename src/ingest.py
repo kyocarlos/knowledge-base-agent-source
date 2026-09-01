@@ -722,6 +722,41 @@ def ingest_all(raw_folder: str, enable_vector: bool = True, extraction_mode: str
         logger.warning(f"index.md 更新失敗: {e}")
 
 
+def reingest_document_revision(
+    doc_path: str,
+    package_id: str,
+    *,
+    extraction_mode: str | None = None,
+):
+    """Run a versioned document ingest and publish only after it is complete.
+
+    The caller registers the draft revision first.  Existing ingest code writes
+    draft-scoped store records; the lifecycle coordinator controls visibility and
+    keeps the previous current revision searchable on failure.
+    """
+    from .knowledge_graph_lifecycle import KnowledgeGraphLifecycle
+    from .knowledge_lifecycle import KnowledgeLifecycle
+    from .revisioned_reingest import reingest_revision
+    from .vector_store import VectorStore
+
+    graph = KnowledgeGraphLifecycle()
+    try:
+        return reingest_revision(
+            KnowledgeLifecycle(),
+            package_id,
+            lambda: ingest_document(
+                doc_path,
+                enable_vector=True,
+                extraction_mode=extraction_mode,
+                preserve_assets=True,
+            ),
+            vector_store=VectorStore(),
+            graph_writer=graph,
+        )
+    finally:
+        graph.close()
+
+
 def detect_extraction_mode(filename: str) -> str:
     """
     根據檔案名稱自動判斷萃取模式
