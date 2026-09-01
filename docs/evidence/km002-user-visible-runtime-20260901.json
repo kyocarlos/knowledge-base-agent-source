@@ -1,0 +1,33 @@
+{
+  "km": "KM002",
+  "validation_scope": "real_integrated_disposable_runtime",
+  "entrypoint": "POST /search -> GET /tasks/{task_id}",
+  "chat_html": {
+    "static_entrypoint_http": 200,
+    "functional_chat_validation": "PENDING",
+    "reason": "Disposable runtime has no safe OpenClaw gateway; browser automation dependency is unavailable in the validation venv."
+  },
+  "scenarios": {
+    "draft_default_search": {"result": "PASS", "visible": false},
+    "published_v1": {
+      "result": "PASS",
+      "document_id": "km002-document",
+      "document_version": "1.0.0",
+      "package_id": "6f8a98edc6a259b0b64a7503f35b6685ef518375e2944c473203d3f241627397",
+      "chunk_id_present": true
+    },
+    "published_v2_current": {
+      "result": "PASS",
+      "document_id": "km002-document",
+      "document_version": "2.0.0",
+      "package_id": "f0ccc84a363af9a2718927828260a409278bf47c516fce67582f5d782331fb81",
+      "chunk_id_present": true
+    },
+    "superseded_v1_default_search": {"result": "PASS", "v1_visible_as_current": false},
+    "failed_v3_preserves_v2": {"result": "PASS", "v2_visible": true, "v3_published": false}
+  },
+  "qdrant_neo4j_identity_match": true,
+  "health_version": "PASS",
+  "production_touched": false,
+  "secrets_included": false
+}

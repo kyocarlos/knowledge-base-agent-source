@@ -50,3 +50,17 @@ Sanitized result:
 ```
 
 No Production service, database, filesystem or acceptance run was modified.
+
+## User-visible validation boundary
+
+The same real Search API contract used by `chat.html` was exercised against a
+fresh disposable runtime. The sanitized identity evidence is in
+`docs/evidence/km002-user-visible-runtime-20260901.json`. It records v1 and v2
+source identity, superseded-v1 invisibility, and preservation of v2 after an
+injected v3 publish failure.
+
+The static `chat.html` entrypoint returned HTTP 200, but functional browser
+validation remains pending: the disposable runtime had no safe OpenClaw gateway
+and the available validation environment had no Playwright module. Therefore
+this evidence does not claim `USER_VISIBLE_VALIDATED`; KM002 remains
+`RUNTIME_VALIDATED` and is not yet DONE.
