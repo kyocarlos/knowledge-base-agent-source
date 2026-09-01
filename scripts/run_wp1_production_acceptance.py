@@ -226,6 +226,42 @@ def verify_runtime_identity(base_url: str, args: argparse.Namespace) -> dict[str
     return {"health": health, "version": status, "metadata": expected}
 
 
+def build_connect_request(
+    config: dict[str, object],
+    scopes: list[str],
+    signature: str,
+    challenge: dict[str, object],
+) -> dict[str, object]:
+    """Build only fields accepted by the OpenClaw ConnectParams schema."""
+    configured_client = config.get("client")
+    client = configured_client if isinstance(configured_client, dict) else {}
+    allowed_client_keys = ("id", "displayName", "version", "platform", "deviceFamily", "modelIdentifier", "mode", "instanceId")
+    client = {key: client[key] for key in allowed_client_keys if client.get(key) is not None}
+    if not client:
+        client = {"id": "cli", "version": "1.0.0", "platform": "linux", "mode": "cli"}
+
+    return {
+        "type": "req",
+        "id": "c1",
+        "method": "connect",
+        "params": {
+            "minProtocol": 3,
+            "maxProtocol": 3,
+            "client": client,
+            "role": "operator",
+            "scopes": scopes,
+            "auth": {"token": config["authToken"], "deviceToken": config.get("deviceToken", "")},
+            "device": {
+                "id": config["deviceId"],
+                "publicKey": config["publicKeyRaw"],
+                "signature": signature,
+                "signedAt": challenge.get("ts"),
+                "nonce": challenge.get("nonce"),
+            },
+        },
+    }
+
+
 def websocket_exchange(base_url: str, run_id: str) -> dict[str, object]:
     status, body = request(f"{base_url}/api/openclaw/chat-config")
     config = parse_json(body, "OpenClaw chat config") if status == 200 else {}
@@ -255,7 +291,7 @@ def websocket_exchange(base_url: str, run_id: str) -> dict[str, object]:
                     payload = serialize_connect_payload(device_id=str(config["deviceId"]), scopes=scopes, timestamp=int(challenge.get("ts", 0)), token=str(config["authToken"]), nonce=str(challenge.get("nonce", "")))
                     crypto = crypto_preflight(str(config["privateKeyPem"]), payload)
                     signature = base64.urlsafe_b64encode(crypto["signature"]).decode("ascii").rstrip("=")
-                    connect = {"type": "req", "id": "c1", "method": "connect", "params": {"minProtocol": 3, "maxProtocol": 3, "client": config.get("client") or {"id": "cli", "version": "1.0.0", "platform": "linux", "mode": "cli"}, "role": "operator", "scopes": scopes, "auth": {"token": config["authToken"], "deviceToken": config.get("deviceToken", "")}, "device": {"id": config["deviceId"], "publicKey": config["publicKeyRaw"], "signature": signature, "signedAt": challenge.get("ts"), "nonce": challenge.get("nonce")}, "locale": config.get("locale", "zh-TW"), "userAgent": config.get("userAgent", "openclaw-e2e/1.0.0")}}
+                    connect = build_connect_request(config, scopes, signature, challenge)
                     await ws.send(json.dumps(connect))
                     chronology.append({"direction": "client_to_gateway", "event": "req.connect", "id": "c1", "crypto": {"key_type": crypto["key_type"], "local_sign": "PASS", "local_verify": "PASS"}})
                 elif message.get("type") == "res" and message.get("id") == "c1" and message.get("ok") is True:
