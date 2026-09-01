@@ -3838,7 +3838,9 @@ class SearchEngine:
         """執行 Neo4j report graph rows 查詢。"""
         cypher = """
             MATCH (r:Report)
-            WHERE ($project_count = 0 OR toUpper(r.project_code) IN $project_hints)
+            WHERE coalesce(r.publish_status, 'published') = 'published'
+              AND coalesce(r.is_current, true) = true
+              AND ($project_count = 0 OR toUpper(r.project_code) IN $project_hints)
               AND (
                 $test_item_count = 0 OR EXISTS {
                     MATCH (r)-[:HAS_TEST_ITEM]->(t:TestItem)
