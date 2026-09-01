@@ -51,3 +51,8 @@ Production deployment remains unauthorized until a separately reviewed
 candidate is available. A P0 data/security/rollback regression stops the batch;
 P2 documentation or observability debt is recorded without blocking core
 functionality.
+
+The per-KM real-system target and evidence contract is maintained in
+`docs/phase1-km001-km014-real-system-validation-matrix.md`. That matrix is the
+completion gate for every incremental implementation and must be updated only
+with actual runtime results.
