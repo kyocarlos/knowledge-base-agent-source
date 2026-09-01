@@ -2172,7 +2172,9 @@
       const searchRes = await fetch(apiUrl('/search'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query, mode: 'basic', top_k: 6 })
+        // Report queries can fan out to many chunks. Fetch the real sources
+        // first so a slow LLM cannot block the user-visible KB result.
+        body: JSON.stringify({ query, mode: 'vector', top_k: 5, sources_only: true })
       });
 
       if (!searchRes.ok) {
@@ -2185,7 +2187,8 @@
       }
 
       const result = await waitForSearchResult(searchData.task_id, 240000);
-      if (result && String(result.answer || '').trim()) {
+      if (result && (String(result.answer || '').trim()
+        || (Array.isArray(result.sources) && result.sources.length > 0))) {
         return { result };
       }
 
@@ -2488,9 +2491,11 @@
               }
             }
 
-            if (summaryResult.answer) {
+            const sourceFirstAnswer = String(summaryResult.answer || '').trim()
+              || buildDeterministicKbExcerpt(summaryResult);
+            if (sourceFirstAnswer) {
               const latencySummary = finalizeWaitTimings();
-              addMessage('bot', summaryResult.answer, true, {
+              addMessage('bot', sourceFirstAnswer, true, {
                 sourceLabel: 'KB 參考',
                 sourceHint: buildSourceReferenceHint(summaryResult.sources || []),
                 latencyText: buildLatencyText(latencySummary),
