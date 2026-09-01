@@ -55,7 +55,12 @@ jobs:
           git switch --force-create phase1-runtime-status FETCH_HEAD 2>/dev/null || git switch --orphan phase1-runtime-status
           mkdir -p status
           cp phase1-runtime-status.json status/current.json
+          STATUS=$(python -c 'import json; print(json.load(open("status/current.json"))["status"])')
+          case "$STATUS" in
+            PASS|MISMATCH|STALE) ;;
+            *) echo "invalid reconciliation status" >&2; exit 1 ;;
+          esac
+          echo "reconciliation_status=${STATUS}" >> "$GITHUB_STEP_SUMMARY"
           git add status/current.json
           git diff --cached --quiet || git commit -m "chore: publish Phase 1 runtime status"
           git push origin HEAD:phase1-runtime-status
-          exit "${STATUS_RC}"
