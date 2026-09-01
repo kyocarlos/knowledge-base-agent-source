@@ -14,6 +14,8 @@ import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
 
+SERVICES = ("kb-web", "kb-celery-search", "kb-celery-ingest", "kb-celery-beat")
+
 
 def utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()
@@ -69,27 +71,28 @@ def broker_status(path: Path, *, timeout: float) -> dict[str, object]:
 
 
 def compare(manifest: dict[str, object], snapshot: dict[str, object]) -> str:
-    release = manifest["approved_release"]
-    git = snapshot["git"]
+    release = manifest["deployed_release"]
     version = snapshot["version"]
     services = snapshot["services"]
-    if not git.get("clean") or git.get("head") != release["operational_runner_commit"]:
-        return "MISMATCH"
     if version.get("health_status") != 200 or version.get("version_status") != 200:
         return "STALE"
-    data = version.get("data", {})
-    if any(data.get(key) != value for key, value in {
-        "commit": release["application_commit"],
-        "release_id": release["release_id"],
-        "image_digest": release["image_digest"],
-        "build_timestamp": release["build_timestamp"],
-    }.items()):
-        return "MISMATCH"
-    expected_containers = ("kb-web", "kb-celery-search", "kb-celery-ingest", "kb-celery-beat")
-    if any(services.get(name, {}).get("status") != "running" for name in expected_containers):
+    if any(services.get(name, {}).get("status") != "running" for name in SERVICES):
         return "STALE"
-    if any(services.get(name, {}).get("image_id") != release["image_digest"] for name in expected_containers):
+    expected_images = release["service_images"]
+    if any(services.get(name, {}).get("image_id") != expected_images.get(name) for name in SERVICES):
         return "MISMATCH"
+    if release.get("deployment_state") == "RELEASE":
+        git = snapshot["git"]
+        if not git.get("clean") or git.get("head") != release.get("operational_runner_commit"):
+            return "MISMATCH"
+        data = version.get("data", {})
+        if any(data.get(key) != release.get(expected_key) for key, expected_key in {
+            "commit": "application_commit",
+            "release_id": "release_id",
+            "image_digest": "image_digest",
+            "build_timestamp": "build_timestamp",
+        }.items()):
+            return "MISMATCH"
     return "PASS"
 
 

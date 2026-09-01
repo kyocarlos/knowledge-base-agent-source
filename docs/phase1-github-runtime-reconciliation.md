@@ -6,7 +6,14 @@ not make GitHub a source of production secrets or production database data.
 ## Contracts
 
 - `docs/phase1-status-manifest.json` is the reviewed declaration of the 18 P1
-  roadmap work items and the approved application/runtime release identity.
+  roadmap work items, the last accepted release, and the currently deployed
+  runtime identity.
+- `accepted_release` records the last production-accepted candidate and its
+  historical acceptance run. It is evidence of acceptance, not a claim about
+  what is deployed now.
+- `deployed_release` records the runtime identity expected to be deployed now.
+  After WP1 acceptance the application services intentionally restore to the
+  production baseline, so this identity is declared separately.
 - `scripts/validate_phase1_status.py` validates the declaration and rejects
   secret-like content.
 - `scripts/collect_phase1_runtime_status.py` is read-only. It reads Git HEAD,
@@ -28,7 +35,13 @@ have deployment credentials, database write credentials, or access to secret
 values. It publishes `status/current.json` to the dedicated
 `phase1-runtime-status` branch. A `PASS` snapshot requires all expected
 identity and runtime checks to match; otherwise the snapshot is `MISMATCH` or
-`STALE`.
+`STALE`. The comparison is against `deployed_release`, not the historical
+`accepted_release`. For a `BASELINE` deployment this means service status,
+service image identity and Health/Version availability. Unavailable Git or
+release metadata remains non-blocking provenance debt. For a `RELEASE`
+deployment, the collector also compares the approved application and
+operational identities. Differences are reported, never repaired by changing
+Production.
 
 ## Deployment boundary
 
