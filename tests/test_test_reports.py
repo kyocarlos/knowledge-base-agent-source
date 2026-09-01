@@ -14,6 +14,7 @@ from openpyxl import Workbook
 from src.test_reports.excel_contract import ReportValidationError, parse_and_validate_report, render_report_markdown
 from src.test_reports.registry import SubmissionConflict, SubmissionRegistry
 from src.web_api.report_routes import router
+from src.web_api.tasks import _attachment_hashes_from_state
 
 
 def build_report(path: Path, environment: str = "anritsu", run_id: str = "RUN-001") -> None:
@@ -43,6 +44,18 @@ def build_report(path: Path, environment: str = "anritsu", run_id: str = "RUN-00
 
 
 class ExcelContractTests(unittest.TestCase):
+    def test_ingest_state_preserves_attachment_hash_contract(self):
+        digest = hashlib.sha256(b"attachment").hexdigest()
+        state = {
+            "attachments": [
+                {"name": "attachments/synthetic-e2e-log.txt", "sha256": digest}
+            ]
+        }
+        self.assertEqual(
+            _attachment_hashes_from_state(state),
+            {"synthetic-e2e-log.txt": digest},
+        )
+
     def test_valid_report_is_rendered_with_filterable_context(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "report.xlsx"
@@ -129,6 +142,17 @@ class ReportApiTests(unittest.TestCase):
         with self.report_path.open("rb") as handle:
             return self.client.post("/api/agent/v1/reports", headers=self.agent_headers(), files={"file": ("report.xlsx", handle, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")})
 
+    def upload_with_attachment(self):
+        with self.report_path.open("rb") as handle:
+            return self.client.post(
+                "/api/agent/v1/reports",
+                headers=self.agent_headers(),
+                files=[
+                    ("file", ("report.xlsx", handle, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")),
+                    ("attachments", ("synthetic-e2e-log.txt", b"attachment", "text/plain")),
+                ],
+            )
+
     def test_upload_requires_token_and_is_idempotent(self):
         with self.report_path.open("rb") as handle:
             unauthorized = self.client.post("/api/agent/v1/reports", files={"file": ("report.xlsx", handle)})
@@ -141,9 +165,14 @@ class ReportApiTests(unittest.TestCase):
         self.assertEqual(first.json()["submission_id"], second.json()["submission_id"])
 
     def test_reviewer_can_approve_once(self):
-        submission_id = self.upload().json()["submission_id"]
+        submission_id = self.upload_with_attachment().json()["submission_id"]
         async_result = Mock(id="celery-1")
-        with patch("src.web_api.tasks.INGEST_UPLOAD_ROOT", Path(self.directory.name) / "uploads"), patch("src.web_api.tasks.set_ingest_task_state"), patch("src.web_api.tasks.create_ingest_task_id", return_value="ingest-1"), patch("src.web_api.tasks.ingest_file_task.apply_async", return_value=async_result):
+        task_states = []
+        with patch("src.web_api.tasks.INGEST_UPLOAD_ROOT", Path(self.directory.name) / "uploads"), patch(
+            "src.web_api.tasks.set_ingest_task_state", side_effect=lambda task_id, state=None, **changes: task_states.append(
+                {**(state or {}), **changes}
+            )
+        ), patch("src.web_api.tasks.create_ingest_task_id", return_value="ingest-1"), patch("src.web_api.tasks.ingest_file_task.apply_async", return_value=async_result):
             approved = self.client.post(
                 f"/api/admin/v1/report-submissions/{submission_id}/approve",
                 headers=self.reviewer_headers(), json={"comment": "reviewed"},
@@ -155,6 +184,7 @@ class ReportApiTests(unittest.TestCase):
         self.assertEqual(approved.status_code, 200)
         self.assertEqual(approved.json()["status"], "queued")
         self.assertEqual(repeated.status_code, 409)
+        self.assertEqual(task_states[0]["attachments"][0]["name"], "synthetic-e2e-log.txt")
 
 
 if __name__ == "__main__":

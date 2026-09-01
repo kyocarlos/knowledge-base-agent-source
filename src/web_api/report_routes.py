@@ -193,6 +193,7 @@ async def approve_report_submission(submission_id: str, decision: ReviewDecision
         "task_id": task_id, "submission_id": submission_id, "file_name": item["report_name"],
         "original_path": item["original_path"], "converted_path": str(converted_path),
         "file_hash": item["report_hash"], "storage_category": "Report", "extraction_mode": "report",
+        "attachments": item.get("attachments", []),
         "extraction_mode_name": "Test Report", "canonical_test_report": True, "status": "queued",
         "created_at": reviewed_at, "started_at": None, "finished_at": None, "error": None,
         "ingested": False, "content": "",

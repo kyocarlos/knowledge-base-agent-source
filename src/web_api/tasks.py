@@ -43,6 +43,19 @@ REPORT_FOCUS_HINTS = ("throughput", "latency", "bler", "rtt")
 REPORT_PERFORMANCE_SECTION_HINTS = ("performance test",)
 
 
+def _attachment_hashes_from_state(state: dict) -> dict[str, str]:
+    """Convert persisted attachment metadata into the Excel contract input."""
+    hashes: dict[str, str] = {}
+    for attachment in state.get("attachments", []) or []:
+        if not isinstance(attachment, dict):
+            continue
+        name = Path(str(attachment.get("name", ""))).name
+        digest = str(attachment.get("sha256", "")).lower()
+        if name and digest:
+            hashes[name] = digest
+    return hashes
+
+
 def _is_report_like_query(query: str) -> bool:
     text = (query or "").lower()
     if any(hint in text for hint in REPORT_QUERY_HINTS):
@@ -683,7 +696,10 @@ def ingest_file_task(self, task_id: str):
         canonical_report = None
         if state.get("canonical_test_report"):
             from ..test_reports.excel_contract import parse_and_validate_report, render_report_markdown
-            canonical_report = parse_and_validate_report(original_path)
+            canonical_report = parse_and_validate_report(
+                original_path,
+                _attachment_hashes_from_state(state),
+            )
             converted_path.parent.mkdir(parents=True, exist_ok=True)
             converted_path.write_text(render_report_markdown(canonical_report), encoding="utf-8")
             manifest = canonical_report["manifest"]
