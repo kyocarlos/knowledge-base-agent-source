@@ -1,0 +1,42 @@
+{
+  "schema": "km.phase1-runtime-status.v1",
+  "collected_at": "2026-09-01T06:31:00.332716+00:00",
+  "manifest": "docs/phase1-status-manifest.json",
+  "collector_mode": "broker",
+  "source_root": "broker-managed",
+  "git": {
+    "head": null,
+    "clean": false
+  },
+  "version": {
+    "health_status": 200,
+    "version_status": 200,
+    "data": {
+      "commit": null,
+      "release_id": null,
+      "image_digest": null,
+      "build_timestamp": null
+    }
+  },
+  "services": {
+    "kb-web": {
+      "image_id": "sha256:a3220ec33ab80c588f289d8560af96c447c6f573da3145fe66ffa2cd719b16ec",
+      "status": "running"
+    },
+    "kb-celery-search": {
+      "image_id": "sha256:155899cb0071587d0fef6cbd97a1d96d0091c392d4857947f82bf20df0840d3f",
+      "status": "running"
+    },
+    "kb-celery-ingest": {
+      "image_id": "sha256:ecf5d163fa3f8f48afe2b585bb9d8894e6e4c6501712e5663ba0b900a64991a0",
+      "status": "running"
+    },
+    "kb-celery-beat": {
+      "image_id": "sha256:155899cb0071587d0fef6cbd97a1d96d0091c392d4857947f82bf20df0840d3f",
+      "status": "running"
+    }
+  },
+  "status": "MISMATCH",
+  "production_touched": false,
+  "secrets_included": false
+}
