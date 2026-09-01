@@ -20,6 +20,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+      - name: Install validation dependency
+        run: python -m pip install --disable-pip-version-check --no-input pytest
       - name: Validate canonical manifest
         run: python scripts/validate_phase1_status.py docs/phase1-status-manifest.json
       - name: Run manifest contract tests
