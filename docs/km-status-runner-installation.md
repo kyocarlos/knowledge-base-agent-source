@@ -25,6 +25,34 @@ sudo install -o root -g root -m 644 deploy/km-status-broker.service \
 The `km-status-runner` account must not be added to `docker`, `sudo`, or any
 database group. The broker is the only process that reads Docker status.
 
+Install the GitHub Actions runner under the dedicated account in a separate
+workspace. Use the runner version and SHA-256 published by GitHub for the
+selected release; never paste the registration token into this repository:
+
+```bash
+sudo install -d -o km-status-runner -g km-status-runner -m 750 \
+  /var/lib/km-status-runner/actions-runner
+sudo -u km-status-runner -H bash
+cd /var/lib/km-status-runner/actions-runner
+curl --fail --location --output actions-runner.tar.gz \
+  "https://github.com/actions/runner/releases/download/v${RUNNER_VERSION}/actions-runner-linux-x64-${RUNNER_VERSION}.tar.gz"
+echo "${RUNNER_SHA256}  actions-runner.tar.gz" | sha256sum --check
+tar -xzf actions-runner.tar.gz
+./config.sh --url https://github.com/kyocarlos/knowledge-base-agent-source \
+  --token "$RUNNER_REGISTRATION_TOKEN" \
+  --name "km-status-$(hostname -s)" \
+  --labels km-production-readonly \
+  --work _work \
+  --unattended
+exit
+sudo ./svc.sh install km-status-runner
+```
+
+The registration token is short-lived and must be supplied interactively or
+through a protected host mechanism. Do not store it in GitHub repository files
+or evidence. Configure the runner service to run as `km-status-runner` and
+verify it is not in the `docker` group before starting it.
+
 ## Socket and service checks
 
 ```bash

@@ -116,6 +116,7 @@ def main() -> int:
         config.socket.unlink()
     config.socket.parent.mkdir(parents=True, exist_ok=True)
     server = BrokerServer(str(config.socket), Handler)
+    config.socket.chmod(0o660)
     server.config = config
     try:
         server.serve_forever()

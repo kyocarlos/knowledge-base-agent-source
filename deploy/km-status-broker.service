@@ -6,7 +6,7 @@ Requires=docker.service
 [Service]
 Type=simple
 User=root
-Group=root
+Group=km-status-runner
 ExecStart=/usr/local/libexec/km-status-broker \
   --socket /run/km-status-broker/status.sock \
   --source-root /srv/knowledge-base-production-rebaseline-20260829-v3 \
