@@ -1,6 +1,6 @@
 {
   "schema": "km.phase1-runtime-status.v1",
-  "collected_at": "2026-09-01T06:42:53.095059+00:00",
+  "collected_at": "2026-09-01T06:55:12.727051+00:00",
   "manifest": "docs/phase1-status-manifest.json",
   "collector_mode": "broker",
   "source_root": "broker-managed",
@@ -36,7 +36,7 @@
       "status": "running"
     }
   },
-  "status": "MISMATCH",
+  "status": "PASS",
   "production_touched": false,
   "secrets_included": false
 }
