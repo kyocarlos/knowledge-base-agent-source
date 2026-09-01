@@ -3,6 +3,7 @@
 將 Markdown 文件攝入 Neo4j 知識圖譜 + QDrant 向量資料庫
 """
 
+import json
 import logging
 import os
 import yaml
@@ -10,6 +11,7 @@ from pathlib import Path
 
 from .storage_paths import resolve_storage_category, infer_storage_category_from_path
 from .runtime_config import resolve_neo4j_uri
+from .knowledge_package import build_package_id, resolve_document_version
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -140,8 +142,19 @@ def _write_neo4j_document(
                 )
                 if source_metadata.get(key) not in (None, "")
             }
+            document_version = resolve_document_version(source_metadata)
         except Exception as metadata_error:
             logger.warning("讀取 Neo4j 文件身份 metadata 失敗: %s", metadata_error)
+            document_version = resolve_document_version({})
+    else:
+        document_version = resolve_document_version({})
+    identity.update({
+        "package_schema_version": "1.0",
+        "package_id": build_package_id(identity.get("document_id", doc_name), document_version),
+        "document_version": document_version,
+        "publish_status": "draft",
+        "is_current": False,
+    })
     driver = GraphDatabase.driver(
         neo4j_uri,
         auth=(neo4j_user, neo4j_password)
@@ -154,8 +167,13 @@ def _write_neo4j_document(
                 d.source = $source,
                 d.extraction_mode = $mode,
                 d.storage_category = $storage_category,
+                d.package_schema_version = $package_schema_version,
+                d.package_id = $package_id,
+                d.document_version = $document_version,
+                d.publish_status = $publish_status,
+                d.is_current = $is_current,
                 d += $identity
-        """, name=doc_name, content=content[:1000], source=doc_path, mode=extraction_mode, storage_category=storage_category or "", identity=identity)
+        """, name=doc_name, content=content[:1000], source=doc_path, mode=extraction_mode, storage_category=storage_category or "", package_schema_version=identity["package_schema_version"], package_id=identity["package_id"], document_version=document_version, publish_status=identity["publish_status"], is_current=identity["is_current"], identity=identity)
 
         session.run("""
             MATCH (d:Document {name: $name})
@@ -470,7 +488,6 @@ def ingest_document(
         # 嘗試萃取
         result = {}
         try:
-            import json
             import re
 
             # 呼叫 LLM 萃取（最多重試 2 次）

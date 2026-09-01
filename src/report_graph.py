@@ -290,6 +290,7 @@ def write_report_graph(
     report_id = doc_name
     source_path = str(Path(doc_path).resolve())
     source_name = Path(doc_path).name
+    package_metadata = (chunks[0].get("metadata") or {}) if chunks else {}
 
     sections = parse_sections_from_chunks(chunks)
     test_items: dict[str, dict] = {}
@@ -312,6 +313,10 @@ def write_report_graph(
                     r.band = $band,
                     r.source_path = $source_path,
                     r.source_name = $source_name,
+                    r.package_id = $package_id,
+                    r.document_version = $document_version,
+                    r.publish_status = $publish_status,
+                    r.is_current = $is_current,
                     r.updated_at = datetime()
                 MERGE (p)-[:HAS_REPORT]->(r)
                 """,
@@ -322,6 +327,10 @@ def write_report_graph(
                 band=band,
                 source_path=source_path,
                 source_name=source_name,
+                package_id=str(package_metadata.get("package_id") or ""),
+                document_version=str(package_metadata.get("document_version") or ""),
+                publish_status=str(package_metadata.get("publish_status") or "draft"),
+                is_current=bool(package_metadata.get("is_current", False)),
             )
 
             for section in sections:
@@ -385,7 +394,7 @@ def write_report_graph(
                 metrics = extract_metric_rows(section["text"])
                 for chunk in section["chunks"]:
                     chunk_index = int(chunk.get("chunk_index", 0) or 0)
-                    chunk_id = f"{doc_name}::chunk::{chunk_index}::{_sha1(str(chunk.get('content', '')[:500]))[:16]}"
+                    chunk_id = str(chunk.get("id") or f"{doc_name}::chunk::{chunk_index}::{_sha1(str(chunk.get('content', '')[:500]))[:16]}")
                     chunk_content = str(chunk.get("content") or "")
                     chunk_metadata = chunk.get("metadata") or {}
                     session.run(
@@ -396,6 +405,11 @@ def write_report_graph(
                             sc.source_name = $source_name,
                             sc.header = $header,
                             sc.chunk_index = $chunk_index,
+                            sc.package_id = $package_id,
+                            sc.document_version = $document_version,
+                            sc.content_hash = $content_hash,
+                            sc.publish_status = $publish_status,
+                            sc.is_current = $is_current,
                             sc.content = $content,
                             sc.updated_at = datetime()
                         WITH sc
@@ -410,6 +424,11 @@ def write_report_graph(
                         source_name=source_name,
                         header=str(chunk_metadata.get("header") or section["header"]),
                         chunk_index=chunk_index,
+                        package_id=str(chunk_metadata.get("package_id") or ""),
+                        document_version=str(chunk_metadata.get("document_version") or ""),
+                        content_hash=str(chunk_metadata.get("content_hash") or ""),
+                        publish_status=str(chunk_metadata.get("publish_status") or ""),
+                        is_current=bool(chunk_metadata.get("is_current", False)),
                         content=chunk_content,
                         section_id=section_id,
                     )

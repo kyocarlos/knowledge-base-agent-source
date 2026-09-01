@@ -133,11 +133,15 @@ class VectorStore:
             points = []
             for i, doc in enumerate(documents):
                 vector = self.encode([doc["content"]])[0]
-                # QDrant 接受 UUID 或整數作為 ID
+                # Preserve the revision-scoped chunk identity when supplied.
                 import uuid
-                point_id = str(uuid.uuid5(uuid.NAMESPACE_DNS, f"{doc_name}_{i}"))
 
                 metadata = doc.get("metadata", {}) or {}
+                point_id = str(
+                    metadata.get("chunk_id")
+                    or doc.get("id")
+                    or uuid.uuid5(uuid.NAMESPACE_DNS, f"{doc_name}_{i}")
+                )
                 image_refs = merge_image_refs(
                     extract_image_refs_from_text(doc.get("content", "")),
                     metadata.get("image_refs", []),
@@ -177,6 +181,12 @@ class VectorStore:
                     "document_id": metadata.get("document_id", ""),
                     "idempotency_key": metadata.get("idempotency_key", ""),
                     "generated_at": metadata.get("generated_at", ""),
+                    "package_schema_version": metadata.get("package_schema_version", ""),
+                    "package_id": metadata.get("package_id", ""),
+                    "document_version": metadata.get("document_version", ""),
+                    "content_hash": metadata.get("content_hash", ""),
+                    "publish_status": metadata.get("publish_status", ""),
+                    "is_current": metadata.get("is_current", False),
                     "image_refs": image_refs,
                 }
 
@@ -315,6 +325,12 @@ class VectorStore:
                     "document_id": result.payload.get("document_id", ""),
                     "idempotency_key": result.payload.get("idempotency_key", ""),
                     "generated_at": result.payload.get("generated_at", ""),
+                    "package_schema_version": result.payload.get("package_schema_version", ""),
+                    "package_id": result.payload.get("package_id", ""),
+                    "document_version": result.payload.get("document_version", ""),
+                    "content_hash": result.payload.get("content_hash", ""),
+                    "publish_status": result.payload.get("publish_status", ""),
+                    "is_current": result.payload.get("is_current", False),
                     "score": result.score,
                     "id": str(result.id)
                 })
