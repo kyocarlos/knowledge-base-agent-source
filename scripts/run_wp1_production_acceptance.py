@@ -50,6 +50,7 @@ EXPECTED_SECRET_KEYS = (
     "E2E_AGENT_TOKEN", "E2E_AGENT_ID", "E2E_REVIEWER_TOKEN",
     "E2E_REVIEWER_ID", "E2E_CLEANUP_TOKEN", "E2E_CLEANUP_ID",
 )
+DEFAULT_WEBSOCKET_TIMEOUT_SECONDS = 180.0
 
 
 class AcceptanceGateError(RuntimeError):
@@ -262,7 +263,14 @@ def build_connect_request(
     }
 
 
-def websocket_exchange(base_url: str, run_id: str) -> dict[str, object]:
+def websocket_exchange(
+    base_url: str,
+    run_id: str,
+    *,
+    timeout_seconds: float = DEFAULT_WEBSOCKET_TIMEOUT_SECONDS,
+) -> dict[str, object]:
+    if timeout_seconds <= 0:
+        raise ValueError("WebSocket timeout must be positive")
     status, body = request(f"{base_url}/api/openclaw/chat-config")
     config = parse_json(body, "OpenClaw chat config") if status == 200 else {}
     required = ("authToken", "privateKeyPem", "deviceId", "publicKeyRaw", "sessionKey")
@@ -281,8 +289,12 @@ def websocket_exchange(base_url: str, run_id: str) -> dict[str, object]:
         result: dict[str, object] = {"handshake": False, "ready": False, "chat_sent": False, "final": False, "close_code": None, "frames": chronology}
         async with websockets.connect(ws_url, ssl=tls, open_timeout=15, close_timeout=5) as ws:
             result["handshake"] = True
+            deadline = asyncio.get_running_loop().time() + timeout_seconds
             for _ in range(30):
-                message = parse_json(await asyncio.wait_for(ws.recv(), timeout=20), "WebSocket frame")
+                remaining = deadline - asyncio.get_running_loop().time()
+                if remaining <= 0:
+                    raise TimeoutError("WebSocket acceptance timeout")
+                message = parse_json(await asyncio.wait_for(ws.recv(), timeout=remaining), "WebSocket frame")
                 chronology.append({"direction": "gateway_to_client", "type": message.get("type"), "event": message.get("event"), "id": message.get("id"), "ok": message.get("ok"), "state": (message.get("payload") or {}).get("state")})
                 if message.get("event") == "connect.challenge":
                     challenge = message.get("payload") or {}
@@ -407,7 +419,7 @@ def run_acceptance(args: argparse.Namespace) -> dict[str, object]:
         evidence["ingest_terminal"] = terminal
         if terminal != "completed":
             raise AcceptanceGateError("Ingest completion gate failed")
-        evidence["websocket"] = websocket_exchange(base, args.run_id)
+        evidence["websocket"] = websocket_exchange(base, args.run_id, timeout_seconds=args.websocket_timeout)
         dry_status, dry_body = post_json(f"{base}/api/internal/e2e/v1/runs/{args.run_id}/cleanup", {"environment": "anritsu", "apply": False}, cleanup)
         apply_status, apply_body = post_json(f"{base}/api/internal/e2e/v1/runs/{args.run_id}/cleanup", {"environment": "anritsu", "apply": True}, cleanup)
         dry = parse_json(dry_body, "cleanup dry-run")
@@ -454,6 +466,7 @@ def main() -> int:
     parser.add_argument("--evidence-out", type=Path, required=True)
     parser.add_argument("--ingest-poll-attempts", type=int, default=45)
     parser.add_argument("--ingest-poll-interval", type=float, default=2.0)
+    parser.add_argument("--websocket-timeout", type=float, default=DEFAULT_WEBSOCKET_TIMEOUT_SECONDS)
     parser.add_argument("--production", action="store_true")
     args = parser.parse_args()
     if args.production and args.base_url not in {"https://127.0.0.1:3030", "https://localhost:3030"}:
