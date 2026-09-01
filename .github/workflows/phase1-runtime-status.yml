@@ -39,9 +39,7 @@ jobs:
           STATUS_RC=0
           python scripts/collect_phase1_runtime_status.py \
             --manifest docs/phase1-status-manifest.json \
-            --source-root /srv/knowledge-base-production-rebaseline-20260829-v3 \
-            --base-url https://127.0.0.1:3030 \
-            --insecure-tls \
+            --broker-socket /run/km-status-broker/status.sock \
             --output phase1-runtime-status.json || STATUS_RC=$?
           echo "collector_exit=${STATUS_RC}" >> "$GITHUB_STEP_SUMMARY"
           echo "STATUS_RC=${STATUS_RC}" >> "$GITHUB_ENV"

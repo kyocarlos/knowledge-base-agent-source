@@ -1,0 +1,32 @@
+[Unit]
+Description=KM sanitized read-only runtime status broker
+After=docker.service network-online.target
+Requires=docker.service
+
+[Service]
+Type=simple
+User=root
+Group=root
+ExecStart=/usr/local/libexec/km-status-broker \
+  --socket /run/km-status-broker/status.sock \
+  --source-root /srv/knowledge-base-production-rebaseline-20260829-v3 \
+  --base-url https://127.0.0.1:3030 \
+  --insecure-tls
+RuntimeDirectory=km-status-broker
+RuntimeDirectoryMode=0750
+UMask=007
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadOnlyPaths=/srv/knowledge-base-production-rebaseline-20260829-v3
+ReadWritePaths=/run/km-status-broker
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+RestrictNamespaces=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+CapabilityBoundingSet=CAP_DAC_READ_SEARCH CAP_NET_RAW
+AmbientCapabilities=CAP_DAC_READ_SEARCH
+
+[Install]
+WantedBy=multi-user.target

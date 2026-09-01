@@ -32,3 +32,19 @@ def test_manifest_validator_rejects_secret_like_field(tmp_path):
     result = subprocess.run([sys.executable, str(VALIDATOR), str(path)], capture_output=True, text=True)
     assert result.returncode != 0
     assert "secret-like" in result.stderr
+
+
+def test_collector_supports_broker_mode_without_direct_probe_requirements():
+    source = (ROOT / "scripts/collect_phase1_runtime_status.py").read_text(encoding="utf-8")
+    workflow = (ROOT / ".github/workflows/phase1-runtime-status.yml").read_text(encoding="utf-8")
+    assert "--broker-socket" in source
+    assert "broker mode cannot be combined with direct host probes" in source
+    assert "--broker-socket /run/km-status-broker/status.sock" in workflow
+    assert "docker inspect" not in workflow
+
+
+def test_broker_exposes_only_fixed_status_endpoint():
+    source = (ROOT / "scripts/km_status_broker.py").read_text(encoding="utf-8")
+    assert 'request != "GET /v1/status HTTP/1.1"' in source
+    assert "container.exec" not in source
+    assert '"secrets_included": False' in source
