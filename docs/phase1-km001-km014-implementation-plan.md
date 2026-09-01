@@ -14,7 +14,7 @@
 | KM | Exact scope | Reused components | Completion evidence | Risk |
 | --- | --- | --- | --- | --- |
 | KM-001 | Package schema, revision identity, deterministic chunk metadata, source metadata propagated to both stores | `src/chunker`, `src/vector_store`, Neo4j document writer | contract tests and package smoke | P0 |
-| KM-002 | Publish state machine and current revision filter | existing registry/search/store APIs | draft invisible, publish visible, supersede old revision | P0 |
+| KM-002 | Publish state machine and current revision filter | existing registry/search/store APIs | draft invisible, publish visible, supersede old revision, failed publish preserves prior | P1 |
 | KM-003 | Draft-first re-ingest and pointer switch | existing `ingest_document`/`reingest` flow | injected failure preserves prior published revision | P0 |
 | KM-004 | Store readiness/transaction outcome | existing Qdrant and Neo4j adapters | either-store failure returns failure and cannot publish | P0 |
 

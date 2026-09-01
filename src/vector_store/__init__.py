@@ -275,18 +275,30 @@ class VectorStore:
             if date_from or date_to:
                 conditions.append(FieldCondition(key="started_at", range=DatetimeRange(gte=date_from, lte=date_to)))
 
+            # New knowledge packages are visible only after publication. Empty
+            # lifecycle fields preserve compatibility with legacy points.
+            lifecycle_filter = Filter(should=[
+                Filter(must=[
+                    FieldCondition(key="publish_status", match=MatchValue(value="published")),
+                    FieldCondition(key="is_current", match=MatchValue(value=True)),
+                ]),
+                Filter(must_not=[FieldCondition(
+                    key="publish_status", match=MatchAny(any=["draft", "ready", "superseded"])
+                )]),
+            ])
             if conditions:
                 results = self.client.query_points(
                     collection_name=self.COLLECTION_NAME,
                     query=query_vector,
                     limit=top_k,
-                    query_filter=Filter(must=conditions)
+                    query_filter=Filter(must=conditions, should=lifecycle_filter.should)
                 )
             else:
                 results = self.client.query_points(
                     collection_name=self.COLLECTION_NAME,
                     query=query_vector,
                     limit=top_k
+                    ,query_filter=lifecycle_filter
                 )
 
             # 整理結果
@@ -340,6 +352,23 @@ class VectorStore:
         except Exception as e:
             logger.error(f"搜尋失敗: {e}")
             return []
+
+    def set_package_visibility(self, package_id: str, publish_status: str, is_current: bool) -> bool:
+        """Update lifecycle payloads without deleting points."""
+        try:
+            if not self.available or self.client is None:
+                return False
+            from qdrant_client.models import Filter, FieldCondition, MatchValue
+            self.client.set_payload(
+                collection_name=self.COLLECTION_NAME,
+                payload={"publish_status": publish_status, "is_current": is_current},
+                points=Filter(must=[FieldCondition(key="package_id", match=MatchValue(value=package_id))]),
+                wait=True,
+            )
+            return True
+        except Exception as exc:
+            logger.error("更新 package visibility 失敗: %s", exc)
+            return False
 
     def delete_by_doc(self, doc_name: str) -> bool:
         """

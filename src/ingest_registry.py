@@ -78,6 +78,109 @@ class IngestRegistry:
                 )
             """)
 
+    def initialize_knowledge_revisions(self) -> None:
+        with self._connection() as connection:
+            connection.execute("""
+                CREATE TABLE IF NOT EXISTS knowledge_revisions (
+                    package_id TEXT PRIMARY KEY,
+                    document_id TEXT NOT NULL,
+                    document_version TEXT NOT NULL,
+                    publish_status TEXT NOT NULL,
+                    is_current INTEGER NOT NULL DEFAULT 0,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                )
+            """)
+            connection.execute(
+                "CREATE UNIQUE INDEX IF NOT EXISTS knowledge_revisions_current_idx "
+                "ON knowledge_revisions(document_id) WHERE is_current = 1"
+            )
+
+    @staticmethod
+    def _decode_revision(row: sqlite3.Row | None) -> dict | None:
+        if not row:
+            return None
+        item = dict(row)
+        item["is_current"] = bool(item["is_current"])
+        return item
+
+    def find_knowledge_revision(self, package_id: str) -> dict | None:
+        self.initialize_knowledge_revisions()
+        with self._connection() as connection:
+            return self._decode_revision(connection.execute(
+                "SELECT * FROM knowledge_revisions WHERE package_id = ?", (package_id,)
+            ).fetchone())
+
+    def find_current_knowledge_revision(self, document_id: str, exclude_package_id: str = "") -> dict | None:
+        self.initialize_knowledge_revisions()
+        with self._connection() as connection:
+            return self._decode_revision(connection.execute(
+                "SELECT * FROM knowledge_revisions WHERE document_id = ? AND is_current = 1 AND package_id != ?",
+                (document_id, exclude_package_id),
+            ).fetchone())
+
+    def has_knowledge_revisions(self, document_id: str) -> bool:
+        self.initialize_knowledge_revisions()
+        with self._connection() as connection:
+            row = connection.execute(
+                "SELECT 1 FROM knowledge_revisions WHERE document_id = ? LIMIT 1", (document_id,)
+            ).fetchone()
+        return row is not None
+
+    def register_knowledge_revision(self, metadata: dict) -> dict:
+        self.initialize_knowledge_revisions()
+        now = _now()
+        record = {
+            "package_id": str(metadata["package_id"]),
+            "document_id": str(metadata["document_id"]),
+            "document_version": str(metadata["document_version"]),
+            "publish_status": str(metadata.get("publish_status") or "draft"),
+            "is_current": 1 if metadata.get("is_current", False) else 0,
+            "created_at": now,
+            "updated_at": now,
+        }
+        if record["publish_status"] != "published" and record["is_current"]:
+            raise ValueError("only published revisions can be current")
+        with self._connection() as connection:
+            connection.execute(
+                "INSERT INTO knowledge_revisions "
+                "(package_id, document_id, document_version, publish_status, is_current, created_at, updated_at) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(package_id) DO NOTHING",
+                tuple(record.values()),
+            )
+        return self.find_knowledge_revision(record["package_id"]) or record
+
+    def transition_knowledge_revision(self, package_id: str, target: str) -> dict:
+        from .knowledge_lifecycle import ALLOWED_TRANSITIONS
+
+        current = self.find_knowledge_revision(package_id)
+        if not current or target not in ALLOWED_TRANSITIONS.get(current["publish_status"], set()):
+            raise ValueError("invalid knowledge revision transition")
+        with self._connection() as connection:
+            connection.execute(
+                "UPDATE knowledge_revisions SET publish_status = ?, updated_at = ? WHERE package_id = ?",
+                (target, _now(), package_id),
+            )
+        return self.find_knowledge_revision(package_id)
+
+    def publish_knowledge_revision(self, package_id: str, prior_package_id: str | None = None) -> dict:
+        current = self.find_knowledge_revision(package_id)
+        if not current or current["publish_status"] != "ready":
+            raise ValueError("only ready revisions can be published")
+        with self._connection() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            if prior_package_id:
+                connection.execute(
+                    "UPDATE knowledge_revisions SET is_current = 0, updated_at = ? WHERE package_id = ?",
+                    (_now(), prior_package_id),
+                )
+            connection.execute(
+                "UPDATE knowledge_revisions SET publish_status = 'published', is_current = 1, updated_at = ? WHERE package_id = ?",
+                (_now(), package_id),
+            )
+            connection.execute("COMMIT")
+        return self.find_knowledge_revision(package_id)
+
     @staticmethod
     def _decode(row: sqlite3.Row | None) -> dict | None:
         return dict(row) if row else None

@@ -162,8 +162,9 @@ def _write_neo4j_document(
 
     with driver.session() as session:
         session.run("""
-            MERGE (d:Document {name: $name})
-            SET d.content = $content,
+            MERGE (d:Document {package_id: $package_id})
+            SET d.name = $name,
+                d.content = $content,
                 d.source = $source,
                 d.extraction_mode = $mode,
                 d.storage_category = $storage_category,
@@ -176,10 +177,10 @@ def _write_neo4j_document(
         """, name=doc_name, content=content[:1000], source=doc_path, mode=extraction_mode, storage_category=storage_category or "", package_schema_version=identity["package_schema_version"], package_id=identity["package_id"], document_version=document_version, publish_status=identity["publish_status"], is_current=identity["is_current"], identity=identity)
 
         session.run("""
-            MATCH (d:Document {name: $name})
+            MATCH (d:Document {package_id: $package_id})
             CREATE (t:TextUnit {content: $content, source: $source})
             CREATE (d)-[:CONTAINS]->(t)
-        """, name=doc_name, content=content[:2000], source=doc_name)
+        """, name=doc_name, package_id=identity["package_id"], content=content[:2000], source=doc_name)
 
         for entity in result.get("entities", []):
             entity_name = entity.get("Name") or entity.get("name", "")
@@ -330,11 +331,15 @@ def ingest_document(
             logger.warning(f"讀取文件身份 metadata 失敗: {metadata_error}")
     doc_name = source_metadata.get("document_id") or Path(doc_path).stem
     content = Path(doc_path).read_text(encoding="utf-8")
-    cleanup_existing_document(
-        doc_name,
-        enable_vector=enable_vector,
-        cleanup_assets=not preserve_assets,
-    )
+    from src.ingest_registry import IngestRegistry
+    # Revisioned packages coexist until lifecycle publish supersedes the old
+    # one. Legacy documents retain the existing cleanup behavior.
+    if not IngestRegistry().has_knowledge_revisions(str(doc_name)):
+        cleanup_existing_document(
+            doc_name,
+            enable_vector=enable_vector,
+            cleanup_assets=not preserve_assets,
+        )
     
     # ============================================================
     # Report 模式：保留文件結構 + chunk 向量，不做實體萃取
@@ -663,6 +668,12 @@ def ingest_vector(doc_path: str, storage_category: str | None = None):
         # 寫入 QDrant
         vector_store = get_vector_store()
         vector_store.add_documents(chunks, doc_name)
+
+        # Keep revision state durable after the real stores receive the package.
+        package_metadata = chunks[0].get("metadata", {}) if chunks else {}
+        if package_metadata.get("package_id"):
+            from .ingest_registry import IngestRegistry
+            IngestRegistry().register_knowledge_revision(package_metadata)
 
         logger.info(f"向量攝入完成: {doc_name}")
         return True

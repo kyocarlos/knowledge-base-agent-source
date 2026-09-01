@@ -80,6 +80,17 @@ class SearchResponse(BaseModel):
     message: str
 
 
+class KnowledgeRevisionRequest(BaseModel):
+    package_id: str
+    document_id: str
+    document_version: str
+    publish_status: str = "draft"
+
+
+class KnowledgeRevisionTransition(BaseModel):
+    target: str
+
+
 class TaskStatusResponse(BaseModel):
     task_id: str
     status: str
@@ -1867,6 +1878,57 @@ async def search(request: SearchRequest, background_tasks: BackgroundTasks, resp
         status="submitted",
         message="任務已提交，請使用 /tasks/{task_id} 查詢結果"
     )
+
+
+def _knowledge_lifecycle():
+    from ..knowledge_lifecycle import KnowledgeLifecycle
+    return KnowledgeLifecycle()
+
+
+def _require_knowledge_lifecycle_enabled():
+    if os.getenv("KB_KNOWLEDGE_LIFECYCLE_ENABLED", "false").lower() != "true":
+        raise HTTPException(status_code=404, detail="knowledge lifecycle is disabled")
+
+
+@app.post("/api/v1/knowledge/revisions")
+async def register_knowledge_revision(request: KnowledgeRevisionRequest):
+    """Register a revision before it becomes searchable."""
+    _require_knowledge_lifecycle_enabled()
+    try:
+        return {"data": _knowledge_lifecycle().register(request.model_dump()), "error": None}
+    except (ValueError, RuntimeError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.get("/api/v1/knowledge/revisions/{package_id}")
+async def get_knowledge_revision(package_id: str):
+    _require_knowledge_lifecycle_enabled()
+    revision = _knowledge_lifecycle().get(package_id)
+    if not revision:
+        raise HTTPException(status_code=404, detail="knowledge revision not found")
+    return {"data": revision, "error": None}
+
+
+@app.post("/api/v1/knowledge/revisions/{package_id}/transition")
+async def transition_knowledge_revision(package_id: str, request: KnowledgeRevisionTransition):
+    _require_knowledge_lifecycle_enabled()
+    lifecycle = _knowledge_lifecycle()
+    try:
+        if request.target == "published":
+            from ..knowledge_graph_lifecycle import KnowledgeGraphLifecycle
+            from ..vector_store import VectorStore
+            graph = KnowledgeGraphLifecycle()
+            try:
+                item = lifecycle.publish(package_id, vector_store=VectorStore(), graph_writer=graph)
+            finally:
+                graph.close()
+        else:
+            item = lifecycle.transition(package_id, request.target)
+        return {"data": item, "error": None}
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="knowledge revision not found") from exc
+    except (ValueError, RuntimeError) as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
 
 
 @app.get("/tasks/{task_id}", response_model=TaskStatusResponse)

@@ -1,0 +1,50 @@
+{
+  "km": "KM002",
+  "validation_scope": "real_integrated_disposable_runtime",
+  "entrypoint": "chat.html -> WebSocket -> real Search API/Celery/Qdrant/Neo4j",
+  "runtime_components": {
+    "openclaw_gateway": "isolated disposable instance",
+    "gateway_bind": "172.17.0.1:28789",
+    "gateway_auth": "token",
+    "model_provider": "local Ollama",
+    "state_dir": "temporary disposable directory",
+    "production_openclaw_state_mounted": false,
+    "production_secrets_mounted": false
+  },
+  "chat_html": {
+    "static_entrypoint_http": 200,
+    "functional_chat_validation": "PASS",
+    "browser": "Playwright Firefox bundle in /tmp",
+    "console_errors": 0,
+    "screenshots": [
+      "docs/evidence/km002-chat-screenshots/20260901-v1-chat-result.png",
+      "docs/evidence/km002-chat-screenshots/20260901-v2-after-v3-failure.png"
+    ]
+  },
+  "scenarios": {
+    "draft_default_search": {"result": "PASS", "visible": false},
+    "published_v1": {
+      "result": "PASS",
+      "document_id": "km002-document",
+      "document_version": "1.0.0",
+      "package_id": "6f8a98edc6a259b0b64a7503f35b6685ef518375e2944c473203d3f241627397",
+      "chunk_id_present": true
+    },
+    "published_v2_current": {
+      "result": "PASS",
+      "document_id": "km002-document",
+      "document_version": "2.0.0",
+      "package_id": "f0ccc84a363af9a2718927828260a409278bf47c516fce67582f5d782331fb81",
+      "chunk_id_present": true
+    },
+    "superseded_v1_default_search": {"result": "PASS", "v1_visible_as_current": false},
+    "failed_v3_preserves_v2": {"result": "PASS", "v2_visible": true, "v3_published": false},
+    "chat_v1_answer": {"result": "PASS", "assistant_answer_visible": true},
+    "chat_v2_answer": {"result": "PASS", "assistant_answer_visible": true, "v2_content_visible": true},
+    "chat_after_v3_failure": {"result": "PASS", "v2_content_visible": true, "v3_content_visible": false}
+  },
+  "qdrant_neo4j_identity_match": true,
+  "health_version": "PASS",
+  "production_touched": false,
+  "secrets_included": false
+}
