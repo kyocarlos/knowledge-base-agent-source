@@ -78,3 +78,5 @@ def test_websocket_timeout_is_bounded_and_configurable():
     source = Path(__file__).parents[1].joinpath("scripts/run_wp1_production_acceptance.py").read_text()
     assert "deadline = asyncio.get_running_loop().time() + timeout_seconds" in source
     assert "asyncio.wait_for(ws.recv(), timeout=remaining)" in source
+    assert "for _ in range(30)" not in source
+    assert "while True:" in source

@@ -290,7 +290,7 @@ def websocket_exchange(
         async with websockets.connect(ws_url, ssl=tls, open_timeout=15, close_timeout=5) as ws:
             result["handshake"] = True
             deadline = asyncio.get_running_loop().time() + timeout_seconds
-            for _ in range(30):
+            while True:
                 remaining = deadline - asyncio.get_running_loop().time()
                 if remaining <= 0:
                     raise TimeoutError("WebSocket acceptance timeout")
