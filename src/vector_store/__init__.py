@@ -325,6 +325,68 @@ class VectorStore:
             logger.error(f"搜尋失敗: {e}")
             return []
 
+    def search_by_document_names(
+        self,
+        query: str,
+        document_names: List[str],
+        top_k: int = 3,
+    ) -> List[dict]:
+        """Retrieve chunks for resolved documents without query embedding."""
+        if not self.available or self.client is None or not document_names:
+            return []
+
+        from qdrant_client.models import Filter, FieldCondition, MatchAny, MatchValue
+
+        names = [str(name).strip() for name in document_names if str(name).strip()]
+        if not names:
+            return []
+
+        visible = Filter(must=[
+            FieldCondition(key="publish_status", match=MatchValue(value="published")),
+            FieldCondition(key="is_current", match=MatchValue(value=True)),
+            FieldCondition(key="doc_name", match=MatchAny(any=names)),
+        ])
+        points, _ = self.client.scroll(
+            collection_name=self.COLLECTION_NAME,
+            scroll_filter=visible,
+            limit=256,
+            with_payload=True,
+            with_vectors=False,
+        )
+        # Legacy points predate lifecycle fields. Keep them readable during
+        # migration, limited to documents resolved by the graph lookup.
+        if not points:
+            points, _ = self.client.scroll(
+                collection_name=self.COLLECTION_NAME,
+                scroll_filter=Filter(must=[
+                    FieldCondition(key="doc_name", match=MatchAny(any=names)),
+                ]),
+                limit=256,
+                with_payload=True,
+                with_vectors=False,
+            )
+
+        terms = [term.lower() for term in re.findall(r"[A-Za-z0-9]+", query or "") if len(term) >= 3]
+        fields = (
+            "content", "doc_name", "chunk_index", "section_title", "source_path", "source_name",
+            "source_ext", "storage_category", "extraction_mode", "run_id", "environment", "project_code",
+            "dut_model", "band", "protocol", "direction", "verdict", "started_at", "schema_version",
+            "source_system", "environment_id", "project_id", "artifact_type", "report_schema",
+            "original_file_name", "source_file_hash", "ingest_file_hash", "document_id",
+            "package_schema_version", "package_id", "document_version", "content_hash", "publish_status",
+            "is_current", "idempotency_key", "generated_at",
+        )
+        results = []
+        for point in points:
+            payload = point.payload or {}
+            blob = " ".join(str(payload.get(key, "") or "") for key in ("doc_name", "section_title", "content")).lower()
+            item = {key: payload.get(key, "") for key in fields}
+            item["score"] = float(sum(blob.count(term) for term in terms))
+            item["id"] = str(point.id)
+            results.append(item)
+        results.sort(key=lambda item: (item["score"], -int(item.get("chunk_index", 0) or 0)), reverse=True)
+        return results[: max(1, int(top_k))]
+
     def delete_by_doc(self, doc_name: str) -> bool:
         """
         刪除指定文件的所有區塊

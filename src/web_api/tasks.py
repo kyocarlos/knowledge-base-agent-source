@@ -908,7 +908,7 @@ def search_task(self, query: str, mode: str, top_k: int | None = None, sources_o
 
         # 對報告型查詢拉高召回，避免只拿到 TOC / 前言
         effective_top_k = top_k
-        if _is_report_like_query(query):
+        if _is_report_like_query(query) and not sources_only:
             effective_top_k = max(effective_top_k or 0, REPORT_RECALL_TOP_K)
             logger.info(f"Report-like query detected, top_k adjusted to {effective_top_k}")
 
@@ -1029,19 +1029,8 @@ def search_task(self, query: str, mode: str, top_k: int | None = None, sources_o
                             "status": "completed"
                         }
 
-            if kb.search_engine._is_report_like_query(query):
-                report_graph_result = kb.search_engine._report_graph_search_raw(query, effective_top_k)
-                raw_sources = report_graph_result.get("sources", []) or []
-                answer = report_graph_result.get("answer", "") or ""
-                if raw_sources:
-                    citation_distribution = _build_search_citation_distribution(raw_sources)
-                    return {
-                        "answer": answer,
-                        "sources": raw_sources,
-                        "citation_distribution": citation_distribution,
-                        "mode": report_graph_result.get("mode", search_mode),
-                        "status": "completed"
-                    }
+            # Source-only is deliberately a retrieval contract. Do not call
+            # report-graph answer generation because it may invoke the LLM.
             if search_mode == "vector":
                 vector_result = kb.search_engine._vector_search_raw(query, effective_top_k)
                 raw_sources = _prefer_report_detailed_sources(query, vector_result.get("sources", []))

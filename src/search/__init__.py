@@ -4597,7 +4597,24 @@ class SearchEngine:
             from ..vector_store import get_vector_store
             vector_store = self.vector_store if self.vector_store is not None else get_vector_store()
 
-            results = vector_store.search(query, top_k=max(top_k * 3, top_k), filters=filters)
+            document_names = []
+            if not filters and self._extract_doc_hints(query):
+                profiles = self._find_document_profiles_for_query(query, limit=6)
+                document_names = list(dict.fromkeys(
+                    str(profile.get("doc_name") or "").strip()
+                    for profile in profiles
+                    if str(profile.get("doc_name") or "").strip()
+                ))
+
+            if document_names and hasattr(vector_store, "search_by_document_names"):
+                results = vector_store.search_by_document_names(
+                    query,
+                    document_names,
+                    top_k=max(top_k * 3, top_k),
+                )
+                logger.info("_vector_search_raw 文件範圍檢索: %d 個文件", len(document_names))
+            else:
+                results = vector_store.search(query, top_k=max(top_k * 3, top_k), filters=filters)
             logger.info(f"_vector_search_raw 原始結果: {len(results)} 筆")
             results = self._rank_vector_results(results, query, top_k)
             logger.info(f"_vector_search_raw 重排後結果: {len(results)} 筆")
