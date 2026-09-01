@@ -51,16 +51,20 @@ Sanitized result:
 
 No Production service, database, filesystem or acceptance run was modified.
 
-## User-visible validation boundary
+## User-visible validation
 
-The same real Search API contract used by `chat.html` was exercised against a
-fresh disposable runtime. The sanitized identity evidence is in
-`docs/evidence/km002-user-visible-runtime-20260901.json`. It records v1 and v2
-source identity, superseded-v1 invisibility, and preservation of v2 after an
-injected v3 publish failure.
+The actual `chat.html` entrypoint was exercised in a fresh disposable runtime
+with real FastAPI, Celery, Qdrant, Neo4j, Redis and an isolated OpenClaw
+gateway. The gateway used a temporary state directory, token authentication,
+the Docker host bridge address and a local Ollama model; no Production
+OpenClaw state or Production secret was mounted.
 
-The static `chat.html` entrypoint returned HTTP 200, but functional browser
-validation remains pending: the disposable runtime had no safe OpenClaw gateway
-and the available validation environment had no Playwright module. Therefore
-this evidence does not claim `USER_VISIBLE_VALIDATED`; KM002 remains
-`RUNTIME_VALIDATED` and is not yet DONE.
+The browser flow connected, opened the chat window, submitted queries, and
+displayed the v1 and v2 answers. After an injected v3 publish failure, a new
+chat query still displayed v2 content and no v3 content. The sanitized source
+identity and screenshot paths are in
+`docs/evidence/km002-user-visible-runtime-20260901.json`.
+
+`USER_VISIBLE_VALIDATED = PASS`; KM002 now satisfies all four completion
+layers and is ready for supervisor final review. No Production service,
+database, filesystem or acceptance run was modified.
