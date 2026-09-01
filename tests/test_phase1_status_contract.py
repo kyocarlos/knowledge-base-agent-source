@@ -48,3 +48,11 @@ def test_broker_exposes_only_fixed_status_endpoint():
     assert 'request != "GET /v1/status HTTP/1.1"' in source
     assert "container.exec" not in source
     assert '"secrets_included": False' in source
+
+
+def test_host_installer_is_root_only_and_does_not_start_by_default():
+    source = (ROOT / "scripts/install_km_status_runner_host.sh").read_text(encoding="utf-8")
+    assert 'id -u' in source
+    assert "if [ \"${1:-}\" = --start ]" in source
+    assert "service_start=NOT_REQUESTED" in source
+    assert "docker" in source
