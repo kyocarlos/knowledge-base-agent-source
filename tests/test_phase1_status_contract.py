@@ -1,4 +1,5 @@
 import json
+import importlib.util
 import subprocess
 import sys
 from pathlib import Path
@@ -22,6 +23,33 @@ def test_manifest_validator_passes():
     result = subprocess.run([sys.executable, str(VALIDATOR), str(MANIFEST)], capture_output=True, text=True)
     assert result.returncode == 0, result.stderr
     assert '"result": "PASS"' in result.stdout
+
+
+def test_manifest_separates_accepted_and_deployed_release():
+    manifest = load_manifest()
+    assert "approved_release" not in manifest
+    assert manifest["accepted_release"]["historical_acceptance_run"]
+    deployed = manifest["deployed_release"]
+    assert deployed["deployment_state"] == "BASELINE"
+    assert set(deployed["service_images"]) == {
+        "kb-web", "kb-celery-search", "kb-celery-ingest", "kb-celery-beat"
+    }
+
+
+def test_baseline_reconciliation_uses_deployed_service_images():
+    spec = importlib.util.spec_from_file_location("collector", ROOT / "scripts/collect_phase1_runtime_status.py")
+    collector = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(collector)
+    manifest = load_manifest()
+    images = manifest["deployed_release"]["service_images"]
+    snapshot = {
+        "git": {"head": None, "clean": False},
+        "version": {"health_status": 200, "version_status": 200, "data": {}},
+        "services": {name: {"status": "running", "image_id": image} for name, image in images.items()},
+    }
+    assert collector.compare(manifest, snapshot) == "PASS"
+    snapshot["services"]["kb-web"]["image_id"] = "sha256:" + "0" * 64
+    assert collector.compare(manifest, snapshot) == "MISMATCH"
 
 
 def test_manifest_validator_rejects_secret_like_field(tmp_path):

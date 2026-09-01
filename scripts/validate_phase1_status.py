@@ -26,17 +26,17 @@ REQUIRED_RELEASE_KEYS = (
 
 def validate_manifest(manifest: dict[str, object]) -> list[str]:
     errors: list[str] = []
-    if manifest.get("schema") != "km.phase1-status-manifest.v1":
+    if manifest.get("schema") != "km.phase1-status-manifest.v2":
         errors.append("unsupported schema")
     if manifest.get("phase") != "P1":
         errors.append("phase must be P1")
-    release = manifest.get("approved_release")
+    release = manifest.get("accepted_release")
     if not isinstance(release, dict):
-        errors.append("approved_release must be an object")
+        errors.append("accepted_release must be an object")
     else:
         missing = [key for key in REQUIRED_RELEASE_KEYS if not release.get(key)]
         if missing:
-            errors.append("approved_release missing: " + ", ".join(missing))
+            errors.append("accepted_release missing: " + ", ".join(missing))
         else:
             for key in ("application_commit", "operational_runner_commit"):
                 if not COMMIT_PATTERN.fullmatch(str(release[key])):
@@ -53,6 +53,27 @@ def validate_manifest(manifest: dict[str, object]) -> list[str]:
                     datetime.fromisoformat(timestamp[:-1] + "+00:00" if timestamp.endswith("Z") else timestamp)
                 except ValueError:
                     errors.append("build_timestamp is not a valid calendar timestamp")
+
+    deployed = manifest.get("deployed_release")
+    if not isinstance(deployed, dict):
+        errors.append("deployed_release must be an object")
+    else:
+        state = deployed.get("deployment_state")
+        if state not in {"BASELINE", "RELEASE"}:
+            errors.append("deployed_release deployment_state must be BASELINE or RELEASE")
+        for key in ("release_id", "observed_at", "identity_source"):
+            if not deployed.get(key):
+                errors.append(f"deployed_release missing: {key}")
+        if deployed.get("release_id") and not RELEASE_PATTERN.fullmatch(str(deployed["release_id"])):
+            errors.append("deployed_release release_id contains unsupported characters")
+        if deployed.get("observed_at") and not TIMESTAMP_PATTERN.fullmatch(str(deployed["observed_at"])):
+            errors.append("deployed_release observed_at must be RFC3339 with timezone")
+        service_images = deployed.get("service_images")
+        expected_services = {"kb-web", "kb-celery-search", "kb-celery-ingest", "kb-celery-beat"}
+        if not isinstance(service_images, dict) or set(service_images) != expected_services:
+            errors.append("deployed_release service_images must cover the four application services")
+        elif any(not IMAGE_PATTERN.fullmatch(str(image)) for image in service_images.values()):
+            errors.append("deployed_release service_images must use sha256:<64 lowercase hex>")
 
     items = manifest.get("work_items")
     if not isinstance(items, list) or len(items) != 18:
