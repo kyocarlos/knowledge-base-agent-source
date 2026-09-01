@@ -1,0 +1,39 @@
+{
+  "km": "KM-003",
+  "validation": "real-disposable-production-compatible-runtime",
+  "runtime_run": "km003-real-97a5ad04",
+  "production_touched": false,
+  "secrets_included": false,
+  "health": "pass",
+  "search_api": "pass",
+  "scenarios": {
+    "v1_published_current": {
+      "document_id": "km003-document",
+      "document_version": "1.0.0",
+      "package_id": "e8f464ed3513000d2078d348c04a26c40e9c491af2f19be2d2eb04046167da28",
+      "search_visible": true
+    },
+    "v2_failed_before_publish": {
+      "document_id": "km003-document",
+      "document_version": "2.0.0",
+      "package_id": "b6cf9ff7c848275b909058ec8c940d1a7684ad229794ba05187e0b28ffe12b1b",
+      "failure_injected": "store_visibility",
+      "revision_status": "ready",
+      "v1_still_searchable": true,
+      "v2_search_visible": false
+    },
+    "v2_retry_success": {
+      "package_id": "b6cf9ff7c848275b909058ec8c940d1a7684ad229794ba05187e0b28ffe12b1b",
+      "revision_status": "published",
+      "is_current": true,
+      "search_visible": true,
+      "qdrant_neo4j_identity_match": true
+    },
+    "v1_superseded": {
+      "package_id": "e8f464ed3513000d2078d348c04a26c40e9c491af2f19be2d2eb04046167da28",
+      "search_visible": false
+    }
+  },
+  "user_visible_validation": "pending",
+  "notes": "Real FastAPI Search API, Celery search worker, Qdrant, Neo4j and durable registry were used. chat.html validation remains pending."
+}
