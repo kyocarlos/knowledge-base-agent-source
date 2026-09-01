@@ -1,0 +1,43 @@
+{
+  "schema": "km.phase1-status-manifest.v1",
+  "phase": "P1",
+  "title": "AI KM MVP (Production Ready)",
+  "source": "KM_Modify/01_AI_KM_Phase規劃_v2.6.xlsx",
+  "id_policy": "P1-WP01 through P1-WP18 are canonical aliases for the ordered P1 work items in 實際工作分工; the workbook work-group and work-item names remain authoritative.",
+  "statuses": [
+    "PLANNED",
+    "IN_PROGRESS",
+    "SOURCE_VALIDATED",
+    "RUNTIME_VALIDATED",
+    "PRODUCTION_ACCEPTED",
+    "BLOCKED"
+  ],
+  "approved_release": {
+    "application_commit": "a84f3d287a654cc24f212dfd4e2ae070b958ad93",
+    "operational_runner_commit": "4f278dbfa4258be8f42075714bdef4b022e37f2c",
+    "release_id": "wp1-ingest-attachment-hash-remediation-20260901-r1",
+    "image_digest": "sha256:8328426a6f2b61ddd374400c3cbac79979f6821fa67db744c3502adddda38202",
+    "build_timestamp": "2026-09-01T09:22:40.563172381+08:00",
+    "historical_acceptance_run": "TR-E2E-WP1-PROD-20260901-035319-5e327205"
+  },
+  "work_items": [
+    {"wp_id":"P1-WP01","work_group":"開發基礎","name":"Git / Branch / PR / Review 規範","status":"SOURCE_VALIDATED","km_ids":[]},
+    {"wp_id":"P1-WP02","work_group":"AI KM 基礎","name":"FastAPI / REST API 骨架","status":"SOURCE_VALIDATED","km_ids":[]},
+    {"wp_id":"P1-WP03","work_group":"AI KM 基礎","name":"Docker / Redis / Celery / 環境設定","status":"RUNTIME_VALIDATED","km_ids":[]},
+    {"wp_id":"P1-WP04","work_group":"CSIT","name":"CSIT 既有程式整理與正式 API","status":"PLANNED","km_ids":["KM-005"]},
+    {"wp_id":"P1-WP05","work_group":"CSIT","name":"CSIT ↔ AI KM API Contract","status":"PLANNED","km_ids":["KM-005"]},
+    {"wp_id":"P1-WP06","work_group":"CSIT","name":"文件 / Test Plan / Report / Approval API","status":"PLANNED","km_ids":["KM-005"]},
+    {"wp_id":"P1-WP07","work_group":"CSIT 新功能","name":"設備預約","status":"PLANNED","km_ids":[]},
+    {"wp_id":"P1-WP08","work_group":"CSIT 新功能","name":"系統驗證申請單","status":"PLANNED","km_ids":[]},
+    {"wp_id":"P1-WP09","work_group":"OpenClaw","name":"Report Upload / Test Result / Status","status":"RUNTIME_VALIDATED","km_ids":[]},
+    {"wp_id":"P1-WP10","work_group":"報告流程","name":"Engineer Upload → Review → Reject → Publish","status":"PLANNED","km_ids":["KM-005"]},
+    {"wp_id":"P1-WP11","work_group":"文件處理","name":"Excel Report Parser / Schema Validation","status":"RUNTIME_VALIDATED","km_ids":[]},
+    {"wp_id":"P1-WP12","work_group":"RAG","name":"既有 POC：MarkItDown / Chunk / Embedding","status":"SOURCE_VALIDATED","km_ids":["KM-001","KM-003","KM-004"]},
+    {"wp_id":"P1-WP13","work_group":"Qdrant","name":"基本向量搜尋","status":"SOURCE_VALIDATED","km_ids":["KM-001","KM-002","KM-004","KM-012"]},
+    {"wp_id":"P1-WP14","work_group":"Neo4j","name":"基本 GraphRAG","status":"SOURCE_VALIDATED","km_ids":["KM-001","KM-002","KM-004","KM-006","KM-007","KM-008","KM-009","KM-010"]},
+    {"wp_id":"P1-WP15","work_group":"TimescaleDB","name":"基礎時序資料","status":"PLANNED","km_ids":["KM-014"]},
+    {"wp_id":"P1-WP16","work_group":"治理","name":"RBAC / Citation / Audit / Query Log","status":"PLANNED","km_ids":["KM-011"]},
+    {"wp_id":"P1-WP17","work_group":"AI KM Portal","name":"Search / QA / Dashboard","status":"RUNTIME_VALIDATED","km_ids":["KM-011","KM-013"]},
+    {"wp_id":"P1-WP18","work_group":"測試","name":"Unit / Integration / Acceptance / Golden Test","status":"RUNTIME_VALIDATED","km_ids":[]}
+  ]
+}

@@ -1,0 +1,59 @@
+name: Phase 1 Runtime Status
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 * * * *"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: phase1-runtime-status
+  cancel-in-progress: true
+
+jobs:
+  validate-manifest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Validate canonical manifest
+        run: python scripts/validate_phase1_status.py docs/phase1-status-manifest.json
+      - name: Run manifest contract tests
+        run: python -m pytest -q tests/test_phase1_status_contract.py
+
+  collect-production-readonly:
+    if: ${{ vars.KM_PRODUCTION_STATUS_ENABLED == 'true' }}
+    runs-on: [self-hosted, km-production-readonly]
+    needs: validate-manifest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Collect sanitized runtime snapshot
+        run: |
+          STATUS_RC=0
+          python scripts/collect_phase1_runtime_status.py \
+            --manifest docs/phase1-status-manifest.json \
+            --broker-socket /run/km-status-broker/status.sock \
+            --output phase1-runtime-status.json || STATUS_RC=$?
+          echo "collector_exit=${STATUS_RC}" >> "$GITHUB_STEP_SUMMARY"
+          echo "STATUS_RC=${STATUS_RC}" >> "$GITHUB_ENV"
+      - name: Publish sanitized snapshot
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin phase1-runtime-status || true
+          git switch --force-create phase1-runtime-status FETCH_HEAD 2>/dev/null || git switch --orphan phase1-runtime-status
+          mkdir -p status
+          cp phase1-runtime-status.json status/current.json
+          git add status/current.json
+          git diff --cached --quiet || git commit -m "chore: publish Phase 1 runtime status"
+          git push origin HEAD:phase1-runtime-status
+          exit "${STATUS_RC}"
