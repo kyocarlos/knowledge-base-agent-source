@@ -24,10 +24,16 @@ def _is_versioned_api(request: Request) -> bool:
     return request.url.path == "/api/v1" or request.url.path.startswith("/api/v1/")
 
 
-def _error_response(request: Request, status_code: int, code: str, message: str) -> JSONResponse:
+def _error_response(
+    request: Request,
+    status_code: int,
+    code: str,
+    message: str,
+    details: dict | None = None,
+) -> JSONResponse:
     body = ApiResponse[None](
         data=None,
-        error=ApiError(code=code, message=message),
+        error=ApiError(code=code, message=message, details=details),
         trace_id=_trace_id(request),
     )
     return JSONResponse(
@@ -48,6 +54,25 @@ def install_exception_handlers(app: FastAPI) -> None:
     async def http_error(request: Request, exc: HTTPException) -> JSONResponse:
         if not _is_versioned_api(request):
             return await http_exception_handler(request, exc)
+        if isinstance(exc.detail, dict) and exc.detail.get("code") == "store_consistency_failure":
+            allowed = {
+                key: exc.detail[key]
+                for key in (
+                    "operation",
+                    "store_outcomes",
+                    "partial_write",
+                    "rollback_complete",
+                    "rollback_outcomes",
+                )
+                if key in exc.detail
+            }
+            return _error_response(
+                request,
+                exc.status_code,
+                "store_consistency_failure",
+                "Store consistency failure",
+                allowed,
+            )
         message = exc.detail if isinstance(exc.detail, str) else "Request failed"
         return _error_response(request, exc.status_code, f"http_{exc.status_code}", message)
 
