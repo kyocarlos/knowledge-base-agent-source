@@ -1913,6 +1913,7 @@ async def get_knowledge_revision(package_id: str):
 async def transition_knowledge_revision(package_id: str, request: KnowledgeRevisionTransition):
     _require_knowledge_lifecycle_enabled()
     lifecycle = _knowledge_lifecycle()
+    from ..knowledge_lifecycle import StoreConsistencyError
     try:
         if request.target == "published":
             from ..knowledge_graph_lifecycle import KnowledgeGraphLifecycle
@@ -1927,6 +1928,18 @@ async def transition_knowledge_revision(package_id: str, request: KnowledgeRevis
         return {"data": item, "error": None}
     except KeyError as exc:
         raise HTTPException(status_code=404, detail="knowledge revision not found") from exc
+    except StoreConsistencyError as exc:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "code": "store_consistency_failure",
+                "operation": exc.operation,
+                "partial_write": exc.partial_write,
+                "store_outcomes": exc.store_outcomes,
+                "rollback_complete": exc.rollback_complete,
+                "rollback_outcomes": exc.rollback_outcomes,
+            },
+        ) from exc
     except (ValueError, RuntimeError) as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
 

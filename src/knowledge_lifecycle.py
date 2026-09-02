@@ -22,6 +22,41 @@ class LifecycleConflict(RuntimeError):
     pass
 
 
+class StoreConsistencyError(RuntimeError):
+    """Sanitized fail-closed diagnostic for a multi-store publish attempt."""
+
+    def __init__(
+        self,
+        operation: str,
+        store_outcomes: dict[str, str],
+        rollback_outcomes: dict[str, str],
+    ) -> None:
+        self.operation = operation
+        self.store_outcomes = dict(store_outcomes)
+        self.rollback_outcomes = dict(rollback_outcomes)
+        self.partial_write = any(value == "applied" for value in store_outcomes.values())
+        self.rollback_complete = all(
+            value == "pass" for value in rollback_outcomes.values()
+        )
+        super().__init__(self._message())
+
+    def _message(self) -> str:
+        outcomes = ",".join(
+            f"{name}={value}" for name, value in self.store_outcomes.items()
+        )
+        rollback = ",".join(
+            f"{name}={value}" for name, value in self.rollback_outcomes.items()
+        ) or "none"
+        return (
+            "store consistency failure: "
+            f"operation={self.operation}; "
+            f"partial_write={str(self.partial_write).lower()}; "
+            f"outcomes={outcomes}; "
+            f"rollback_complete={str(self.rollback_complete).lower()}; "
+            f"rollback={rollback}"
+        )
+
+
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
@@ -65,37 +100,99 @@ class KnowledgeLifecycle:
         prior = self.registry.find_current_knowledge_revision(
             current["document_id"], exclude_package_id=package_id
         )
+        store_outcomes: dict[str, str] = {}
+        rollback_outcomes: dict[str, str] = {}
+        attempted: list[tuple[str, Any, str, str, bool]] = []
+        operation = "store visibility"
+        failures: list[str] = []
+
+        def apply_visibility(
+            store_name: str,
+            store: Any,
+            target_package_id: str,
+            target_status: str,
+            target_current: bool,
+            label: str,
+        ) -> bool:
+            nonlocal operation
+            if store is None:
+                return True
+            operation = label
+            key = f"{store_name}:{target_package_id}"
+            attempted.append(
+                (store_name, store, target_package_id, target_status, target_current)
+            )
+            try:
+                applied = store.set_package_visibility(
+                    target_package_id, target_status, target_current
+                )
+            except Exception:
+                store_outcomes[key] = "unknown"
+                failures.append(label)
+                return False
+            if not applied:
+                store_outcomes[key] = "failed"
+                attempted.pop()
+                failures.append(label)
+                return False
+            store_outcomes[key] = "applied"
+            return True
+
+        def apply_stage(updates: list[tuple[str, Any, str, str, bool, str]]) -> None:
+            failures.clear()
+            for update in updates:
+                apply_visibility(*update)
+            if failures:
+                raise StoreConsistencyError(
+                    failures[0], store_outcomes, rollback_outcomes
+                )
+
         try:
-            if vector_store is not None and not vector_store.set_package_visibility(
-                package_id, "published", True
-            ):
-                raise RuntimeError("Qdrant package visibility update failed")
-            if graph_writer is not None and not graph_writer.set_package_visibility(
-                package_id, "published", True
-            ):
-                raise RuntimeError("Neo4j package visibility update failed")
+            apply_stage([
+                ("qdrant", vector_store, package_id, "published", True,
+                 "Qdrant package visibility"),
+                ("neo4j", graph_writer, package_id, "published", True,
+                 "Neo4j package visibility"),
+            ])
             if prior:
-                if vector_store is not None and not vector_store.set_package_visibility(
-                    prior["package_id"], "superseded", False
-                ):
-                    raise RuntimeError("Qdrant prior revision update failed")
-                if graph_writer is not None and not graph_writer.set_package_visibility(
-                    prior["package_id"], "superseded", False
-                ):
-                    raise RuntimeError("Neo4j prior revision update failed")
-            published = self.registry.publish_knowledge_revision(package_id, prior and prior["package_id"])
+                apply_stage([
+                    ("qdrant", vector_store, prior["package_id"], "superseded", False,
+                     "Qdrant prior revision visibility"),
+                    ("neo4j", graph_writer, prior["package_id"], "superseded", False,
+                     "Neo4j prior revision visibility"),
+                ])
+            published = self.registry.publish_knowledge_revision(
+                package_id, prior and prior["package_id"]
+            )
             if prior:
-                self.registry.transition_knowledge_revision(prior["package_id"], "superseded")
+                self.registry.transition_knowledge_revision(
+                    prior["package_id"], "superseded"
+                )
             return published
+        except StoreConsistencyError as exc:
+            primary_error = exc
         except Exception:
-            # Restore metadata if a later store update fails. The registry is
-            # advanced only after all store updates succeed.
-            if vector_store is not None:
-                vector_store.set_package_visibility(package_id, current["publish_status"], current["is_current"])
-                if prior:
-                    vector_store.set_package_visibility(prior["package_id"], prior["publish_status"], prior["is_current"])
-            if graph_writer is not None:
-                graph_writer.set_package_visibility(package_id, current["publish_status"], current["is_current"])
-                if prior:
-                    graph_writer.set_package_visibility(prior["package_id"], prior["publish_status"], prior["is_current"])
-            raise
+            primary_error = StoreConsistencyError(
+                operation, store_outcomes, rollback_outcomes
+            )
+
+        # Restore every attempted store operation in reverse order. The registry
+        # is advanced only after all store updates succeed.
+        for store_name, store, target_package_id, _, _ in reversed(attempted):
+            original = current if target_package_id == package_id else prior
+            if store is None or original is None:
+                continue
+            rollback_key = f"{store_name}:{target_package_id}"
+            try:
+                if not store.set_package_visibility(
+                    target_package_id,
+                    original["publish_status"],
+                    original["is_current"],
+                ):
+                    rollback_outcomes[rollback_key] = "failed"
+                else:
+                    rollback_outcomes[rollback_key] = "pass"
+            except Exception:
+                rollback_outcomes[rollback_key] = "failed"
+
+        raise StoreConsistencyError(operation, store_outcomes, rollback_outcomes) from primary_error

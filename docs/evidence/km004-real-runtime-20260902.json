@@ -1,0 +1,48 @@
+{
+  "km": "KM004",
+  "status": "RUNTIME_VALIDATED",
+  "runtime": "disposable production-compatible Compose project km004",
+  "application_image": "km004-store-consistency:20260902",
+  "application_image_id": "sha256:9540ecac4a84309918b1b9c3cc3776a9f5a1ca01ae102d42405e106ce6b59f2c",
+  "health_http": 200,
+  "version_http": 200,
+  "services_running": [
+    "web",
+    "celery_search_worker",
+    "celery_ingest_worker",
+    "celery_beat",
+    "redis",
+    "report_registry",
+    "qdrant",
+    "neo4j",
+    "nginx"
+  ],
+  "scenarios": [
+    {
+      "name": "qdrant_success_neo4j_failure",
+      "store_outcomes": {
+        "qdrant": "applied",
+        "neo4j": "failed"
+      },
+      "partial_write": true,
+      "rollback_complete": true,
+      "previous_current_preserved": true,
+      "retry_result": "published_current_both_stores"
+    },
+    {
+      "name": "neo4j_success_qdrant_failure",
+      "store_outcomes": {
+        "neo4j": "applied",
+        "qdrant": "failed"
+      },
+      "partial_write": true,
+      "rollback_complete": true,
+      "previous_current_preserved": true,
+      "retry_result": "published_current_both_stores"
+    }
+  ],
+  "production_touched": false,
+  "database_production_touched": false,
+  "secrets_included": false,
+  "user_visible_validated": false
+}
