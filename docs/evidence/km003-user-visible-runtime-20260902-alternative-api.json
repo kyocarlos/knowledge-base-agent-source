@@ -1,0 +1,44 @@
+{
+  "km": "KM-003",
+  "validation": "approved-alternative-user-visible-entrypoint",
+  "runtime": "disposable isolated FastAPI/Celery/Redis/Qdrant/Neo4j runtime",
+  "entrypoint": "POST /search followed by GET /tasks/{task_id}",
+  "production_touched": false,
+  "database_production_touched": false,
+  "secrets_included": false,
+  "health": "pass",
+  "services": "running",
+  "scenarios": {
+    "v1_published_current": {
+      "status": "superseded",
+      "current": false,
+      "validated_from_prior_lifecycle_evidence": true
+    },
+    "v2_after_retry": {
+      "search_status": "completed",
+      "returned_versions": [
+        "2.0.0"
+      ],
+      "source_identity_present": true,
+      "search_visible": true
+    },
+    "v3_failed_publish": {
+      "publish_http": 409,
+      "revision_status": "ready",
+      "current": false,
+      "default_search_versions": [
+        "2.0.0"
+      ],
+      "v3_visible": false
+    },
+    "store_identity": {
+      "qdrant_packages_match": true,
+      "qdrant_point_count": 2,
+      "neo4j_packages_match": true,
+      "neo4j_v2_published_current": true,
+      "qdrant_neo4j_identity_match": true
+    }
+  },
+  "result": "PASS",
+  "notes": "Search API was the supervisor-approved user-visible alternative; no production deployment or mutation was performed."
+}

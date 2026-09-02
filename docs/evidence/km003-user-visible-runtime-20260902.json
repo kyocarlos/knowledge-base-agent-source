@@ -1,0 +1,32 @@
+{
+  "scope": "KM003 user-visible and approved-entrypoint validation",
+  "runtime": "disposable isolated FastAPI/Celery/Redis/Qdrant/Neo4j runtime",
+  "ui_entrypoint": "https://127.0.0.1:18030/chat.html",
+  "api_entrypoint": "http://127.0.0.1:18000/search",
+  "production_touched": false,
+  "secrets_included": false,
+  "lifecycle": {
+    "v1": {"status": "published", "current": true},
+    "v2": {"status": "published", "current": true},
+    "v3_publish_http": 409,
+    "v3_after_failure": {"status": "ready", "current": false}
+  },
+  "search_after_v3_failure": {
+    "status": "completed",
+    "document_id": "km003-ui-visible-document",
+    "document_version": "2.0.0",
+    "v3_present": false,
+    "package_identity_present": true
+  },
+  "chat_ui_smoke": {
+    "navigation": "PASS",
+    "chat_open": "PASS",
+    "websocket_connected": "PASS",
+    "query_submitted": "PASS",
+    "console_errors": 0,
+    "request_failures": 0,
+    "answer_generation": "BLOCKED_LOCAL_MODEL_TIMEOUT",
+    "user_visible_validated": "PENDING"
+  },
+  "note": "The real Search API and store lifecycle passed. The disposable OpenClaw answer-generation layer did not complete within the bounded browser run; no application or production source change was made for this environment issue."
+}
