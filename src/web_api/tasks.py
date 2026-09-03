@@ -1139,7 +1139,8 @@ def search_task(self, query: str, mode: str, top_k: int | None = None, sources_o
 
         if result.get("status") == "success":
             # 增加來源文件的搜尋次數
-            sources = _prefer_report_detailed_sources(query, result.get("sources", []))
+            result_sources = result.get("sources") or result.get("graph_results", [])
+            sources = _prefer_report_detailed_sources(query, result_sources)
             for src in sources:
                 src_name = src.get("source", "")
                 if src_name:
@@ -1149,7 +1150,7 @@ def search_task(self, query: str, mode: str, top_k: int | None = None, sources_o
             
             return {
                 "answer": result.get("answer"),
-                "sources": result.get("sources", []),
+                "sources": sources,
                 "citation_distribution": citation_distribution,
                 "mode": result.get("mode"),
                 "status": "completed"

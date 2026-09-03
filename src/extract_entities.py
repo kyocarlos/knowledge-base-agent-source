@@ -536,41 +536,44 @@ def extract_and_write(content: str, doc_name: str, doc_path: str, mode: Literal[
                     CREATE (d)-[:CONTAINS]->(t)
                 """, name=doc_name, content=content[:2000], source=doc_name)
                 
-                # 建立實體（容錯：支援 Name 或 name）
-                for entity in result.get("entities", []):
-                    entity_name = entity.get("Name") or entity.get("name", "")
-                    if not entity_name:
-                        logger.warning(f"實體缺少名稱欄位: {entity}")
-                        continue
+                from src.graph_relationship_contract import build_graph_contract
+                graph_contract = build_graph_contract(
+                    result.get("entities", []),
+                    result.get("relationships", []),
+                    source_document=doc_name,
+                    source_chunk_id=f"{doc_name}::chunk::0",
+                )
+
+                # 建立具 namespace 的實體，避免 display name 成為全域 endpoint identity。
+                for entity in graph_contract["entities"]:
                     session.run("""
-                        MERGE (e:Entity {name: $entity_name})
+                        MERGE (e:Entity {entity_key: $entity_key})
                         SET e.type = $entity_type,
+                            e.name = $entity_name,
                             e.description = $entity_desc,
-                            e.source = $entity_source,
+                            e.source_document = $source_document,
+                            e.namespace = $namespace,
                             e.extraction_mode = $mode
-                    """, entity_name=entity_name, entity_type=entity.get("type", "概念"),
-                        entity_desc=entity.get("description", ""),
-                        entity_source=doc_name,
+                    """, entity_key=entity["entity_key"], entity_name=entity["name"], entity_type=entity["type"],
+                        entity_desc=entity["description"], source_document=doc_name,
+                        namespace=entity["namespace"],
                         mode=mode)
                 
                 # 建立關係（容錯：支援 source/source, target/target, type/type）
-                for rel in result.get("relationships", []):
-                    source_name = rel.get("source") or rel.get("Source", "")
-                    target_name = rel.get("target") or rel.get("Target", "")
-                    if not source_name or not target_name:
-                        logger.warning(f"關係缺少名稱欄位: {rel}")
-                        continue
-                    rel_type = rel.get("type") or rel.get("Type", "相關")
+                for rel in graph_contract["relationships"]:
                     session.run("""
-                        MATCH (s:Entity {name: $source_node})
-                        MATCH (t:Entity {name: $target_node})
-                        MERGE (s)-[r:RELATES_TO {type: $rel_type}]->(t)
+                        MATCH (s:Entity {entity_key: $source_entity})
+                        MATCH (t:Entity {entity_key: $target_entity})
+                        MERGE (s)-[r:RELATES_TO {type: $rel_type, source_document: $source_document, source_chunk_id: $source_chunk_id}]->(t)
                         SET r.description = $rel_desc,
-                            r.source = $source_doc
-                    """, source_node=source_name, target_node=target_name,
-                        rel_type=rel_type,
-                        rel_desc=rel.get("description", ""),
-                        source_doc=doc_name)
+                            r.source_entity = $source_entity,
+                            r.target_entity = $target_entity,
+                            r.evidence_type = $evidence_type,
+                            r.review_status = $review_status
+                    """, source_entity=rel["source_entity"], target_entity=rel["target_entity"],
+                        rel_type=rel["relationship_type"], rel_desc=rel["description"],
+                        source_document=rel["source_document"], source_chunk_id=rel["source_chunk_id"],
+                        evidence_type=rel["evidence_type"], review_status=rel["review_status"])
             
             driver.close()
             logger.info(f"成功寫入 Neo4j - 文件: {doc_name}")

@@ -39,10 +39,12 @@ def setup_neo4j_schema(neo4j_uri: str, neo4j_user: str, neo4j_password: str):
                 FOR (d:Document) REQUIRE d.name IS UNIQUE
             """)
 
-            # 實體唯一性約束
+            # Entity.name is display text, not endpoint identity. Remove the
+            # legacy global uniqueness rule before enforcing entity_key.
+            session.run("DROP CONSTRAINT entity_name IF EXISTS")
             session.run("""
-                CREATE CONSTRAINT entity_name IF NOT EXISTS
-                FOR (e:Entity) REQUIRE e.name IS UNIQUE
+                CREATE CONSTRAINT entity_key IF NOT EXISTS
+                FOR (e:Entity) REQUIRE e.entity_key IS UNIQUE
             """)
 
             # 文字區塊索引
@@ -55,6 +57,10 @@ def setup_neo4j_schema(neo4j_uri: str, neo4j_user: str, neo4j_password: str):
             session.run("""
                 CREATE INDEX entity_type_index IF NOT EXISTS
                 FOR (e:Entity) ON (e.type)
+            """)
+            session.run("""
+                CREATE INDEX entity_display_name_index IF NOT EXISTS
+                FOR (e:Entity) ON (e.name)
             """)
 
             # 報告關聯圖譜

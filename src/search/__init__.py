@@ -1437,7 +1437,14 @@ class SearchEngine:
                         OPTIONAL MATCH (e)-[r]-(related)
                         RETURN e.name as entity, e.type as type,
                                e.description as description,
-                               collect(DISTINCT related.name) as connections
+                               collect(DISTINCT {{
+                                   name: related.name,
+                                   relation: type(r),
+                                   source_document: r.source_document,
+                                   source_chunk_id: r.source_chunk_id,
+                                   evidence_type: r.evidence_type,
+                                   review_status: r.review_status
+                               }}) as connections
                         LIMIT $limit
                     """
 
@@ -1629,7 +1636,17 @@ class SearchEngine:
             desc = record.get("description", "")
             connections = record.get("connections", [])
 
-            conn_str = ", ".join([c for c in connections if c]) if connections else "無"
+            connection_parts = []
+            for connection in connections:
+                if isinstance(connection, dict):
+                    name = connection.get("name") or "未知實體"
+                    relation = connection.get("relation") or "RELATED"
+                    provenance = connection.get("source_document") or "unknown-source"
+                    chunk = connection.get("source_chunk_id") or "unknown-chunk"
+                    connection_parts.append(f"{name} [{relation}; {provenance}; {chunk}]")
+                elif connection:
+                    connection_parts.append(str(connection))
+            conn_str = ", ".join(connection_parts) if connection_parts else "無"
 
             context_parts.append(
                 f"實體:{entity}(類型:{etype})\n"
@@ -4673,7 +4690,14 @@ class SearchEngine:
                         OPTIONAL MATCH (e)-[r]-(related)
                         RETURN e.name as entity, e.type as type,
                                e.description as description,
-                               collect(DISTINCT related.name) as connections
+                               collect(DISTINCT {{
+                                   name: related.name,
+                                   relation: type(r),
+                                   source_document: r.source_document,
+                                   source_chunk_id: r.source_chunk_id,
+                                   evidence_type: r.evidence_type,
+                                   review_status: r.review_status
+                               }}) as connections
                         LIMIT $limit
                     """
 
