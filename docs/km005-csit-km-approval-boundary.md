@@ -27,7 +27,9 @@ in the KM submission registry and returned by the existing review API.
 - `rejected` or `pending` CSIT state cannot enter KM indexing through the KM
   approve endpoint.
 - `approved` CSIT state may enter the existing KM validation/review step; KM
-  records this separately as `km_validation_status=validated`.
+  records this separately as `km_validation_status=validated`. After both
+  stores ingest successfully, the task reuses KM002 lifecycle to transition
+  the package through `draft -> ready -> published`.
 - Only the existing approved/queued/completed ingest path writes the knowledge
   indexes. No second CSIT ingestion or approval registry is created.
 - Default Search continues to use the existing published/current filters.
@@ -39,7 +41,8 @@ in the KM submission registry and returned by the existing review API.
 The KM005 isolated runtime review must use real FastAPI, Celery, Redis,
 PostgreSQL registry, Qdrant, Neo4j, and Search services. It must demonstrate:
 
-1. CSIT-approved upload is registered with the four CSIT fields.
+1. CSIT-approved upload is registered with the four CSIT fields and is
+   published only after the existing dual-store ingest completes.
 2. CSIT-rejected upload is not indexed or visible to default Search.
 3. CSIT-approved upload completes through the existing reviewer and ingest
    path and becomes searchable.
@@ -49,3 +52,14 @@ PostgreSQL registry, Qdrant, Neo4j, and Search services. It must demonstrate:
 
 The shared Main User Entry Baseline is reused for browser mechanics; KM005
 only validates the CSIT ownership behavior specific to this change.
+
+## Real-system validation result
+
+The disposable `km005` runtime was validated with real FastAPI, Celery, Redis,
+PostgreSQL registry, Qdrant, Neo4j, and Search services. The approved scenario
+completed through the existing Upload -> Review -> Ingest path and became the
+published/current search result. Pending approval returned HTTP 409, rejected
+content was not indexed, incomplete CSIT metadata returned HTTP 422 without a
+submission, and the no-CSIT legacy upload path remained available. Registry,
+Qdrant, and Neo4j package identity matched. Sanitized evidence is recorded in
+`docs/evidence/km005-csit-approval-boundary-runtime-20260903.json`.

@@ -763,6 +763,33 @@ def ingest_file_task(self, task_id: str):
                 neo4j_password=neo4j_password,
             )
 
+        # CSIT owns the business decision. For an explicitly approved CSIT
+        # submission, reuse KM002's lifecycle only after both stores ingest.
+        if state.get("csit_approval_status") == "approved":
+            from ..ingest_registry import IngestRegistry
+            from ..knowledge_lifecycle import KnowledgeLifecycle
+            from ..knowledge_graph_lifecycle import KnowledgeGraphLifecycle
+            from ..knowledge_package import build_package_id
+            from ..vector_store import VectorStore
+
+            document_id = Path(converted_path).stem
+            package_id = build_package_id(document_id, "1.0.0")
+            lifecycle = KnowledgeLifecycle(IngestRegistry())
+            revision = lifecycle.get(package_id)
+            if not revision:
+                raise RuntimeError("CSIT approved package revision was not registered")
+            if revision["publish_status"] == "draft":
+                lifecycle.transition(package_id, "ready")
+            graph = KnowledgeGraphLifecycle()
+            try:
+                lifecycle.publish(
+                    package_id,
+                    vector_store=VectorStore(load_model=False),
+                    graph_writer=graph,
+                )
+            finally:
+                graph.close()
+
         update_ingest_task_state(task_id, status="writing_qdrant")
         update_ingest_task_state(task_id, status="refreshing_index")
         try:

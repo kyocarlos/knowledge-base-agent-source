@@ -216,6 +216,10 @@ async def approve_report_submission(submission_id: str, decision: ReviewDecision
         "extraction_mode_name": "Test Report", "canonical_test_report": True, "status": "queued",
         "created_at": reviewed_at, "started_at": None, "finished_at": None, "error": None,
         "ingested": False, "content": "",
+        "csit_source_record_id": item.get("csit_source_record_id"),
+        "csit_approval_status": item.get("csit_approval_status"),
+        "csit_revision": item.get("csit_revision"),
+        "csit_correlation_id": item.get("csit_correlation_id"),
     }
     try:
         set_ingest_task_state(task_id, state)
