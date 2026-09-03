@@ -73,6 +73,11 @@ class SubmissionRegistry:
                     reviewer_id TEXT,
                     review_comment TEXT,
                     reviewed_at TEXT,
+                    csit_source_record_id TEXT,
+                    csit_approval_status TEXT,
+                    csit_revision TEXT,
+                    csit_correlation_id TEXT,
+                    km_validation_status TEXT NOT NULL DEFAULT 'pending',
                     ingest_task_id TEXT,
                     error TEXT,
                     version INTEGER NOT NULL DEFAULT 1,
@@ -81,6 +86,23 @@ class SubmissionRegistry:
                     UNIQUE(environment, run_id)
                 )
             """))
+            for column, definition in (
+                ("csit_source_record_id", "TEXT"),
+                ("csit_approval_status", "TEXT"),
+                ("csit_revision", "TEXT"),
+                ("csit_correlation_id", "TEXT"),
+                ("km_validation_status", "TEXT NOT NULL DEFAULT 'pending'"),
+            ):
+                savepoint = f"km005_{column}"
+                try:
+                    connection.execute(self._sql(f"SAVEPOINT {savepoint}"))
+                    connection.execute(self._sql(
+                        f"ALTER TABLE report_submissions ADD COLUMN {column} {definition}"
+                    ))
+                    connection.execute(self._sql(f"RELEASE SAVEPOINT {savepoint}"))
+                except Exception:
+                    connection.execute(self._sql(f"ROLLBACK TO SAVEPOINT {savepoint}"))
+                    connection.execute(self._sql(f"RELEASE SAVEPOINT {savepoint}"))
 
     @staticmethod
     def _decode(row: Any | None) -> dict | None:
@@ -136,7 +158,10 @@ class SubmissionRegistry:
             item["report_name"], item["report_hash"], item.get("status", "pending_review"),
             item["original_path"], json.dumps(item.get("attachments", []), ensure_ascii=False),
             json.dumps(item.get("manifest", {}), ensure_ascii=False),
-            json.dumps(item.get("validation", {}), ensure_ascii=False), now, now,
+            json.dumps(item.get("validation", {}), ensure_ascii=False),
+            item.get("csit_source_record_id"), item.get("csit_approval_status"),
+            item.get("csit_revision"), item.get("csit_correlation_id"),
+            item.get("km_validation_status", "pending"), now, now,
         )
         try:
             with self._connection() as connection:
@@ -144,8 +169,9 @@ class SubmissionRegistry:
                     INSERT INTO report_submissions (
                         submission_id, environment, run_id, agent_id, report_name, report_hash,
                         status, original_path, attachments_json, manifest_json, validation_json,
-                        created_at, updated_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        csit_source_record_id, csit_approval_status, csit_revision,
+                        csit_correlation_id, km_validation_status, created_at, updated_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """), values)
         except Exception:
             existing = self.find_by_run(item["environment"], item["run_id"])

@@ -1,0 +1,76 @@
+{
+  "schema": "km005-runtime-evidence/v1",
+  "runtime": {
+    "kind": "disposable-production-compatible",
+    "compose_project": "km005",
+    "production_touched": false,
+    "database_production_touched": false,
+    "secrets_included": false
+  },
+  "services": [
+    "FastAPI",
+    "Celery",
+    "Redis",
+    "PostgreSQL registry",
+    "Qdrant",
+    "Neo4j",
+    "Search API"
+  ],
+  "scenarios": {
+    "A_csit_approved": {
+      "upload_http": 202,
+      "approval_http": 200,
+      "csit_approval_status": "approved",
+      "km_validation_status": "validated",
+      "ingest_status": "completed",
+      "search_target_visible": true,
+      "search_identity": {
+        "document_version": "1.0.0",
+        "publish_status": "published",
+        "is_current": true
+      },
+      "cross_store_identity_match": true
+    },
+    "B_csit_pending": {
+      "upload_http": 202,
+      "approval_http": 409,
+      "submission_status": "pending_review",
+      "csit_approval_status": "pending",
+      "km_validation_status": "pending",
+      "indexed": false,
+      "default_search_target_visible": false
+    },
+    "C_csit_rejected": {
+      "upload_http": 202,
+      "submission_status": "rejected",
+      "csit_approval_status": "rejected",
+      "km_validation_status": "pending",
+      "indexed": false,
+      "default_search_target_visible": false
+    },
+    "D_invalid_partial_metadata": {
+      "upload_http": 422,
+      "submission_created": false,
+      "indexed": false
+    },
+    "E_legacy_wp1": {
+      "upload_http": 202,
+      "submission_status": "pending_review",
+      "csit_approval_status": null,
+      "km_validation_status": "pending",
+      "legacy_flow_available": true
+    }
+  },
+  "cross_store": {
+    "registry": "published/current",
+    "qdrant": "published/current",
+    "neo4j": "published/current",
+    "identity_match": true
+  },
+  "user_entry": {
+    "entrypoint": "Search API",
+    "main_browser_baseline": "outputs/main-entry-validation-20260903/final_runs/run_2",
+    "km005_specific_behavior_validated": true
+  },
+  "status": "PASS"
+}
