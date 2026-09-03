@@ -214,6 +214,14 @@ def chunk_document(file_path: str) -> List[Dict]:
     doc_name = path.stem
     content = path.read_text(encoding="utf-8")
     source_metadata_path = path.with_name(f"{path.stem}.source.json")
+    if not source_metadata_path.exists():
+        # Uploaded reports keep source metadata beside the original file while
+        # the worker chunks the converted file under the sibling directory.
+        for ancestor in path.parents:
+            candidate = ancestor / "original" / f"{path.stem}.source.json"
+            if candidate.exists():
+                source_metadata_path = candidate
+                break
     source_metadata = {}
     if source_metadata_path.exists():
         source_metadata = json.loads(source_metadata_path.read_text(encoding="utf-8"))

@@ -47,9 +47,13 @@ def test_image_refs_are_merged_from_legacy_payload_shapes():
 
 
 def test_chunker_preserves_image_refs_from_source_metadata(tmp_path: Path):
-    markdown = tmp_path / "report.md"
+    converted = tmp_path / "task" / "converted"
+    original = tmp_path / "task" / "original"
+    converted.mkdir(parents=True)
+    original.mkdir()
+    markdown = converted / "report.md"
     markdown.write_text("# Report\n\n" + ("throughput result " * 40), encoding="utf-8")
-    markdown.with_name("report.source.json").write_text(
+    (original / "report.source.json").write_text(
         '{"image_refs": ["report/excel/image-01.png"]}', encoding="utf-8"
     )
 
