@@ -214,9 +214,18 @@ def chunk_document(file_path: str) -> List[Dict]:
     doc_name = path.stem
     content = path.read_text(encoding="utf-8")
     source_metadata_path = path.with_name(f"{path.stem}.source.json")
+    if not source_metadata_path.exists():
+        # Uploaded reports keep source metadata beside the original file while
+        # the worker chunks the converted file under the sibling directory.
+        for ancestor in path.parents:
+            candidate = ancestor / "original" / f"{path.stem}.source.json"
+            if candidate.exists():
+                source_metadata_path = candidate
+                break
     source_metadata = {}
     if source_metadata_path.exists():
         source_metadata = json.loads(source_metadata_path.read_text(encoding="utf-8"))
+    source_image_refs = source_metadata.get("image_refs", []) or []
     document_id = str(source_metadata.get("document_id") or source_metadata.get("documentId") or doc_name)
     document_version = resolve_document_version(source_metadata)
     document_content_hash = hashlib.sha256(content.encode("utf-8")).hexdigest()
@@ -235,11 +244,16 @@ def chunk_document(file_path: str) -> List[Dict]:
         ))
         chunk_image_refs = extract_image_refs_from_text(chunk.get("content", ""))
         existing_image_refs = metadata.get("image_refs", [])
-        merged_image_refs = merge_image_refs(existing_image_refs, chunk_image_refs)
+        merged_image_refs = merge_image_refs(source_image_refs, existing_image_refs, chunk_image_refs)
         if merged_image_refs:
             metadata["image_refs"] = merged_image_refs
         metadata.setdefault("source_path", source_path)
         metadata.setdefault("source_name", path.name)
         metadata.setdefault("source_ext", path.suffix.lower())
         metadata.setdefault("source_dir", str(path.parent.resolve()))
+    # A short standalone image section may be discarded by the chunk-size
+    # policy; retain the converter's authoritative refs on a deterministic
+    # surviving chunk so the admin view cannot lose embedded images.
+    if source_image_refs and chunks and not any(chunk.get("metadata", {}).get("image_refs") for chunk in chunks):
+        chunks[0].setdefault("metadata", {})["image_refs"] = merge_image_refs(source_image_refs)
     return chunks

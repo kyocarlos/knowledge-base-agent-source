@@ -1,0 +1,29 @@
+{
+  "schema": "km.excel-image-chunk-runtime.v1",
+  "status": "PASS",
+  "source_commit": "356afe5",
+  "candidate_image": {
+    "tag": "kb-wp1-release:excel-image-chunks-20260903-r3",
+    "image_id": "sha256:11e64eaf5ee02cb6790c7c1fae281924205da908dd95e9145b32b8aaeefcf88a"
+  },
+  "runtime": {
+    "mode": "isolated_production_compatible",
+    "health": 200,
+    "version": 200,
+    "services": ["fastapi", "celery", "redis", "postgresql", "qdrant", "neo4j"]
+  },
+  "upload": {
+    "file_type": "xlsx",
+    "task_status": "completed",
+    "ingested": true
+  },
+  "admin_chunks_browser": {
+    "page_http": 200,
+    "image_cards": 5,
+    "image_refs": 5,
+    "console_errors": 0
+  },
+  "production_touched": false,
+  "database_production_touched": false,
+  "secrets_included": false
+}

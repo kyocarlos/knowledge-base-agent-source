@@ -701,7 +701,19 @@ def ingest_file_task(self, task_id: str):
                 _attachment_hashes_from_state(state),
             )
             converted_path.parent.mkdir(parents=True, exist_ok=True)
-            converted_path.write_text(render_report_markdown(canonical_report), encoding="utf-8")
+            canonical_markdown = render_report_markdown(canonical_report)
+            image_refs = []
+            if original_path.suffix.lower() == ".xlsx":
+                # Keep the canonical report renderer while preserving Excel image assets.
+                from ..converter import FileConverter
+
+                enrichment = FileConverter()._build_excel_enrichment(original_path)
+                enrichment_text = str(enrichment.get("text") or "").strip()
+                image_refs = enrichment.get("image_refs", []) or []
+                if enrichment_text:
+                    canonical_markdown = f"{canonical_markdown}\n\n{enrichment_text}"
+
+            converted_path.write_text(canonical_markdown, encoding="utf-8")
             manifest = canonical_report["manifest"]
             converted_path.with_name(f"{converted_path.stem}.source.json").write_text(
                 json.dumps({
@@ -714,10 +726,11 @@ def ingest_file_task(self, task_id: str):
                     "schema_version": manifest["schema_version"],
                     "storage_category": "Report",
                     "extraction_mode": "report",
+                    "image_refs": image_refs,
                 }, ensure_ascii=False, indent=2),
                 encoding="utf-8",
             )
-            result = {"status": "success", "image_refs": []}
+            result = {"status": "success", "image_refs": image_refs}
         else:
             from ..converter import FileConverter
             converter = FileConverter()
