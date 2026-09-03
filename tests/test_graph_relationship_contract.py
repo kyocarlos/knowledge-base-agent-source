@@ -15,16 +15,16 @@ def test_same_display_name_isolated_by_namespace_and_relationship_keeps_provenan
         [
             {"name": "Model-X", "type": "Product", "namespace": "domain-a", "entity_id": "product-a"},
             {"name": "Model-X", "type": "Product", "namespace": "domain-b", "entity_id": "product-b"},
-            {"name": "Firmware-1", "type": "Firmware", "namespace": "domain-a"},
+            {"name": "Firmware-1", "type": "Firmware", "namespace": "domain-a", "entity_id": "firmware-a"},
         ],
-        [{"source_entity_id": "product-a", "source": "Model-X", "target": "Firmware-1", "type": "HAS_FIRMWARE"}],
+        [{"source_entity_id": "product-a", "target_entity_id": "firmware-a", "type": "HAS_FIRMWARE"}],
         source_document="DOC-001",
         source_chunk_id="DOC-001::chunk::7",
     )
     assert len({item["entity_key"] for item in result["entities"]}) == 3
     relation = result["relationships"][0]
     assert relation["source_entity"] in {item["entity_key"] for item in result["entities"]}
-    assert relation["target_entity"] in {item["entity_key"] for item in result["entities"]}
+    assert relation["target_entity"] == "firmware-a"
     assert relation["source_document"] == "DOC-001"
     assert relation["source_chunk_id"] == "DOC-001::chunk::7"
     assert relation["evidence_type"] == "ai_inferred"

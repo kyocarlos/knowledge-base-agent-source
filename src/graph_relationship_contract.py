@@ -71,6 +71,9 @@ def build_graph_contract(
         source_name = _text(relationship.get("source_entity") or relationship.get("source") or relationship.get("Source"))
         target_name = _text(relationship.get("target_entity") or relationship.get("target") or relationship.get("Target"))
         if not source_name or not target_name:
+            source_name = _text(relationship.get("source_entity_id"))
+            target_name = _text(relationship.get("target_entity_id"))
+        if not source_name or not target_name:
             continue
         source_key = _text(relationship.get("source_entity_id"))
         target_key = _text(relationship.get("target_entity_id"))
