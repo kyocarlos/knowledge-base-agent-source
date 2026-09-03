@@ -215,32 +215,45 @@ class GraphRAGPipeline:
             # 清空現有資料（可選）
             # self.graph.query("MATCH (n) DETACH DELETE n")
 
+            from src.graph_relationship_contract import build_graph_contract
+            graph_contract = build_graph_contract(
+                extraction_result.get("entities", []),
+                extraction_result.get("relationships", []),
+                source_document=str(extraction_result.get("source_document") or "graphrag:unknown"),
+                source_chunk_id=str(extraction_result.get("source_chunk_id") or "graphrag:unknown::chunk::0"),
+            )
+
             # 寫入實體
             entities_cypher = """
             UNWIND $entities AS entity
-            MERGE (e:Entity {name: entity.name})
-            SET e.type = entity.type,
+            MERGE (e:Entity {entity_key: entity.entity_key})
+            SET e.name = entity.name,
+                e.type = entity.type,
                 e.description = entity.description,
-                e.source = entity.source
+                e.source_document = entity.source_document,
+                e.namespace = entity.namespace
             """
 
-            self.graph.query(entities_cypher, params={"entities": extraction_result["entities"]})
-            logger.info(f"寫入 {len(extraction_result['entities'])} 個實體")
+            self.graph.query(entities_cypher, params={"entities": graph_contract["entities"]})
+            logger.info(f"寫入 {len(graph_contract['entities'])} 個實體")
 
             # 寫入關係
             relationships_cypher = """
             UNWIND $relationships AS rel
-            MATCH (source:Entity {name: rel.source})
-            MATCH (target:Entity {name: rel.target})
-            MERGE (source)-[r:RELATES_TO {type: rel.type}]->(target)
+            MATCH (source:Entity {entity_key: rel.source_entity})
+            MATCH (target:Entity {entity_key: rel.target_entity})
+            MERGE (source)-[r:RELATES_TO {type: rel.relationship_type, source_document: rel.source_document, source_chunk_id: rel.source_chunk_id}]->(target)
             SET r.description = rel.description,
-                r.source = rel.source
+                r.source_entity = rel.source_entity,
+                r.target_entity = rel.target_entity,
+                r.evidence_type = rel.evidence_type,
+                r.review_status = rel.review_status
             """
 
             self.graph.query(relationships_cypher, params={
-                "relationships": extraction_result["relationships"]
+                "relationships": graph_contract["relationships"]
             })
-            logger.info(f"寫入 {len(extraction_result['relationships'])} 個關係")
+            logger.info(f"寫入 {len(graph_contract['relationships'])} 個關係")
 
             # 建立向量索引
             self._create_vector_index()
