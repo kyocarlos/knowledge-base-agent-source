@@ -1,0 +1,32 @@
+{
+  "schema": "km006.graph-relationship-runtime.v1",
+  "status": "PASS",
+  "runtime": "disposable-neo4j",
+  "validation": {
+    "schema_entity_key_unique": true,
+    "entity_count": 3,
+    "relationship_count": 1,
+    "rerun_deduplicated": true,
+    "graph_query_result_count": 1,
+    "relationship_provenance_complete": true,
+    "display_name_is_not_endpoint_identity": true
+  },
+  "provenance_fields": [
+    "source_entity",
+    "target_entity",
+    "source_document",
+    "source_chunk_id",
+    "evidence_type",
+    "review_status"
+  ],
+  "safety": {
+    "production_touched": false,
+    "database_production_touched": false,
+    "secrets_included": false
+  },
+  "user_visible_validation": {
+    "shared_main_entry_baseline": "outputs/main-entry-validation-20260903/final_runs/run_2/",
+    "feature_specific_graph_query": "PASS",
+    "status": "PENDING_FORMAL_SEARCH_ENTRYPOINT"
+  }
+}
