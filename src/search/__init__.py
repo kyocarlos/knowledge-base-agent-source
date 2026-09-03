@@ -1437,14 +1437,14 @@ class SearchEngine:
                         OPTIONAL MATCH (e)-[r]-(related)
                         RETURN e.name as entity, e.type as type,
                                e.description as description,
-                               collect(DISTINCT {
+                               collect(DISTINCT {{
                                    name: related.name,
                                    relation: type(r),
                                    source_document: r.source_document,
                                    source_chunk_id: r.source_chunk_id,
                                    evidence_type: r.evidence_type,
                                    review_status: r.review_status
-                               }) as connections
+                               }}) as connections
                         LIMIT $limit
                     """
 

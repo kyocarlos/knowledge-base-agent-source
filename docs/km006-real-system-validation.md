@@ -27,12 +27,15 @@ real Neo4j, not a mock. It verified:
 - Re-running the same document does not duplicate the relationship.
 - Graph query returns the relationship and its source document, source chunk,
   evidence type and review status.
+- The application `SearchEngine.deep_search()` path returns the graph result
+  with the same relationship provenance from the real Neo4j runtime.
 - Document cleanup matches both the KM006 `source_document` field and the
   legacy `source` field.
 
 ## Boundary
 
-The shared Main User Entry baseline remains the common browser baseline. KM006
-is not marked DONE until a real application Search/GraphRAG entrypoint exposes
-and validates the KM006 relationship provenance. No production deployment or
-production database mutation was performed.
+The shared Main User Entry baseline remains the common browser baseline. The
+application SearchEngine path is runtime-validated; a formal HTTP/user-facing
+Search or GraphRAG route still needs its feature-specific validation before
+KM006 can be marked DONE. No production deployment or production database
+mutation was performed.
