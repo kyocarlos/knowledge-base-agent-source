@@ -1,0 +1,34 @@
+{
+  "schema": "km008.simple-report-runtime.v1",
+  "source_base": "7ccbaeaec039d18278b79588e3a3c2ad232f4bcb",
+  "runtime": {
+    "kind": "disposable-production-compatible",
+    "services": ["FastAPI", "Celery", "Redis", "PostgreSQL registry", "Qdrant", "Neo4j"],
+    "health_http": 200,
+    "version_http": 200,
+    "write_mode": false
+  },
+  "simple_report": {
+    "result": "PASS",
+    "document_id": "km008-simple-report",
+    "qdrant_points": 1,
+    "qdrant_identity": true,
+    "neo4j_node_count": 3,
+    "neo4j_labels": ["Report", "Section", "SourceChunk"],
+    "graph_stats_returned": true,
+    "search_status": "completed",
+    "search_source_count": 1,
+    "search_identity": true,
+    "published_current": true
+  },
+  "safety": {
+    "production_touched": false,
+    "database_production_touched": false,
+    "secrets_included": false,
+    "disposable_teardown": "PASS"
+  },
+  "notes": [
+    "The real application simple-report ingest path was executed in the disposable runtime.",
+    "Host pytest availability remains a separate P2 environment concern."
+  ]
+}
