@@ -113,8 +113,8 @@ class KnowledgeBaseSystem:
     # ===== 搜尋 =====
 
     def basic_search(self, query: str, top_k: Optional[int] = None) -> dict:
-        """基本搜尋（Neo4j 文件內容搜尋）"""
-        return self.search_engine.basic_search(query, top_k if top_k is not None else self.default_basic_top_k)
+        """基本 RAG 搜尋（Qdrant 語意檢索；保留舊 API 名稱）。"""
+        return self.search_engine.vector_search(query, top_k if top_k is not None else self.default_basic_top_k)
 
     def deep_search(self, query: str, mode: str = "local", top_k: Optional[int] = None) -> dict:
         """深層搜尋（GraphRAG 知識圖譜檢索）"""
