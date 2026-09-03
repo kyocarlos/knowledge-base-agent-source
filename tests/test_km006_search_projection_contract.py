@@ -20,3 +20,8 @@ def test_cypher_map_is_escaped_for_python_f_string():
     source = SEARCH_SOURCE.read_text(encoding="utf-8")
     assert "collect(DISTINCT {{" in source
     assert "}}) as connections" in source
+
+
+def test_raw_search_projects_relationship_provenance():
+    source = SEARCH_SOURCE.read_text(encoding="utf-8")
+    assert source.count("source_chunk_id: r.source_chunk_id") >= 2
