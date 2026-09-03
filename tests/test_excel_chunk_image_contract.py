@@ -7,6 +7,7 @@ from openpyxl.drawing.image import Image as ExcelImage
 
 from src import chunk_assets
 from src.converter import FileConverter
+from src.chunker import chunk_document
 from src.image_refs import merge_image_refs
 
 
@@ -43,3 +44,19 @@ def test_image_refs_are_merged_from_legacy_payload_shapes():
         ["report/excel/image-02.png"],
         ["report/excel/image-01.png"],
     ) == ["report/excel/image-01.png", "report/excel/image-02.png"]
+
+
+def test_chunker_preserves_image_refs_from_source_metadata(tmp_path: Path):
+    markdown = tmp_path / "report.md"
+    markdown.write_text("# Report\n\n" + ("throughput result " * 40), encoding="utf-8")
+    markdown.with_name("report.source.json").write_text(
+        '{"image_refs": ["report/excel/image-01.png"]}', encoding="utf-8"
+    )
+
+    chunks = chunk_document(str(markdown))
+
+    assert chunks
+    assert any(
+        "report/excel/image-01.png" in chunk["metadata"].get("image_refs", [])
+        for chunk in chunks
+    )
