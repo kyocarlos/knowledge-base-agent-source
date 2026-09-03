@@ -36,9 +36,12 @@ def _error_response(
         error=ApiError(code=code, message=message, details=details),
         trace_id=_trace_id(request),
     )
+    content = body.model_dump(mode="json", exclude_none=True)
+    # `data: null` is part of the stable envelope even when no error details exist.
+    content["data"] = None
     return JSONResponse(
         status_code=status_code,
-        content=body.model_dump(mode="json"),
+        content=content,
         headers={"X-Trace-ID": _trace_id(request)},
     )
 
