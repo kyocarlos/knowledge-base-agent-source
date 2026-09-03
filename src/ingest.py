@@ -68,7 +68,7 @@ def cleanup_existing_document(
             session.run(
                 """
                 MATCH ()-[r]->()
-                WHERE r.source = $doc_name
+                WHERE r.source_document = $doc_name OR r.source = $doc_name
                 DELETE r
                 """,
                 doc_name=doc_name,

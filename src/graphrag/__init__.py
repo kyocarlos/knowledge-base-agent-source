@@ -306,7 +306,12 @@ class GraphRAGPipeline:
                 WITH e LIMIT $top_k
                 MATCH (e)-[r]-(neighbor)
                 RETURN e.name AS entity, e.type AS type,
-                       COLLECT({neighbor: neighbor.name, relation: r.type}) AS connections
+                       COLLECT({neighbor: neighbor.name,
+                                relation: r.type,
+                                source_document: r.source_document,
+                                source_chunk_id: r.source_chunk_id,
+                                evidence_type: r.evidence_type,
+                                review_status: r.review_status}) AS connections
                 LIMIT $top_k
                 """
                 result = self.graph.query(query_cypher, params={

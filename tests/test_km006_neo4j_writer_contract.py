@@ -70,3 +70,10 @@ def test_neo4j_writer_uses_endpoint_identity_and_relationship_provenance(tmp_pat
     assert "source_chunk_id" in query
     assert params["evidence_type"] == "ai_inferred"
     assert params["review_status"] == "pending"
+
+
+def test_cleanup_query_matches_km006_relationship_provenance():
+    from src import ingest
+
+    source = Path(ingest.__file__).read_text(encoding="utf-8")
+    assert "r.source_document = $doc_name OR r.source = $doc_name" in source
