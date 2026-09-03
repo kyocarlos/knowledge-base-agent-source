@@ -1,6 +1,6 @@
 {
   "schema": "km.phase1-runtime-status.v1",
-  "collected_at": "2026-09-03T01:08:58.767403+00:00",
+  "collected_at": "2026-09-03T05:52:53.792239+00:00",
   "manifest": "docs/phase1-status-manifest.json",
   "collector_mode": "broker",
   "source_root": "broker-managed",
@@ -12,31 +12,31 @@
     "health_status": 200,
     "version_status": 200,
     "data": {
-      "commit": null,
-      "release_id": null,
-      "image_digest": null,
-      "build_timestamp": null
+      "commit": "356afe55aeae4705602e4dabe5902642d245eeac",
+      "release_id": "wp1-excel-image-chunks-20260903-r4",
+      "image_digest": "sha256:da2c149f89eb7250965cbc0d80cf78cddc2b0d8f8c6951e8aff04c5c6a0e4fe5",
+      "build_timestamp": "2026-09-03T12:16:45.978432614+08:00"
     }
   },
   "services": {
     "kb-web": {
-      "image_id": "sha256:4b5ba6d30b854d6ff69c4bd8c0ba6adeb53ac38be7c8df30a829aa4a06fbba05",
+      "image_id": "sha256:da2c149f89eb7250965cbc0d80cf78cddc2b0d8f8c6951e8aff04c5c6a0e4fe5",
       "status": "running"
     },
     "kb-celery-search": {
-      "image_id": "sha256:4b5ba6d30b854d6ff69c4bd8c0ba6adeb53ac38be7c8df30a829aa4a06fbba05",
+      "image_id": "sha256:da2c149f89eb7250965cbc0d80cf78cddc2b0d8f8c6951e8aff04c5c6a0e4fe5",
       "status": "running"
     },
     "kb-celery-ingest": {
-      "image_id": "sha256:4b5ba6d30b854d6ff69c4bd8c0ba6adeb53ac38be7c8df30a829aa4a06fbba05",
+      "image_id": "sha256:da2c149f89eb7250965cbc0d80cf78cddc2b0d8f8c6951e8aff04c5c6a0e4fe5",
       "status": "running"
     },
     "kb-celery-beat": {
-      "image_id": "sha256:4b5ba6d30b854d6ff69c4bd8c0ba6adeb53ac38be7c8df30a829aa4a06fbba05",
-      "status": "exited"
+      "image_id": "sha256:da2c149f89eb7250965cbc0d80cf78cddc2b0d8f8c6951e8aff04c5c6a0e4fe5",
+      "status": "running"
     }
   },
-  "status": "STALE",
+  "status": "MISMATCH",
   "production_touched": false,
   "secrets_included": false
 }
