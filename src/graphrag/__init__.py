@@ -227,15 +227,32 @@ class GraphRAGPipeline:
             entities_cypher = """
             UNWIND $entities AS entity
             MERGE (e:Entity {entity_key: entity.entity_key})
+            ON CREATE SET e.description = entity.description
             SET e.name = entity.name,
                 e.type = entity.type,
-                e.description = entity.description,
-                e.source_document = entity.source_document,
                 e.namespace = entity.namespace
             """
 
             self.graph.query(entities_cypher, params={"entities": graph_contract["entities"]})
             logger.info(f"寫入 {len(graph_contract['entities'])} 個實體")
+
+            provenance_cypher = """
+            UNWIND $entities AS entity
+            MERGE (c:SourceChunk {id: $source_chunk_id})
+            SET c.source_document = $source_document,
+                c.entity_key = entity.entity_key
+            WITH c, entity
+            MATCH (e:Entity {entity_key: entity.entity_key})
+            MERGE (e)-[:MENTIONS {source_document: $source_document, source_chunk_id: $source_chunk_id}]->(c)
+            """
+            self.graph.query(
+                provenance_cypher,
+                params={
+                    "entities": graph_contract["entities"],
+                    "source_document": str(extraction_result.get("source_document") or "graphrag:unknown"),
+                    "source_chunk_id": str(extraction_result.get("source_chunk_id") or "graphrag:unknown::chunk::0"),
+                },
+            )
 
             # 寫入關係
             relationships_cypher = """

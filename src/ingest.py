@@ -186,16 +186,25 @@ def _write_neo4j_document(
         for entity in graph_contract["entities"]:
             session.run("""
                 MERGE (e:Entity {entity_key: $entity_key})
+                ON CREATE SET e.description = $entity_desc
                 SET e.type = $entity_type,
                     e.name = $entity_name,
-                    e.description = $entity_desc,
-                    e.source_document = $source_document,
                     e.namespace = $namespace,
                     e.extraction_mode = $mode
             """, entity_key=entity["entity_key"], entity_name=entity["name"], entity_type=entity["type"],
                 entity_desc=entity["description"], source_document=doc_name,
                 namespace=entity["namespace"],
                 mode=extraction_mode)
+
+            session.run("""
+                MERGE (c:SourceChunk {id: $source_chunk_id})
+                SET c.source_document = $source_document,
+                    c.entity_key = $entity_key
+                WITH c
+                MATCH (e:Entity {entity_key: $entity_key})
+                MERGE (e)-[:MENTIONS {source_document: $source_document, source_chunk_id: $source_chunk_id}]->(c)
+            """, source_chunk_id=f"{identity['package_id']}::chunk::0",
+                source_document=doc_name, entity_key=entity["entity_key"])
 
         for rel in graph_contract["relationships"]:
             session.run("""
