@@ -1,0 +1,28 @@
+{
+  "km": "KM004",
+  "runtime": "isolated-production-compatible",
+  "production_touched": false,
+  "database_production_touched": false,
+  "secrets_included": false,
+  "scenario": {
+    "document_id": "km004-user-visible-20260903",
+    "v1": {"package_id": "km004-user-visible-20260903:1.0.0", "status": "published", "current": true},
+    "v2": {"package_id": "km004-user-visible-20260903:2.0.0", "status": "ready", "current": false}
+  },
+  "failure": {
+    "injection": "isolated Neo4j container stopped",
+    "publish_http": 409,
+    "code": "store_consistency_failure",
+    "sanitized_fields": ["operation", "store_outcomes", "partial_write", "rollback_complete", "rollback_outcomes"],
+    "partial_write": true,
+    "rollback_complete": false,
+    "store_outcomes": {"qdrant:km004-user-visible-20260903:2.0.0": "applied", "neo4j:km004-user-visible-20260903:2.0.0": "unknown"},
+    "rollback_outcomes": {"neo4j:km004-user-visible-20260903:2.0.0": "failed", "qdrant:km004-user-visible-20260903:2.0.0": "pass"},
+    "secret_terms_absent": true
+  },
+  "search_after_failure": {"status": "completed", "sources": [{"package_id": "km004-user-visible-20260903:1.0.0", "document_version": "1.0.0", "publish_status": "published", "is_current": true}], "failed_v2_visible": false},
+  "retry": {"publish_http": 200, "package_id": "km004-user-visible-20260903:2.0.0", "document_version": "2.0.0", "publish_status": "published", "is_current": true},
+  "search_after_retry": {"status": "completed", "sources": [{"package_id": "km004-user-visible-20260903:2.0.0", "document_version": "2.0.0", "publish_status": "published", "is_current": true}], "v1_default_current": false},
+  "final_identity": {"registry": {"v1": "superseded", "v2": "published/current"}, "qdrant": {"v1": "superseded/false", "v2": "published/true"}, "neo4j": {"v1": "superseded/false", "v2": "published/true"}, "qdrant_neo4j_registry_match": true},
+  "health": {"isolated": {"health": 200, "version": 200}, "production": {"health": 200, "version": 200, "write_mode": false}}
+}

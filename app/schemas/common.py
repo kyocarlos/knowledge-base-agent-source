@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Generic, TypeVar
+from typing import Any, Generic, TypeVar
 
 from pydantic import BaseModel, ConfigDict
 
@@ -15,6 +15,7 @@ class ApiError(BaseModel):
 
     code: str
     message: str
+    details: dict[str, Any] | None = None
 
 
 class ApiResponse(BaseModel, Generic[T]):
