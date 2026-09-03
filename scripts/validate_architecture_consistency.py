@@ -25,7 +25,7 @@ def validate() -> None:
         "qdrant:",
         "image: qdrant/qdrant:v1.13.6",
         "QDRANT_URL=http://qdrant:6333",
-        "http://127.0.0.1:6333/healthz",
+        "bash -ec 'echo >/dev/tcp/127.0.0.1/6333'",
     )
     for claim in required_compose:
         if claim not in COMPOSE:
