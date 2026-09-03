@@ -61,10 +61,9 @@ def build_graph_contract(
     normalized_entities = [
         item for item in (normalize_entity(entity, namespace=namespace) for entity in entities) if item
     ]
-    by_name = {(item["name"], item["type"]): item["entity_key"] for item in normalized_entities}
-    by_name_only: dict[str, str] = {}
+    by_name_only: dict[str, list[str]] = {}
     for item in normalized_entities:
-        by_name_only.setdefault(item["name"], item["entity_key"])
+        by_name_only.setdefault(item["name"], []).append(item["entity_key"])
 
     default_chunk = source_chunk_id or f"{source_document}::chunk::0"
     normalized_relationships: list[dict[str, Any]] = []
@@ -73,8 +72,12 @@ def build_graph_contract(
         target_name = _text(relationship.get("target_entity") or relationship.get("target") or relationship.get("Target"))
         if not source_name or not target_name:
             continue
-        source_key = _text(relationship.get("source_entity_id")) or by_name_only.get(source_name)
-        target_key = _text(relationship.get("target_entity_id")) or by_name_only.get(target_name)
+        source_key = _text(relationship.get("source_entity_id"))
+        target_key = _text(relationship.get("target_entity_id"))
+        if not source_key and len(by_name_only.get(source_name, [])) == 1:
+            source_key = by_name_only[source_name][0]
+        if not target_key and len(by_name_only.get(target_name, [])) == 1:
+            target_key = by_name_only[target_name][0]
         if not source_key or not target_key:
             # Do not invent formal master IDs for unresolved endpoints.
             continue

@@ -13,11 +13,11 @@ build_graph_contract = _MODULE.build_graph_contract
 def test_same_display_name_isolated_by_namespace_and_relationship_keeps_provenance():
     result = build_graph_contract(
         [
-            {"name": "Model-X", "type": "Product", "namespace": "domain-a"},
-            {"name": "Model-X", "type": "Product", "namespace": "domain-b"},
+            {"name": "Model-X", "type": "Product", "namespace": "domain-a", "entity_id": "product-a"},
+            {"name": "Model-X", "type": "Product", "namespace": "domain-b", "entity_id": "product-b"},
             {"name": "Firmware-1", "type": "Firmware", "namespace": "domain-a"},
         ],
-        [{"source": "Model-X", "target": "Firmware-1", "type": "HAS_FIRMWARE"}],
+        [{"source_entity_id": "product-a", "source": "Model-X", "target": "Firmware-1", "type": "HAS_FIRMWARE"}],
         source_document="DOC-001",
         source_chunk_id="DOC-001::chunk::7",
     )
@@ -36,5 +36,18 @@ def test_missing_endpoint_is_fail_closed():
         [{"name": "A", "type": "Product"}],
         [{"source": "A", "target": "missing", "type": "RELATED_TO"}],
         source_document="DOC-002",
+    )
+    assert result["relationships"] == []
+
+
+def test_ambiguous_display_name_is_fail_closed_without_explicit_id():
+    result = build_graph_contract(
+        [
+            {"name": "Model-X", "type": "Product", "namespace": "domain-a"},
+            {"name": "Model-X", "type": "Product", "namespace": "domain-b"},
+            {"name": "Firmware-1", "type": "Firmware"},
+        ],
+        [{"source": "Model-X", "target": "Firmware-1", "type": "HAS_FIRMWARE"}],
+        source_document="DOC-003",
     )
     assert result["relationships"] == []
