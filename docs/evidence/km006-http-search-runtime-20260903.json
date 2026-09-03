@@ -1,0 +1,28 @@
+{
+  "schema": "km006.http-search-runtime.v1",
+  "status": "PASS",
+  "runtime": {
+    "fastapi": "isolated",
+    "celery": "isolated-search-worker",
+    "redis": "isolated",
+    "neo4j": "isolated",
+    "postgres_registry": "isolated-running"
+  },
+  "operation": {
+    "endpoint": "POST /search",
+    "http_status": 200,
+    "task_status": "completed",
+    "sources_count": 2,
+    "graph_relationship_provenance_visible": true,
+    "source_document_visible": true,
+    "source_chunk_id_visible": true,
+    "sensitive_content_absent": true
+  },
+  "safety": {
+    "production_touched": false,
+    "database_production_touched": false,
+    "secrets_included": false,
+    "isolated_runtime_removed_after_test": true
+  },
+  "shared_baseline": "outputs/main-entry-validation-20260903/final_runs/run_2/"
+}

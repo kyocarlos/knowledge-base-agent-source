@@ -13,7 +13,7 @@ display names and carries source provenance on each relationship.
 | IMPLEMENTED | PASS | `src/graph_relationship_contract.py`, Neo4j writers and schema |
 | INTEGRATED | PASS | `src/ingest.py`, `src/extract_entities.py`, `src/graphrag/__init__.py` |
 | RUNTIME_VALIDATED | PASS | `docs/evidence/km006-real-runtime-20260903.json` |
-| USER_VISIBLE_VALIDATED | PENDING | Feature-specific formal Search/API entrypoint remains to be exercised |
+| USER_VISIBLE_VALIDATED | PASS | `docs/evidence/km006-http-search-runtime-20260903.json` |
 
 ## Real runtime result
 
@@ -35,7 +35,7 @@ real Neo4j, not a mock. It verified:
 ## Boundary
 
 The shared Main User Entry baseline remains the common browser baseline. The
-application SearchEngine path is runtime-validated; a formal HTTP/user-facing
-Search or GraphRAG route still needs its feature-specific validation before
-KM006 can be marked DONE. No production deployment or production database
-mutation was performed.
+formal HTTP `POST /search` path was exercised through FastAPI, Celery and
+Redis against real Neo4j. The completed task returned graph sources containing
+the KM006 relationship provenance. No production deployment or production
+database mutation was performed.
