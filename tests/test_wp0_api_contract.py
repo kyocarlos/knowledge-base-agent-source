@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 import re
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from fastapi.testclient import TestClient
 
 from app.core.config import AppSettings
@@ -93,6 +93,47 @@ def test_unknown_v1_route_returns_stable_error_without_internal_details():
         "data": None,
         "error": {"code": "http_404", "message": "Not Found"},
         "trace_id": "trace-404",
+    }
+
+
+def test_store_consistency_error_preserves_sanitized_details():
+    app = create_app(AppSettings(environment="test"))
+    test_router = APIRouter(prefix="/api/v1")
+
+    @test_router.get("/_store-failure")
+    async def store_failure():
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "code": "store_consistency_failure",
+                "operation": "publish",
+                "store_outcomes": {"qdrant": "success", "neo4j": "failed"},
+                "partial_write": True,
+                "rollback_complete": True,
+                "rollback_outcomes": {"qdrant": "compensated"},
+                "internal_secret": "must-not-escape",
+            },
+        )
+
+    app.include_router(test_router)
+    with TestClient(app) as client:
+        response = client.get("/api/v1/_store-failure", headers={"X-Trace-ID": "trace-store"})
+
+    assert response.status_code == 409
+    assert response.json() == {
+        "data": None,
+        "error": {
+            "code": "store_consistency_failure",
+            "message": "Store consistency failure",
+            "details": {
+                "operation": "publish",
+                "store_outcomes": {"qdrant": "success", "neo4j": "failed"},
+                "partial_write": True,
+                "rollback_complete": True,
+                "rollback_outcomes": {"qdrant": "compensated"},
+            },
+        },
+        "trace_id": "trace-store",
     }
 
 
