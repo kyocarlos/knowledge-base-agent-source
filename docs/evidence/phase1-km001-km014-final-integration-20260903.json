@@ -1,0 +1,67 @@
+{
+  "schema": "phase1.km001-km014.final-integration.v1",
+  "validation_date": "2026-09-03",
+  "source_lineage": {
+    "merged_km014_commit": "b5dda2992f7d8e737f69aa08f3ac9976f57c07a4",
+    "review_branch": "phase1-final-integration-20260903",
+    "production_touched": false,
+    "database_production_touched": false
+  },
+  "runtime": {
+    "type": "disposable-production-compatible-compose",
+    "project": "phase1-final",
+    "containers": [
+      "FastAPI",
+      "Celery search",
+      "Celery ingest",
+      "Redis",
+      "PostgreSQL report registry",
+      "Qdrant",
+      "Neo4j",
+      "TimescaleDB"
+    ],
+    "teardown": "PASS"
+  },
+  "gates": {
+    "compose_render": "PASS",
+    "health": 200,
+    "version": 200,
+    "ready": 200,
+    "qdrant_ready": "PASS",
+    "qdrant_readiness_contract": "PASS",
+    "upload": {"http": 202, "status": "pending_review"},
+    "review": {"http": 200, "status": "queued"},
+    "ingest": {"status": "completed", "ingested": true},
+    "lifecycle": ["draft", "ready", "published/current"],
+    "basic_vector_search": "PASS",
+    "hybrid_search": "PASS",
+    "qdrant_neo4j_identity": "MATCH",
+    "provenance": "PASS",
+    "metrics_post": 200,
+    "metrics_time_range_get": 200,
+    "metrics_registry_separation": "PASS",
+    "secrets_included": false,
+    "production_touched": false,
+    "database_production_touched": false
+  },
+  "identity": {
+    "document_id": "phase1-final-20260903",
+    "document_version": "1.0.0",
+    "package_id": "e0fd067ac4db5c4903510e352dce7ca4f50e4b99140a7c00f9832320ee24c944",
+    "qdrant_points": 4,
+    "neo4j_report_nodes": 1,
+    "neo4j_source_chunks": 4,
+    "timeseries_rows": 1
+  },
+  "reused_evidence": {
+    "main_user_entry_baseline": "outputs/main-entry-validation-20260903/final_runs/run_2/",
+    "deep_graphrag_search": "KM008/KM011 approved real-system evidence",
+    "qdrant_503_fail_closed": "KM012 approved real-system evidence"
+  },
+  "result": "PASS_WITH_TECHNICAL_DEBT",
+  "technical_debt": [
+    "Qdrant upstream image lacks curl; healthcheck was changed to a Bash TCP readiness probe in this review branch.",
+    "Deep GraphRAG report-specific query was reused from approved KM008/KM011 evidence because the synthetic generic report has no Entity nodes.",
+    "Broker Git/version provenance remains P2 per approved reconciliation review."
+  ]
+}
