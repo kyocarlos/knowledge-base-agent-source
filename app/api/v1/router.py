@@ -1,6 +1,8 @@
 """Infrastructure-free HTTP routes for the v1 API baseline."""
 
-from fastapi import APIRouter, Request
+import os
+
+from fastapi import APIRouter, HTTPException, Request
 
 from app.core.config import AppSettings
 from app.schemas.common import ApiResponse, HealthData, VersionData
@@ -25,7 +27,13 @@ async def live(request: Request) -> ApiResponse[HealthData]:
 
 @router.get("/health/ready", response_model=ApiResponse[HealthData])
 async def ready(request: Request) -> ApiResponse[HealthData]:
-    # WP0 has no new infrastructure dependency. Later WPs can add readiness probes here.
+    if os.getenv("KB_QDRANT_READINESS_REQUIRED", "false").lower() == "true":
+        from src.qdrant_readiness import QdrantNotReadyError, check_qdrant_ready
+
+        try:
+            check_qdrant_ready()
+        except QdrantNotReadyError as exc:
+            raise HTTPException(status_code=503, detail={"dependency": "qdrant", "status": "not_ready"}) from exc
     return _response(request, HealthData(status="ok", live=True, ready=True))
 
 

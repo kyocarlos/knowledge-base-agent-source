@@ -38,6 +38,7 @@ class VectorStore:
         self.model = None
         self.client = None
         self.available = True
+        self.initialization_error: str | None = None
         if load_model:
             self._init_model()
         self._init_qdrant()
@@ -70,10 +71,17 @@ class VectorStore:
             self._ensure_collection()
         except ImportError as e:
             self.available = False
-            logger.warning(f"QDrant 客戶端未安裝，略過向量資料庫功能: {e}")
+            self.initialization_error = "QDrant client unavailable"
+            logger.error("QDrant client unavailable; vector writes are disabled")
         except Exception as e:
             self.available = False
-            logger.warning(f"QDrant 連接失敗，略過向量資料庫功能: {e}")
+            self.initialization_error = "QDrant connection unavailable"
+            logger.error("QDrant connection unavailable; vector writes will fail closed")
+
+    def ensure_available(self) -> None:
+        """Fail closed instead of allowing callers to silently skip Qdrant."""
+        if not self.available or self.client is None:
+            raise RuntimeError(self.initialization_error or "QDrant is unavailable")
 
     def _ensure_collection(self):
         """確保 collection 存在"""
@@ -132,9 +140,7 @@ class VectorStore:
             是否成功寫入
         """
         try:
-            if not self.available or self.client is None:
-                logger.warning(f"QDrant 不可用，略過文件向量寫入: {doc_name}")
-                return False
+            self.ensure_available()
             from qdrant_client.models import PointStruct
 
             points = []
