@@ -62,7 +62,13 @@ def resolve_qdrant_url(candidate: str | None = None) -> str:
 
     若預設位址在目前 runtime 無法連線，會回退到本機 6335。
     """
-    value = os.getenv("QDRANT_URL") or candidate or "http://host.docker.internal:6333"
+    explicit = os.getenv("QDRANT_URL", "").strip()
+    if explicit:
+        # An explicit deployment contract must never silently cross to another
+        # Qdrant endpoint when that endpoint is unavailable.
+        return explicit
+
+    value = candidate or "http://host.docker.internal:6333"
     parsed = urlparse(value)
     host = parsed.hostname or ""
     port = parsed.port or 6333

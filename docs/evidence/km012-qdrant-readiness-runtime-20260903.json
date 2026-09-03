@@ -1,0 +1,30 @@
+{
+  "schema": "km012.qdrant-readiness-runtime.v1",
+  "runtime": "disposable-production-compatible",
+  "source_bind": "phase1-km012-qdrant-readiness-20260903",
+  "production_touched": false,
+  "database_production_touched": false,
+  "secrets_included": false,
+  "checks": {
+    "qdrant_health_when_running": 200,
+    "readiness_when_qdrant_running": 200,
+    "readiness_when_qdrant_stopped": 503,
+    "vector_write_gate_when_qdrant_stopped": "FAIL_CLOSED",
+    "vector_write_gate_error": "QDrant connection unavailable",
+    "qdrant_health_after_restart": 200,
+    "readiness_after_qdrant_restart": 200,
+    "explicit_qdrant_url_fallback": "DENIED",
+    "disposable_containers_after_teardown": 0
+  },
+  "observed_contract": [
+    "QDRANT_URL is explicit in application services",
+    "Compose declares a Qdrant healthcheck and service dependencies",
+    "Qdrant outage makes readiness fail closed",
+    "Qdrant outage cannot be silently skipped by vector writes",
+    "No production endpoint, credential, environment dump, or data was used"
+  ],
+  "limitations": [
+    "Application image build was not performed because the host Docker BuildKit activity directory was read-only",
+    "The disposable runtime used an existing compatible application image with the KM012 source mounted read-only"
+  ]
+}

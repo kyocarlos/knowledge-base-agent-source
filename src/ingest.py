@@ -666,6 +666,7 @@ def ingest_vector(doc_path: str, storage_category: str | None = None):
 
         # 寫入 QDrant
         vector_store = get_vector_store()
+        vector_store.ensure_available()
         vector_store.add_documents(chunks, doc_name)
 
         # Keep revision state durable after the real stores receive the package.
