@@ -6,9 +6,11 @@ from fastapi import APIRouter, HTTPException, Request
 
 from app.core.config import AppSettings
 from app.schemas.common import ApiResponse, HealthData, VersionData
+from app.api.v1.timeseries import router as timeseries_router
 
 
 router = APIRouter()
+router.include_router(timeseries_router)
 
 
 def _response(request: Request, data):
