@@ -439,7 +439,7 @@ def ingest_document(
                         storage_category=resolve_storage_category("report", doc_path),
                         result={"entities": [], "relationships": []},
                     )
-                    write_report_graph(
+                    graph_stats = write_report_graph(
                         neo4j_uri=neo4j_uri,
                         neo4j_user=neo4j_user,
                         neo4j_password=neo4j_password,
