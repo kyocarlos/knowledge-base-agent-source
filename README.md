@@ -1,24 +1,23 @@
-# 📚 知識庫系統 - GraphRAG + RAG 雙模式搜尋
+# 知識庫系統 - Qdrant RAG + Neo4j GraphRAG
 
-## 🏗️ 系統架構
+## 系統架構
 
 ```
-📄 檔案輸入 (PDF/DOCX/PPT/XLSX/TXT/圖檔)
+chat.html / Search API
          ↓
-🔄 MarkItDown 轉換為 Markdown
+FastAPI → Celery / Redis
          ↓
-    ┌────┴────┐
-    ↓         ↓
- 📚 基本搜尋   🧠 深層搜尋
- (RAG)        (GraphRAG)
-    ↓         ↓
- 向量檢索     知識圖譜
-    ↓         ↓
-    Docker 內 KB 服務的 Neo4j 向量索引  Docker 內 KB 服務的 Neo4j 圖結構
-    └────┬────┘
-         ↓
-    🤖 LLM 生成答案
+Parser → Chunking → Embedding
+         ↓              ↓
+Qdrant vector      Neo4j graph
+         \              /
+          published/current retrieval
+                    ↓
+                 LLM answer + sources
 ```
+
+The canonical architecture and dependency contract is maintained in
+[`docs/architecture-contract.md`](docs/architecture-contract.md).
 
 ## 📁 目錄結構
 
@@ -52,21 +51,21 @@ source .venv/bin/activate  # macOS/Linux
 pip install -r requirements.txt
 ```
 
-### 2. 啟動 Docker 內 KB 服務的 Neo4j
+### 2. 啟動 Knowledge Base dependencies
 
 ```bash
-# 啟動 knowledge-base 的 Docker stack
+# 啟動 Knowledge Base 的 Docker stack
 docker compose up -d
 
-# Neo4j 由 KB 容器提供，對應的 Bolt 連線為 bolt://neo4j:7687
-# Browser 介面請使用本專案對應的主機埠
+# Qdrant 由 KB Compose stack 提供，服務內 URL 為 http://qdrant:6333
+# Neo4j 由 KB Compose stack 提供，服務內 Bolt URL 為 bolt://neo4j:7687
 ```
 
 ### 3. 設定 config.yaml
 
 ```bash
 cp config/config.yaml.example config/config.yaml
-# 編輯 config.yaml，填入 API key，Neo4j 預設會使用容器內 KB 服務
+# 編輯 config.yaml；部署時必須提供 QDRANT_URL 與資料庫 credentials
 ```
 
 ### 4. 放置原始檔案
@@ -137,21 +136,25 @@ llm_provider: "ollama"
 llm_model: "gemma4:12b"
 ```
 
-### Docker 內 KB 服務的 Neo4j 連線
+### Runtime dependency endpoints
 
 ```yaml
 neo4j_uri: "bolt://neo4j:7687"
 neo4j_user: "neo4j"
 neo4j_password: "your-password"
+
+# Compose service default; external Qdrant deployments must set this explicitly.
+QDRANT_URL=http://qdrant:6333
 ```
 
 ## 🎯 搜尋模式
 
 | 模式 | 說明 | 適用情境 |
 |------|------|---------|
-| `basic` | 傳統 RAG 向量搜尋 | 快速事實查詢、FAQ |
-| `deep` | GraphRAG 知識圖譜 | 多跳推理、跨文件關聯 |
-| `auto` | 自動選擇 | 不確定時使用 |
+| `basic`, `rag`, `vector` | Qdrant RAG 向量搜尋 | 快速事實查詢、FAQ |
+| `deep`, `graphrag` | Neo4j GraphRAG | 多跳推理、跨文件關聯 |
+| `hybrid` | Qdrant + Neo4j | 需要向量與圖譜證據 |
+| `auto` | 依查詢選擇正式模式 | 不確定時使用 |
 
 ## 📝 使用範例
 
@@ -188,7 +191,7 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000
 curl http://localhost:8000/api/v1/health
 curl http://localhost:8000/api/v1/version
 
-# 檢查 Docker 內 KB 服務的 Neo4j 連線
+# 檢查 Knowledge Base 的 Neo4j 連線
 python -c "from src.graphrag import GraphRAGPipeline; g = GraphRAGPipeline(); print('Neo4j connected' if g.graph else 'Failed')"
 ```
 
@@ -208,4 +211,4 @@ python -c "from src.graphrag import GraphRAGPipeline; g = GraphRAGPipeline(); pr
 - **知識圖譜**：Docker 內 KB 服務的 Neo4j + LangChain
 - **LLM**：Ollama（gemma4:12b）
 - **前端**：Gradio
-- **向量搜尋**：Docker 內 KB 服務的 Neo4j Vector 或 ChromaDB
+- **向量搜尋**：Qdrant（由 Compose 宣告，或由明確 `QDRANT_URL` 指向外部服務）
