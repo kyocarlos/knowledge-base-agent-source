@@ -1,0 +1,29 @@
+{
+  "schema": "km014.timeseries-runtime.v1",
+  "runtime": "disposable-production-compatible",
+  "services": ["FastAPI", "TimescaleDB 2.17.2-pg16"],
+  "test_run_id": "KM014-REAL-20260903",
+  "write": {
+    "http_status": 200,
+    "metrics": [
+      {"name": "throughput_dl", "value": 830.268, "unit": "Mbps", "observed_at": "2026-09-03T08:00:00Z"},
+      {"name": "throughput_ul", "value": 118.07, "unit": "Mbps", "observed_at": "2026-09-03T08:05:00Z"}
+    ]
+  },
+  "query": {
+    "http_status": 200,
+    "time_range": ["2026-09-03T07:00:00Z", "2026-09-03T09:00:00Z"],
+    "returned_rows": 2,
+    "identity_match": true
+  },
+  "separation": {
+    "dedicated_table": "km_timeseries_metrics",
+    "separate_database_from_report_registry": true,
+    "report_registry_modified": false
+  },
+  "production_touched": false,
+  "database_production_touched": false,
+  "secrets_included": false,
+  "disposable_containers_after_teardown": 0,
+  "runtime_note": "The first request was issued during database startup and returned sanitized HTTP 503; after pg_isready accepted connections, retry returned HTTP 200."
+}
