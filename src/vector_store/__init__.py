@@ -22,7 +22,12 @@ class VectorStore:
     COLLECTION_NAME = "knowledge_base"
     VECTOR_DIM = 768  # BAAI/bge-base-zh-v1.5
 
-    def __init__(self, model_name: str = "BAAI/bge-base-zh-v1.5"):
+    def __init__(
+        self,
+        model_name: str = "BAAI/bge-base-zh-v1.5",
+        *,
+        load_model: bool = True,
+    ):
         """
         初始化向量儲存
 
@@ -33,7 +38,8 @@ class VectorStore:
         self.model = None
         self.client = None
         self.available = True
-        self._init_model()
+        if load_model:
+            self._init_model()
         self._init_qdrant()
 
     def _init_model(self):

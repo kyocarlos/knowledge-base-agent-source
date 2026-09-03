@@ -1920,7 +1920,11 @@ async def transition_knowledge_revision(package_id: str, request: KnowledgeRevis
             from ..vector_store import VectorStore
             graph = KnowledgeGraphLifecycle()
             try:
-                item = lifecycle.publish(package_id, vector_store=VectorStore(), graph_writer=graph)
+                item = lifecycle.publish(
+                    package_id,
+                    vector_store=VectorStore(load_model=False),
+                    graph_writer=graph,
+                )
             finally:
                 graph.close()
         else:

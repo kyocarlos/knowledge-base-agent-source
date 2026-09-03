@@ -51,9 +51,13 @@ disposable stores after validation.
 
 `IMPLEMENTED = PASS`, `INTEGRATED = PASS`, and
 `RUNTIME_VALIDATED = PASS` in the isolated production-compatible runtime.
-`USER_VISIBLE_VALIDATED = PENDING`: a user-facing Search/API query proving the
-current-revision filter still returns only the successful revision remains for
-the next validation increment. Production deployment is not authorized.
+`USER_VISIBLE_VALIDATED = PASS`: the official lifecycle transition API returned
+a sanitized HTTP 409 during an isolated Neo4j failure; Search returned only v1.
+After Neo4j recovery, the official retry returned HTTP 200 and Search returned
+only v2 as the current revision. Evidence is recorded in
+`docs/evidence/km004-user-visible-runtime-20260903.json`.
+KM004 is complete through IMPLEMENTED, INTEGRATED, RUNTIME_VALIDATED and
+USER_VISIBLE_VALIDATED. Production deployment is not authorized.
 
 No raw credentials, environment dumps, database passwords, tokens, or private
 keys are included in the evidence.
