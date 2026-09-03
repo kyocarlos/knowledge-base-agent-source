@@ -1,0 +1,36 @@
+{
+  "schema": "km010.entity-provenance-runtime.v1",
+  "source_base": "f5a80937895ea8cb00dc6e082c52b511fe19ac22",
+  "runtime": {
+    "kind": "disposable-production-compatible",
+    "services": ["FastAPI", "Celery", "Redis", "PostgreSQL registry", "Qdrant", "Neo4j"],
+    "health_http": 200,
+    "version_http": 200,
+    "write_mode": false
+  },
+  "entity_provenance": {
+    "result": "PASS",
+    "entity_key": "shared-product",
+    "display_name": "Shared-Entity",
+    "entity_count": 1,
+    "canonical_description_preserved": true,
+    "provenance_count": 2,
+    "source_documents_preserved": ["km010-source-a", "km010-source-b"],
+    "source_chunk_ids_present": true,
+    "relationship_type": "MENTIONS"
+  },
+  "search": {
+    "entrypoint": "formal /search API",
+    "mode": "deep",
+    "status": "completed",
+    "source_count": 1,
+    "provenance_visible": true,
+    "error": false
+  },
+  "safety": {
+    "production_touched": false,
+    "database_production_touched": false,
+    "secrets_included": false,
+    "disposable_teardown": "PASS"
+  }
+}
