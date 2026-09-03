@@ -16,6 +16,7 @@ from pydantic import BaseModel, Field
 from ..test_reports.auth import authenticate_report_agent, authenticate_report_reviewer
 from ..test_reports.excel_contract import ReportValidationError, parse_and_validate_report
 from ..test_reports.registry import SubmissionConflict, SubmissionRegistry
+from ..test_reports.csit_boundary import CSITBoundaryError, csit_metadata_from_request
 from app.core.job_config import celery_headers
 
 
@@ -100,18 +101,30 @@ async def upload_report(request: Request):
     if manifest["environment"] != identity["environment"]:
         shutil.rmtree(target_dir, ignore_errors=True)
         raise HTTPException(status_code=403, detail="報告 environment 與 Agent token 不符")
+    try:
+        csit = csit_metadata_from_request(request.headers, manifest)
+    except CSITBoundaryError as exc:
+        shutil.rmtree(target_dir, ignore_errors=True)
+        raise HTTPException(status_code=422, detail="CSIT approval metadata invalid") from exc
+    if csit:
+        manifest = {**manifest, "csit": csit}
     idempotency_key = request.headers.get("Idempotency-Key", "").strip()
     if idempotency_key and idempotency_key != manifest["run_id"]:
         shutil.rmtree(target_dir, ignore_errors=True)
         raise HTTPException(status_code=400, detail="Idempotency-Key 必須等於 Manifest.run_id")
 
     try:
+        initial_status = "rejected" if csit.get("approval_status") == "rejected" else "pending_review"
         item, duplicate = _registry().create({
             "submission_id": submission_id, "environment": manifest["environment"],
             "run_id": manifest["run_id"], "agent_id": identity["agent_id"],
-            "report_name": report_name, "report_hash": report_hash, "status": "pending_review",
+            "report_name": report_name, "report_hash": report_hash, "status": initial_status,
             "original_path": str(original_path), "attachments": attachment_items, "manifest": manifest,
             "validation": {"valid": True, "schema_version": manifest["schema_version"]},
+            "csit_source_record_id": csit.get("source_record_id"),
+            "csit_approval_status": csit.get("approval_status"),
+            "csit_revision": csit.get("revision"),
+            "csit_correlation_id": csit.get("correlation_id"),
         })
     except SubmissionConflict as exc:
         shutil.rmtree(target_dir, ignore_errors=True)
@@ -170,11 +183,17 @@ async def download_report_submission(submission_id: str, request: Request):
 async def approve_report_submission(submission_id: str, decision: ReviewDecision, request: Request):
     reviewer = authenticate_report_reviewer(request)
     registry = _registry()
+    existing = registry.get(submission_id)
+    if not existing:
+        raise HTTPException(status_code=404, detail="找不到 report submission")
+    if existing.get("csit_approval_status") not in {None, "approved"}:
+        raise HTTPException(status_code=409, detail="CSIT 尚未核准此報告")
     reviewed_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
     try:
         item = registry.transition(
             submission_id, {"pending_review"}, "approved", reviewer_id=reviewer["reviewer_id"],
             review_comment=decision.comment, reviewed_at=reviewed_at,
+            km_validation_status="validated",
         )
     except KeyError as exc:
         raise HTTPException(status_code=404, detail="找不到 report submission") from exc
@@ -223,6 +242,7 @@ async def reject_report_submission(submission_id: str, decision: ReviewDecision,
         item = _registry().transition(
             submission_id, {"pending_review"}, "rejected", reviewer_id=reviewer["reviewer_id"],
             review_comment=decision.comment.strip(), reviewed_at=datetime.now(timezone.utc).isoformat(timespec="seconds"),
+            km_validation_status="rejected",
         )
     except KeyError as exc:
         raise HTTPException(status_code=404, detail="找不到 report submission") from exc
