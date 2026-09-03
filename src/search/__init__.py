@@ -5089,6 +5089,9 @@ class SearchEngine:
         Returns:
             Dict: 搜尋結果
         """
+        from ..retrieval_contract import resolve_retrieval_mode
+
+        mode = resolve_retrieval_mode(mode)
         if filters:
             return self.vector_search(query, top_k=top_k, filters=filters)
         if mode == "auto":
@@ -5195,12 +5198,10 @@ class SearchEngine:
                         logger.info("General Handover summary path hit; returning converted md summary")
                         return self._prepend_raw_evidence_if_missing(query, general_handover_result)
 
-        if mode == "basic":
-            return self._prepend_raw_evidence_if_missing(query, self.basic_search(query, top_k=top_k))
+        if mode == "vector":
+            return self._prepend_raw_evidence_if_missing(query, self.vector_search(query, top_k=top_k))
         elif mode == "deep":
             return self._prepend_raw_evidence_if_missing(query, self.deep_search(query, mode="local", top_k=top_k))
-        elif mode == "vector":
-            return self._prepend_raw_evidence_if_missing(query, self.vector_search(query, top_k=top_k))
         elif mode == "hybrid":
             return self._prepend_raw_evidence_if_missing(query, self.hybrid_search(query, top_k=top_k))
         elif mode == "hybrid_plus":

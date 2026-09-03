@@ -958,9 +958,11 @@ def search_task(self, query: str, mode: str, top_k: int | None = None, sources_o
         # 僅取得 sources 時，跳過 LLM 生成，讓 browser citation sidecar 快速返回
         if sources_only:
             logger.info(f"sources_only 模式啟用，跳過 LLM 生成: query={query[:50]}, mode={mode}")
+            from ..retrieval_contract import resolve_retrieval_mode
+
             raw_sources = []
             answer = ""
-            search_mode = "vector" if mode in ("auto", "vector", "hybrid", "hybrid_plus") else mode
+            search_mode = resolve_retrieval_mode(mode)
             query_intent = kb.search_engine.classify_query_intent(query)
             if filters:
                 vector_result = kb.search_engine._vector_search_raw(query, effective_top_k, filters=filters)
@@ -1087,7 +1089,7 @@ def search_task(self, query: str, mode: str, top_k: int | None = None, sources_o
                             raw_sources = _merge_search_sources(raw_sources, focused_sources)
                             if not answer:
                                 answer = focused_result.get("answer", "") or ""
-            elif search_mode in ("basic", "deep"):
+            elif search_mode == "deep":
                 deep_result = kb.search_engine._deep_search_raw(query, mode="local", top_k=effective_top_k)
                 raw_sources = deep_result.get("graph_results", []) or []
                 answer = deep_result.get("answer", "") or ""

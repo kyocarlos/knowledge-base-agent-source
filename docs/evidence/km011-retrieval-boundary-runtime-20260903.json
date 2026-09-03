@@ -1,0 +1,39 @@
+{
+  "schema": "km011-retrieval-boundary-runtime.v1",
+  "scope": "disposable production-compatible runtime",
+  "source_head": "4985a0c5ffa5c91e7ed117797004296a0fcff335",
+  "services": [
+    "FastAPI",
+    "Celery search worker",
+    "Celery ingest worker",
+    "Redis",
+    "PostgreSQL registry",
+    "Qdrant",
+    "Neo4j"
+  ],
+  "health": 200,
+  "version": 200,
+  "write_mode": false,
+  "retrieval_contract": {
+    "basic": {"canonical_mode": "vector", "backend": "qdrant", "result": "PASS"},
+    "rag": {"canonical_mode": "vector", "backend": "qdrant", "result": "PASS"},
+    "vector": {"canonical_mode": "vector", "backend": "qdrant", "result": "PASS"},
+    "deep": {"canonical_mode": "deep", "backend": "neo4j", "result": "PASS"},
+    "graphrag": {"canonical_mode": "deep", "backend": "neo4j", "result": "PASS"},
+    "hybrid": {"canonical_mode": "hybrid", "backend": "qdrant+neo4j", "result": "PASS"},
+    "auto": {"canonical_mode": "auto", "backend": "router", "result": "PASS"}
+  },
+  "real_store_checks": {
+    "qdrant_point_write_and_search": "PASS",
+    "neo4j_entity_relation_write_and_query": "PASS",
+    "source_identity_returned": "PASS",
+    "basic_alias_returned_vector_mode": "PASS"
+  },
+  "safety": {
+    "production_touched": false,
+    "production_database_touched": false,
+    "secrets_included": false,
+    "disposable_teardown": "PASS"
+  },
+  "non_blocking_runtime_note": "Disposable ingest fixture was accepted and reached real store processing; local Ollama generation exceeded the bounded smoke window. Retrieval mode validation used real Qdrant and Neo4j records and formal Search API sources_only responses."
+}
