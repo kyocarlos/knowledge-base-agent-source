@@ -5,12 +5,12 @@
 import re
 import logging
 import hashlib
-import json
 from typing import List, Dict
 from pathlib import Path
 
 from ..image_refs import extract_image_refs_from_text, merge_image_refs
 from ..knowledge_package import build_chunk_id, build_package_metadata, resolve_document_version
+from ..source_metadata import load_source_metadata
 
 logger = logging.getLogger(__name__)
 
@@ -213,18 +213,7 @@ def chunk_document(file_path: str) -> List[Dict]:
     path = Path(file_path)
     doc_name = path.stem
     content = path.read_text(encoding="utf-8")
-    source_metadata_path = path.with_name(f"{path.stem}.source.json")
-    if not source_metadata_path.exists():
-        # Uploaded reports keep source metadata beside the original file while
-        # the worker chunks the converted file under the sibling directory.
-        for ancestor in path.parents:
-            candidate = ancestor / "original" / f"{path.stem}.source.json"
-            if candidate.exists():
-                source_metadata_path = candidate
-                break
-    source_metadata = {}
-    if source_metadata_path.exists():
-        source_metadata = json.loads(source_metadata_path.read_text(encoding="utf-8"))
+    source_metadata = load_source_metadata(path)
     source_image_refs = source_metadata.get("image_refs", []) or []
     document_id = str(source_metadata.get("document_id") or source_metadata.get("documentId") or doc_name)
     document_version = resolve_document_version(source_metadata)

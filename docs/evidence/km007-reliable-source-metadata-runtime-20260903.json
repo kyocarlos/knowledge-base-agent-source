@@ -1,0 +1,63 @@
+{
+  "schema": "km007.source-metadata-runtime.v1",
+  "runtime": {
+    "kind": "disposable-production-compatible",
+    "services": ["FastAPI", "Celery", "Redis", "PostgreSQL registry", "Qdrant", "Neo4j"],
+    "health_http": 200,
+    "version_http": 200,
+    "write_mode": false,
+    "api_upload_path_reached": true,
+    "celery_stack_started": true
+  },
+  "valid_metadata": {
+    "result": "PASS",
+    "document_id": "km007-valid-document",
+    "document_version": "1.0.0",
+    "source_system": "km007-runtime",
+    "qdrant_points": 1,
+    "neo4j_records": 1,
+    "identity_match": true,
+    "search": {
+      "status": "completed",
+      "source_count": 1,
+      "document_id": "km007-valid-document",
+      "document_version": "1.0.0",
+      "package_id_present": true,
+      "chunk_id_present": true,
+      "publish_status": "published",
+      "is_current": true
+    }
+  },
+  "malformed_json": {
+    "result": "FAIL_CLOSED",
+    "error_type": "SourceMetadataError",
+    "qdrant_present": false,
+    "neo4j_present": false,
+    "published_or_searchable": false
+  },
+  "non_object_json": {
+    "result": "FAIL_CLOSED",
+    "error_type": "SourceMetadataError",
+    "qdrant_present": false,
+    "neo4j_present": false,
+    "published_or_searchable": false
+  },
+  "missing_sidecar_legacy": {
+    "result": "PASS",
+    "document_id": "km007-legacy",
+    "generated_document_version": "1.0.0",
+    "qdrant_points": 1,
+    "neo4j_records": 1,
+    "identity_match": true
+  },
+  "safety": {
+    "production_touched": false,
+    "database_production_touched": false,
+    "secrets_included": false,
+    "teardown": "PASS"
+  },
+  "notes": [
+    "Deterministic store checks used the real application ingest function in the disposable runtime after the real FastAPI/Celery upload path was reached.",
+    "Host focused pytest remained unavailable because the host environment lacks pytest; classified as KM007_HOST_PYTEST_GAP/P2."
+  ]
+}

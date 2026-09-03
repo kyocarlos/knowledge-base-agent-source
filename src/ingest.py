@@ -12,6 +12,7 @@ from pathlib import Path
 from .storage_paths import resolve_storage_category, infer_storage_category_from_path
 from .runtime_config import resolve_neo4j_uri
 from .knowledge_package import build_package_id, resolve_document_version
+from .source_metadata import load_source_metadata
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -129,25 +130,17 @@ def _write_neo4j_document(
 
     result = result or {}
     identity = {}
-    metadata_path = Path(doc_path).with_name(f"{Path(doc_path).stem}.source.json")
-    if metadata_path.exists():
-        try:
-            source_metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
-            identity = {
-                key: source_metadata[key]
-                for key in (
-                    "source_system", "environment_id", "project_id", "run_id", "artifact_type",
-                    "report_schema", "original_file_name", "source_file_hash", "ingest_file_hash",
-                    "document_id", "idempotency_key", "generated_at",
-                )
-                if source_metadata.get(key) not in (None, "")
-            }
-            document_version = resolve_document_version(source_metadata)
-        except Exception as metadata_error:
-            logger.warning("讀取 Neo4j 文件身份 metadata 失敗: %s", metadata_error)
-            document_version = resolve_document_version({})
-    else:
-        document_version = resolve_document_version({})
+    source_metadata = load_source_metadata(doc_path)
+    identity = {
+        key: source_metadata[key]
+        for key in (
+            "source_system", "environment_id", "project_id", "run_id", "artifact_type",
+            "report_schema", "original_file_name", "source_file_hash", "ingest_file_hash",
+            "document_id", "idempotency_key", "generated_at",
+        )
+        if source_metadata.get(key) not in (None, "")
+    }
+    document_version = resolve_document_version(source_metadata)
     identity.update({
         "package_schema_version": "1.0",
         "package_id": build_package_id(identity.get("document_id", doc_name), document_version),
@@ -330,13 +323,7 @@ def ingest_document(
     system_prompt = get_extraction_prompt(extraction_mode)
     mode_name = EXTRACTION_MODES.get(extraction_mode, {}).get("name", extraction_mode)
     logger.info(f"使用萃取模式: {mode_name}")
-    source_metadata = {}
-    source_metadata_path = Path(doc_path).with_name(f"{Path(doc_path).stem}.source.json")
-    if source_metadata_path.exists():
-        try:
-            source_metadata = json.loads(source_metadata_path.read_text(encoding="utf-8"))
-        except Exception as metadata_error:
-            logger.warning(f"讀取文件身份 metadata 失敗: {metadata_error}")
+    source_metadata = load_source_metadata(doc_path)
     doc_name = source_metadata.get("document_id") or Path(doc_path).stem
     content = Path(doc_path).read_text(encoding="utf-8")
     from src.ingest_registry import IngestRegistry
@@ -650,12 +637,7 @@ def ingest_vector(doc_path: str, storage_category: str | None = None):
         elif resolved_category == "Simple":
             extraction_mode = "simple"
 
-        metadata_path = Path(doc_path).with_name(f"{Path(doc_path).stem}.source.json")
-        if metadata_path.exists():
-            try:
-                source_metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
-            except Exception as metadata_error:
-                logger.warning(f"讀取向量 metadata 失敗: {metadata_error}")
+        source_metadata = load_source_metadata(doc_path)
         doc_name = source_metadata.get("document_id") or doc_name
 
         for chunk in chunks:
