@@ -1,0 +1,35 @@
+{
+  "schema": "km009.entity-namespace-runtime.v1",
+  "source_base": "f6c95210d10506ef8b7d446b1ad040864dc7761f",
+  "runtime": {
+    "kind": "disposable-production-compatible",
+    "services": ["FastAPI", "Celery", "Redis", "PostgreSQL registry", "Qdrant", "Neo4j"],
+    "health_http": 200,
+    "version_http": 200,
+    "write_mode": false
+  },
+  "entity_identity": {
+    "result": "PASS",
+    "same_display_names": ["Model-X", "Firmware-1"],
+    "namespaces": ["domain-a", "domain-b"],
+    "neo4j_entity_rows": 4,
+    "distinct_entity_keys": true,
+    "relationship_rows": 2,
+    "relationship_identity": true,
+    "contract_distinct_keys": true
+  },
+  "search": {
+    "entrypoint": "formal /search API",
+    "mode": "deep",
+    "status": "completed",
+    "source_count": 2,
+    "namespace_identity_present": true,
+    "error": false
+  },
+  "safety": {
+    "production_touched": false,
+    "database_production_touched": false,
+    "secrets_included": false,
+    "disposable_teardown": "PASS"
+  }
+}
