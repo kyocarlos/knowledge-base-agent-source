@@ -1,6 +1,6 @@
 {
   "schema": "km.phase1-runtime-status.v1",
-  "collected_at": "2026-09-04T01:02:13.355366+00:00",
+  "collected_at": "2026-09-04T05:58:20.341505+00:00",
   "manifest": "docs/phase1-status-manifest.json",
   "collector_mode": "broker",
   "source_root": "broker-managed",
@@ -12,27 +12,27 @@
     "health_status": 200,
     "version_status": 200,
     "data": {
-      "commit": null,
-      "release_id": null,
-      "image_digest": null,
-      "build_timestamp": null
+      "commit": "fb43ab1586eb20861f67dee1a59840112636ea8b",
+      "release_id": "phase1-km001-km014-20260903-r2",
+      "image_digest": "sha256:c22ccae346671ae9c439ad907d3497792e0a25926df39d356b40c323e557feec",
+      "build_timestamp": "2026-09-03T09:27:50.583082877Z"
     }
   },
   "services": {
     "kb-web": {
-      "image_id": "sha256:da2c149f89eb7250965cbc0d80cf78cddc2b0d8f8c6951e8aff04c5c6a0e4fe5",
+      "image_id": "sha256:c22ccae346671ae9c439ad907d3497792e0a25926df39d356b40c323e557feec",
       "status": "running"
     },
     "kb-celery-search": {
-      "image_id": "sha256:da2c149f89eb7250965cbc0d80cf78cddc2b0d8f8c6951e8aff04c5c6a0e4fe5",
+      "image_id": "sha256:c22ccae346671ae9c439ad907d3497792e0a25926df39d356b40c323e557feec",
       "status": "running"
     },
     "kb-celery-ingest": {
-      "image_id": "sha256:da2c149f89eb7250965cbc0d80cf78cddc2b0d8f8c6951e8aff04c5c6a0e4fe5",
+      "image_id": "sha256:c22ccae346671ae9c439ad907d3497792e0a25926df39d356b40c323e557feec",
       "status": "running"
     },
     "kb-celery-beat": {
-      "image_id": "sha256:da2c149f89eb7250965cbc0d80cf78cddc2b0d8f8c6951e8aff04c5c6a0e4fe5",
+      "image_id": "sha256:c22ccae346671ae9c439ad907d3497792e0a25926df39d356b40c323e557feec",
       "status": "running"
     }
   },
