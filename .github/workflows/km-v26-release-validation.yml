@@ -29,13 +29,24 @@ jobs:
       - name: Run release contract tests
         run: |
           python -m pip install -r requirements-dev.txt
-          python -m pytest -q tests/test_phase1_status_contract.py
+          python -m pytest -q tests/test_phase1_status_contract.py tests/test_km_security_contract.py
+      - name: Generate dependency SBOM
+        id: dependency-audit
+        continue-on-error: true
+        run: |
+          mkdir -p "$RUNNER_TEMP/km-release"
+          pip-audit -r requirements-ci.txt --format cyclonedx-json \
+            -o "$RUNNER_TEMP/km-release/dependency-sbom.cdx.json"
+      - name: Enforce release dependency gate
+        if: steps.dependency-audit.outcome == 'failure'
+        run: exit 1
       - name: Validate release source
         run: |
           test -z "$(git status --porcelain)"
           git diff --check HEAD^ HEAD 2>/dev/null || git diff --check
           python -m compileall -q src scripts
       - name: Create source provenance artifact
+        if: always()
         run: |
           mkdir -p "$RUNNER_TEMP/km-release"
           git rev-parse HEAD > "$RUNNER_TEMP/km-release/source-commit.txt"
@@ -46,6 +57,7 @@ jobs:
             --exclude='logs' --exclude='outputs' --exclude='data/report-staging' \
             -czf "$RUNNER_TEMP/km-release/km-source.tar.gz" .
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: km-v26-release-candidate-${{ github.sha }}
           path: ${{ runner.temp }}/km-release

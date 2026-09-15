@@ -37,7 +37,11 @@ def _root() -> Path:
 
 
 def _safe_name(value: str) -> str:
-    name = Path(str(value or "")).name
+    raw = str(value or "").strip()
+    normalized = raw.replace("\\", "/")
+    name = Path(normalized).name
+    if normalized != name:
+        raise HTTPException(status_code=400, detail="檔名不可包含路徑")
     if not name or name in {".", ".."}:
         raise HTTPException(status_code=400, detail="檔名不合法")
     return name
@@ -57,7 +61,10 @@ async def report_agent_health(request: Request):
 @router.post("/api/agent/v1/reports", status_code=202)
 async def upload_report(request: Request):
     identity = authenticate_agent(request)
-    form = await request.form(max_files=30, max_fields=50, max_part_size=MAX_PART_SIZE)
+    # Starlette versions bundled by supported FastAPI releases do not expose
+    # the same ``max_part_size`` keyword. Enforce the limit after parsing and
+    # before writing any upload to disk for compatibility and fail-closed use.
+    form = await request.form(max_files=30, max_fields=50)
     report_file = form.get("file")
     if report_file is None:
         raise HTTPException(status_code=400, detail="缺少 file")
@@ -69,8 +76,11 @@ async def upload_report(request: Request):
     target_dir = _root() / submission_id
     target_dir.mkdir(parents=True, exist_ok=False)
     original_path = target_dir / report_name
-    content = await report_file.read()
+    content = await report_file.read(MAX_PART_SIZE + 1)
     await report_file.close()
+    if len(content) > MAX_PART_SIZE:
+        shutil.rmtree(target_dir, ignore_errors=True)
+        raise HTTPException(status_code=413, detail="report 檔案超過大小限制")
     original_path.write_bytes(content)
     report_hash = hashlib.sha256(content).hexdigest()
 
@@ -78,8 +88,11 @@ async def upload_report(request: Request):
     attachment_dir = target_dir / "attachments"
     for attachment in form.getlist("attachments"):
         name = _safe_name(attachment.filename)
-        payload = await attachment.read()
+        payload = await attachment.read(MAX_PART_SIZE + 1)
         await attachment.close()
+        if len(payload) > MAX_PART_SIZE:
+            shutil.rmtree(target_dir, ignore_errors=True)
+            raise HTTPException(status_code=413, detail="attachment 超過大小限制")
         attachment_dir.mkdir(parents=True, exist_ok=True)
         path = attachment_dir / name
         path.write_bytes(payload)
