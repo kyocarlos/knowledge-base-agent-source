@@ -434,6 +434,17 @@
       line-height: 1.35;
       word-break: break-word;
     }
+    .source-tag-score {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px 8px;
+      font-size: 10px;
+      font-weight: 600;
+      color: inherit;
+      opacity: 0.88;
+    }
+    .source-tag-score span { white-space: nowrap; }
+    .source-tag-score--fallback { opacity: 0.7; }
     </style>  <script src="./lib/marked.min.js"></script>
 </head>
 <body>
@@ -839,11 +850,30 @@
       return normalizeText(source.displayName || source.source || source.name || source.doc_name || source.docName || source.title || '');
     }
 
+    function formatSourceScore(value) {
+      const score = Number(value);
+      return Number.isFinite(score) ? `${Math.max(0, Math.min(100, Math.round(score)))}/100` : '未評分';
+    }
+
+    function getSourceRerankStatus(source) {
+      const status = normalizeText(source?.rerank_status).toLowerCase();
+      if (status === 'active') return 'Active';
+      if (status === 'fallback') return 'Fallback';
+      if (status === 'shadow') return 'Shadow';
+      return '未啟用';
+    }
+
+    function buildSourceScoreMarkup(source) {
+      const status = getSourceRerankStatus(source);
+      const statusClass = status === 'Fallback' ? ' source-tag-score--fallback' : '';
+      return `<span class="source-tag-score${statusClass}"><span>相關性 ${formatSourceScore(source?.display_relevance_score)}</span><span>品質 ${formatSourceScore(Number(source?.document_quality_score) * 100)}</span><span>${status}</span></span>`;
+    }
+
     function buildSourceReferenceChip(source) {
       const pipelineType = getSourcePipelineType(source);
       const pipelineLabel = escapeHtml(getSourcePipelineLabel(source));
       const sourceName = escapeHtml(getSourceDisplayName(source) || '未知來源');
-      return `<span class="source-tag source-tag--${pipelineType}"><span class="source-tag-pipeline">${pipelineLabel}</span><span class="source-tag-name">${sourceName}</span></span>`;
+      return `<span class="source-tag source-tag--${pipelineType}"><span class="source-tag-pipeline">${pipelineLabel}</span><span class="source-tag-name">${sourceName}</span>${buildSourceScoreMarkup(source)}</span>`;
     }
 
     function isIncompleteKnowledgeAnswer(text) {

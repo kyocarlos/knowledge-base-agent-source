@@ -75,11 +75,17 @@ services:
       - KB_REPORT_STAGING_ROOT=/app/data/report-staging
       - KB_AGENT_TOKEN_HASHES_JSON=${KB_AGENT_TOKEN_HASHES_JSON:-{}}
       - KB_REVIEWER_TOKEN_HASHES_JSON=${KB_REVIEWER_TOKEN_HASHES_JSON:-{}}
+      - KM_RERANK_MODE=${KM_RERANK_MODE:-active}
+      - KM_RERANK_MODEL_PATH=${KM_RERANK_MODEL_PATH:-/opt/km/models/qwen3-reranker-0.6b}
+      - KM_RERANK_MODEL_ID=${KM_RERANK_MODEL_ID:-Qwen/Qwen3-Reranker-0.6B}
+      - KM_RERANK_TIMEOUT_SECONDS=${KM_RERANK_TIMEOUT_SECONDS:-8}
+      - KM_RERANK_CANDIDATE_LIMIT=${KM_RERANK_CANDIDATE_LIMIT:-50}
     volumes:
       - <project-root>/.openclaw:<project-root>/.openclaw:ro
       - ./config:/app/config:ro
       - ./data:<project-root>/knowledge-base/data
       - ./data/uploads:/app/data/uploads
+      - ${KM_RERANK_MODEL_HOST_PATH:-./models/reranker}:/opt/km/models:ro
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:
@@ -105,10 +111,16 @@ services:
       - NEO4J_USER=neo4j
       - NEO4J_PASSWORD=#*cda40da40
       - KB_INGEST_UPLOAD_ROOT=/app/data/uploads
+      - KM_RERANK_MODE=${KM_RERANK_MODE:-active}
+      - KM_RERANK_MODEL_PATH=${KM_RERANK_MODEL_PATH:-/opt/km/models/qwen3-reranker-0.6b}
+      - KM_RERANK_MODEL_ID=${KM_RERANK_MODEL_ID:-Qwen/Qwen3-Reranker-0.6B}
+      - KM_RERANK_TIMEOUT_SECONDS=${KM_RERANK_TIMEOUT_SECONDS:-8}
+      - KM_RERANK_CANDIDATE_LIMIT=${KM_RERANK_CANDIDATE_LIMIT:-50}
     volumes:
       - ./config:/app/config:ro
       - ./data:<project-root>/knowledge-base/data
       - ./data/uploads:/app/data/uploads
+      - ${KM_RERANK_MODEL_HOST_PATH:-./models/reranker}:/opt/km/models:ro
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:

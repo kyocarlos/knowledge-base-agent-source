@@ -30,6 +30,14 @@ converter:
 search:
   basic_top_k: 3
   deep_top_k: 6
+  reranker:
+    enabled: true
+    mode: "active"  # off | shadow | active
+    model: "Qwen/Qwen3-Reranker-0.6B"
+    model_path: "/opt/km/models/qwen3-reranker-0.6b"
+    model_id: "Qwen/Qwen3-Reranker-0.6B"
+    candidate_limit: 50
+    timeout_seconds: 8
   auto_mode_keywords:
     - "為什麼"
     - "如何"

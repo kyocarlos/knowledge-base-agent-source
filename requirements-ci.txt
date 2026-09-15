@@ -1,0 +1,16 @@
+# Minimal, reproducible dependencies for KM CI contract and isolated DB tests.
+celery==5.4.0
+fastapi==0.141.1
+httpx==0.28.1
+markitdown==0.1.2
+neo4j==5.28.1
+openpyxl==3.1.5
+psycopg[binary]==3.2.3
+pydantic==2.10.6
+pytest==9.0.3
+pytest-mock==3.14.0
+pyyaml==6.0.2
+qdrant-client==1.12.1
+redis==5.2.1
+python-multipart==0.0.32
+websockets==12.0

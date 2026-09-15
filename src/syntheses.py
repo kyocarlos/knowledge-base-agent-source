@@ -182,7 +182,7 @@ def track_query(question: str) -> int:
             client = get_qdrant_client()
             ensure_collection()
             
-            doc_id = hashlib.md5(question.encode()).hexdigest()
+            doc_id = hashlib.md5(question.encode(), usedforsecurity=False).hexdigest()
             
             client.upsert(
                 collection_name=SYNTHESES_COLLECTION,
@@ -203,7 +203,7 @@ def track_query(question: str) -> int:
             client = get_qdrant_client()
             ensure_collection()
             
-            doc_id = hashlib.md5(question.encode()).hexdigest()
+            doc_id = hashlib.md5(question.encode(), usedforsecurity=False).hexdigest()
             
             client.upsert(
                 collection_name=SYNTHESES_COLLECTION,
@@ -255,7 +255,7 @@ def save_synthesis(question: str, answer: str, sources: List[Dict], query_count:
         client = get_qdrant_client()
         ensure_collection()
         
-        doc_id = hashlib.md5(question.encode()).hexdigest()
+        doc_id = hashlib.md5(question.encode(), usedforsecurity=False).hexdigest()
         
         # 寫入 point
         client.upsert(

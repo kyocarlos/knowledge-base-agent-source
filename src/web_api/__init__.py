@@ -31,6 +31,7 @@ from ..compare_rules import is_compare_like_query
 from .tasks import search_task
 from .cache import cache_get, cache_set
 from ..storage_paths import resolve_storage_category
+from ..search_quality import embedding_model_identity, rerank_mode, reranker_model_identity
 
 WORKSPACE_DIR = "<project-root>/.openclaw/workspace"
 UPLOAD_RETENTION_LIMIT = 10
@@ -1823,7 +1824,11 @@ async def search(request: SearchRequest, background_tasks: BackgroundTasks, resp
     # 檢查快取
     filters = request.filters.model_dump(exclude_none=True) if request.filters else {}
     filters_key = json.dumps(filters, sort_keys=True, ensure_ascii=False)
-    cache_key = f"search:{request.query}:{request.mode}:{request.top_k if request.top_k is not None else 'default'}:{filters_key}"
+    cache_key = (
+        f"search:{request.query}:{request.mode}:{request.top_k if request.top_k is not None else 'default'}:"
+        f"{filters_key}:rerank={rerank_mode()}:rerank_model={reranker_model_identity()}:"
+        f"embedding={embedding_model_identity()}"
+    )
     cached = cache_get(cache_key)
 
     if cached:

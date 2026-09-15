@@ -1268,7 +1268,14 @@ export default {
 
       const lines = unique.slice(0, 3).map((source) => {
         const name = source?.source || source?.doc_name || source?.name || '未知來源'
-        return `- ${this.getSourcePipelineLabel(source)}：${name}`
+        const relevance = Number(source?.display_relevance_score)
+        const quality = Number(source?.document_quality_score)
+        const scoreText = Number.isFinite(relevance)
+          ? `｜相關性 ${Math.max(0, Math.min(100, Math.round(relevance)))}/100｜品質 ${Number.isFinite(quality) ? Math.round(Math.max(0, Math.min(1, quality)) * 100) : 0}/100`
+          : '｜未評分'
+        const status = String(source?.rerank_status || 'disabled').toLowerCase()
+        const statusText = status === 'active' ? 'Active' : status === 'fallback' ? 'Fallback' : status === 'shadow' ? 'Shadow' : '未啟用'
+        return `- ${this.getSourcePipelineLabel(source)}：${name}${scoreText}｜${statusText}`
       })
 
       if (unique.length > 3) {
