@@ -62,7 +62,7 @@ def reranker_model_identity() -> str:
         return configured
     model = _configured_value("KM_RERANK_MODEL_PATH", "search.reranker.model_path", "")
     if not model:
-        model = _configured_value("KM_RERANK_MODEL", "search.reranker.model", "BAAI/bge-reranker-v2-m3")
+        model = _configured_value("KM_RERANK_MODEL", "search.reranker.model", "Qwen/Qwen3-Reranker-0.6B")
     return Path(model).name or model
 
 
@@ -165,7 +165,7 @@ class LocalCrossEncoderReranker:
         )
         if not self.model_name:
             self.model_name = _configured_value(
-                "KM_RERANK_MODEL", "search.reranker.model", "BAAI/bge-reranker-v2-m3"
+                "KM_RERANK_MODEL", "search.reranker.model", "Qwen/Qwen3-Reranker-0.6B"
             )
         configured_timeout = _configured_value("KM_RERANK_TIMEOUT_SECONDS", "search.reranker.timeout_seconds", "8")
         self.timeout_seconds = timeout_seconds if timeout_seconds is not None else float(configured_timeout)
@@ -186,7 +186,13 @@ class LocalCrossEncoderReranker:
         started = time.monotonic()
         model = self._load()
         pairs = [(query, str(item.get("content") or "")) for item in candidates]
-        scores = model.predict(pairs, show_progress_bar=False)
+        try:
+            import torch
+
+            scores = model.predict(pairs, activation_fn=torch.nn.Sigmoid(), show_progress_bar=False)
+        except (ImportError, TypeError):
+            # Keep compatibility with test doubles and older CrossEncoder APIs.
+            scores = model.predict(pairs, show_progress_bar=False)
         elapsed = time.monotonic() - started
         if elapsed > self.timeout_seconds:
             raise TimeoutError(f"reranker exceeded configured timeout ({self.timeout_seconds:.2f}s)")

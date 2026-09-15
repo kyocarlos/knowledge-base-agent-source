@@ -29,6 +29,9 @@ release/dist/
 frontend/node_modules/
 .frontend-build-runtime-*/
 
+# Locally provisioned reranker model weights (do not commit large binaries)
+models/reranker/
+
 # IDE
 .idea/
 .vscode/

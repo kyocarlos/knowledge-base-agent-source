@@ -22,7 +22,7 @@ items rather than hidden exclusions.
 The retrieval-evaluation job validates the versioned KM golden-query seed.
 Once manual chunk qrels are completed, the same evaluator will calculate
 Recall@20, Precision@5, MRR@10, HitRate@5, and nDCG@10 for baseline/candidate
-comparison. The reranker is disabled by default and can be controlled with
+comparison. The reranker can be controlled with
 `KM_RERANK_MODE=off|shadow|active` (or `search.reranker.mode`). The legacy
 `KM_RERANK_ENABLED=true` setting maps to `active`; shadow computes and logs
 rank changes while returning the current ranking. Model load, timeout, or
@@ -30,6 +30,8 @@ inference failures always fall back to the existing ranking path.
 
 The real-system runtime uses the optional pinned dependency in
 `requirements-reranker.txt` and a separately provisioned local model path.
+The selected free Apache-2.0 model is `Qwen/Qwen3-Reranker-0.6B`; its local
+model directory is not committed to GitHub.
 Search sources expose `retrieval_score`, `rerank_score`,
 `document_quality_score`, `display_relevance_score`, `relevance_grade`,
 `rerank_status`, model/embedding identity, and score breakdown. The frontend

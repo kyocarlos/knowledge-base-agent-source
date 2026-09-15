@@ -31,11 +31,11 @@ search:
   basic_top_k: 3
   deep_top_k: 6
   reranker:
-    enabled: false
+    enabled: true
     mode: "active"  # off | shadow | active
-    model: "BAAI/bge-reranker-v2-m3"
-    model_path: "/opt/km/models/bge-reranker-v2-m3"
-    model_id: "bge-reranker-v2-m3"
+    model: "Qwen/Qwen3-Reranker-0.6B"
+    model_path: "/opt/km/models/qwen3-reranker-0.6b"
+    model_id: "Qwen/Qwen3-Reranker-0.6B"
     candidate_limit: 50
     timeout_seconds: 8
   auto_mode_keywords:

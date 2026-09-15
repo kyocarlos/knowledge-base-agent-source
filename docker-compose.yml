@@ -76,8 +76,8 @@ services:
       - KB_AGENT_TOKEN_HASHES_JSON=${KB_AGENT_TOKEN_HASHES_JSON:-{}}
       - KB_REVIEWER_TOKEN_HASHES_JSON=${KB_REVIEWER_TOKEN_HASHES_JSON:-{}}
       - KM_RERANK_MODE=${KM_RERANK_MODE:-active}
-      - KM_RERANK_MODEL_PATH=${KM_RERANK_MODEL_PATH:-/opt/km/models/bge-reranker-v2-m3}
-      - KM_RERANK_MODEL_ID=${KM_RERANK_MODEL_ID:-bge-reranker-v2-m3}
+      - KM_RERANK_MODEL_PATH=${KM_RERANK_MODEL_PATH:-/opt/km/models/qwen3-reranker-0.6b}
+      - KM_RERANK_MODEL_ID=${KM_RERANK_MODEL_ID:-Qwen/Qwen3-Reranker-0.6B}
       - KM_RERANK_TIMEOUT_SECONDS=${KM_RERANK_TIMEOUT_SECONDS:-8}
       - KM_RERANK_CANDIDATE_LIMIT=${KM_RERANK_CANDIDATE_LIMIT:-50}
     volumes:
@@ -112,8 +112,8 @@ services:
       - NEO4J_PASSWORD=#*cda40da40
       - KB_INGEST_UPLOAD_ROOT=/app/data/uploads
       - KM_RERANK_MODE=${KM_RERANK_MODE:-active}
-      - KM_RERANK_MODEL_PATH=${KM_RERANK_MODEL_PATH:-/opt/km/models/bge-reranker-v2-m3}
-      - KM_RERANK_MODEL_ID=${KM_RERANK_MODEL_ID:-bge-reranker-v2-m3}
+      - KM_RERANK_MODEL_PATH=${KM_RERANK_MODEL_PATH:-/opt/km/models/qwen3-reranker-0.6b}
+      - KM_RERANK_MODEL_ID=${KM_RERANK_MODEL_ID:-Qwen/Qwen3-Reranker-0.6B}
       - KM_RERANK_TIMEOUT_SECONDS=${KM_RERANK_TIMEOUT_SECONDS:-8}
       - KM_RERANK_CANDIDATE_LIMIT=${KM_RERANK_CANDIDATE_LIMIT:-50}
     volumes:

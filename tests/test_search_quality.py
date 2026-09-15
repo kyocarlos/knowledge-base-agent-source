@@ -41,7 +41,7 @@ def test_reranker_shadow_returns_baseline(monkeypatch) -> None:
 
 def test_local_reranker_adds_score_breakdown(monkeypatch) -> None:
     class FakeModel:
-        def predict(self, pairs, show_progress_bar=False):
+        def predict(self, pairs, show_progress_bar=False, activation_fn=None):
             assert len(pairs) == 2
             return [0.2, 0.9]
 
