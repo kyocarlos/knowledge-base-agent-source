@@ -992,7 +992,7 @@ class SearchEngine:
                 return weight
         return 0
 
-    def _rank_vector_results(self, results: List[dict], query: str, top_k: int) -> List[dict]:
+    def _rank_vector_results_baseline(self, results: List[dict], query: str, top_k: int) -> List[dict]:
         """根據文件代號與章節權重重排向量結果。"""
         if not results:
             return []
@@ -1079,6 +1079,14 @@ class SearchEngine:
 
         ranked = sorted(results, key=_sort_key, reverse=True)
         return ranked[:top_k]
+
+    def _rank_vector_results(self, results: List[dict], query: str, top_k: int) -> List[dict]:
+        """Rank vector candidates and optionally apply local CrossEncoder reranking."""
+        from ..search_quality import rerank_mode, rerank_or_fallback
+
+        candidate_limit = max(top_k, 50) if rerank_mode() != "off" else top_k
+        baseline = self._rank_vector_results_baseline(results, query, candidate_limit)
+        return rerank_or_fallback(query, baseline, top_k, self._rank_vector_results_baseline)
 
     # ===== 優化一:意圖分類 =====
     def classify_intent(self, query: str) -> Tuple[str, float]:
@@ -4225,7 +4233,9 @@ class SearchEngine:
             logger.info(f"vector_search 使用 vector_store: {vector_store is not None}, 類型: {type(vector_store).__name__}")
 
             # 語意搜尋
-            results = vector_store.search(query, top_k=max(top_k * 3, top_k), filter_doc=filter_doc, filters=filters)
+            from ..search_quality import rerank_mode
+            candidate_limit = max(top_k * 3, top_k, 50) if rerank_mode() != "off" else max(top_k * 3, top_k)
+            results = vector_store.search(query, top_k=candidate_limit, filter_doc=filter_doc, filters=filters)
             logger.info(f"vector_search 原始結果: {len(results)} 筆")
             results = self._rank_vector_results(results, query, top_k)
             logger.info(f"vector_search 重排後結果: {len(results)} 筆")
@@ -4251,6 +4261,10 @@ class SearchEngine:
                     "source": r["doc_name"],
                     "content": r["content"],
                     "score": r["score"],
+                    "retrieval_score": r.get("score", 0.0),
+                    "rerank_score": r.get("rerank_score"),
+                    "document_quality_score": r.get("document_quality_score"),
+                    "score_breakdown": r.get("score_breakdown", {}),
                     "chunk_index": r.get("chunk_index", 0),
                     "section_title": r.get("section_title", ""),
                     "source_path": r.get("source_path", ""),
@@ -4597,7 +4611,9 @@ class SearchEngine:
             from ..vector_store import get_vector_store
             vector_store = self.vector_store if self.vector_store is not None else get_vector_store()
 
-            results = vector_store.search(query, top_k=max(top_k * 3, top_k), filters=filters)
+            from ..search_quality import rerank_mode
+            candidate_limit = max(top_k * 3, top_k, 50) if rerank_mode() != "off" else max(top_k * 3, top_k)
+            results = vector_store.search(query, top_k=candidate_limit, filters=filters)
             logger.info(f"_vector_search_raw 原始結果: {len(results)} 筆")
             results = self._rank_vector_results(results, query, top_k)
             logger.info(f"_vector_search_raw 重排後結果: {len(results)} 筆")
@@ -4610,6 +4626,10 @@ class SearchEngine:
                     "source": r["doc_name"],
                     "content": r["content"],
                     "score": r["score"],
+                    "retrieval_score": r.get("score", 0.0),
+                    "rerank_score": r.get("rerank_score"),
+                    "document_quality_score": r.get("document_quality_score"),
+                    "score_breakdown": r.get("score_breakdown", {}),
                     "chunk_index": r.get("chunk_index", 0),
                     "section_title": r.get("section_title", ""),
                     "source_path": r.get("source_path", ""),

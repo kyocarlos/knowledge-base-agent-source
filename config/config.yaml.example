@@ -30,6 +30,11 @@ converter:
 search:
   basic_top_k: 3
   deep_top_k: 6
+  reranker:
+    enabled: false
+    mode: "off"  # off | shadow | active
+    model: "BAAI/bge-reranker-v2-m3"
+    timeout_seconds: 8
   auto_mode_keywords:
     - "為什麼"
     - "如何"

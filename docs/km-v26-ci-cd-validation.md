@@ -19,6 +19,15 @@ Bandit stores the complete finding report as an artifact and blocks confirmed
 High findings; remaining Medium/Low findings are visible follow-up hardening
 items rather than hidden exclusions.
 
+The retrieval-evaluation job validates the versioned KM golden-query seed.
+Once manual chunk qrels are completed, the same evaluator will calculate
+Recall@20, Precision@5, MRR@10, HitRate@5, and nDCG@10 for baseline/candidate
+comparison. The reranker is disabled by default and can be controlled with
+`KM_RERANK_MODE=off|shadow|active` (or `search.reranker.mode`). The legacy
+`KM_RERANK_ENABLED=true` setting maps to `active`; shadow computes and logs
+rank changes while returning the current ranking. Model load, timeout, or
+inference failures always fall back to the existing ranking path.
+
 ## Release-candidate validation
 
 `km-v26-release-validation.yml` is manual and accepts a commit/tag/branch.
