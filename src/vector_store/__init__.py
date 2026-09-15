@@ -166,6 +166,13 @@ class VectorStore:
                     "verdict": metadata.get("verdict", ""),
                     "started_at": metadata.get("started_at", ""),
                     "schema_version": metadata.get("schema_version", ""),
+                    "publish_status": metadata.get("publish_status", "published"),
+                    "is_current": metadata.get("is_current", True),
+                    "chunk_id": metadata.get("chunk_id", point_id),
+                    "document_version": metadata.get("document_version", ""),
+                    "embedding_version": metadata.get("embedding_version", ""),
+                    "embedding_model": metadata.get("embedding_model", self.model_name),
+                    "source_file_hash": metadata.get("source_file_hash", metadata.get("content_hash", "")),
                     "image_refs": image_refs,
                 }
 
@@ -236,7 +243,10 @@ class VectorStore:
             # 編碼查詢
             query_vector = self.encode([query])[0]
 
-            conditions = []
+            conditions = [
+                FieldCondition(key="publish_status", match=MatchValue(value="published")),
+                FieldCondition(key="is_current", match=MatchValue(value=True)),
+            ]
             if filter_doc:
                 conditions.append(FieldCondition(key="doc_name", match=MatchValue(value=filter_doc)))
             allowed_filters = {
@@ -291,6 +301,13 @@ class VectorStore:
                     "verdict": result.payload.get("verdict", ""),
                     "started_at": result.payload.get("started_at", ""),
                     "schema_version": result.payload.get("schema_version", ""),
+                    "publish_status": result.payload.get("publish_status", ""),
+                    "is_current": result.payload.get("is_current"),
+                    "chunk_id": result.payload.get("chunk_id", str(result.id)),
+                    "document_version": result.payload.get("document_version", ""),
+                    "embedding_version": result.payload.get("embedding_version", ""),
+                    "embedding_model": result.payload.get("embedding_model", ""),
+                    "source_file_hash": result.payload.get("source_file_hash", ""),
                     "score": result.score,
                     "id": str(result.id)
                 })

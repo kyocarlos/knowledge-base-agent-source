@@ -1082,9 +1082,9 @@ class SearchEngine:
 
     def _rank_vector_results(self, results: List[dict], query: str, top_k: int) -> List[dict]:
         """Rank vector candidates and optionally apply local CrossEncoder reranking."""
-        from ..search_quality import rerank_mode, rerank_or_fallback
+        from ..search_quality import rerank_candidate_limit, rerank_mode, rerank_or_fallback
 
-        candidate_limit = max(top_k, 50) if rerank_mode() != "off" else top_k
+        candidate_limit = max(top_k, rerank_candidate_limit()) if rerank_mode() != "off" else top_k
         baseline = self._rank_vector_results_baseline(results, query, candidate_limit)
         return rerank_or_fallback(query, baseline, top_k, self._rank_vector_results_baseline)
 
@@ -4233,8 +4233,8 @@ class SearchEngine:
             logger.info(f"vector_search 使用 vector_store: {vector_store is not None}, 類型: {type(vector_store).__name__}")
 
             # 語意搜尋
-            from ..search_quality import rerank_mode
-            candidate_limit = max(top_k * 3, top_k, 50) if rerank_mode() != "off" else max(top_k * 3, top_k)
+            from ..search_quality import rerank_candidate_limit, rerank_mode
+            candidate_limit = max(top_k * 3, top_k, rerank_candidate_limit()) if rerank_mode() != "off" else max(top_k * 3, top_k)
             results = vector_store.search(query, top_k=candidate_limit, filter_doc=filter_doc, filters=filters)
             logger.info(f"vector_search 原始結果: {len(results)} 筆")
             results = self._rank_vector_results(results, query, top_k)
@@ -4264,6 +4264,12 @@ class SearchEngine:
                     "retrieval_score": r.get("score", 0.0),
                     "rerank_score": r.get("rerank_score"),
                     "document_quality_score": r.get("document_quality_score"),
+                    "display_relevance_score": r.get("display_relevance_score"),
+                    "relevance_grade": r.get("relevance_grade", "未評分"),
+                    "rerank_status": r.get("rerank_status", "disabled"),
+                    "score_version": r.get("score_version", "km-score-v1"),
+                    "model_identity": r.get("model_identity"),
+                    "embedding_identity": r.get("embedding_identity"),
                     "score_breakdown": r.get("score_breakdown", {}),
                     "chunk_index": r.get("chunk_index", 0),
                     "section_title": r.get("section_title", ""),
@@ -4611,8 +4617,8 @@ class SearchEngine:
             from ..vector_store import get_vector_store
             vector_store = self.vector_store if self.vector_store is not None else get_vector_store()
 
-            from ..search_quality import rerank_mode
-            candidate_limit = max(top_k * 3, top_k, 50) if rerank_mode() != "off" else max(top_k * 3, top_k)
+            from ..search_quality import rerank_candidate_limit, rerank_mode
+            candidate_limit = max(top_k * 3, top_k, rerank_candidate_limit()) if rerank_mode() != "off" else max(top_k * 3, top_k)
             results = vector_store.search(query, top_k=candidate_limit, filters=filters)
             logger.info(f"_vector_search_raw 原始結果: {len(results)} 筆")
             results = self._rank_vector_results(results, query, top_k)
@@ -4629,6 +4635,12 @@ class SearchEngine:
                     "retrieval_score": r.get("score", 0.0),
                     "rerank_score": r.get("rerank_score"),
                     "document_quality_score": r.get("document_quality_score"),
+                    "display_relevance_score": r.get("display_relevance_score"),
+                    "relevance_grade": r.get("relevance_grade", "未評分"),
+                    "rerank_status": r.get("rerank_status", "disabled"),
+                    "score_version": r.get("score_version", "km-score-v1"),
+                    "model_identity": r.get("model_identity"),
+                    "embedding_identity": r.get("embedding_identity"),
                     "score_breakdown": r.get("score_breakdown", {}),
                     "chunk_index": r.get("chunk_index", 0),
                     "section_title": r.get("section_title", ""),

@@ -28,6 +28,16 @@ comparison. The reranker is disabled by default and can be controlled with
 rank changes while returning the current ranking. Model load, timeout, or
 inference failures always fall back to the existing ranking path.
 
+The real-system runtime uses the optional pinned dependency in
+`requirements-reranker.txt` and a separately provisioned local model path.
+Search sources expose `retrieval_score`, `rerank_score`,
+`document_quality_score`, `display_relevance_score`, `relevance_grade`,
+`rerank_status`, model/embedding identity, and score breakdown. The frontend
+source chips and Vue chat source hints render the relevance and quality values.
+Before activating `active`, existing Qdrant points must be reindexed with
+`publish_status`, `is_current`, `chunk_id`, document version, and embedding
+identity because these lifecycle fields are hard filters, not ranking boosts.
+
 ## Release-candidate validation
 
 `km-v26-release-validation.yml` is manual and accepts a commit/tag/branch.

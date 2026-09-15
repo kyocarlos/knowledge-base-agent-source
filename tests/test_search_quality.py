@@ -24,7 +24,10 @@ def test_quality_and_lexical_scores_are_bounded() -> None:
 
 def test_reranker_falls_back_when_disabled() -> None:
     candidates = [{"chunk_id": "c1", "score": 0.9}, {"chunk_id": "c2", "score": 0.8}]
-    assert rerank_or_fallback("q", candidates, 1, lambda values, _query, limit: values[:limit]) == candidates[:1]
+    result = rerank_or_fallback("q", candidates, 1, lambda values, _query, limit: values[:limit])
+    assert result[0]["chunk_id"] == "c1"
+    assert result[0]["rerank_status"] == "disabled"
+    assert result[0]["display_relevance_score"] == 90
 
 
 def test_reranker_shadow_returns_baseline(monkeypatch) -> None:
@@ -47,6 +50,32 @@ def test_local_reranker_adds_score_breakdown(monkeypatch) -> None:
     ranked = reranker.rerank("q", [{"chunk_id": "a", "content": "old"}, {"chunk_id": "b", "content": "new"}], 2)
     assert [item["chunk_id"] for item in ranked] == ["b", "a"]
     assert ranked[0]["score_breakdown"]["reranker"] == 0.9
+
+
+def test_active_reranker_suppresses_excessive_same_document_chunks(monkeypatch) -> None:
+    monkeypatch.setenv("KM_RERANK_MODE", "active")
+    monkeypatch.setattr(
+        "src.search_quality.LocalCrossEncoderReranker.rerank",
+        lambda self, query, items, limit: items,
+    )
+    candidates = [
+        {"chunk_id": "a1", "doc_name": "doc-a", "content": "one", "score": 0.9},
+        {"chunk_id": "a2", "doc_name": "doc-a", "content": "two", "score": 0.8},
+        {"chunk_id": "a3", "doc_name": "doc-a", "content": "three", "score": 0.7},
+        {"chunk_id": "b1", "doc_name": "doc-b", "content": "four", "score": 0.6},
+    ]
+    result = rerank_or_fallback("q", candidates, 4, lambda values, _query, limit: values[:limit])
+    assert [item["chunk_id"] for item in result] == ["a1", "a2", "b1"]
+
+
+def test_local_model_path_fails_closed_without_download(monkeypatch, tmp_path) -> None:
+    reranker = LocalCrossEncoderReranker(model_name=str(tmp_path / "missing-model"))
+    try:
+        reranker._load()
+    except FileNotFoundError as exc:
+        assert "local reranker model path" in str(exc)
+    else:
+        raise AssertionError("missing local model path must fail closed")
 
 
 def test_qrels_schema_requires_unique_queries() -> None:

@@ -1,0 +1,3 @@
+# Optional runtime dependency for the local KM Cross-Encoder reranker.
+# The model files are provisioned separately under the configured local path.
+sentence-transformers==5.4.1
