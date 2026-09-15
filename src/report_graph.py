@@ -24,7 +24,7 @@ TABLE_ROW_RE = re.compile(r"^\s*\|.+\|\s*$", re.MULTILINE)
 
 
 def _sha1(text: str) -> str:
-    return hashlib.sha1(text.encode("utf-8", errors="ignore")).hexdigest()
+    return hashlib.sha1(text.encode("utf-8", errors="ignore"), usedforsecurity=False).hexdigest()
 
 
 def extract_project_code(text: str) -> str | None:

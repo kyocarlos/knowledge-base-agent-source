@@ -928,7 +928,7 @@ class SearchEngine:
             str(source.get("source", "") or source.get("doc_name", "") or source.get("name", "")).strip().lower(),
             str(source.get("chunk_index", "") or ""),
             str(source.get("section_title", "") or "").strip().lower(),
-            hashlib.sha1(content.encode("utf-8", errors="ignore")).hexdigest()[:16],
+            hashlib.sha1(content.encode("utf-8", errors="ignore"), usedforsecurity=False).hexdigest()[:16],
         )
 
     def _source_matches_case_hints(self, source_text: str, case_hints: List[str]) -> bool:
