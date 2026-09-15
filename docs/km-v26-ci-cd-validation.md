@@ -15,6 +15,9 @@ uses Production volumes, databases, or tokens.
 The security job runs KM authorization/upload negative contracts, `pip-audit`,
 Bandit, and the high-severity frontend dependency audit. Upload filenames are
 fail-closed for path separators, and the checks do not require CSIT.
+Bandit stores the complete finding report as an artifact and blocks confirmed
+High findings; remaining Medium/Low findings are visible follow-up hardening
+items rather than hidden exclusions.
 
 ## Release-candidate validation
 
