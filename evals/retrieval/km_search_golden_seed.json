@@ -1,0 +1,12 @@
+[
+  {"query_id": "A1", "query": "NR基站的錯誤碼有哪些？", "category": "設備查詢", "relevant_chunks": [], "relevant_documents": [], "expected_answer_facts": [], "annotation_status": "needs_chunk_annotation"},
+  {"query_id": "A2", "query": "哪些設備使用5G作業模式？", "category": "設備查詢", "relevant_chunks": [], "relevant_documents": [], "expected_answer_facts": [], "annotation_status": "needs_chunk_annotation"},
+  {"query_id": "A3", "query": "比較4G和5G基站的差異", "category": "比較查詢", "relevant_chunks": [], "relevant_documents": [], "expected_answer_facts": [], "annotation_status": "needs_chunk_annotation"},
+  {"query_id": "A4", "query": "為什麼會發生頻段干擾？", "category": "原因查詢", "relevant_chunks": [], "relevant_documents": [], "expected_answer_facts": [], "annotation_status": "needs_chunk_annotation"},
+  {"query_id": "A5", "query": "列出所有錯誤碼", "category": "列表查詢", "relevant_chunks": [], "relevant_documents": [], "expected_answer_facts": [], "annotation_status": "needs_chunk_annotation"},
+  {"query_id": "A6", "query": "NR基站的位置在哪裡？", "category": "位置查詢", "relevant_chunks": [], "relevant_documents": [], "expected_answer_facts": [], "annotation_status": "needs_chunk_annotation"},
+  {"query_id": "A7", "query": "分析5G基站的常見問題", "category": "分析查詢", "relevant_chunks": [], "relevant_documents": [], "expected_answer_facts": [], "annotation_status": "needs_chunk_annotation"},
+  {"query_id": "A8", "query": "NR基站是什麼", "category": "基本概念", "relevant_chunks": [], "relevant_documents": [], "expected_answer_facts": [], "annotation_status": "needs_chunk_annotation"},
+  {"query_id": "A9", "query": "今天天氣怎樣？", "category": "不相關-天氣", "relevant_chunks": [], "relevant_documents": [], "expected_answer_facts": [], "annotation_status": "needs_chunk_annotation"},
+  {"query_id": "A10", "query": "NR base station 的 Error Code 有哪些？", "category": "中英文混合", "relevant_chunks": [], "relevant_documents": [], "expected_answer_facts": [], "annotation_status": "needs_chunk_annotation"}
+]

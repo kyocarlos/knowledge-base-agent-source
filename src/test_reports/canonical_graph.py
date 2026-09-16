@@ -103,7 +103,8 @@ def write_canonical_test_graph(
                 external_case_id = str(metric.get("case_id"))
                 case_id = _id(run_key, "case", external_case_id)
                 metric_signature = hashlib.sha1(
-                    f"{metric.get('metric')}|{metric.get('value')}|{metric.get('unit')}|{index}".encode()
+                    f"{metric.get('metric')}|{metric.get('value')}|{metric.get('unit')}|{index}".encode(),
+                    usedforsecurity=False,
                 ).hexdigest()[:16]
                 metric_id = _id(case_id, "metric", metric_signature)
                 session.run(

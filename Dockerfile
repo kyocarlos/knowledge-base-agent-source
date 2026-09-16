@@ -15,8 +15,13 @@ RUN apt-get update && apt-get install -y \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Keep the production reranker runtime pinned separately from the base stack.
+COPY requirements-reranker.txt .
+RUN pip install --no-cache-dir -r requirements-reranker.txt
+
 # 複製應用程式
 COPY src/ ./src/
+COPY scripts/ ./scripts/
 COPY config/ ./config/
 COPY data/ ./data/
 

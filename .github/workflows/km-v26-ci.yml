@@ -1,0 +1,143 @@
+name: KM v2.6 CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: km-v26-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install test dependencies
+        run: python -m pip install -r requirements-ci.txt
+      - name: Validate KM progress manifest
+        run: python scripts/validate_phase1_status.py docs/phase1-status-manifest.json
+      - name: Run KM test suite
+        run: python -m pytest -q tests
+      - name: Compile Python sources
+        run: python -m compileall -q src scripts
+      - name: Validate isolated CI Compose configuration
+        run: docker compose -f docker-compose.ci.yml config --quiet
+      - name: Validate shell scripts
+        run: bash -n start.sh restart_kb.sh scripts/*.sh
+
+  retrieval-evaluation:
+    runs-on: ubuntu-latest
+    needs: backend
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate KM golden query seed
+        run: python scripts/evaluate_retrieval.py --qrels evals/retrieval/km_search_golden_seed.json --output "$RUNNER_TEMP/km-retrieval-seed.json"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: km-v26-retrieval-seed-${{ github.run_id }}
+          path: ${{ runner.temp }}/km-retrieval-seed.json
+
+  db-integration:
+    runs-on: ubuntu-latest
+    needs: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install DB smoke dependencies
+        run: python -m pip install -r requirements-ci.txt
+      - name: Start isolated KM databases
+        run: docker compose -f docker-compose.ci.yml up -d --wait
+      - name: Run Qdrant, Neo4j, and TimescaleDB contracts
+        run: python scripts/ci_db_smoke.py
+      - name: Remove isolated databases
+        if: always()
+        run: docker compose -f docker-compose.ci.yml down -v
+
+  security:
+    runs-on: ubuntu-latest
+    needs: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install security tools
+        run: python -m pip install -r requirements-dev.txt
+      - name: Run KM security tests
+        run: python -m pytest -q tests/test_km_security_contract.py
+      - name: Dependency audit
+        run: |
+          set -o pipefail
+          pip-audit -r requirements-ci.txt | tee "$RUNNER_TEMP/km-pip-audit.txt"
+      - name: Python SAST
+        run: |
+          set -o pipefail
+          # Keep the full report as an artifact, but block only confirmed High
+          # findings in this baseline. Medium/Low findings remain tracked for
+          # the next hardening batch rather than being silently suppressed.
+          bandit -q -r src scripts -x '*/__pycache__/*' \
+            > "$RUNNER_TEMP/km-bandit.txt" || true
+          bandit -q -r src scripts -x '*/__pycache__/*' \
+            --severity-level high --confidence-level high
+      - name: Upload security reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: km-v26-security-reports-${{ github.run_id }}
+          path: ${{ runner.temp }}/km-*.txt
+          if-no-files-found: warn
+
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - name: Build frontend in runner workspace
+        run: npx vite build --outDir "$RUNNER_TEMP/km-frontend-build"
+      - name: Frontend dependency audit
+        run: npm audit --audit-level=high --json > "$RUNNER_TEMP/km-npm-audit.json"
+      - name: Upload frontend security report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: km-v26-frontend-security-${{ github.run_id }}
+          path: ${{ runner.temp }}/km-npm-audit.json
+          if-no-files-found: warn
+
+  repository-hygiene:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Check whitespace errors
+        run: |
+          base_sha="${{ github.event.pull_request.base.sha || github.event.before }}"
+          if [ -z "$base_sha" ] || [ "$base_sha" = "0000000000000000000000000000000000000000" ]; then
+            base_sha="$(git rev-parse HEAD^)"
+          fi
+          git diff --check "$base_sha" "${{ github.sha }}"
+      - name: Scan repository for common credentials
+        run: |
+          ! git grep -nI -E '(^|[^A-Za-z0-9])(sk-[A-Za-z0-9_-]{20,}|gh[pousr]_[A-Za-z0-9_]{20,}|-----BEGIN (RSA|OPENSSH|EC|DSA) PRIVATE KEY-----)' -- ':!*.lock'

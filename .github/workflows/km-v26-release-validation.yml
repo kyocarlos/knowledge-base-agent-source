@@ -1,0 +1,66 @@
+name: KM v2.6 Release Candidate Validation
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_ref:
+        description: "Commit, tag, or branch to validate"
+        required: true
+        default: "main"
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  release-candidate:
+    runs-on: ubuntu-latest
+    environment: km-release-validation
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.release_ref }}
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Validate release manifest
+        run: python scripts/validate_phase1_status.py docs/phase1-status-manifest.json
+      - name: Run release contract tests
+        run: |
+          python -m pip install -r requirements-dev.txt
+          python -m pytest -q tests/test_phase1_status_contract.py tests/test_km_security_contract.py
+      - name: Generate dependency SBOM
+        id: dependency-audit
+        continue-on-error: true
+        run: |
+          mkdir -p "$RUNNER_TEMP/km-release"
+          pip-audit -r requirements-ci.txt --format cyclonedx-json \
+            -o "$RUNNER_TEMP/km-release/dependency-sbom.cdx.json"
+      - name: Enforce release dependency gate
+        if: steps.dependency-audit.outcome == 'failure'
+        run: exit 1
+      - name: Validate release source
+        run: |
+          test -z "$(git status --porcelain)"
+          git diff --check HEAD^ HEAD 2>/dev/null || git diff --check
+          python -m compileall -q src scripts
+      - name: Create source provenance artifact
+        if: always()
+        run: |
+          mkdir -p "$RUNNER_TEMP/km-release"
+          git rev-parse HEAD > "$RUNNER_TEMP/km-release/source-commit.txt"
+          sha256sum Dockerfile requirements.txt requirements-dev.txt > "$RUNNER_TEMP/km-release/input-sha256.txt"
+          tar --exclude=.git --exclude='*/node_modules' --exclude='.venv' \
+            --exclude='*/.venv' --exclude='*.pyc' --exclude='__pycache__' \
+            --exclude='.frontend-build*' --exclude='frontend/build*' --exclude='frontend/dist' \
+            --exclude='logs' --exclude='outputs' --exclude='data/report-staging' \
+            -czf "$RUNNER_TEMP/km-release/km-source.tar.gz" .
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: km-v26-release-candidate-${{ github.sha }}
+          path: ${{ runner.temp }}/km-release
+          if-no-files-found: error
+
+      # Deliberately no deploy, database mutation, CSIT call, or production secret.

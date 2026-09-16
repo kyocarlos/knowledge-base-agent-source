@@ -131,7 +131,7 @@ def _merge_search_sources(primary: list[dict] | None, secondary: list[dict] | No
             str(source.get("source", "") or "").strip().lower(),
             str(source.get("chunk_index", "") or ""),
             str(source.get("section_title", "") or "").strip().lower(),
-            hashlib.sha1(content.encode("utf-8", errors="ignore")).hexdigest()[:16],
+            hashlib.sha1(content.encode("utf-8", errors="ignore"), usedforsecurity=False).hexdigest()[:16],
         )
         if key in seen:
             continue
@@ -1495,7 +1495,7 @@ def watch_folder_scan(self):
                 continue
 
             # 產生檔案唯一 key
-            file_key = hashlib.md5(file_hash.encode("utf-8")).hexdigest()
+            file_key = hashlib.md5(file_hash.encode("utf-8"), usedforsecurity=False).hexdigest()
             
             # 嘗試取得處理鎖
             if not acquire_processing_lock(file_key, max_retries=5, retry_delay=2.0):

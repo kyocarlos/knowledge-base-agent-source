@@ -30,7 +30,7 @@ class QACache:
     def _generate_qa_id(self, question: str) -> str:
         """產生唯一的 Q&A ID"""
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        question_hash = hashlib.md5(question.encode()).hexdigest()[:6]
+        question_hash = hashlib.md5(question.encode(), usedforsecurity=False).hexdigest()[:6]
         return f"qa_{timestamp}_{question_hash}"
     
     def _extract_keywords(self, question: str, answer: str = "") -> List[str]:

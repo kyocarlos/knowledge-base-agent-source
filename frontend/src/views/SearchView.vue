@@ -179,7 +179,12 @@
             </div>
             <div class="source-info">
               <span class="source-name">{{ src.source || '來源 ' + (idx + 1) }}</span>
-              <span class="source-score" v-if="src.mode !== 'graph'">相似度 {{ ((src.score || 0) * 100).toFixed(1) }}%</span>
+              <span class="source-score" v-if="src.mode !== 'graph'">
+                相關性 {{ sourceRelevance(src) }}/100 · 品質 {{ sourceQuality(src) }}/100
+              </span>
+              <span class="source-score-detail" v-if="src.mode !== 'graph'">
+                {{ sourceGrade(src) }} · {{ sourceStatus(src) }} · 語意/關鍵字/Rerank/文件品質
+              </span>
             </div>
             <div class="source-preview">{{ src.content?.substring(0, 120) }}...</div>
           </div>
@@ -330,6 +335,26 @@ const categoryWeightRows = computed(() => {
     }
   })
 })
+
+function sourceRelevance(source) {
+  const value = Number(source?.display_relevance_score)
+  if (Number.isFinite(value)) return Math.max(0, Math.min(100, Math.round(value)))
+  return Math.max(0, Math.min(100, Math.round(Number(source?.score || 0) * 100)))
+}
+
+function sourceQuality(source) {
+  const value = Number(source?.document_quality_score)
+  return Number.isFinite(value) ? Math.max(0, Math.min(100, Math.round(value * 100))) : 0
+}
+
+function sourceGrade(source) {
+  return source?.relevance_grade || (sourceRelevance(source) >= 80 ? '高' : sourceRelevance(source) >= 60 ? '中' : '低')
+}
+
+function sourceStatus(source) {
+  const status = String(source?.rerank_status || '').toLowerCase()
+  return status === 'active' ? 'Rerank Active' : status === 'fallback' ? 'Rerank Fallback' : status === 'shadow' ? 'Rerank Shadow' : 'Baseline'
+}
 
 async function checkHybridStatus() {
   try {
@@ -1156,6 +1181,12 @@ async function fetchStats() {
   font-size: 0.75em;
   color: var(--success);
   font-weight: 500;
+}
+
+.source-score-detail {
+  font-size: 0.7em;
+  color: var(--text-muted);
+  line-height: 1.4;
 }
 
 .source-preview {
