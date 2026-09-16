@@ -1,0 +1,44 @@
+# Non-secret Production overlay for the KM v2.6 rerank application services.
+# Apply this overlay only to `web` and `celery_search_worker`; the base Compose
+# file still contains legacy <project-root> placeholders for other services.
+# Supply the host paths from a protected deployment environment; do not commit
+# model weights, credentials, or host data.
+services:
+  web:
+    image: ${KM_RERANK_IMAGE:?KM_RERANK_IMAGE must be set}
+    build: null
+    environment:
+      - KM_RERANK_MODE=${KM_RERANK_MODE:-active}
+      - KM_RERANK_MODEL_PATH=${KM_RERANK_MODEL_PATH:-/opt/km/models/qwen3-reranker-0.6b}
+      - KM_RERANK_MODEL_ID=${KM_RERANK_MODEL_ID:-Qwen/Qwen3-Reranker-0.6B}
+      - KM_RERANK_TIMEOUT_SECONDS=${KM_RERANK_TIMEOUT_SECONDS:-8}
+      - KM_RERANK_CANDIDATE_LIMIT=${KM_RERANK_CANDIDATE_LIMIT:-50}
+      - KM_RERANK_TORCH_THREADS=${KM_RERANK_TORCH_THREADS:-4}
+    volumes: !override
+      - ${KM_OPENCLAW_HOST_PATH:?KM_OPENCLAW_HOST_PATH must be set}:${KM_OPENCLAW_CONTAINER_PATH:-/home/da40_ai_gb10/.openclaw}:ro
+      - ${KM_CONFIG_HOST_PATH:-./config}:/app/config:ro
+      - ${KM_DATA_HOST_PATH:?KM_DATA_HOST_PATH must be set}:${KM_DATA_CONTAINER_PATH:-/home/da40_ai_gb10/knowledge-base/data}
+      - ${KM_UPLOADS_HOST_PATH:?KM_UPLOADS_HOST_PATH must be set}:/app/data/uploads
+      - ${KM_REPORT_STAGING_HOST_PATH:?KM_REPORT_STAGING_HOST_PATH must be set}:/app/data/report-staging
+      - ${KM_RERANK_MODEL_HOST_PATH:?KM_RERANK_MODEL_HOST_PATH must be set}:/opt/km/models/qwen3-reranker-0.6b:ro
+
+  celery_search_worker:
+    image: ${KM_RERANK_IMAGE:?KM_RERANK_IMAGE must be set}
+    build: null
+    environment:
+      - KM_RERANK_MODE=${KM_RERANK_MODE:-active}
+      - KM_RERANK_MODEL_PATH=${KM_RERANK_MODEL_PATH:-/opt/km/models/qwen3-reranker-0.6b}
+      - KM_RERANK_MODEL_ID=${KM_RERANK_MODEL_ID:-Qwen/Qwen3-Reranker-0.6B}
+      - KM_RERANK_TIMEOUT_SECONDS=${KM_RERANK_TIMEOUT_SECONDS:-8}
+      - KM_RERANK_CANDIDATE_LIMIT=${KM_RERANK_CANDIDATE_LIMIT:-50}
+      - KM_RERANK_TORCH_THREADS=${KM_RERANK_TORCH_THREADS:-4}
+    volumes: !override
+      - ${KM_CONFIG_HOST_PATH:-./config}:/app/config:ro
+      - ${KM_DATA_HOST_PATH:?KM_DATA_HOST_PATH must be set}:/opt/knowledge-base/data
+      - ${KM_UPLOADS_HOST_PATH:?KM_UPLOADS_HOST_PATH must be set}:/app/data/uploads
+      - ${KM_RERANK_MODEL_HOST_PATH:?KM_RERANK_MODEL_HOST_PATH must be set}:/opt/km/models/qwen3-reranker-0.6b:ro
+
+  # Required only so Compose can parse the legacy base file. Never recreate
+  # nginx with this app-service overlay; preserve the separately managed site.
+  nginx:
+    volumes: !override []
