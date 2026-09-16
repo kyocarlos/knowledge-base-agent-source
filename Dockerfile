@@ -21,6 +21,7 @@ RUN pip install --no-cache-dir -r requirements-reranker.txt
 
 # 複製應用程式
 COPY src/ ./src/
+COPY scripts/ ./scripts/
 COPY config/ ./config/
 COPY data/ ./data/
 
