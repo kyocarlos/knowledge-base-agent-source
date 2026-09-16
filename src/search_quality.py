@@ -78,6 +78,14 @@ def rerank_candidate_limit() -> int:
         return 50
 
 
+def rerank_torch_threads() -> int:
+    raw = _configured_value("KM_RERANK_TORCH_THREADS", "search.reranker.torch_threads", "4")
+    try:
+        return max(1, min(16, int(raw)))
+    except ValueError:
+        return 4
+
+
 def _aggregate_document_results(results: list[dict[str, Any]], top_k: int) -> list[dict[str, Any]]:
     """Limit one document from occupying the whole result page."""
     selected: list[dict[str, Any]] = []
@@ -169,6 +177,7 @@ class LocalCrossEncoderReranker:
             )
         configured_timeout = _configured_value("KM_RERANK_TIMEOUT_SECONDS", "search.reranker.timeout_seconds", "8")
         self.timeout_seconds = timeout_seconds if timeout_seconds is not None else float(configured_timeout)
+        self.torch_threads = rerank_torch_threads()
         self._model = None
 
     def _load(self):
@@ -186,13 +195,29 @@ class LocalCrossEncoderReranker:
         started = time.monotonic()
         model = self._load()
         pairs = [(query, str(item.get("content") or "")) for item in candidates]
+        torch_module = None
+        previous_torch_threads = None
         try:
             import torch
 
-            scores = model.predict(pairs, activation_fn=torch.nn.Sigmoid(), show_progress_bar=False)
-        except (ImportError, TypeError):
-            # Keep compatibility with test doubles and older CrossEncoder APIs.
+            torch_module = torch
+            previous_torch_threads = torch.get_num_threads()
+            torch.set_num_threads(self.torch_threads)
+            try:
+                scores = model.predict(
+                    pairs,
+                    activation_fn=torch.nn.Sigmoid(),
+                    max_length=512,
+                    show_progress_bar=False,
+                )
+            except TypeError:
+                # Keep compatibility with test doubles and older CrossEncoder APIs.
+                scores = model.predict(pairs, show_progress_bar=False)
+        except ImportError:
             scores = model.predict(pairs, show_progress_bar=False)
+        finally:
+            if torch_module is not None and previous_torch_threads is not None:
+                torch_module.set_num_threads(previous_torch_threads)
         elapsed = time.monotonic() - started
         if elapsed > self.timeout_seconds:
             raise TimeoutError(f"reranker exceeded configured timeout ({self.timeout_seconds:.2f}s)")

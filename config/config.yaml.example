@@ -37,6 +37,7 @@ search:
     model_path: "/opt/km/models/qwen3-reranker-0.6b"
     model_id: "Qwen/Qwen3-Reranker-0.6B"
     candidate_limit: 50
+    torch_threads: 4
     timeout_seconds: 8
   auto_mode_keywords:
     - "為什麼"
