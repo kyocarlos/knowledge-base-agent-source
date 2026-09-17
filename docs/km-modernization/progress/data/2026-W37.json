@@ -1,0 +1,8 @@
+{
+  "week": "2026-W37",
+  "scope": "KM search precision and reranker",
+  "status": "validated_with_open_qrels_gate",
+  "evidence": ["AI-KM-Phase1-Weekly-2026-W37-v2.6.pptx", "Team-III_2026_W37_Anderson_260917.xlsx"],
+  "claims": ["score presentation", "rerank active/fallback", "lifecycle hard filter"],
+  "not_claimed": ["fixed hit-rate improvement", "business answer accuracy"]
+}

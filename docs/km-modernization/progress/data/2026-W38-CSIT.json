@@ -1,0 +1,10 @@
+{
+  "schema_version": "km-phase1-weekly.split.v1",
+  "week": "2026-W38",
+  "stream": "CSIT-read-only",
+  "scope": "KM worker and CSIT read-only integration",
+  "status": "read_only_runtime_validated_with_deployment_gate",
+  "evidence": ["AI-KM-Phase1-Weekly-2026-W38-CSIT-v2.6.pptx", "Team-III_2026_W38_CSIT_Anderson_260917.xlsx"],
+  "claims": ["CSIT Cookie login", "dynamic hierarchy traversal", "file download", "GET-only boundary"],
+  "not_claimed": ["Production activation", "CSIT write", "NAS or PostgreSQL direct access"]
+}
