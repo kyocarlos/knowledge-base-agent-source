@@ -1,0 +1,34 @@
+{
+  "schema_version": "km-phase1-weekly.v2",
+  "week": "2026-W38",
+  "report_date": "2026-09-17",
+  "timezone": "Asia/Taipei",
+  "owner": "Anderson",
+  "scope": "KM search precision, Qwen3 reranker, ingest worker, CSIT read-only foundation",
+  "status": "PARTIAL_WITH_EXPLICIT_GATES",
+  "work_items": [
+    {"id": "KM-W37-01", "title": "Document relevance scoring and offline evaluator", "progress": 85, "state": "IMPLEMENTED_QRELS_PENDING"},
+    {"id": "KM-W37-02", "title": "Qwen3-Reranker-0.6B and fallback", "progress": 90, "state": "RUNTIME_VALIDATED"},
+    {"id": "KM-W37-03", "title": "User-visible source scoring", "progress": 90, "state": "USER_VISIBLE_VALIDATED"},
+    {"id": "KM-W37-04", "title": "Lifecycle hard filter and controlled reindex", "progress": 100, "state": "RUNTIME_VALIDATED"},
+    {"id": "KM-W38-01", "title": "Ingest worker update and stale task cleanup", "progress": 80, "state": "WORKER_READY_UPLOAD_E2E_PENDING"},
+    {"id": "CSIT-W38-01", "title": "CSIT STAGE read-only hierarchy and file download", "progress": 75, "state": "RUNTIME_VALIDATED"},
+    {"id": "CSIT-W38-02", "title": "KM CSIT proxy client and csit:read RBAC", "progress": 60, "state": "LOCAL_VALIDATED_NOT_DEPLOYED"},
+    {"id": "CSIT-W38-03", "title": "CSIT browser page and controlled deployment preparation", "progress": 0, "state": "PLANNED"}
+  ],
+  "evidence": {
+    "reranker_image": "kb-pre-wp01/km-v26-rerank:0d88baab",
+    "qdrant_points": 4001,
+    "qdrant_lifecycle_mismatch": 0,
+    "csit_chain": "login_cookie -> modules -> records -> cases -> tasks -> files -> download",
+    "csit_download_http": 200,
+    "production_write": false,
+    "csit_db_or_nas_access": false
+  },
+  "gates": [
+    "Golden qrels need correct document/chunk/relevance labels before claiming search uplift",
+    "upload -> ingest -> search E2E still pending",
+    "CSIT proxy remains disabled and not Production deployed",
+    "CSIT write, PostgreSQL, NAS, and direct database access remain out of scope"
+  ]
+}
