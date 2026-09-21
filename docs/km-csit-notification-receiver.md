@@ -59,4 +59,3 @@ maintenance branch; it must not be described as merged into `main`.
 - Formal CSIT-to-KM S2S authentication and credential rotation.
 - File push versus KM download and checksum/ACL/publication source.
 - Completion query/callback and fixed UAT dataset.
-

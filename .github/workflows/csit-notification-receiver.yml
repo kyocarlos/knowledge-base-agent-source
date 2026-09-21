@@ -27,6 +27,6 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - run: python -m pip install --disable-pip-version-check pytest fastapi httpx pydantic
+      - run: python -m pip install --disable-pip-version-check -r requirements-ci.txt
       - run: python -m pytest -q tests/test_csit_notification_receiver.py
       - run: python -m compileall -q src/csit/notification.py src/web_api/csit_notification_routes.py
