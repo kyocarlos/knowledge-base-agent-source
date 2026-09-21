@@ -8,6 +8,8 @@ import re
 import subprocess
 import tempfile
 import shutil
+import zipfile
+import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Optional, List
 from markitdown import MarkItDown
@@ -119,6 +121,16 @@ class FileConverter:
 
             else:
                 result = self.md.convert(str(input_file))
+                if suffix == ".docx":
+                    structured = self._build_docx_enrichment(input_file)
+                    if structured.get("text"):
+                        content_parts.append(structured["text"])
+                    asset_refs.extend(structured.get("image_refs", []))
+                elif suffix == ".pptx":
+                    structured = self._build_pptx_enrichment(input_file)
+                    if structured.get("text"):
+                        content_parts.append(structured["text"])
+                    asset_refs.extend(structured.get("image_refs", []))
 
             if suffix == ".xlsx":
                 enrichment = self._build_excel_enrichment(input_file)
@@ -226,6 +238,63 @@ class FileConverter:
             "text": "\n\n".join(sections),
             "image_refs": image_refs,
         }
+
+    def _build_docx_enrichment(self, input_file: Path) -> dict:
+        """Keep Word heading/table/section structure alongside Markdown text."""
+        ns = {"w": "http://schemas.openxmlformats.org/wordprocessingml/2006/main"}
+        sections: list[str] = []
+        try:
+            with zipfile.ZipFile(input_file) as archive:
+                root = ET.fromstring(archive.read("word/document.xml"))
+        except (OSError, KeyError, zipfile.BadZipFile, ET.ParseError) as exc:
+            logger.warning("DOCX 結構解析失敗: %s", exc)
+            return {"text": "", "image_refs": []}
+
+        body = root.find("w:body", ns)
+        if body is None:
+            return {"text": "", "image_refs": []}
+        for child in list(body):
+            if child.tag.endswith("}p"):
+                text = "".join(node.text or "" for node in child.findall(".//w:t", ns)).strip()
+                if not text:
+                    continue
+                style = child.find("w:pPr/w:pStyle", ns)
+                style_name = style.get("{http://schemas.openxmlformats.org/wordprocessingml/2006/main}val", "") if style is not None else ""
+                if style_name.lower().startswith("heading"):
+                    level = "".join(char for char in style_name if char.isdigit()) or "2"
+                    sections.append(f"{'#' * min(int(level), 6)} {text}")
+                else:
+                    sections.append(text)
+            elif child.tag.endswith("}tbl"):
+                rows = []
+                for tr in child.findall("w:tr", ns):
+                    cells = [" ".join(node.text or "" for node in tc.findall(".//w:t", ns)).strip() for tc in tr.findall("w:tc", ns)]
+                    if any(cells):
+                        rows.append("| " + " | ".join(cells) + " |")
+                if rows:
+                    sections.append("## Word Table\n" + "\n".join(rows))
+        return {"text": "\n\n".join(sections), "image_refs": []}
+
+    def _build_pptx_enrichment(self, input_file: Path) -> dict:
+        """Keep slide boundaries and text roles for citation/provenance."""
+        ns = {"a": "http://schemas.openxmlformats.org/drawingml/2006/main"}
+        slides: list[str] = []
+        try:
+            with zipfile.ZipFile(input_file) as archive:
+                names = sorted(
+                    name for name in archive.namelist()
+                    if name.startswith("ppt/slides/slide") and name.endswith(".xml")
+                )
+                for index, name in enumerate(names, start=1):
+                    root = ET.fromstring(archive.read(name))
+                    texts = ["".join(node.itertext()).strip() for node in root.findall(".//a:t", ns)]
+                    texts = [text for text in texts if text]
+                    if texts:
+                        slides.append(f"## PPT Slide {index}\n" + "\n".join(texts))
+        except (OSError, zipfile.BadZipFile, ET.ParseError) as exc:
+            logger.warning("PPTX 結構解析失敗: %s", exc)
+            return {"text": "", "image_refs": []}
+        return {"text": "\n\n".join(slides), "image_refs": []}
 
     def _export_pdf_embedded_image_assets(self, input_file: Path, doc_name: str) -> dict[int, List[str]]:
         """把 PDF 內嵌圖片抽出為獨立資產，回傳以頁碼分組的相對路徑。"""
