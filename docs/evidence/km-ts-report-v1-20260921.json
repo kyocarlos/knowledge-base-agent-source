@@ -6,8 +6,15 @@
   "source_task_version_note": "The requested V2 filename was not present in the attachment directory; the available task text is the KM-TS-REPORT-V1 implementation document and was used explicitly.",
   "base_head": {
     "base": "eed5badb70ff7387924bc8e60f8b2856eaa8a1e8",
+    "head": "32999b1",
     "branch": "agent/km-ts-report-v1-20260921",
     "original_receiver_checkout_preserved": true
+  },
+  "github": {
+    "pr": "https://github.com/kyocarlos/knowledge-base-agent-source/pull/60",
+    "ci_run": "https://github.com/kyocarlos/knowledge-base-agent-source/actions/runs/35620453351",
+    "ci_conclusion": "success",
+    "ci_jobs": ["frontend", "backend", "retrieval-evaluation", "security", "db-integration", "repository-hygiene"]
   },
   "isolation": {
     "compose_project": "km-ts-report-ci",
