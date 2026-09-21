@@ -25,8 +25,28 @@ services:
       POSTGRES_PASSWORD: ci-timescale-password
     ports:
       - "127.0.0.1:15433:5432"
+    volumes:
+      - timescaledb_data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U km_ci -d km_ci"]
       interval: 5s
       timeout: 3s
       retries: 20
+
+  pgadmin:
+    image: dpage/pgadmin4:8.14
+    ports:
+      - "127.0.0.1:15050:80"
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ci-admin@example.com
+      PGADMIN_DEFAULT_PASSWORD: ci-pgadmin-password
+      PGADMIN_CONFIG_SERVER_MODE: "True"
+      PGADMIN_REPLACE_SERVERS_ON_STARTUP: "True"
+    volumes:
+      - ./deploy/pgadmin/servers.ci.json:/pgadmin4/servers.json:ro
+    depends_on:
+      timescaledb:
+        condition: service_healthy
+
+volumes:
+  timescaledb_data:

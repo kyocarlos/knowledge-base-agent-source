@@ -5,6 +5,7 @@ import path from 'path'
 const buildDir = process.env.KB_FRONTEND_BUILD_DIR
   ? path.resolve(process.env.KB_FRONTEND_BUILD_DIR)
   : '<project-root>/knowledge-base/.frontend-build-runtime-user8'
+const apiProxyTarget = process.env.KM_API_PROXY_TARGET || 'http://localhost:8000'
 
 export default defineConfig({
   plugins: [vue()],
@@ -54,7 +55,7 @@ export default defineConfig({
         changeOrigin: true
       },
       '/api': {
-        target: 'http://localhost:8000',
+        target: apiProxyTarget,
         changeOrigin: true
       },
       '/admin': {
