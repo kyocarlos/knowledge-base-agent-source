@@ -13,6 +13,7 @@ import os
 import secrets
 import sqlite3
 import threading
+import uuid
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -84,6 +85,7 @@ class ReceiverConfig:
     auth_token: str = ""
     eligibility_policy: str = "disabled"
     database_path: Path = Path("data/csit-notification.sqlite3")
+    lease_seconds: int = 300
 
     @classmethod
     def from_env(cls) -> "ReceiverConfig":
@@ -92,6 +94,7 @@ class ReceiverConfig:
             auth_token=os.getenv("KM_CSIT_NOTIFICATION_AUTH_TOKEN", ""),
             eligibility_policy=os.getenv("KM_CSIT_NOTIFICATION_ELIGIBILITY", "disabled"),
             database_path=Path(os.getenv("KM_CSIT_NOTIFICATION_DB", "data/csit-notification.sqlite3")),
+            lease_seconds=max(1, int(os.getenv("KM_CSIT_NOTIFICATION_LEASE_SECONDS", "300"))),
         )
 
     def usable(self) -> bool:
@@ -177,7 +180,20 @@ class NotificationStore:
                 receipt_id TEXT NOT NULL, status TEXT NOT NULL, job_id TEXT, stage TEXT NOT NULL,
                 error_code TEXT NOT NULL DEFAULT '', payload_json TEXT NOT NULL,
                 created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+                claimed_at TEXT, lease_until TEXT, attempt_count INTEGER NOT NULL DEFAULT 0,
+                worker_id TEXT, heartbeat_at TEXT,
                 PRIMARY KEY(source_identity, event_id))""")
+            existing = {row[1] for row in db.execute("PRAGMA table_info(csit_notification_events)")}
+            migrations = {
+                "claimed_at": "TEXT",
+                "lease_until": "TEXT",
+                "attempt_count": "INTEGER NOT NULL DEFAULT 0",
+                "worker_id": "TEXT",
+                "heartbeat_at": "TEXT",
+            }
+            for name, definition in migrations.items():
+                if name not in existing:
+                    db.execute(f"ALTER TABLE csit_notification_events ADD COLUMN {name} {definition}")
 
     def receive(self, source: str, event: NotificationEvent) -> tuple[dict[str, Any], bool]:
         digest = _digest(event.as_dict())
@@ -190,7 +206,10 @@ class NotificationStore:
                 if existing["payload_hash"] != digest:
                     raise NotificationError("event_conflict", "event_id already has different content", 409)
                 return existing, True
-            db.execute("INSERT INTO csit_notification_events VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+            db.execute("""INSERT INTO csit_notification_events
+                (source_identity,event_id,payload_hash,receipt_id,status,job_id,stage,
+                 error_code,payload_json,created_at,updated_at,attempt_count)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,0)""",
                         (source, event.event_id, digest, receipt, "received", None, "receipt", "", _canonical(event.as_dict()), now, now))
             return {"source_identity": source, "event_id": event.event_id, "payload_hash": digest, "receipt_id": receipt, "status": "received", "job_id": None, "stage": "receipt", "error_code": "", "created_at": now, "updated_at": now}, False
 
@@ -205,7 +224,7 @@ class NotificationStore:
             return self._row(db, row) if row else None
 
     def update(self, source: str, event_id: str, **updates: Any) -> dict[str, Any]:
-        allowed = {"status", "job_id", "stage", "error_code"}
+        allowed = {"status", "job_id", "stage", "error_code", "claimed_at", "lease_until", "worker_id", "heartbeat_at"}
         updates = {k: v for k, v in updates.items() if k in allowed}
         if not updates: return self.get(source, event_id) or {}
         updates["updated_at"] = _now()
@@ -218,6 +237,51 @@ class NotificationStore:
         with sqlite3.connect(self.path) as db:
             rows = db.execute("SELECT * FROM csit_notification_events WHERE status='received' ORDER BY created_at").fetchall()
             return [self._row(db, row) for row in rows]
+
+    def claim_pending(self, *, lease_seconds: int = 300, limit: int = 100) -> list[dict[str, Any]]:
+        """Atomically claim received or stale-processing events for one worker."""
+        now_dt = datetime.now(timezone.utc)
+        now = now_dt.isoformat(timespec="seconds")
+        lease = (now_dt.timestamp() + max(1, lease_seconds))
+        lease_until = datetime.fromtimestamp(lease, timezone.utc).isoformat(timespec="seconds")
+        claimed: list[dict[str, Any]] = []
+        with self._lock, sqlite3.connect(self.path) as db:
+            db.execute("BEGIN IMMEDIATE")
+            rows = db.execute("""SELECT source_identity,event_id FROM csit_notification_events
+                WHERE status='received' OR (status='processing' AND lease_until IS NOT NULL AND lease_until <= ?)
+                ORDER BY created_at LIMIT ?""", (now, limit)).fetchall()
+            for source, event_id in rows:
+                worker = "worker-" + uuid.uuid4().hex
+                updated = db.execute("""UPDATE csit_notification_events
+                    SET status='processing', stage='pipeline', claimed_at=?, lease_until=?,
+                        attempt_count=attempt_count+1, worker_id=?, heartbeat_at=?, updated_at=?
+                    WHERE source_identity=? AND event_id=? AND
+                      (status='received' OR (status='processing' AND lease_until IS NOT NULL AND lease_until <= ?))""",
+                    (now, lease_until, worker, now, now, source, event_id, now)).rowcount
+                if updated:
+                    row = db.execute("SELECT * FROM csit_notification_events WHERE source_identity=? AND event_id=?", (source, event_id)).fetchone()
+                    claimed.append(self._row(db, row))
+        return claimed
+
+    def heartbeat(self, source: str, event_id: str, worker_id: str, *, lease_seconds: int = 300) -> bool:
+        now_dt = datetime.now(timezone.utc)
+        now = now_dt.isoformat(timespec="seconds")
+        lease_until = datetime.fromtimestamp(now_dt.timestamp() + max(1, lease_seconds), timezone.utc).isoformat(timespec="seconds")
+        with self._lock, sqlite3.connect(self.path) as db:
+            return bool(db.execute("""UPDATE csit_notification_events
+                SET lease_until=?, heartbeat_at=?, updated_at=?
+                WHERE source_identity=? AND event_id=? AND status='processing' AND worker_id=?""",
+                (lease_until, now, now, source, event_id, worker_id)).rowcount)
+
+    def finish(self, source: str, event_id: str, worker_id: str, **updates: Any) -> dict[str, Any]:
+        """Finish only the current claim; a stale worker cannot overwrite recovery."""
+        allowed = {"status", "stage", "error_code", "job_id"}
+        updates = {key: value for key, value in updates.items() if key in allowed}
+        updates.update({"lease_until": None, "heartbeat_at": _now(), "updated_at": _now()})
+        assignments = ",".join(f"{key}=?" for key in updates)
+        with self._lock, sqlite3.connect(self.path) as db:
+            db.execute(f"UPDATE csit_notification_events SET {assignments} WHERE source_identity=? AND event_id=? AND status='processing' AND worker_id=?", (*updates.values(), source, event_id, worker_id))
+        return self.get(source, event_id) or {}
 
 
 class NotificationReceiver:
@@ -246,23 +310,31 @@ class NotificationReceiver:
     def dispatch_pending(self) -> int:
         if not self.config.usable(): return 0
         processed = 0
-        for record in self.store.pending():
+        for record in self.store.claim_pending(lease_seconds=self.config.lease_seconds):
             source, event_id = record["source_identity"], record["event_id"]
             event = NotificationEvent.parse(json.loads(record["payload_json"]))
             if self.config.eligibility_policy != "test-allow":
-                self.store.update(source, event_id, status="held", stage="eligibility", error_code="eligibility_policy_unconfigured")
+                self.store.finish(source, event_id, record["worker_id"], status="held", stage="eligibility", error_code="eligibility_policy_unconfigured")
                 continue
             job_id = f"km-csit-{event_id}"
-            self.store.update(source, event_id, status="processing", stage="pipeline", job_id=job_id)
+            worker_id = record["worker_id"]
+            self.store.update(source, event_id, job_id=job_id)
             try:
                 if self.processor is None:
                     raise NotificationError("pipeline_unconfigured", "existing KM pipeline adapter is not configured", 503)
-                self.processor(event, job_id)
-                self.store.update(source, event_id, status="completed", stage="pipeline")
+                result = self.processor(event, job_id)
+                if not isinstance(result, Mapping) or result.get("success") is not True:
+                    raise NotificationError("pipeline_incomplete", "processor did not return explicit success", 500)
+                required = set(result.get("required_stores") or ())
+                completed = set(result.get("completed_stores") or ())
+                if required and not required.issubset(completed):
+                    raise NotificationError("partial_failed", "required stores were not completed", 500)
+                self.store.finish(source, event_id, worker_id, status="completed", stage=str(result.get("stage") or "pipeline"))
             except NotificationError as exc:
-                self.store.update(source, event_id, status="failed", stage="pipeline", error_code=exc.code)
+                status = "partial_failed" if exc.code == "partial_failed" else "failed"
+                self.store.finish(source, event_id, worker_id, status=status, stage="pipeline", error_code=exc.code)
             except Exception:
-                self.store.update(source, event_id, status="failed", stage="pipeline", error_code="pipeline_failed")
+                self.store.finish(source, event_id, worker_id, status="failed", stage="pipeline", error_code="pipeline_failed")
             processed += 1
         return processed
 
@@ -271,4 +343,8 @@ class NotificationReceiver:
         source = self.auth.authenticate(authorization)
         record = self.store.get(source, event_id)
         if not record: raise NotificationError("not_found", "event was not found", 404)
-        return {key: record[key] for key in ("event_id", "receipt_id", "status", "job_id", "stage", "error_code", "created_at", "updated_at")}
+        return {key: record[key] for key in (
+            "event_id", "receipt_id", "status", "job_id", "stage", "error_code",
+            "attempt_count", "claimed_at", "lease_until", "heartbeat_at",
+            "created_at", "updated_at",
+        )}

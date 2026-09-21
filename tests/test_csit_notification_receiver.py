@@ -92,7 +92,10 @@ def test_store_failure_never_returns_success(tmp_path):
 
 def test_recovery_and_pipeline_status(tmp_path):
     calls = []
-    target = receiver(tmp_path, processor=lambda event, job_id: calls.append((event.event_id, job_id)))
+    target = receiver(tmp_path, processor=lambda event, job_id: calls.append((event.event_id, job_id)) or {
+        "success": True, "stage": "pipeline", "required_stores": ["qdrant", "neo4j"],
+        "completed_stores": ["qdrant", "neo4j"],
+    })
     target.receive(payload(), "Bearer test-secret")
     assert target.dispatch_pending() == 1
     assert calls == [("evt-1", "km-csit-evt-1")]
@@ -129,7 +132,10 @@ def test_existing_pipeline_adapter_verifies_file_before_delegation(tmp_path):
     calls = []
     adapter = ExistingKmPipelineProcessor(
         AllowlistedFixtureResolver({"approved": (fixture, digest)}),
-        lambda **kwargs: calls.append(kwargs) or {"indexed": True},
+        lambda **kwargs: calls.append(kwargs) or {
+            "success": True, "stage": "pipeline", "required_stores": ["qdrant", "neo4j"],
+            "completed_stores": ["qdrant", "neo4j"],
+        },
     )
     target = receiver(tmp_path, processor=adapter)
     target.receive(payload(), "Bearer test-secret")
@@ -142,7 +148,9 @@ def test_existing_pipeline_adapter_verifies_file_before_delegation(tmp_path):
 def test_http_receiver_contract_is_202_and_status_is_protected(tmp_path, monkeypatch):
     from fastapi import FastAPI
     import src.web_api.csit_notification_routes as routes
-    target = receiver(tmp_path, processor=lambda *_: None)
+    target = receiver(tmp_path, processor=lambda *_: {
+        "success": True, "stage": "pipeline", "required_stores": [], "completed_stores": [],
+    })
     monkeypatch.setattr(routes, "_receiver", target)
     app = FastAPI()
     app.include_router(router)
@@ -152,3 +160,41 @@ def test_http_receiver_contract_is_202_and_status_is_protected(tmp_path, monkeyp
         assert response.json()["processing_status"] == "received"
         assert client.get("/api/v1/integrations/csit/events/evt-1").status_code == 401
         assert client.get("/api/v1/integrations/csit/events/evt-1", headers={"Authorization": "Bearer test-secret"}).status_code == 200
+
+
+def test_processor_false_or_partial_never_completes(tmp_path):
+    for result, expected in [
+        ({"success": False, "stage": "qdrant", "error_code": "write_failed"}, "failed"),
+        ({"success": True, "stage": "pipeline", "required_stores": ["qdrant", "neo4j"], "completed_stores": ["qdrant"]}, "partial_failed"),
+    ]:
+        target = receiver(tmp_path / expected, processor=lambda *_args, result=result: result)
+        target.receive(payload(event_id=expected), "Bearer test-secret")
+        assert target.dispatch_pending() == 1
+        status = target.status(expected, "Bearer test-secret")
+        assert status["status"] == expected
+
+
+def test_atomic_claim_and_stale_processing_recovery(tmp_path):
+    target = receiver(tmp_path, processor=lambda *_: {
+        "success": True, "stage": "pipeline", "required_stores": [], "completed_stores": [],
+    })
+    target.receive(payload(), "Bearer test-secret")
+    first = target.store.claim_pending(lease_seconds=1)
+    assert len(first) == 1
+    assert target.store.claim_pending(lease_seconds=1) == []
+    with target.store._lock, __import__("sqlite3").connect(target.store.path) as db:
+        db.execute("UPDATE csit_notification_events SET lease_until='2000-01-01T00:00:00+00:00' WHERE event_id='evt-1'")
+    recovered = target.store.claim_pending(lease_seconds=1)
+    assert len(recovered) == 1 and recovered[0]["attempt_count"] == 2
+
+
+def test_concurrent_dispatch_has_one_processor_call(tmp_path):
+    from concurrent.futures import ThreadPoolExecutor
+    calls = []
+    target = receiver(tmp_path, processor=lambda *_: calls.append(1) or {
+        "success": True, "stage": "pipeline", "required_stores": [], "completed_stores": [],
+    })
+    target.receive(payload(), "Bearer test-secret")
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        list(pool.map(lambda _: target.dispatch_pending(), range(2)))
+    assert calls == [1]

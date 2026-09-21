@@ -119,7 +119,7 @@ async def upload_report(request: Request):
 
     try:
         item, duplicate = _registry().create({
-            "submission_id": submission_id, "environment": manifest["environment"],
+            "submission_id": submission_id, "source_system": "external-agent", "environment": manifest["environment"],
             "run_id": manifest["run_id"], "agent_id": identity["agent_id"],
             "report_name": report_name, "report_hash": report_hash, "status": "pending_review",
             "original_path": str(original_path), "attachments": attachment_items, "manifest": manifest,
@@ -182,6 +182,9 @@ async def download_report_submission(submission_id: str, request: Request):
 async def approve_report_submission(submission_id: str, decision: ReviewDecision, request: Request):
     reviewer = authenticate_reviewer(request)
     registry = _registry()
+    existing = registry.get(submission_id)
+    if existing and existing.get("source_system") == "CSIT":
+        raise HTTPException(status_code=409, detail="CSIT-originated formal documents bypass KM business approval")
     reviewed_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
     try:
         item = registry.transition(
@@ -224,6 +227,9 @@ async def approve_report_submission(submission_id: str, decision: ReviewDecision
 @router.post("/api/admin/v1/report-submissions/{submission_id}/reject")
 async def reject_report_submission(submission_id: str, decision: ReviewDecision, request: Request):
     reviewer = authenticate_reviewer(request)
+    existing = _registry().get(submission_id)
+    if existing and existing.get("source_system") == "CSIT":
+        raise HTTPException(status_code=409, detail="CSIT-originated formal documents bypass KM business approval")
     if not decision.comment.strip():
         raise HTTPException(status_code=422, detail="退回時必須填寫原因")
     try:

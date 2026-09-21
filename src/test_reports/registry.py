@@ -60,6 +60,7 @@ class SubmissionRegistry:
             connection.execute(self._sql("""
                 CREATE TABLE IF NOT EXISTS report_submissions (
                     submission_id TEXT PRIMARY KEY,
+                    source_system TEXT NOT NULL DEFAULT 'external-agent',
                     environment TEXT NOT NULL,
                     run_id TEXT NOT NULL,
                     agent_id TEXT NOT NULL,
@@ -81,6 +82,21 @@ class SubmissionRegistry:
                     UNIQUE(environment, run_id)
                 )
             """))
+            if self.is_postgres:
+                column = connection.execute(
+                    """SELECT 1 FROM information_schema.columns
+                       WHERE table_name = 'report_submissions' AND column_name = 'source_system'"""
+                ).fetchone()
+            else:
+                column = next(
+                    (row for row in connection.execute("PRAGMA table_info(report_submissions)").fetchall()
+                     if row[1] == "source_system"),
+                    None,
+                )
+            if not column:
+                connection.execute(self._sql(
+                    "ALTER TABLE report_submissions ADD COLUMN source_system TEXT NOT NULL DEFAULT 'external-agent'"
+                ))
 
     @staticmethod
     def _decode(row: Any | None) -> dict | None:
@@ -116,7 +132,7 @@ class SubmissionRegistry:
             raise SubmissionConflict("相同 environment/run_id 已存在不同內容")
         now = _now()
         values = (
-            item["submission_id"], item["environment"], item["run_id"], item["agent_id"],
+            item["submission_id"], item.get("source_system", "external-agent"), item["environment"], item["run_id"], item["agent_id"],
             item["report_name"], item["report_hash"], item.get("status", "pending_review"),
             item["original_path"], json.dumps(item.get("attachments", []), ensure_ascii=False),
             json.dumps(item.get("manifest", {}), ensure_ascii=False),
@@ -126,10 +142,10 @@ class SubmissionRegistry:
             with self._connection() as connection:
                 connection.execute(self._sql("""
                     INSERT INTO report_submissions (
-                        submission_id, environment, run_id, agent_id, report_name, report_hash,
+                        submission_id, source_system, environment, run_id, agent_id, report_name, report_hash,
                         status, original_path, attachments_json, manifest_json, validation_json,
                         created_at, updated_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """), values)
         except Exception:
             existing = self.find_by_run(item["environment"], item["run_id"])

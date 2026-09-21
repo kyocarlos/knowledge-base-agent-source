@@ -16,7 +16,11 @@ paths:
           application/json:
             schema: {$ref: '#/components/schemas/NotificationEvent'}
       responses:
-        '202': {description: Reliably saved; processing is not complete}
+        '202':
+          description: Reliably saved; processing is not complete
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Receipt'}
         '401': {description: Unauthenticated}
         '404': {description: Receiver disabled or not configured}
         '409': {description: Same event_id with different content}
@@ -29,7 +33,11 @@ paths:
       parameters:
         - {name: event_id, in: path, required: true, schema: {type: string}}
       responses:
-        '200': {description: Event/job status}
+        '200':
+          description: Event/job status
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/EventStatus'}
         '401': {description: Unauthenticated}
         '404': {description: Not found or receiver disabled}
 components:
@@ -49,3 +57,28 @@ components:
         file_ref: {type: object, additionalProperties: true}
         occurred_at: {type: string, format: date-time}
         correlation_id: {type: string}
+    Receipt:
+      type: object
+      required: [event_id, receipt_id, duplicate, processing_status, status_url]
+      properties:
+        event_id: {type: string}
+        receipt_id: {type: string}
+        duplicate: {type: boolean}
+        processing_status: {type: string, enum: [received, processing, held, completed, failed, partial_failed]}
+        job_id: {type: string, nullable: true}
+        status_url: {type: string}
+    EventStatus:
+      type: object
+      required: [event_id, receipt_id, status, stage, attempt_count]
+      properties:
+        event_id: {type: string}
+        receipt_id: {type: string}
+        status: {type: string, enum: [received, processing, held, completed, failed, partial_failed]}
+        stage: {type: string}
+        error_code: {type: string}
+        attempt_count: {type: integer, minimum: 0}
+        claimed_at: {type: string, nullable: true, format: date-time}
+        lease_until: {type: string, nullable: true, format: date-time}
+        heartbeat_at: {type: string, nullable: true, format: date-time}
+        created_at: {type: string, format: date-time}
+        updated_at: {type: string, format: date-time}

@@ -96,6 +96,10 @@ class RegistryTests(unittest.TestCase):
         with self.assertRaises(SubmissionConflict):
             self.registry.transition("submission-1", {"pending_review"}, "rejected")
 
+    def test_submissions_default_to_external_agent_boundary(self):
+        created, _ = self.registry.create(self.item())
+        self.assertEqual(created["source_system"], "external-agent")
+
 
 class ReportApiTests(unittest.TestCase):
     def setUp(self):
