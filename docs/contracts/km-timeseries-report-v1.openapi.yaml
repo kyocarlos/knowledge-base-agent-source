@@ -1,0 +1,56 @@
+openapi: 3.0.3
+info:
+  title: KM Test Report Timeseries API
+  version: 1.0.0
+  description: Bounded read API over validated, published KM TestRun data.
+servers:
+  - url: /
+paths:
+  /api/v1/reports/timeseries/runs:
+    get:
+      security: [{reviewerBearer: []}]
+      operationId: listPublishedTestRuns
+      parameters:
+        - {name: X-KM-Project, in: header, required: true, schema: {type: string}}
+        - {name: X-KM-Role, in: header, required: true, schema: {type: string, enum: [report-reader, report-admin]}}
+        - {name: limit, in: query, schema: {type: integer, minimum: 1, maximum: 100, default: 50}}
+      responses:
+        '200': {description: Published current test runs}
+        '401': {description: Missing project scope}
+        '403': {description: Missing report read role}
+        '503': {description: TimescaleDB unavailable}
+  /api/v1/reports/{run_id}/timeseries/summary:
+    get:
+      security: [{reviewerBearer: []}]
+      operationId: getTestRunSummary
+      parameters:
+        - {name: run_id, in: path, required: true, schema: {type: string}}
+        - {name: version, in: query, required: true, schema: {type: string}}
+        - {name: X-KM-Project, in: header, required: true, schema: {type: string}}
+        - {name: X-KM-Role, in: header, required: true, schema: {type: string}}
+      responses:
+        '200': {description: Summary with provenance}
+        '404': {description: Not found, not published, not current, or not visible}
+  /api/v1/reports/{run_id}/timeseries/samples:
+    get:
+      security: [{reviewerBearer: []}]
+      operationId: getTestRunSamples
+      parameters:
+        - {name: run_id, in: path, required: true, schema: {type: string}}
+        - {name: version, in: query, required: true, schema: {type: string}}
+        - {name: metric, in: query, schema: {type: string}}
+        - {name: start, in: query, schema: {type: string, format: date-time}}
+        - {name: end, in: query, schema: {type: string, format: date-time, description: Exclusive upper bound}}
+        - {name: limit, in: query, schema: {type: integer, minimum: 1, maximum: 5000, default: 1000}}
+        - {name: X-KM-Project, in: header, required: true, schema: {type: string}}
+        - {name: X-KM-Role, in: header, required: true, schema: {type: string}}
+      responses:
+        '200': {description: Bounded samples with unit and source locator}
+        '404': {description: Not found or not visible}
+        '422': {description: Invalid time range}
+components:
+  securitySchemes:
+    reviewerBearer:
+      type: http
+      scheme: bearer
+      description: Existing KM reviewer bearer token; fail-closed when not configured.

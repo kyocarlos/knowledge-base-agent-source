@@ -682,6 +682,28 @@ def ingest_file_task(self, task_id: str):
                 neo4j_user=neo4j_user,
                 neo4j_password=neo4j_password,
             )
+            # Structured measurements are persisted only as part of the
+            # validated canonical-report ingest path.  Search counters never
+            # call this adapter, and a missing Timescale schema fails the
+            # report task instead of claiming a complete import.
+            from ..timeseries_store import TimeseriesStore
+            timeseries_result = TimeseriesStore().ingest_report(
+                canonical_report,
+                document_id=state.get("document_id") or f"report:{manifest['environment']}:{manifest['run_id']}",
+                document_version=str(state.get("document_version") or manifest.get("revision") or "1"),
+                source_file_name=state.get("file_name") or original_path.name,
+                source_file_sha256=state.get("file_hash") or "",
+                # The existing task is reached only after the applicable
+                # report acceptance gate.  CSIT-originated events bypass the
+                # KM reviewer by contract; KM-direct uploads reach it after
+                # the existing reviewer transition.
+                publish_status="published",
+                is_current=True,
+                acl=state.get("acl") or {"project_code": manifest["project_code"]},
+                package_id=state.get("package_id"),
+                source_locator={"submission_id": state.get("submission_id"), "sheet": "Measurements"},
+            )
+            update_ingest_task_state(task_id, timeseries=timeseries_result)
 
         update_ingest_task_state(task_id, status="writing_qdrant")
         update_ingest_task_state(task_id, status="refreshing_index")

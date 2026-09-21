@@ -4,6 +4,7 @@
 
 import { createRouter, createWebHistory } from 'vue-router'
 import SearchView from '../views/SearchView.vue'
+import ReportTimeseriesView from '../views/ReportTimeseriesView.vue'
 
 const routes = [
   {
@@ -25,6 +26,11 @@ const routes = [
     path: '/admin/report-reviews',
     name: 'report-reviews',
     component: () => import('../views/ReportReviewView.vue')
+  },
+  {
+    path: '/reports/timeseries',
+    name: 'report-timeseries',
+    component: ReportTimeseriesView
   },
   {
     path: '/upload',

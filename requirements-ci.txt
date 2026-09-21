@@ -13,4 +13,5 @@ pyyaml==6.0.2
 qdrant-client==1.12.1
 redis==5.2.1
 python-multipart==0.0.32
+requests==2.33.0
 websockets==12.0

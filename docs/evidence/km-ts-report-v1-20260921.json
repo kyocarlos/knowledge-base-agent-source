@@ -1,0 +1,88 @@
+{
+  "evidence_type": "km_ts_report_v1_isolated_validation",
+  "date": "2026-09-21",
+  "status": "PASS",
+  "source_task_file_observed": "KM_AGENT_TIMESCALEDB_TEST_REPORT_V1_IMPLEMENTATION.md",
+  "source_task_version_note": "The requested V2 filename was not present in the attachment directory; the available task text is the KM-TS-REPORT-V1 implementation document and was used explicitly.",
+  "base_head": {
+    "base": "eed5badb70ff7387924bc8e60f8b2856eaa8a1e8",
+    "head": "32999b1",
+    "branch": "agent/km-ts-report-v1-20260921",
+    "original_receiver_checkout_preserved": true
+  },
+  "github": {
+    "pr": "https://github.com/kyocarlos/knowledge-base-agent-source/pull/60",
+    "ci_run": "https://github.com/kyocarlos/knowledge-base-agent-source/actions/runs/35620453351",
+    "ci_conclusion": "success",
+    "ci_jobs": ["frontend", "backend", "retrieval-evaluation", "security", "db-integration", "repository-hygiene"]
+  },
+  "isolation": {
+    "compose_project": "km-ts-report-ci",
+    "timescaledb_image": "timescale/timescaledb:2.17.2-pg16",
+    "pgadmin_image": "dpage/pgadmin4:8.14",
+    "qdrant_and_neo4j": "healthchecks_pass",
+    "production_data_or_secrets": false,
+    "real_csit_called": false
+  },
+  "migration": {
+    "applied": ["001_test_report.sql", "002_readonly_role.sql"],
+    "rerun_safe": true,
+    "hypertable_catalog": "metric_sample",
+    "tables": ["test_run", "metric_sample", "test_run_summary"]
+  },
+  "import": {
+    "fixture": "synthetic .xlsx with existing KM canonical report sheet contract and three timestamped samples",
+    "sample_rows": 3,
+    "summary_rows": 1,
+    "expected_min_avg_max": [10, 20, 30],
+    "repeat_is_idempotent": true,
+    "search_count_triggered_import": false
+  },
+  "readonly": {
+    "select": true,
+    "insert_denied": true,
+    "role": "km_ts_readonly"
+  },
+  "api_auth": {
+    "mechanism": "existing KM authenticate_reviewer hash-only bearer token",
+    "fail_closed_without_config": true,
+    "negative_tests": ["missing bearer -> 401", "invalid bearer -> 403"],
+    "scope_and_role": "X-KM-Project plus report-reader/report-admin"
+  },
+  "pgadmin": {
+    "management_ping": "HTTP 200",
+    "admin_login": "PASS",
+    "browser_entry": "HTTP 200",
+    "server_registration_log": "Added 1 Server",
+    "datasource_role": "km_ts_readonly"
+  },
+  "km_ui": {
+    "route": "/reports/timeseries",
+    "browser_verification": "PASS with synthetic isolated reviewer bearer token",
+    "visible_run": "KM-TS-CI-001 / r1",
+    "visible_summary": "throughput Mbps min=10 avg=20 max=30 samples=3",
+    "visible_provenance": true,
+    "visible_time_series": "3 samples",
+    "global_health_badge": "slow in standalone UI check because Redis was not included in the isolated FastAPI process; report API and Timescale data rendered successfully"
+  },
+  "tests": {
+    "python": "59 passed",
+    "frontend": "Vite build passed",
+    "compile_and_diff_check": "passed"
+  },
+  "cleanup": {
+    "rows_before_cleanup": {"test_run": 1, "metric_sample": 3, "test_run_summary": 1},
+    "residual_count_after_cleanup": {"test_run": 0, "metric_sample": 0, "test_run_summary": 0},
+    "compose_down_v": "PASS",
+    "residual_containers": 0,
+    "residual_volumes": 0,
+    "residual_networks": 0
+  },
+  "not_claimed": [
+    "Production migration or deployment",
+    "Historical backfill",
+    "Formal CSIT notification or file download",
+    "Formal CSIT ACL/approval contract acceptance",
+    "P95 or interval-weighted statistics"
+  ]
+}
