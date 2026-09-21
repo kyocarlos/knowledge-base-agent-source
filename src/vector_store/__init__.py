@@ -3,6 +3,7 @@ Vector Store 模組 - 使用 QDrant + BAAI/bge-base-zh-v1.5
 """
 
 import logging
+import hashlib
 import os
 import re
 from typing import List, Optional, Tuple
@@ -133,22 +134,31 @@ class VectorStore:
             points = []
             for i, doc in enumerate(documents):
                 vector = self.encode([doc["content"]])[0]
-                # QDrant 接受 UUID 或整數作為 ID
+                # QDrant 接受 UUID 或整數作為 ID.  Identity is derived from
+                # the logical document/version/chunk, never from the filename
+                # plus a shifting list index.
                 import uuid
-                point_id = str(uuid.uuid5(uuid.NAMESPACE_DNS, f"{doc_name}_{i}"))
 
                 metadata = doc.get("metadata", {}) or {}
-                # Keep lifecycle state in both payload locations.  Report
-                # chunks are fail-closed until an approval pipeline supplies
-                # an explicit published/current state; ordinary ingested
-                # documents preserve the historical published default.
-                is_report = str(metadata.get("extraction_mode", "")).strip().lower() == "report"
+                from src.knowledge_package import stable_chunk_id
+
+                document_id = str(metadata.get("document_id") or hashlib.sha256(doc_name.encode("utf-8")).hexdigest()[:32])
+                document_version = str(metadata.get("document_version") or metadata.get("version") or "unversioned")
+                source_locator = str(metadata.get("source_locator") or metadata.get("locator") or f"chunk:{i}")
+                chunk_id = str(metadata.get("chunk_id") or stable_chunk_id(document_id, document_version, doc["content"], source_locator))
+                point_id = str(uuid.uuid5(uuid.NAMESPACE_URL, f"km:{document_id}:{document_version}:{chunk_id}"))
+                metadata["document_id"] = document_id
+                metadata["document_version"] = document_version
+                metadata["chunk_id"] = chunk_id
+                metadata["source_locator"] = source_locator
+                # Formal ingest is fail-closed: an explicit publication
+                # transaction is required before a chunk can be searchable.
                 lifecycle_status = metadata.get("publish_status")
                 if lifecycle_status in (None, ""):
-                    lifecycle_status = "draft" if is_report else "published"
+                    lifecycle_status = "draft"
                 lifecycle_current = metadata.get("is_current")
                 if lifecycle_current is None:
-                    lifecycle_current = False if is_report else True
+                    lifecycle_current = False
                 metadata["publish_status"] = lifecycle_status
                 metadata["is_current"] = lifecycle_current
                 image_refs = merge_image_refs(
@@ -181,8 +191,10 @@ class VectorStore:
                     "schema_version": metadata.get("schema_version", ""),
                     "publish_status": lifecycle_status,
                     "is_current": lifecycle_current,
-                    "chunk_id": metadata.get("chunk_id", point_id),
-                    "document_version": metadata.get("document_version", ""),
+                    "document_id": document_id,
+                    "chunk_id": chunk_id,
+                    "source_locator": source_locator,
+                    "document_version": document_version,
                     "embedding_version": metadata.get("embedding_version", ""),
                     "embedding_model": metadata.get("embedding_model", self.model_name),
                     "source_file_hash": metadata.get("source_file_hash", metadata.get("content_hash", "")),

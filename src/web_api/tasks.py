@@ -386,6 +386,7 @@ INGEST_UPLOAD_ROOT = Path(os.getenv("KB_INGEST_UPLOAD_ROOT", "data/uploads"))
 SOURCE_METADATA_SUFFIX = ".source.json"
 SUPPORTED_WATCH_EXTENSIONS = {
     ".xlsx", ".xls", ".pdf", ".docx", ".doc", ".pptx", ".ppt",
+    ".png", ".jpg", ".jpeg", ".tif", ".tiff", ".webp",
     ".txt", ".md", ".html", ".csv", ".json", ".xml", ".epub", ".msg"
 }
 

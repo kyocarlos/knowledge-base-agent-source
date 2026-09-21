@@ -43,7 +43,10 @@ def test_ordinary_document_lifecycle_defaults_are_consistent() -> None:
     assert store.add_documents([{"content": "knowledge", "metadata": {}}], "doc")
 
     payload = client.points[0].payload
-    assert payload["publish_status"] == "published"
-    assert payload["is_current"] is True
-    assert payload["metadata"]["publish_status"] == "published"
-    assert payload["metadata"]["is_current"] is True
+    # Formal ingest is fail-closed.  A separate technical publication
+    # transaction must promote a draft; ordinary writes must not become
+    # searchable merely because they reached Qdrant.
+    assert payload["publish_status"] == "draft"
+    assert payload["is_current"] is False
+    assert payload["metadata"]["publish_status"] == "draft"
+    assert payload["metadata"]["is_current"] is False

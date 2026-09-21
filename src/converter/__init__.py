@@ -14,6 +14,7 @@ from markitdown import MarkItDown
 import yaml
 
 from ..chunk_assets import get_document_asset_path, relative_asset_path
+from .file_registry import resolve_parser
 
 logger = logging.getLogger(__name__)
 
@@ -94,6 +95,7 @@ class FileConverter:
             output_path = input_file.with_suffix(".md").resolve()
 
         try:
+            parser_info = resolve_parser(input_file)
             logger.info(f"開始轉換: {input_file.name}")
             content_parts = []
 
@@ -141,6 +143,17 @@ class FileConverter:
             if combined_content:
                 combined_content = self._strip_inline_base64_media(combined_content)
 
+            # A successful process with no searchable text is not a usable
+            # knowledge source.  OCR/Vision adapters may be injected later;
+            # until then, fail closed instead of indexing a placeholder.
+            if not combined_content.strip() or combined_content.strip() == "（本頁未抽取到可用文字，請參考原圖）":
+                return {
+                    "status": "error",
+                    "source": input_file.name,
+                    "error": "content_quality_gate_failed",
+                    **parser_info,
+                }
+
             # 寫入 Markdown 檔案
             output_file = Path(output_path)
             output_file.parent.mkdir(parents=True, exist_ok=True)
@@ -154,13 +167,16 @@ class FileConverter:
                 "content": combined_content,
                 "char_count": len(combined_content),
                 "image_refs": asset_refs,
+                **parser_info,
             }
         except Exception as e:
             logger.error(f"轉換失敗 {input_file.name}: {e}")
             return {
                 "status": "error",
                 "source": input_file.name,
-                "error": str(e)
+                "error": str(e),
+                "parser_name": locals().get("parser_info", {}).get("parser_name", ""),
+                "parser_version": locals().get("parser_info", {}).get("parser_version", ""),
             }
 
     def _build_pdf_enrichment(self, input_file: Path) -> dict:
@@ -382,6 +398,7 @@ class FileConverter:
 
         if file_patterns is None:
             file_patterns = [".pdf", ".docx", ".pptx", ".xlsx", ".xls",
+                             ".png", ".jpg", ".jpeg", ".tif", ".tiff", ".webp",
                              ".txt", ".md", ".html", ".csv", ".json", ".xml"]
 
         results = []

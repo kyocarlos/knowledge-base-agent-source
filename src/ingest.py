@@ -5,6 +5,8 @@
 
 import logging
 import os
+import hashlib
+import json
 import yaml
 from pathlib import Path
 
@@ -605,6 +607,10 @@ def ingest_vector(doc_path: str, storage_category: str | None = None):
 
         for chunk in chunks:
             metadata = chunk.setdefault("metadata", {})
+            metadata.setdefault("document_id", source_metadata.get("document_id") or hashlib.sha256(str(Path(doc_path).resolve()).encode("utf-8")).hexdigest()[:32])
+            metadata.setdefault("document_version", source_metadata.get("document_version") or source_metadata.get("version") or "v1")
+            metadata.setdefault("publish_status", "draft")
+            metadata.setdefault("is_current", False)
             metadata.setdefault("storage_category", resolved_category)
             metadata.setdefault("extraction_mode", extraction_mode)
             for key in (
@@ -613,11 +619,35 @@ def ingest_vector(doc_path: str, storage_category: str | None = None):
             ):
                 if source_metadata.get(key) not in (None, ""):
                     metadata.setdefault(key, source_metadata[key])
+        from src.knowledge_package import package_digest, validate_package
+        if not chunks:
+            raise ValueError("formal ingest requires at least one content chunk")
+        package = validate_package({
+            "schema": "ai_km_knowledge_v1",
+            "document_id": chunks[0]["metadata"]["document_id"],
+            "version": chunks[0]["metadata"]["document_version"],
+            "metadata": {**source_metadata, "source_path": str(Path(doc_path).resolve())},
+            "chunks": [{
+                "content": chunk.get("content", ""),
+                "chunk_id": chunk["metadata"].get("chunk_id"),
+                "source_locator": chunk["metadata"].get("source_locator") or f"chunk:{index}",
+            } for index, chunk in enumerate(chunks)],
+            "nodes": [],
+            "relationships": [],
+            "publish_status": "draft",
+        })
+        package_hash = package_digest(package)
+        for chunk, package_chunk in zip(chunks, package["chunks"]):
+            chunk["metadata"]["chunk_id"] = package_chunk["chunk_id"]
+            chunk["metadata"]["source_locator"] = package_chunk["source_locator"]
+            chunk["metadata"]["package_schema"] = package["schema"]
+            chunk["metadata"]["package_digest"] = package_hash
         logger.info(f"向量攝入: {doc_name}, {len(chunks)} 個區塊")
 
         # 寫入 QDrant
         vector_store = get_vector_store()
-        vector_store.add_documents(chunks, doc_name)
+        if not vector_store.add_documents(chunks, doc_name):
+            raise RuntimeError("QDrant rejected the knowledge package")
 
         logger.info(f"向量攝入完成: {doc_name}")
         return True

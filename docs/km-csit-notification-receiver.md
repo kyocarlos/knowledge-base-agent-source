@@ -34,11 +34,30 @@ KM_CSIT_NOTIFICATION_ENABLED=false
 KM_CSIT_NOTIFICATION_AUTH_TOKEN=(unset)
 KM_CSIT_NOTIFICATION_ELIGIBILITY=disabled
 KM_CSIT_NOTIFICATION_DB=data/csit-notification.sqlite3
+KM_CSIT_NOTIFICATION_LEASE_SECONDS=300
 ```
 
 `test-allow` and `test-hold` are disposable test modes only. There is no
 production secret, browser cookie, real CSIT endpoint, or CSIT database in
 this change.
+
+The durable row also records `claimed_at`, `lease_until`, `heartbeat_at` and
+`attempt_count`. Dispatch uses an atomic conditional claim; an expired
+processing lease can be reclaimed after worker or broker interruption. A
+worker may finish only its current claim, so a stale worker cannot overwrite a
+recovered job.
+
+The processor result is fail-closed. It must return an object with
+`success: true`; when `required_stores` is supplied, every required store must
+also appear in `completed_stores`. False, missing, partial, and exception
+results become `failed` or `partial_failed`, never `completed`.
+
+Formal KM writes now use the canonical `ai_km_knowledge_v1` package contract.
+New Qdrant points default to `publish_status=draft` and `is_current=false`;
+an explicit technical publication transaction must promote a version before
+Search can return it. `src/lifecycle.py` supplies the injected
+stage/commit/rollback coordinator; it does not replace the existing ingest
+pipeline or claim a cross-store transaction that has not been runtime-tested.
 
 ## Reuse reconciliation
 
