@@ -1,0 +1,14 @@
+{
+  "Servers": {
+    "1": {
+      "Name": "KM TimescaleDB (configure readonly password)",
+      "Group": "KM",
+      "Host": "timescaledb",
+      "Port": 5432,
+      "MaintenanceDB": "km_timeseries",
+      "Username": "km_ts_readonly",
+      "SSLMode": "prefer",
+      "Shared": false
+    }
+  }
+}
