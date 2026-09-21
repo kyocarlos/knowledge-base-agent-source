@@ -69,6 +69,11 @@ pipeline or claim a cross-store transaction that has not been runtime-tested.
 | Existing job state | Event status and `job_id` are persisted in the durable receiver store; the processor adapter owns the existing ingest task correlation. |
 | Lifecycle | No delete-first or current-version overwrite is performed by the receiver. |
 
+The legacy `/api/agent/v1/reports` review API remains isolated for
+`external-agent` submissions. A CSIT-originated formal document must enter
+through the notification/technical-ingest boundary; KM reviewer approve/reject
+cannot be used as a second business approval.
+
 The current branch contains the local baseline commit used for this
 maintenance branch; it must not be described as merged into `main`.
 
