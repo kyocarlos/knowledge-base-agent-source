@@ -32,6 +32,7 @@ from .tasks import search_task
 from .cache import cache_get, cache_set
 from ..storage_paths import resolve_storage_category
 from ..search_quality import embedding_model_identity, rerank_mode, reranker_model_identity
+from .csit_notification_routes import router as csit_notification_router
 
 WORKSPACE_DIR = "<project-root>/.openclaw/workspace"
 UPLOAD_RETENTION_LIMIT = 10
@@ -1179,6 +1180,7 @@ app = FastAPI(
 
 from .report_routes import router as report_router
 app.include_router(report_router)
+app.include_router(csit_notification_router)
 
 # CORS 允許前端跨域
 app.add_middleware(

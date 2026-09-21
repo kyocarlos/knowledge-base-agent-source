@@ -1,0 +1,25 @@
+{
+  "task": "KM-CSIT-NOTIFY-PREP",
+  "evidence_type": "sanitized_local_validation",
+  "source_identity": "synthetic-csit-proposed-source",
+  "real_csit_called": false,
+  "production_touched": false,
+  "production_secrets_used": false,
+  "focused_tests": {
+    "command": "python -m pytest -q tests/test_csit_notification_receiver.py",
+    "result": "10 passed",
+    "scope": ["disabled", "auth", "schema", "duplicate", "concurrent_duplicate", "conflict", "hold", "recovery", "fixture_checksum", "http_contract", "existing_pipeline_adapter"]
+  },
+  "compile": "pass",
+  "isolated_runtime": {
+    "receiver": "actual FastAPI router and SQLite durable store",
+    "sender": "simulated in test only",
+    "file_source": "allowlisted synthetic fixture only",
+    "qdrant": "healthcheck_pass; indexing_not_executed",
+    "neo4j": "healthcheck_pass; indexing_not_executed",
+    "timescaledb": "healthcheck_pass; feature_not_executed",
+    "search_provenance": "not_executed",
+    "cleanup_residual": "not_applicable_for_runtime_stores; test tmp paths disposable"
+  },
+  "known_limit": "The formal CSIT auth/event/file contract and deployed KM ingest runtime are not configured in this prep branch; no result claims production indexing or cross-system acceptance."
+}

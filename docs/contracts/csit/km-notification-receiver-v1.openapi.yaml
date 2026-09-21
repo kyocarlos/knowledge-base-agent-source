@@ -1,0 +1,51 @@
+openapi: 3.0.3
+info:
+  title: KM CSIT Notification Receiver (proposed)
+  version: 1.0-draft
+  description: >-
+    KM proposed receive-side contract. This is not the CSIT sender contract
+    and is disabled until S2S auth and eligibility policy are configured.
+paths:
+  /api/v1/integrations/csit/events:
+    post:
+      operationId: receiveCsitEvent
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/NotificationEvent'}
+      responses:
+        '202': {description: Reliably saved; processing is not complete}
+        '401': {description: Unauthenticated}
+        '404': {description: Receiver disabled or not configured}
+        '409': {description: Same event_id with different content}
+        '422': {description: Invalid proposed schema/event type}
+        '503': {description: Durable store unavailable}
+  /api/v1/integrations/csit/events/{event_id}:
+    get:
+      operationId: getCsitEvent
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - {name: event_id, in: path, required: true, schema: {type: string}}
+      responses:
+        '200': {description: Event/job status}
+        '401': {description: Unauthenticated}
+        '404': {description: Not found or receiver disabled}
+components:
+  securitySchemes:
+    bearerAuth: {type: http, scheme: bearer}
+  schemas:
+    NotificationEvent:
+      type: object
+      additionalProperties: false
+      required: [schema_version, event_id, event_type, document_id, document_version, file_ref, occurred_at, correlation_id]
+      properties:
+        schema_version: {type: string, example: 1.0-draft}
+        event_id: {type: string}
+        event_type: {type: string, description: Proposed allowlisted event; Patty confirmation required}
+        document_id: {type: string}
+        document_version: {type: string}
+        file_ref: {type: object, additionalProperties: true}
+        occurred_at: {type: string, format: date-time}
+        correlation_id: {type: string}
