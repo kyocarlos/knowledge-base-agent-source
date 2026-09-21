@@ -128,6 +128,11 @@ def _write_neo4j_document(
     from neo4j import GraphDatabase
 
     result = result or {}
+    document_id = str(result.get("document_id") or hashlib.sha256(f"km-document:{doc_path}".encode("utf-8")).hexdigest()[:32])
+    document_version = str(result.get("document_version") or "v1")
+    namespace = str(result.get("namespace") or storage_category or extraction_mode or "default")
+    source_file_hash = str(result.get("source_file_hash") or "")
+    chunk_id = f"{document_id}:{document_version}:chunk:0"
     driver = GraphDatabase.driver(
         neo4j_uri,
         auth=(neo4j_user, neo4j_password)
@@ -135,34 +140,63 @@ def _write_neo4j_document(
 
     with driver.session() as session:
         session.run("""
-            MERGE (d:Document {name: $name})
+            MERGE (d:Document {document_id: $document_id})
             SET d.content = $content,
+                d.name = $name,
                 d.source = $source,
                 d.extraction_mode = $mode,
-                d.storage_category = $storage_category
-        """, name=doc_name, content=content[:1000], source=doc_path, mode=extraction_mode, storage_category=storage_category or "")
+                d.storage_category = $storage_category,
+                d.source_file_hash = $source_file_hash
+            MERGE (v:DocumentVersion {id: $version_id})
+            SET v.document_id = $document_id,
+                v.version = $document_version,
+                v.source_file_hash = $source_file_hash,
+                v.technical_status = 'draft'
+            MERGE (d)-[:HAS_VERSION]->(v)
+        """, document_id=document_id, name=doc_name, content=content[:1000], source=doc_path,
+            mode=extraction_mode, storage_category=storage_category or "",
+            source_file_hash=source_file_hash, version_id=f"{document_id}:{document_version}",
+            document_version=document_version)
 
         session.run("""
-            MATCH (d:Document {name: $name})
-            CREATE (t:TextUnit {content: $content, source: $source})
-            CREATE (d)-[:CONTAINS]->(t)
-        """, name=doc_name, content=content[:2000], source=doc_name)
+            MATCH (v:DocumentVersion {id: $version_id})
+            MERGE (t:SourceChunk {id: $chunk_id})
+            SET t.content = $content, t.source = $source,
+                t.document_id = $document_id, t.document_version = $document_version,
+                t.source_locator = 'chunk:0'
+            MERGE (v)-[:HAS_CHUNK]->(t)
+            MERGE (v)-[:CONTAINS]->(t)
+        """, version_id=f"{document_id}:{document_version}", chunk_id=chunk_id,
+            content=content[:2000], source=doc_name, document_id=document_id,
+            document_version=document_version)
 
         for entity in result.get("entities", []):
             entity_name = entity.get("Name") or entity.get("name", "")
             if not entity_name:
                 logger.warning(f"實體缺少名稱欄位: {entity}")
                 continue
+            entity_type = str(entity.get("type", "概念"))
+            entity_id = hashlib.sha256(f"{namespace}|{entity_type}|{entity_name.strip().casefold()}".encode("utf-8")).hexdigest()[:32]
             session.run("""
-                MERGE (e:Entity {name: $entity_name})
-                SET e.type = $entity_type,
+                MERGE (e:Entity {entity_id: $entity_id})
+                SET e.name = $entity_name,
+                    e.canonical_name = $entity_name,
+                    e.type = $entity_type,
+                    e.namespace = $namespace,
                     e.description = $entity_desc,
                     e.source = $entity_source,
-                    e.extraction_mode = $mode
-            """, entity_name=entity_name, entity_type=entity.get("type", "概念"),
+                    e.extraction_mode = $mode,
+                    e.document_id = $document_id,
+                    e.document_version = $document_version,
+                    e.source_chunk_id = $chunk_id
+                WITH e
+                MATCH (c:SourceChunk {id: $chunk_id})
+                MERGE (e)-[:EVIDENCED_BY]->(c)
+            """, entity_id=entity_id, entity_name=entity_name.strip(), entity_type=entity_type,
+                namespace=namespace,
                 entity_desc=entity.get("description", ""),
-                entity_source=doc_name,
-                mode=extraction_mode)
+                entity_source=doc_name, mode=extraction_mode, document_id=document_id,
+                document_version=document_version, chunk_id=chunk_id)
 
         for rel in result.get("relationships", []):
             source_name = rel.get("source") or rel.get("Source", "")
@@ -172,15 +206,17 @@ def _write_neo4j_document(
                 continue
             rel_type = rel.get("type") or rel.get("Type", "相關")
             session.run("""
-                MATCH (s:Entity {name: $source_node})
-                MATCH (t:Entity {name: $target_node})
-                MERGE (s)-[r:RELATES_TO {type: $rel_type}]->(t)
+                MATCH (s:Entity {canonical_name: $source_node, namespace: $namespace})
+                MATCH (t:Entity {canonical_name: $target_node, namespace: $namespace})
+                MERGE (s)-[r:RELATES_TO {type: $rel_type, document_id: $document_id, document_version: $document_version}]->(t)
                 SET r.description = $rel_desc,
-                    r.source = $source_doc
-            """, source_node=source_name, target_node=target_name,
+                    r.source = $source_doc,
+                    r.source_chunk_id = $chunk_id
+            """, source_node=source_name.strip(), target_node=target_name.strip(), namespace=namespace,
                 rel_type=rel_type,
                 rel_desc=rel.get("description", ""),
-                source_doc=doc_name)
+                source_doc=doc_name, document_id=document_id,
+                document_version=document_version, chunk_id=chunk_id)
 
     driver.close()
 
@@ -259,10 +295,17 @@ def setup_neo4j_schema():
 
 
 def ingest_document(
-    doc_path: str,
+    doc_path: str | None = None,
     enable_vector: bool = True,
     extraction_mode: str = None,
     preserve_assets: bool = False,
+    replace_existing: bool = False,
+    *,
+    input_path: str | None = None,
+    document_id: str | None = None,
+    document_version: str | None = None,
+    metadata: dict | None = None,
+    event=None,
 ):
     """攝入單一文件
     
@@ -272,6 +315,24 @@ def ingest_document(
         extraction_mode: 萃取模式，可為 4g5g/wifi/lab/project/automation/report/simple，如果為 None 則自動偵測
     """
     
+    doc_path = doc_path or input_path
+    if not doc_path:
+        raise ValueError("doc_path or input_path is required")
+    ingestion_metadata = dict(metadata or {})
+    if document_id:
+        ingestion_metadata.setdefault("document_id", document_id)
+    if document_version:
+        ingestion_metadata.setdefault("document_version", document_version)
+    if event is not None:
+        ingestion_metadata.setdefault("event_id", getattr(event, "event_id", ""))
+
+    def _identity_result(value: dict | None) -> dict:
+        enriched = dict(value or {})
+        for key in ("document_id", "document_version", "source_file_hash", "namespace"):
+            if ingestion_metadata.get(key) not in (None, ""):
+                enriched[key] = ingestion_metadata[key]
+        return enriched
+
     # 根據萃取模式選擇不同的系統提示詞
     from src.extract_entities import get_extraction_prompt, EXTRACTION_MODES
     
@@ -290,11 +351,15 @@ def ingest_document(
     logger.info(f"使用萃取模式: {mode_name}")
     doc_name = Path(doc_path).stem
     content = Path(doc_path).read_text(encoding="utf-8")
-    cleanup_existing_document(
-        doc_name,
-        enable_vector=enable_vector,
-        cleanup_assets=not preserve_assets,
-    )
+    # Never delete the currently searchable version before a new package has
+    # staged and validated.  Legacy destructive cleanup remains an explicit
+    # opt-in for maintenance tooling, outside the formal ingest boundary.
+    if replace_existing:
+        cleanup_existing_document(
+            doc_name,
+            enable_vector=enable_vector,
+            cleanup_assets=not preserve_assets,
+        )
     
     # ============================================================
     # Report 模式：保留文件結構 + chunk 向量，不做實體萃取
@@ -318,7 +383,7 @@ def ingest_document(
                 content=content,
                 extraction_mode=extraction_mode,
                 storage_category=resolve_storage_category(extraction_mode, doc_path),
-                result={"entities": [], "relationships": []},
+                result=_identity_result({"entities": [], "relationships": []}),
             )
             logger.info(f"[Report] Neo4j 文件結構完成: {Path(doc_path).name}")
 
@@ -342,7 +407,7 @@ def ingest_document(
             )
 
             if enable_vector:
-                if not ingest_vector(doc_path):
+                if not ingest_vector(doc_path, metadata=ingestion_metadata):
                     raise RuntimeError("Report 模式 QDrant 寫入失敗")
                 logger.info(f"[Report] QDrant 寫入完成: {Path(doc_path).name}")
 
@@ -358,7 +423,7 @@ def ingest_document(
         logger.info(f"[Vector-only 模式] 直接寫入 QDrant，不經 LLM / Neo4j: {extraction_mode}")
         try:
             if enable_vector:
-                if not ingest_vector(doc_path, storage_category=resolve_storage_category(extraction_mode, doc_path)):
+                if not ingest_vector(doc_path, storage_category=resolve_storage_category(extraction_mode, doc_path), metadata=ingestion_metadata):
                     raise RuntimeError("Vector-only 模式 QDrant 寫入失敗")
                 logger.info(f"[Vector-only] QDrant 寫入完成: {Path(doc_path).name}")
             return True
@@ -397,7 +462,7 @@ def ingest_document(
                         content=content,
                         extraction_mode="report",
                         storage_category=resolve_storage_category("report", doc_path),
-                        result={"entities": [], "relationships": []},
+                        result=_identity_result({"entities": [], "relationships": []}),
                     )
                     write_report_graph(
                         neo4j_uri=neo4j_uri,
@@ -419,7 +484,7 @@ def ingest_document(
                     logger.warning(f"[Type6] 報告圖譜寫入失敗: {graph_exc}")
 
             # 只寫入向量資料庫
-            if not ingest_vector(doc_path):
+            if not ingest_vector(doc_path, metadata=ingestion_metadata):
                 raise RuntimeError("Type6 模式 QDrant 寫入失敗")
             logger.info(f"[Type6] QDrant 寫入完成: {Path(doc_path).name}")
 
@@ -489,7 +554,7 @@ def ingest_document(
                 content=content,
                 extraction_mode=extraction_mode,
                 storage_category=resolve_storage_category(extraction_mode, doc_path),
-                result=result,
+                result=_identity_result(result),
             )
             logger.info(f"[Step 2/4] Neo4j 寫入完成: {doc_name}")
             logger.info(f"  - 實體: {len(result.get('entities', []))}")
@@ -498,11 +563,12 @@ def ingest_document(
             if enable_vector:
                 logger.info(f"[Step 3/4] 開始寫入 QDrant: {doc_path}")
                 try:
-                    if not ingest_vector(doc_path, storage_category=resolve_storage_category(extraction_mode, doc_path)):
+                    if not ingest_vector(doc_path, storage_category=resolve_storage_category(extraction_mode, doc_path), metadata=ingestion_metadata):
                         raise RuntimeError("QDrant 寫入失敗")
                     logger.info(f"[Step 3/4] QDrant 寫入完成: {doc_name}")
                 except Exception as ve:
-                    logger.warning(f"[Step 3/4] QDrant 寫入失敗，已略過: {ve}")
+                    logger.error(f"[Step 3/4] QDrant 寫入失敗，整體 ingest fail-closed: {ve}")
+                    raise RuntimeError("required store qdrant failed") from ve
 
             return True
         except Exception as llm_error:
@@ -517,7 +583,7 @@ def ingest_document(
                 content=content,
                 extraction_mode=extraction_mode,
                 storage_category=resolve_storage_category(extraction_mode, doc_path),
-                result=result,
+                result=_identity_result(result),
             )
             logger.info(f"[Step 2/4] Neo4j 寫入完成: {doc_name}")
             logger.info(f"  - 實體: {len(result.get('entities', []))}")
@@ -527,11 +593,12 @@ def ingest_document(
             if enable_vector:
                 logger.info(f"[Step 3/4] 開始寫入 QDrant: {doc_path}")
                 try:
-                    if not ingest_vector(doc_path, storage_category=resolve_storage_category(extraction_mode, doc_path)):
+                    if not ingest_vector(doc_path, storage_category=resolve_storage_category(extraction_mode, doc_path), metadata=ingestion_metadata):
                         raise RuntimeError("QDrant 寫入失敗")
                     logger.info(f"[Step 3/4] QDrant 寫入完成: {doc_name}")
                 except Exception as ve:
-                    logger.warning(f"[Step 3/4] QDrant 寫入失敗，已略過: {ve}")
+                    logger.error(f"[Step 3/4] QDrant 寫入失敗，整體 ingest fail-closed: {ve}")
+                    raise RuntimeError("required store qdrant failed") from ve
 
             return True
             
@@ -557,11 +624,12 @@ def ingest_document(
             if enable_vector:
                 logger.info(f"[Fallback] 開始寫入 QDrant: {doc_path}")
                 try:
-                    if not ingest_vector(doc_path, storage_category=resolve_storage_category(extraction_mode, doc_path)):
+                    if not ingest_vector(doc_path, storage_category=resolve_storage_category(extraction_mode, doc_path), metadata=ingestion_metadata):
                         raise RuntimeError("QDrant 寫入失敗")
                     logger.info(f"[Fallback] QDrant 寫入完成: {doc_name}")
                 except Exception as ve:
-                    logger.warning(f"[Fallback] QDrant 寫入失敗，已略過: {ve}")
+                    logger.error(f"[Fallback] QDrant 寫入失敗，整體 ingest fail-closed: {ve}")
+                    raise RuntimeError("required store qdrant failed") from ve
 
             return True
             
@@ -570,7 +638,7 @@ def ingest_document(
         return False
 
 
-def ingest_vector(doc_path: str, storage_category: str | None = None):
+def ingest_vector(doc_path: str, storage_category: str | None = None, metadata: dict | None = None):
     """將文件寫入向量資料庫"""
     try:
         from src.vector_store import get_vector_store
@@ -597,7 +665,7 @@ def ingest_vector(doc_path: str, storage_category: str | None = None):
         elif resolved_category == "Simple":
             extraction_mode = "simple"
 
-        source_metadata = {}
+        source_metadata = dict(metadata or {})
         metadata_path = Path(doc_path).with_name(f"{Path(doc_path).stem}.source.json")
         if metadata_path.exists():
             try:
