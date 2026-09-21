@@ -18,7 +18,9 @@ This branch implements the KM-owned, testable portion of
   explicit processor result semantics, and status query visibility.
 - MIME/signature registry with parser name/version; known binary extension
   mismatches fail closed. Standalone image formats are included in the watch
-  allowlist. Empty conversion output fails the quality gate.
+  allowlist. Empty conversion output fails the quality gate. DOCX heading/table
+  and PPTX slide/text structure is retained with locatable section/slide
+  markers.
 - Focused unit/contract tests and CI path coverage for the above.
 
 ## Deliberately not frozen or claimed complete
@@ -48,4 +50,3 @@ The local isolated run completed with `53 passed` after installing the
 repository's CI dependencies. Compile, YAML parsing, and `git diff --check`
 also passed. No CSIT endpoint, Production secret, Production database, or
 Production deployment was used.
-

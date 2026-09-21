@@ -17,6 +17,7 @@ on:
       - 'tests/test_knowledge_package.py'
       - 'tests/test_lifecycle.py'
       - 'tests/test_file_registry.py'
+      - 'tests/test_structured_office_parser.py'
       - 'tests/test_vector_store_lifecycle.py'
       - 'docs/contracts/csit/**'
       - 'docs/km-csit-notification-*.md'
@@ -38,5 +39,5 @@ jobs:
         with:
           python-version: '3.12'
       - run: python -m pip install --disable-pip-version-check -r requirements-ci.txt
-      - run: python -m pytest -q tests/test_csit_notification_receiver.py tests/test_knowledge_package.py tests/test_lifecycle.py tests/test_file_registry.py tests/test_vector_store_lifecycle.py
+      - run: python -m pytest -q tests/test_csit_notification_receiver.py tests/test_knowledge_package.py tests/test_lifecycle.py tests/test_file_registry.py tests/test_structured_office_parser.py tests/test_vector_store_lifecycle.py
       - run: python -m compileall -q src/csit/notification.py src/knowledge_package.py src/lifecycle.py src/converter src/ingest.py src/vector_store src/web_api/csit_notification_routes.py
