@@ -6,6 +6,7 @@ import json
 import os
 import tempfile
 import time
+from copy import deepcopy
 from pathlib import Path
 import sys
 
@@ -17,8 +18,9 @@ from openpyxl import Workbook
 from src.test_reports.excel_contract import parse_and_validate_report
 from src.timeseries_store import TimeseriesStore
 
-DB_URL = os.getenv("KM_TIMESERIES_DATABASE_URL", "postgresql://km_ci:ci-timescale-password@127.0.0.1:15433/km_ci")
-READONLY_URL = os.getenv("KM_TIMESERIES_READONLY_URL", "postgresql://km_ts_readonly:ci-timeseries-readonly@127.0.0.1:15433/km_ci")
+CI_PORT = os.getenv("KM_TS_CI_DB_PORT", "15434")
+DB_URL = os.getenv("KM_TIMESERIES_DATABASE_URL", f"postgresql://km_ci:ci-timescale-password@127.0.0.1:{CI_PORT}/km_ci")
+READONLY_URL = os.getenv("KM_TIMESERIES_READONLY_URL", f"postgresql://km_ts_readonly:ci-timeseries-readonly@127.0.0.1:{CI_PORT}/km_ci")
 
 
 def make_fixture(path: Path) -> str:
@@ -87,6 +89,16 @@ def main() -> int:
     samples = store.get_samples("KM-TS-CI-001", "r1", "KM-CI", metric="throughput", limit=10)
     if len(summary) != 1 or summary[0]["avg_value"] != 20 or len(samples) != 3:
         raise RuntimeError("summary or query golden expectation failed")
+    second = deepcopy(parsed)
+    second["manifest"]["revision"] = "r2"
+    second["measurements"][0]["value"] = 40
+    store.ingest_report(second, document_id="doc:KM-TS-CI-001", document_version="r2",
+                        source_file_name="KM_TS_CI_r2.xlsx", source_file_sha256=digest,
+                        publish_status="published", is_current=True,
+                        acl={"project_code": "KM-CI"})
+    visible = store.list_runs("KM-CI")
+    if len(visible) != 1 or visible[0]["document_version"] != "r2":
+        raise RuntimeError("current-version protection expectation failed")
     with psycopg.connect(DB_URL) as conn:
         hypertable = conn.execute("SELECT hypertable_name FROM timescaledb_information.hypertables WHERE hypertable_name='metric_sample'").fetchone()
         conn.execute("""DO $$ BEGIN
@@ -101,8 +113,8 @@ def main() -> int:
     if not hypertable:
         raise RuntimeError("metric_sample is not a Timescale hypertable")
     with psycopg.connect(READONLY_URL) as conn:
-        if conn.execute("SELECT count(*) FROM metric_sample").fetchone()[0] != 3:
-            raise RuntimeError("readonly query did not see persisted samples")
+        if conn.execute("SELECT count(*) FROM metric_sample").fetchone()[0] != 6:
+            raise RuntimeError("readonly query did not see current and historical samples")
         try:
             conn.execute("INSERT INTO test_run(run_id,document_id,document_version,source_file_name,source_file_sha256,project_code,dut_model,started_at,finished_at,overall_verdict) VALUES ('nope','nope','nope','nope','nope','nope','nope',now(),now(),'pass')")
         except psycopg.errors.InsufficientPrivilege:
@@ -111,7 +123,8 @@ def main() -> int:
             raise RuntimeError("readonly role could write")
     print(json.dumps({"status": "PASS", "migration_applied": applied, "migration_rerun_safe": True, "hypertable": "metric_sample",
                       "rows": {"samples": len(samples), "summary": len(summary)},
-                      "idempotent_repeat": True, "readonly": {"select": True, "insert_denied": True}}, ensure_ascii=False))
+                      "idempotent_repeat": True, "current_version_protected": True,
+                      "readonly": {"select": True, "insert_denied": True}}, ensure_ascii=False))
     return 0
 
 

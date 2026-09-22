@@ -32,7 +32,7 @@ the authoritative file; TimescaleDB contains structured values and provenance.
 ## Migration
 
 Run `python scripts/apply_timeseries_migrations.py` with a controlled
-`KM_TIMESERIES_DATABASE_URL` using a migration-capable account. The API does
+`KM_TIMESERIES_MIGRATION_URL` using a migration-capable account. The API does
 not create tables. Destructive downgrade and automatic historical backfill are
 out of scope.
 

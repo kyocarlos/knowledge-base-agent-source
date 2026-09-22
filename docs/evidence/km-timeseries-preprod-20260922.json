@@ -1,0 +1,35 @@
+{
+  "evidence_id": "km-timeseries-preprod-20260922",
+  "scope": "isolated local pre-production-equivalent verification",
+  "base_commit": "eed5bad",
+  "timescaledb": {
+    "image": "timescale/timescaledb:2.17.2-pg16",
+    "hypertable": "metric_sample",
+    "migration_idempotent": true,
+    "current_version_protected": true,
+    "readonly_select": true,
+    "readonly_insert_denied": true
+  },
+  "pgadmin": {
+    "localhost_only": true,
+    "management_http": 200,
+    "server_registration": "mounted",
+    "readonly_role_verified": true
+  },
+  "verification": {
+    "pytest": "61 passed",
+    "frontend_build": "PASS",
+    "ui_browser": "PASS using deterministic local API fixture",
+    "cleanup_residual_for_test_run": {
+      "test_run": 0,
+      "metric_sample": 0,
+      "test_run_summary": 0
+    }
+  },
+  "boundaries": {
+    "preproduction_host_deployment": "NOT_EXECUTED",
+    "real_csit": "NOT_EXECUTED",
+    "production": "NOT_AUTHORIZED",
+    "real_km_search_provenance": "NOT_EXECUTED; requires target-host fixture and approved runtime"
+  }
+}

@@ -107,6 +107,12 @@ class TimeseriesStore:
             summaries.setdefault((case_id, metric, unit), []).append(value)
 
         with self._connect() as conn:
+            # A newer approved version replaces the visible current version
+            # atomically. Historical rows remain available for audit only.
+            if is_current:
+                conn.execute("""UPDATE test_run SET is_current=false, updated_at=now()
+                    WHERE run_id=%s AND document_version<>%s AND is_current=true""",
+                             (run_id, document_version))
             conn.execute("""INSERT INTO test_run
                 (run_id,document_id,document_version,revision,package_id,report_id,source_file_name,
                  source_file_sha256,project_code,dut_model,firmware,test_case,band,direction,started_at,

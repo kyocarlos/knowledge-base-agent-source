@@ -13,10 +13,14 @@ from src.timeseries_store import TimeseriesStore
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--database-url", default=None)
+    parser.add_argument("--database-url", default=None,
+                        help="migration-capable URL; prefer secret injection over a shell argument")
     args = parser.parse_args()
     try:
-        applied = TimeseriesStore(args.database_url or os.getenv("KM_TIMESERIES_DATABASE_URL")).apply_migrations()
+        database_url = args.database_url or os.getenv("KM_TIMESERIES_MIGRATION_URL")
+        if not database_url:
+            raise RuntimeError("KM_TIMESERIES_MIGRATION_URL is required")
+        applied = TimeseriesStore(database_url).apply_migrations()
     except Exception as exc:
         print(f"TIMESERIES_MIGRATION_FAIL {type(exc).__name__}", file=sys.stderr)
         return 1

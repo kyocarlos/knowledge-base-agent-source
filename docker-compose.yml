@@ -104,7 +104,7 @@ services:
       - CHAT_GLOBAL_CONCURRENCY_LIMIT=1
       - KB_REPORT_REGISTRY_URL=postgresql://kb_report:${KB_REPORT_DB_PASSWORD}@report_registry:5432/kb_reports
       - KB_REPORT_STAGING_ROOT=/app/data/report-staging
-      - KM_TIMESERIES_DATABASE_URL=postgresql://km_timeseries:${KB_TIMESERIES_DB_PASSWORD}@timescaledb:5432/km_timeseries
+      - KM_TIMESERIES_DATABASE_URL=postgresql://${KB_TIMESERIES_DB_USER:-km_timeseries}:${KB_TIMESERIES_DB_PASSWORD}@timescaledb:5432/${KB_TIMESERIES_DB_NAME:-km_timeseries}
       - KB_AGENT_TOKEN_HASHES_JSON=${KB_AGENT_TOKEN_HASHES_JSON:-{}}
       - KB_REVIEWER_TOKEN_HASHES_JSON=${KB_REVIEWER_TOKEN_HASHES_JSON:-{}}
       - KM_RERANK_MODE=${KM_RERANK_MODE:-active}
@@ -181,7 +181,7 @@ services:
       - KB_INGEST_UPLOAD_ROOT=/app/data/uploads
       - KB_REPORT_REGISTRY_URL=postgresql://kb_report:${KB_REPORT_DB_PASSWORD}@report_registry:5432/kb_reports
       - KB_REPORT_STAGING_ROOT=/app/data/report-staging
-      - KM_TIMESERIES_DATABASE_URL=postgresql://km_timeseries:${KB_TIMESERIES_DB_PASSWORD}@timescaledb:5432/km_timeseries
+      - KM_TIMESERIES_DATABASE_URL=postgresql://${KB_TIMESERIES_DB_USER:-km_timeseries}:${KB_TIMESERIES_DB_PASSWORD}@timescaledb:5432/${KB_TIMESERIES_DB_NAME:-km_timeseries}
     volumes:
       - ./config:/app/config:ro
       - ./data:<project-root>/knowledge-base/data
