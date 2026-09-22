@@ -49,6 +49,10 @@
           </svg>
           <span>報告待審</span>
         </router-link>
+        <router-link to="/reports/timeseries" class="nav-link">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19V5M4 19h16"/><path d="m7 15 3-4 3 2 5-7"/></svg>
+          <span>報告數據</span>
+        </router-link>
         <router-link to="/skills" class="nav-link">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>

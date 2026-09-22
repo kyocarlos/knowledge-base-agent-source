@@ -1,0 +1,15 @@
+{
+  "Servers": {
+    "1": {
+      "Name": "KM TimescaleDB (readonly CI)",
+      "Group": "KM",
+      "Host": "timescaledb",
+      "Port": 5432,
+      "MaintenanceDB": "km_ci",
+      "Username": "km_ts_readonly",
+      "Password": "ci-timescale-readonly",
+      "SSLMode": "prefer",
+      "Shared": false
+    }
+  }
+}

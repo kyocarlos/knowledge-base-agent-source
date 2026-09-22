@@ -31,6 +31,37 @@ services:
       timeout: 5s
       retries: 5
 
+  timescaledb:
+    image: timescale/timescaledb:2.17.2-pg16
+    container_name: kb-timescaledb
+    environment:
+      POSTGRES_DB: ${KB_TIMESERIES_DB_NAME:-km_timeseries}
+      POSTGRES_USER: ${KB_TIMESERIES_DB_USER:-km_timeseries}
+      POSTGRES_PASSWORD: ${KB_TIMESERIES_DB_PASSWORD:?KB_TIMESERIES_DB_PASSWORD must be set}
+    volumes:
+      - timeseries_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  pgadmin:
+    image: dpage/pgadmin4:8.14
+    container_name: kb-pgadmin
+    ports:
+      - "127.0.0.1:${KM_PGADMIN_PORT:-5050}:80"
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${KM_PGADMIN_EMAIL:?KM_PGADMIN_EMAIL must be set}
+      PGADMIN_DEFAULT_PASSWORD: ${KM_PGADMIN_PASSWORD:?KM_PGADMIN_PASSWORD must be set}
+      PGADMIN_CONFIG_SERVER_MODE: "True"
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+      - ./deploy/pgadmin/servers.json:/pgadmin4/servers.json:ro
+    depends_on:
+      timescaledb:
+        condition: service_healthy
+
   # ===== Neo4j - 知識圖譜資料庫 =====
   neo4j:
     image: neo4j:latest
@@ -73,6 +104,7 @@ services:
       - CHAT_GLOBAL_CONCURRENCY_LIMIT=1
       - KB_REPORT_REGISTRY_URL=postgresql://kb_report:${KB_REPORT_DB_PASSWORD}@report_registry:5432/kb_reports
       - KB_REPORT_STAGING_ROOT=/app/data/report-staging
+      - KM_TIMESERIES_DATABASE_URL=postgresql://${KB_TIMESERIES_DB_USER:-km_timeseries}:${KB_TIMESERIES_DB_PASSWORD}@timescaledb:5432/${KB_TIMESERIES_DB_NAME:-km_timeseries}
       - KB_AGENT_TOKEN_HASHES_JSON=${KB_AGENT_TOKEN_HASHES_JSON:-{}}
       - KB_REVIEWER_TOKEN_HASHES_JSON=${KB_REVIEWER_TOKEN_HASHES_JSON:-{}}
       - KM_RERANK_MODE=${KM_RERANK_MODE:-active}
@@ -95,6 +127,8 @@ services:
       neo4j:
         condition: service_healthy
       report_registry:
+        condition: service_healthy
+      timescaledb:
         condition: service_healthy
     command: uvicorn src.web_api:app --host 0.0.0.0 --port 8000 --workers 4
 
@@ -147,6 +181,7 @@ services:
       - KB_INGEST_UPLOAD_ROOT=/app/data/uploads
       - KB_REPORT_REGISTRY_URL=postgresql://kb_report:${KB_REPORT_DB_PASSWORD}@report_registry:5432/kb_reports
       - KB_REPORT_STAGING_ROOT=/app/data/report-staging
+      - KM_TIMESERIES_DATABASE_URL=postgresql://${KB_TIMESERIES_DB_USER:-km_timeseries}:${KB_TIMESERIES_DB_PASSWORD}@timescaledb:5432/${KB_TIMESERIES_DB_NAME:-km_timeseries}
     volumes:
       - ./config:/app/config:ro
       - ./data:<project-root>/knowledge-base/data
@@ -159,6 +194,8 @@ services:
       neo4j:
         condition: service_healthy
       report_registry:
+        condition: service_healthy
+      timescaledb:
         condition: service_healthy
     command: celery -A src.web_api.tasks:celery_app worker --loglevel=info --concurrency=1 -Q ingest
 
@@ -206,3 +243,5 @@ volumes:
   neo4j_data:
   neo4j_logs:
   report_registry_data:
+  timeseries_data:
+  pgadmin_data:

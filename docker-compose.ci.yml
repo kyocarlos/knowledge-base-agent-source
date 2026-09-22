@@ -2,7 +2,7 @@ services:
   qdrant:
     image: qdrant/qdrant:v1.12.1
     ports:
-      - "127.0.0.1:16333:6333"
+      - "127.0.0.1:${KM_TS_CI_QDRANT_PORT:-16334}:6333"
 
   neo4j:
     image: neo4j:5.26-community
@@ -10,7 +10,7 @@ services:
       NEO4J_AUTH: neo4j/ci-neo4j-password
       NEO4J_PLUGINS: "[]"
     ports:
-      - "127.0.0.1:17688:7687"
+      - "127.0.0.1:${KM_TS_CI_NEO4J_PORT:-17689}:7687"
     healthcheck:
       test: ["CMD-SHELL", "cypher-shell -u neo4j -p ci-neo4j-password 'RETURN 1' >/dev/null"]
       interval: 5s
@@ -24,9 +24,29 @@ services:
       POSTGRES_USER: km_ci
       POSTGRES_PASSWORD: ci-timescale-password
     ports:
-      - "127.0.0.1:15433:5432"
+      - "127.0.0.1:${KM_TS_CI_DB_PORT:-15434}:5432"
+    volumes:
+      - timescaledb_data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U km_ci -d km_ci"]
       interval: 5s
       timeout: 3s
       retries: 20
+
+  pgadmin:
+    image: dpage/pgadmin4:8.14
+    ports:
+      - "127.0.0.1:${KM_TS_CI_PGADMIN_PORT:-15051}:80"
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ci-admin@example.com
+      PGADMIN_DEFAULT_PASSWORD: ci-pgadmin-password
+      PGADMIN_CONFIG_SERVER_MODE: "True"
+      PGADMIN_REPLACE_SERVERS_ON_STARTUP: "True"
+    volumes:
+      - ./deploy/pgadmin/servers.ci.json:/pgadmin4/servers.json:ro
+    depends_on:
+      timescaledb:
+        condition: service_healthy
+
+volumes:
+  timescaledb_data:

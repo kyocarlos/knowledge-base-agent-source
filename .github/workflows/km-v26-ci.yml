@@ -62,6 +62,23 @@ jobs:
         run: docker compose -f docker-compose.ci.yml up -d --wait
       - name: Run Qdrant, Neo4j, and TimescaleDB contracts
         run: python scripts/ci_db_smoke.py
+      - name: Run KM-TS-REPORT migration/import/readonly contracts
+        env:
+          KM_TIMESERIES_DATABASE_URL: postgresql://km_ci:ci-timescale-password@127.0.0.1:15434/km_ci
+          KM_TIMESERIES_READONLY_URL: postgresql://km_ts_readonly:ci-timescale-readonly@127.0.0.1:15434/km_ci
+        run: python scripts/ci_timeseries_report.py
+      - name: Verify isolated pgAdmin management and readonly datasource
+        env:
+          KM_PGADMIN_URL: http://127.0.0.1:15051
+          PGADMIN_DEFAULT_EMAIL: ci-admin@example.com
+          PGADMIN_DEFAULT_PASSWORD: ci-pgadmin-password
+        run: python scripts/verify_pgadmin.py
+      - name: Verify pgAdmin loaded the KM Timescale server registration
+        run: docker compose -f docker-compose.ci.yml logs --no-color pgadmin | grep -E 'Added [1-9][0-9]* Server'
+      - name: Cleanup isolated KM-TS-REPORT fixture and count residuals
+        env:
+          KM_TIMESERIES_DATABASE_URL: postgresql://km_ci:ci-timescale-password@127.0.0.1:15434/km_ci
+        run: python scripts/cleanup_timeseries_evidence.py
       - name: Remove isolated databases
         if: always()
         run: docker compose -f docker-compose.ci.yml down -v
