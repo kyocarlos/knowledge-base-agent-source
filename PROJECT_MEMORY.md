@@ -1,5 +1,20 @@
 # Project Memory
 
+## 2026-09-22 TimescaleDB 正式前導入準備
+
+- 建立相依 PR #61：`agent/km-timeseries-preprod-v2-20260922`，base 為 PR #59 head
+  `eed5bad`，因 TimescaleDB 必須重用該分支既有的 KM receiver／parser／ingest 基線；不可
+  直接把 PR #60 的混合改動當成 Production 導入包。
+- 導入獨立 `timescaledb`、localhost-only pgAdmin、migration-only URL、readonly-role
+  provisioning、preflight、current-version 保護及 scoped cleanup；API／worker 不建表。
+- 證據：本地 `61 passed`、Vue build PASS、Webwright fixture UI PASS；GitHub head
+  `c1ae54e` 的 receiver contract run `35679421249` 與 Timescale contract run
+  `35679421306` 都成功。隔離 test run residual 為 test_run=0、metric_sample=0、
+  test_run_summary=0，隔離 Docker project 已移除。
+- 邊界：正式前主機 deployment、真實 CSIT、真實 KM Search provenance 與 Production
+  均未執行；receiver 維持預設 disabled，任何實機演練都需既有受控 runbook 與一次性
+  測試憑證。
+
 - 2026-07-21 已依使用者要求新增第二份外部 agent 攝入規格文件 [`EXTERNAL_AGENT_KB_INGEST_APIS.md`](<project-root>/knowledge-base/EXTERNAL_AGENT_KB_INGEST_APIS.md)。文件與既有 [`EXTERNAL_AGENT_KB_QUERY_APIS.md`](<project-root>/knowledge-base/EXTERNAL_AGENT_KB_QUERY_APIS.md) 分工：query 文件維持 read-only 查詢，ingest 文件描述 write/ingest 流程。新文件以 `https://127.0.0.1:3030` 為預設 base URL，說明外部 agent 應透過 `POST /api/upload/ingest?extraction_mode=<mode>` multipart 上傳檔案，再用 `GET /api/upload/tasks/{task_id}` 輪詢狀態；列出支援格式、200MB multipart part 上限、`4g5g/wifi/lab/project/automation` 模式、`queued -> upload_saved -> converting -> converted -> extracting -> writing_neo4j -> writing_qdrant -> refreshing_index -> completed/failed` 狀態生命週期、重複檔案 hash 去重語意、批次上傳模式、watch folder 替代方案、Markdown 測試結果 artifact 建議格式，以及正式部署安全建議。文件明確要求外部 agent 不直接連 Neo4j/Qdrant/Redis/File Store，而是只傳 artifact 給 KB API，由 KB 後端 Celery `ingest_file_task` 轉 Markdown、寫 `.source.json`、呼叫 `ingest_document()`、清舊資料、寫 Neo4j 與 Qdrant 並更新 index。已檢查文件章節，檔案共 458 行。
 - 2026-07-21 已分析使用者問題「EXTERNAL_AGENT_KB_QUERY_APIS.md 外部如何傳送到檔案後端的 Neo4j/Qdrant」。結論：`EXTERNAL_AGENT_KB_QUERY_APIS.md` 目前是外部 agent 的受控查詢文件，明確排除 `/upload/*`、`/api/upload/*`，因此它本身不提供傳檔寫入 Neo4j/Qdrant 的能力。外部傳檔進 KB 後端的正確路徑應是另一份 ingest 規格：外部 agent 以 multipart 呼叫 `POST /api/upload/ingest?extraction_mode=<4g5g|wifi|lab|project|automation>` 上傳檔案，KB web 接收後寫入 `data/uploads/<category>/<task_id>/original/`、建立 Redis ingest task state、派發 Celery `ingest_file_task` 到 ingest queue；worker 轉 Markdown 到 `converted/`、寫 `.source.json`、呼叫 `ingest_document()`，由 KB 端統一清舊資料、萃取/建立 Neo4j 圖譜資料、寫入 Qdrant 向量點、更新 index；外部再用 `GET /api/upload/tasks/{task_id}` 輪詢 `writing_neo4j`、`writing_qdrant`、`completed/failed`。建議不要讓外部 agent 直連 Neo4j/Qdrant；若要讓外部 agent 同時查詢與上傳，應新增一份 `EXTERNAL_AGENT_KB_INGEST_APIS.md` 或在現有文件中新增受控寫入章節，但 token scope 必須與 query read-only 分離。
 - 2026-07-20 已依使用者要求讀取專案記憶與全域 OpenClaw 記憶，追查最後完整啟動 knowledge-base 的方法。結論：目前應以 repository 內的 [`restart_kb.sh`](<project-root>/knowledge-base/restart_kb.sh) 為正式完整啟動入口，而不是較舊的 `start.sh`。全域記憶 `<project-root>/.openclaw/workspace/MEMORY.md` 也明確記錄啟動方式為 `cd <project-root>/knowledge-base && ./restart_kb.sh`。目前腳本流程會先檢查宿主機 Ollama `127.0.0.1:11434`，啟動/建立獨立 `kb-qdrant`，移除 KB 自己的舊容器（不碰 AnythingLLM），以 `KB_FRONTEND_BUILD_DIR=<project-root>/knowledge-base/.frontend-build-runtime-user8` 重建前端並複製 `chat.html` 與前端 lib，接著執行 `docker compose up -d --build redis neo4j web celery_search_worker celery_ingest_worker celery_beat nginx`，最後檢查 `3030/6335/17474/17687/11434`、`https://127.0.0.1:3030/health`、`chat.html`、容器內 `http://127.0.0.1:8000/health`、Qdrant health、容器到 Ollama 與 WebSocket proxy smoke test。需注意全域舊記憶曾提 `.frontend-build`，但目前實際 repo 已改為 `.frontend-build-runtime-user8`，必須以現有 `restart_kb.sh` / `docker-compose.yml` 為準。
