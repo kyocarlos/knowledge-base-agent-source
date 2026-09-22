@@ -1,0 +1,50 @@
+name: KM TimescaleDB pre-production contract
+
+on:
+  pull_request:
+    branches: [main, agent/km-phase1-patty-review-fixes-20260921]
+    paths:
+      - '.github/workflows/km-timeseries-preprod.yml'
+      - 'docker-compose.ci.yml'
+      - 'deploy/pgadmin/**'
+      - 'migrations/timeseries/**'
+      - 'scripts/*timeseries*'
+      - 'src/timeseries_store.py'
+      - 'src/web_api/timeseries_routes.py'
+      - 'tests/test_timeseries_*.py'
+      - 'requirements-ci.txt'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  timeseries-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install --disable-pip-version-check -r requirements-ci.txt
+      - run: python -m pytest -q tests/test_timeseries_store.py tests/test_timeseries_routes.py tests/test_timeseries_preflight.py
+      - run: docker compose -p km-timeseries-ci -f docker-compose.ci.yml up -d --wait
+      - name: Verify migrations, persistence, current version, and readonly role
+        env:
+          KM_TIMESERIES_DATABASE_URL: postgresql://km_ci:ci-timescale-password@127.0.0.1:15434/km_ci
+          KM_TIMESERIES_READONLY_URL: postgresql://km_ts_readonly:ci-timescale-readonly@127.0.0.1:15434/km_ci
+        run: python scripts/ci_timeseries_report.py
+      - name: Verify pgAdmin registration and management entry
+        env:
+          KM_PGADMIN_URL: http://127.0.0.1:15051
+          PGADMIN_DEFAULT_EMAIL: ci-admin@example.com
+          PGADMIN_DEFAULT_PASSWORD: ci-pgadmin-password
+        run: python scripts/verify_pgadmin.py
+      - name: Clean test run and prove scoped residuals
+        if: always()
+        env:
+          KM_TIMESERIES_DATABASE_URL: postgresql://km_ci:ci-timescale-password@127.0.0.1:15434/km_ci
+        run: python scripts/cleanup_timeseries_evidence.py
+      - name: Remove isolated services
+        if: always()
+        run: docker compose -p km-timeseries-ci -f docker-compose.ci.yml down -v
