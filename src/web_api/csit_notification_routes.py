@@ -12,7 +12,14 @@ _receiver: NotificationReceiver | None = None
 def get_receiver() -> NotificationReceiver:
     global _receiver
     if _receiver is None:
-        _receiver = NotificationReceiver(ReceiverConfig.from_env())
+        config = ReceiverConfig.from_env()
+        processor = None
+        if config.usable():
+            # Import only for the explicitly enabled test window.  A missing
+            # fixture allowlist keeps the receiver fail-closed at dispatch.
+            from ..csit.notification_pipeline import build_configured_processor
+            processor = build_configured_processor()
+        _receiver = NotificationReceiver(config, processor=processor)
     return _receiver
 
 
@@ -23,8 +30,8 @@ def _error(exc: NotificationError) -> HTTPException:
 @router.post("/events", status_code=202)
 async def receive_csit_event(payload: dict, background_tasks: BackgroundTasks,
                              authorization: str | None = Header(default=None)):
-    receiver = get_receiver()
     try:
+        receiver = get_receiver()
         result = receiver.receive(payload, authorization)
     except NotificationError as exc:
         raise _error(exc) from exc

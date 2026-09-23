@@ -635,6 +635,14 @@ def ingest_file_task(self, task_id: str):
                     "schema_version": manifest["schema_version"],
                     "storage_category": "Report",
                     "extraction_mode": "report",
+                    "document_id": state.get("document_id") or f"report:{manifest['environment']}:{manifest['run_id']}",
+                    "document_version": str(state.get("document_version") or manifest.get("revision") or "1"),
+                    "package_id": state.get("package_id"),
+                    "source_system": state.get("source_system", "KM"),
+                    "event_id": state.get("event_id"),
+                    "correlation_id": state.get("correlation_id"),
+                    "publish_status": state.get("publish_status", "draft"),
+                    "is_current": bool(state.get("is_current", False)),
                 }, ensure_ascii=False, indent=2),
                 encoding="utf-8",
             )
@@ -739,6 +747,25 @@ def ingest_file_task(self, task_id: str):
             except Exception as registry_error:
                 logger.error("同步 report submission 失敗狀態失敗: %s", registry_error)
         return failed_state
+
+
+@celery_app.task(name="tasks.ingest_csit_notification_task", bind=True, acks_late=True, reject_on_worker_lost=True, max_retries=0)
+def ingest_csit_notification_task(self, task_id: str, receipt_db: str, source_identity: str, event_id: str):
+    """Run the existing ingest task and reflect its terminal state in the durable receipt."""
+    from ..csit.notification import NotificationStore
+
+    store = NotificationStore(receipt_db)
+    try:
+        result = ingest_file_task.run(task_id)
+        state = result if isinstance(result, dict) else get_ingest_task_state(task_id) or {}
+        if state.get("status") == "completed":
+            store.complete_queued(source_identity, event_id, status="completed", stage="ingest_completed")
+            return state
+        store.complete_queued(source_identity, event_id, status="failed", stage="ingest", error_code="ingest_failed")
+        return state
+    except Exception:
+        store.complete_queued(source_identity, event_id, status="failed", stage="ingest", error_code="ingest_failed")
+        raise
 
 
 # ===== 任務定義 =====
