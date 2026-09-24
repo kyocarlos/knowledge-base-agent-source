@@ -16,6 +16,30 @@ from ..image_refs import extract_image_refs_from_text, merge_image_refs, normali
 logger = logging.getLogger(__name__)
 
 
+class _DeterministicE2EEmbedding:
+    """Offline-only embedding seam for isolated KM E2E validation.
+
+    This is intentionally unavailable unless the exact E2E flag is enabled.
+    It keeps the normal VectorStore/Qdrant write and search paths exercised
+    without downloading a model or calling an external service.
+    """
+    def encode(self, texts, normalize_embeddings=True):
+        vectors = []
+        for text in texts:
+            values = [0.0] * VectorStore.VECTOR_DIM
+            for token in re.findall(r"[\w.-]+", str(text).casefold()):
+                slot = int(hashlib.sha256(token.encode("utf-8")).hexdigest()[:8], 16) % len(values)
+                values[slot] += 1.0
+            norm = sum(value * value for value in values) ** 0.5
+            vectors.append([value / norm for value in values] if norm else values)
+        return _EmbeddingRows(vectors)
+
+
+class _EmbeddingRows(list):
+    def tolist(self):
+        return list(self)
+
+
 class VectorStore:
     """向量資料庫管理器"""
 
@@ -39,6 +63,11 @@ class VectorStore:
     def _init_model(self):
         """初始化 embedding 模型"""
         try:
+            if os.getenv("KM_E2E_TEST_MODE", "false").lower() == "true":
+                self.model_name = "km-e2e-deterministic-v1"
+                self.model = _DeterministicE2EEmbedding()
+                logger.info("KM isolated E2E deterministic embedding enabled")
+                return
             from sentence_transformers import SentenceTransformer
             logger.info(f"載入 embedding 模型: {self.model_name}")
             # 使用 CPU 避免 CUDA fork 問題
@@ -90,6 +119,12 @@ class VectorStore:
                 logger.info(f"Collection 已存在: {self.COLLECTION_NAME}")
 
         except Exception as e:
+            # Web and workers may initialise together against a fresh Qdrant.
+            # A second create can race after get_collections(); it is safe only
+            # when a fresh existence check proves the expected collection won.
+            if self.client is not None and self.client.collection_exists(self.COLLECTION_NAME):
+                logger.info(f"Collection already created concurrently: {self.COLLECTION_NAME}")
+                return
             logger.error(f"Collection 建立失敗: {e}")
             raise
 
@@ -330,6 +365,7 @@ class VectorStore:
                     "schema_version": result.payload.get("schema_version", ""),
                     "publish_status": result.payload.get("publish_status", ""),
                     "is_current": result.payload.get("is_current"),
+                    "document_id": result.payload.get("document_id", ""),
                     "chunk_id": result.payload.get("chunk_id", str(result.id)),
                     "document_version": result.payload.get("document_version", ""),
                     "embedding_version": result.payload.get("embedding_version", ""),

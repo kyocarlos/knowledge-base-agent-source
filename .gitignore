@@ -48,6 +48,8 @@ backups/
 final_runs/
 tmp_upload_check.txt
 upload_check*.png
+# Local test backend session artifact (created when cache falls back to memory).
+:memory:.ses
 
 chat_stability_question_types.pptx
 confluence-api-doc.html

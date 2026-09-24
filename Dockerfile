@@ -24,6 +24,10 @@ COPY src/ ./src/
 COPY scripts/ ./scripts/
 COPY config/ ./config/
 COPY data/ ./data/
+# Operator-run Timescale migrations resolve from /app/migrations.  Keep them in
+# every runtime image so a fresh isolated database cannot report a no-op and
+# then fail during report ingestion because the schema is absent.
+COPY migrations/ ./migrations/
 
 # 建立必要目錄
 RUN mkdir -p logs

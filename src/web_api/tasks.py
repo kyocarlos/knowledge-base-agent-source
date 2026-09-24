@@ -639,6 +639,7 @@ def ingest_file_task(self, task_id: str):
                     "document_version": str(state.get("document_version") or manifest.get("revision") or "1"),
                     "package_id": state.get("package_id"),
                     "source_system": state.get("source_system", "KM"),
+                    "source_file_hash": state.get("file_hash", ""),
                     "event_id": state.get("event_id"),
                     "correlation_id": state.get("correlation_id"),
                     "publish_status": state.get("publish_status", "draft"),

@@ -675,18 +675,30 @@ def ingest_vector(doc_path: str, storage_category: str | None = None, metadata: 
 
         for chunk in chunks:
             metadata = chunk.setdefault("metadata", {})
+            # Source sidecars are written by the existing lifecycle-aware
+            # ingest task.  Preserve their approved/published state here;
+            # absent metadata still fails closed as draft/non-current.
             metadata.setdefault("document_id", source_metadata.get("document_id") or hashlib.sha256(str(Path(doc_path).resolve()).encode("utf-8")).hexdigest()[:32])
             metadata.setdefault("document_version", source_metadata.get("document_version") or source_metadata.get("version") or "v1")
-            metadata.setdefault("publish_status", "draft")
-            metadata.setdefault("is_current", False)
+            if source_metadata.get("publish_status"):
+                metadata["publish_status"] = source_metadata["publish_status"]
+            else:
+                metadata.setdefault("publish_status", "draft")
+            if "is_current" in source_metadata:
+                metadata["is_current"] = bool(source_metadata["is_current"])
+            else:
+                metadata.setdefault("is_current", False)
             metadata.setdefault("storage_category", resolved_category)
             metadata.setdefault("extraction_mode", extraction_mode)
             for key in (
                 "run_id", "environment", "project_code", "dut_model", "band",
                 "protocol", "direction", "verdict", "started_at", "schema_version",
+                "source_file_hash",
             ):
                 if source_metadata.get(key) not in (None, ""):
-                    metadata.setdefault(key, source_metadata[key])
+                    # Chunk defaults sometimes contain an empty value.  The
+                    # lifecycle sidecar is the authoritative provenance.
+                    metadata[key] = source_metadata[key]
         from src.knowledge_package import package_digest, validate_package
         if not chunks:
             raise ValueError("formal ingest requires at least one content chunk")

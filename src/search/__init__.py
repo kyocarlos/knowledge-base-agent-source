@@ -4276,7 +4276,11 @@ class SearchEngine:
                     "source_path": r.get("source_path", ""),
                     "storage_category": r.get("storage_category", ""),
                     "extraction_mode": r.get("extraction_mode", ""),
-                    **{key: r.get(key, "") for key in ("run_id", "environment", "project_code", "dut_model", "band", "protocol", "direction", "verdict", "started_at", "schema_version")},
+                    **{key: r.get(key, "") for key in (
+                        "run_id", "environment", "project_code", "dut_model", "band",
+                        "protocol", "direction", "verdict", "started_at", "schema_version",
+                        "document_id", "document_version", "source_file_hash",
+                    )},
                 })
                 for r in results
             ]
@@ -4645,7 +4649,11 @@ class SearchEngine:
                     "chunk_index": r.get("chunk_index", 0),
                     "section_title": r.get("section_title", ""),
                     "source_path": r.get("source_path", ""),
-                    **{key: r.get(key, "") for key in ("run_id", "environment", "project_code", "dut_model", "band", "protocol", "direction", "verdict", "started_at", "schema_version")},
+                    **{key: r.get(key, "") for key in (
+                        "run_id", "environment", "project_code", "dut_model", "band",
+                        "protocol", "direction", "verdict", "started_at", "schema_version",
+                        "document_id", "document_version", "source_file_hash",
+                    )},
                 })
                 for r in results
             ]

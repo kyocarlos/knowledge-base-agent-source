@@ -11,10 +11,20 @@ on:
       - 'src/converter/**'
       - 'src/ingest.py'
       - 'src/vector_store/**'
+      - 'src/search/**'
+      - 'migrations/timeseries/**'
+      - 'Dockerfile'
+      - 'config/config.e2e.yaml'
+      - 'docker-compose.csit-e2e.yml'
+      - 'scripts/run_csit_notification_e2e.py'
       - 'src/web_api/tasks.py'
       - 'src/web_api/csit_notification_routes.py'
       - 'src/web_api/__init__.py'
       - 'tests/test_csit_notification_receiver.py'
+      - 'tests/test_csit_notification_e2e_tool.py'
+      - 'tests/test_ingest_vector_lifecycle_metadata.py'
+      - 'tests/test_timeseries_runtime_packaging.py'
+      - 'tests/test_vector_store_collection_race.py'
       - 'tests/test_knowledge_package.py'
       - 'tests/test_lifecycle.py'
       - 'tests/test_file_registry.py'
@@ -41,5 +51,6 @@ jobs:
         with:
           python-version: '3.12'
       - run: python -m pip install --disable-pip-version-check -r requirements-ci.txt
-      - run: python -m pytest -q tests/test_csit_notification_receiver.py tests/test_knowledge_package.py tests/test_lifecycle.py tests/test_file_registry.py tests/test_structured_office_parser.py tests/test_vector_store_lifecycle.py
-      - run: python -m compileall -q src/csit/notification.py src/csit/notification_pipeline.py src/knowledge_package.py src/lifecycle.py src/converter src/ingest.py src/vector_store src/web_api/csit_notification_routes.py src/web_api/tasks.py
+      - run: python -m pytest -q tests/test_csit_notification_receiver.py tests/test_csit_notification_e2e_tool.py tests/test_ingest_vector_lifecycle_metadata.py tests/test_timeseries_runtime_packaging.py tests/test_vector_store_collection_race.py tests/test_knowledge_package.py tests/test_lifecycle.py tests/test_file_registry.py tests/test_structured_office_parser.py tests/test_vector_store_lifecycle.py
+      - run: python -m compileall -q src/csit/notification.py src/csit/notification_pipeline.py src/knowledge_package.py src/lifecycle.py src/converter src/ingest.py src/vector_store src/web_api/csit_notification_routes.py src/web_api/tasks.py scripts/run_csit_notification_e2e.py
+      - run: KM_CSIT_E2E_ROOT="$RUNNER_TEMP/e2e" KM_CSIT_E2E_PORT=18080 KM_CSIT_E2E_SENDER_TOKEN=test KM_CSIT_E2E_REVIEWER_HASH='{}' KM_CSIT_NOTIFICATION_FIXTURES_JSON='{}' docker compose -f docker-compose.csit-e2e.yml config --quiet
