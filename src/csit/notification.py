@@ -283,6 +283,17 @@ class NotificationStore:
             db.execute(f"UPDATE csit_notification_events SET {assignments} WHERE source_identity=? AND event_id=? AND status='processing' AND worker_id=?", (*updates.values(), source, event_id, worker_id))
         return self.get(source, event_id) or {}
 
+    def complete_queued(self, source: str, event_id: str, *, status: str, stage: str, error_code: str = "") -> dict[str, Any]:
+        """Record the terminal result written by the existing Celery ingest worker."""
+        if status not in {"completed", "failed", "partial_failed"}:
+            raise ValueError("invalid terminal notification status")
+        with self._lock, sqlite3.connect(self.path) as db:
+            db.execute("""UPDATE csit_notification_events
+                SET status=?, stage=?, error_code=?, lease_until=NULL, heartbeat_at=?, updated_at=?
+                WHERE source_identity=? AND event_id=? AND status IN ('queued', 'processing')""",
+                (status, stage, error_code, _now(), _now(), source, event_id))
+        return self.get(source, event_id) or {}
+
 
 class NotificationReceiver:
     def __init__(self, config: ReceiverConfig, *, store: NotificationStore | None = None,
@@ -325,6 +336,12 @@ class NotificationReceiver:
                 result = self.processor(event, job_id)
                 if not isinstance(result, Mapping) or result.get("success") is not True:
                     raise NotificationError("pipeline_incomplete", "processor did not return explicit success", 500)
+                if result.get("terminal") is False:
+                    queued_job_id = str(result.get("job_id") or job_id)
+                    self.store.finish(source, event_id, worker_id, status="queued", job_id=queued_job_id,
+                                      stage=str(result.get("stage") or "queued"))
+                    processed += 1
+                    continue
                 required = set(result.get("required_stores") or ())
                 completed = set(result.get("completed_stores") or ())
                 if required and not required.issubset(completed):

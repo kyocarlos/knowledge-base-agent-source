@@ -1,0 +1,28 @@
+{
+  "task": "KM-CSIT simulated notification full-flow validation",
+  "evidence_type": "sanitized_isolated_runtime",
+  "executed_at": "2026-09-24T06:15:17Z",
+  "source_identity": "synthetic fixture and sender only",
+  "real_csit_called": false,
+  "production_touched": false,
+  "receiver": {
+    "accepted": true,
+    "duplicate": true,
+    "conflict": true,
+    "terminal_status": "completed"
+  },
+  "existing_km_pipeline": {
+    "parser_knowledge_package_ingest": "completed",
+    "timescale_summary_items": 1,
+    "search_source_count": 2,
+    "search_run_and_checksum_provenance": true
+  },
+  "cleanup": {
+    "qdrant_deleted": 2,
+    "neo4j_deleted": 5,
+    "timescale_residual": 0,
+    "qdrant_residual": 0,
+    "neo4j_residual": 0
+  },
+  "boundary": "PASS is disposable KM-only runtime evidence; formal CSIT S2S and Production remain unexecuted."
+}

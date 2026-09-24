@@ -1,0 +1,11 @@
+# Disposable-only runtime configuration used by docker-compose.csit-e2e.yml.
+# Service credentials are test values; Production configuration is never read.
+neo4j:
+  uri: bolt://neo4j:7687
+  user: neo4j
+  password: km-e2e-neo4j
+qdrant:
+  url: http://qdrant:6333
+ollama:
+  instances: [http://unused-e2e-ollama:11434]
+  model: disabled-for-report-e2e

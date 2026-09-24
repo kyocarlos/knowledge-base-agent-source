@@ -64,7 +64,7 @@ components:
         event_id: {type: string}
         receipt_id: {type: string}
         duplicate: {type: boolean}
-        processing_status: {type: string, enum: [received, processing, held, completed, failed, partial_failed]}
+        processing_status: {type: string, enum: [received, processing, queued, held, completed, failed, partial_failed]}
         job_id: {type: string, nullable: true}
         status_url: {type: string}
     EventStatus:
@@ -73,7 +73,7 @@ components:
       properties:
         event_id: {type: string}
         receipt_id: {type: string}
-        status: {type: string, enum: [received, processing, held, completed, failed, partial_failed]}
+        status: {type: string, enum: [received, processing, queued, held, completed, failed, partial_failed]}
         stage: {type: string}
         error_code: {type: string}
         attempt_count: {type: integer, minimum: 0}
