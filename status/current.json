@@ -1,6 +1,6 @@
 {
   "schema": "km.phase1-runtime-status.v1",
-  "collected_at": "2026-10-01T06:03:45.632025+00:00",
+  "collected_at": "2026-10-01T13:26:08.835803+00:00",
   "manifest": "docs/phase1-status-manifest.json",
   "collector_mode": "broker",
   "source_root": "broker-managed",
@@ -20,7 +20,7 @@
   },
   "services": {
     "kb-web": {
-      "image_id": "sha256:04086d0f60babe4e8d57bb09fd018819dad7c5252329c65477a3a30ce3d88ce4",
+      "image_id": "sha256:7e23b1740dc2e5f5d604706546f30e6eb74e0e7e56a4ffce0cc8e9a5563867c8",
       "status": "running"
     },
     "kb-celery-search": {
