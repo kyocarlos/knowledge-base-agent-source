@@ -1,0 +1,81 @@
+{
+  "base_url": "https://61.216.9.52:3030/chat.html",
+  "headless": true,
+  "timeout_seconds": 120,
+  "retry_count": 1,
+  "question_delay_ms": 1000,
+  "pairs": [
+    {
+      "id": "pair_01_4g5g_wifi",
+      "label": "4G/5G Throughput vs WiFi Throughput",
+      "session_a": {
+        "id": "a_4g5g_throughput",
+        "text": "SCU2140 的 Throughput 測試結果是什麼？"
+      },
+      "session_b": {
+        "id": "b_wifi_5g_band",
+        "text": "請整理 TP-Link Archer BE805 的 5GHz 80MHz 與 160MHz 數據。"
+      }
+    },
+    {
+      "id": "pair_02_perf_vs_bands",
+      "label": "4G/5G Performance vs WiFi Bands",
+      "session_a": {
+        "id": "a_scu5050_performance",
+        "text": "SCU5050 的 Performance Test 有哪些重點數據？"
+      },
+      "session_b": {
+        "id": "b_ncq_all_bands",
+        "text": "NCQ2200B2V-D294 的 2.4GHz / 5GHz / 6GHz Throughput 結果是什麼？"
+      }
+    },
+    {
+      "id": "pair_03_handover_vs_wifi_compare",
+      "label": "Handover vs WiFi Compare",
+      "session_a": {
+        "id": "a_sce2200_handover",
+        "text": "請整理 SCE2200 的 Handover 測試內容與結果。"
+      },
+      "session_b": {
+        "id": "b_be805_compare_chs",
+        "text": "請比較 TP-Link Archer BE805 和 CHS3320N-D388 的 WiFi Throughput"
+      }
+    },
+    {
+      "id": "pair_04_lab_scope_vs_report",
+      "label": "Lab Scope vs Report Summary",
+      "session_a": {
+        "id": "a_lab_scope",
+        "text": "請整理3GPP TS 38.300第 1 章 Scope 的內容。"
+      },
+      "session_b": {
+        "id": "b_scu2060_summary",
+        "text": "請查詢 SCU2060 的 report summary。"
+      }
+    },
+    {
+      "id": "pair_05_compare_vs_qos",
+      "label": "4G/5G Compare vs Lab QoS",
+      "session_a": {
+        "id": "a_compare_bler",
+        "text": "請比較 SCU2140、SCU2060、SCU5050 的 BLER 差異"
+      },
+      "session_b": {
+        "id": "b_lab_qos",
+        "text": "請說明3GPP TS 38.300第 12 章 QoS 的重點。"
+      }
+    },
+    {
+      "id": "pair_06_health_vs_rrc",
+      "label": "Health Check vs Lab RRC",
+      "session_a": {
+        "id": "a_health",
+        "text": "你好"
+      },
+      "session_b": {
+        "id": "b_lab_rrc",
+        "text": "請解釋3GPP TS 38.300第 7 章 RRC 的主要內容。"
+      }
+    }
+  ]
+}

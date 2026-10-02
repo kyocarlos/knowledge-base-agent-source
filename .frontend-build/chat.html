@@ -1,0 +1,1607 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>知識庫熱圖 | Knowledge Base Heatmap</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/tweetnacl@1.0.3/nacl.min.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { 
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; 
+      background:
+        radial-gradient(circle at top left, rgba(31, 141, 184, 0.08), transparent 30%),
+        linear-gradient(180deg, #f7fafc 0%, #eef3f8 42%, #e8eef5 100%);
+      min-height: 100vh;
+      color: #15263d;
+    }
+    
+    /* ===== Header ===== */
+    .header {
+      background: linear-gradient(135deg, rgba(11, 36, 64, 0.98) 0%, rgba(20, 58, 102, 0.94) 46%, rgba(31, 141, 184, 0.9) 100%);
+      padding: 0 32px;
+      height: 68px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      box-shadow: 0 14px 36px -24px rgba(15, 23, 42, 0.45);
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+    }
+    .header-logo {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+    .header-logo-icon {
+      width: 40px;
+      height: 40px;
+      background: rgba(255,255,255,0.12);
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+    }
+    .header-logo h1 { font-size: 18px; font-weight: 600; color: white; }
+    .header-logo h1 span { color: rgba(255,255,255,0.7); font-weight: 400; }
+    
+    .header-right { display: flex; align-items: center; gap: 24px; }
+    .header-time { font-size: 13px; color: rgba(255,255,255,0.8); }
+    .connection-badge {
+      background: rgba(255,255,255,0.15);
+      color: #4ade80;
+      padding: 6px 14px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 500;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      border: 1px solid rgba(74, 222, 128, 0.3);
+    }
+    .connection-badge.offline { color: #f87171; border-color: rgba(248, 113, 113, 0.3); }
+    .connection-badge.offline .dot { background: #f87171; }
+    .connection-badge .dot { width: 7px; height: 7px; background: #4ade80; border-radius: 50%; }
+    
+    /* ===== Sub Header ===== */
+    .sub-header {
+      background: linear-gradient(180deg, rgba(247, 250, 252, 0.98), rgba(241, 246, 252, 0.98));
+      padding: 20px 32px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid rgba(184, 200, 216, 0.8);
+    }
+    .sub-header-left h2 { font-size: 22px; font-weight: 600; color: #143a66; }
+    .sub-header-left p { font-size: 13px; color: #5f6f82; margin-top: 4px; }
+    
+    .stats-row { display: flex; gap: 12px; }
+    .stat-box {
+      text-align: center;
+      padding: 14px 28px;
+      border-radius: 12px;
+      border: none;
+      position: relative;
+      overflow: hidden;
+    }
+    .stat-box::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 4px; }
+    .stat-box.strong { background: linear-gradient(180deg, #eefbf4, #e2f7ee); }
+    .stat-box.strong::before { background: linear-gradient(90deg, #1f8db8, #69c7e5); }
+    .stat-box.medium { background: linear-gradient(180deg, #eef6ff, #e0efff); }
+    .stat-box.medium::before { background: linear-gradient(90deg, #1d4ed8, #38bdf8); }
+    .stat-box.weak { background: linear-gradient(180deg, #fff7d6, #fef0b8); }
+    .stat-box.weak::before { background: linear-gradient(90deg, #b45309, #f59e0b); }
+    .stat-box.none { background: linear-gradient(180deg, #fff0f0, #ffe1e1); }
+    .stat-box.none::before { background: linear-gradient(90deg, #c1363a, #ef4444); }
+    
+    .stat-number { font-size: 28px; font-weight: 700; }
+    .stat-box.strong .stat-number { color: #14835d; }
+    .stat-box.medium .stat-number { color: #1f8db8; }
+    .stat-box.weak .stat-number { color: #b9770e; }
+    .stat-box.none .stat-number { color: #c1363a; }
+    .stat-label { font-size: 12px; color: #5f6f82; margin-top: 2px; }
+    
+    .legend {
+      display: flex;
+      gap: 24px;
+      align-items: center;
+      padding: 12px 20px;
+      background: linear-gradient(180deg, rgba(247, 250, 252, 0.98), rgba(241, 246, 252, 0.98));
+      border-radius: 10px;
+      border: 1px solid rgba(184, 200, 216, 0.7);
+    }
+    .legend-item { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #475569; font-weight: 500; }
+    .legend-dot { width: 14px; height: 14px; border-radius: 4px; }
+    .legend-dot.strong { background: linear-gradient(135deg, #1f8db8, #69c7e5); }
+    .legend-dot.medium { background: linear-gradient(135deg, #1d4ed8, #38bdf8); }
+    .legend-dot.weak { background: linear-gradient(135deg, #b45309, #f59e0b); }
+    .legend-dot.none { background: linear-gradient(135deg, #c1363a, #ef4444); }
+    
+    /* ===== Main Content ===== */
+    .main-content { padding: 36px 48px; max-width: 1200px; margin: 0 auto; min-height: 500px; padding-bottom: 60px; }
+    
+    /* ===== Card Grid ===== */
+    .card-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 32px; max-width: 1100px; margin: 0 auto; margin-bottom: 48px; }
+    
+    .card {
+      background: linear-gradient(180deg, rgba(255,255,255,0.98), rgba(244, 249, 253, 0.96));
+      border-radius: 16px;
+      padding: 28px 20px;
+      cursor: pointer;
+      transition: all 0.25s ease;
+      border: 1px solid rgba(184, 200, 216, 0.85);
+      position: relative;
+      overflow: hidden;
+      min-height: 160px;
+      box-shadow: 0 12px 28px -22px rgba(15, 23, 42, 0.45);
+    }
+    .card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 5px; }
+    .card:hover { transform: translateY(-6px) scale(1.02); box-shadow: 0 20px 40px rgba(15, 23, 42, 0.16), 0 0 20px rgba(31, 141, 184, 0.14), inset 0 1px 0 rgba(255, 255, 255, 0.45); border-color: rgba(31, 141, 184, 0.3); }
+    .card.loading { background: linear-gradient(180deg, #ffffff, #f4f8fc); border-color: rgba(184, 200, 216, 0.8); }
+    .card.strong { background: linear-gradient(180deg, #eefbf4 0%, #dff4ec 100%); border-color: rgba(20, 131, 93, 0.25); }
+    .card.strong::before { background: linear-gradient(90deg, #1f8db8, #69c7e5); height: 8px; pointer-events: none; }
+    .card.medium { background: linear-gradient(180deg, #eef6ff 0%, #dfeeff 100%); border-color: rgba(31, 141, 184, 0.25); }
+    .card.medium::before { background: linear-gradient(90deg, #1d4ed8, #38bdf8); height: 8px; pointer-events: none; }
+    .card.weak { background: linear-gradient(180deg, #fff7d6 0%, #fef0b8 100%); border-color: rgba(185, 119, 14, 0.25); }
+    .card.weak::before { background: linear-gradient(90deg, #b45309, #f59e0b); height: 8px; pointer-events: none; }
+    .card.none { background: linear-gradient(180deg, #fff0f0 0%, #ffe1e1 100%); border-color: rgba(193, 54, 58, 0.25); }
+    .card.none::before { background: linear-gradient(90deg, #c1363a, #ef4444); height: 8px; pointer-events: none; }
+    
+    .card-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 14px; }
+    .card-name { font-size: 14px; font-weight: 600; color: #143a66; background: rgba(20, 58, 102, 0.08); padding: 6px 10px; border-radius: 8px; }
+    .card-badge { font-size: 10px; font-weight: 700; padding: 5px 12px; border-radius: 20px; text-transform: uppercase; letter-spacing: 0.5px; }
+    .card.strong .card-badge { background: #dff4ec; color: #14835d; }
+    .card.medium .card-badge { background: #dbeafe; color: #1f8db8; }
+    .card.weak .card-badge { background: #fff0d1; color: #b9770e; }
+    .card.none .card-badge { background: #ffe2e2; color: #c1363a; }
+    
+    .card-count {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      margin: 8px 0 4px;
+      text-shadow: none;
+    }
+    .card-count-value { font-size: 48px; font-weight: 800; letter-spacing: -2px; line-height: 1; }
+    .card-count-meta { font-size: 13px; font-weight: 700; color: rgba(21, 38, 61, 0.72); letter-spacing: 0; line-height: 1.2; }
+    .card.strong .card-count-value { color: #14835d; text-shadow: none; }
+    .card.medium .card-count-value { color: #1f8db8; text-shadow: none; }
+    .card.weak .card-count-value { color: #b9770e; text-shadow: none; }
+    .card.none .card-count-value { color: #c1363a; text-shadow: none; }
+    .card-label { 
+      font-size: 11px; 
+      color: #5f6f82; 
+      text-shadow: none;
+    }
+    .card-arrow { position: absolute; bottom: 18px; right: 18px; width: 30px; height: 30px; background: linear-gradient(135deg, #143a66, #215ea8 60%, #1f8db8); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; color: white; opacity: 0; transition: opacity 0.25s; }
+    .card:hover .card-arrow { opacity: 1; }
+    
+    /* ===== Footer ===== */
+    .footer { padding: 24px 32px; border-top: 1px solid rgba(184, 200, 216, 0.8); background: linear-gradient(180deg, rgba(247, 250, 252, 0.98), rgba(241, 246, 252, 0.98)); display: flex; justify-content: space-between; align-items: center; margin-top: 48px; }
+    .footer-left { font-size: 12px; color: #5f6f82; }
+    .footer-right { font-size: 12px; color: #5f6f82; }
+    
+    /* ===== Floating Chat Button ===== */
+    .chat-fab {
+      position: fixed;
+      bottom: 32px;
+      right: 32px;
+      width: 60px;
+      height: 60px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #143a66 0%, #215ea8 55%, #1f8db8 100%);
+      border: none;
+      cursor: pointer;
+      box-shadow: 0 14px 36px -24px rgba(15, 23, 42, 0.45);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 26px;
+      transition: all 0.3s ease;
+      z-index: 1000;
+    }
+    .chat-fab:hover { transform: scale(1.08); box-shadow: 0 12px 40px rgba(30, 58, 95, 0.45); }
+    .chat-fab .close-icon { display: none; }
+    .chat-fab.open .chat-icon { display: none; }
+    .chat-fab.open .close-icon { display: block; }
+    
+    /* ===== Chat Window ===== */
+    .chat-window {
+      position: fixed;
+      bottom: 110px;
+      right: 32px;
+      width: 1000px;
+      max-width: calc(100vw - 64px);
+      min-width: 400px;
+      height: 560px;
+      max-height: calc(100vh - 150px);
+      min-height: 300px;
+      background: linear-gradient(180deg, rgba(255,255,255,0.98), rgba(247, 250, 252, 0.98));
+      border-radius: 20px;
+      box-shadow: 0 24px 80px rgba(30, 58, 95, 0.18);
+      display: none;
+      flex-direction: column;
+      overflow: hidden;
+      z-index: 999;
+      resize: both;  /* 允許拖動調整大小 */
+    }
+    .chat-window.show { display: flex; }
+    
+    .chat-header { background: linear-gradient(135deg, rgba(11, 36, 64, 0.98) 0%, rgba(20, 58, 102, 0.94) 46%, rgba(31, 141, 184, 0.9) 100%); padding: 16px 20px; display: flex; align-items: center; gap: 12px; }
+    .chat-header-avatar { width: 38px; height: 38px; background: rgba(255,255,255,0.16); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 20px; }
+    .chat-header-info { flex: 1; }
+    .chat-header-info h3 { color: white; font-size: 15px; font-weight: 600; }
+    .chat-header-info p { color: rgba(255,255,255,0.8); font-size: 11px; margin-top: 2px; }
+    .chat-fullscreen-btn {
+      width: 32px;
+      height: 32px;
+      background: rgba(255,255,255,0.14);
+      border: none;
+      border-radius: 8px;
+      color: white;
+      font-size: 16px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.2s;
+    }
+    .chat-fullscreen-btn:hover { background: rgba(255,255,255,0.3); }
+    .chat-header-close { margin-left: auto; background: none; border: none; color: white; font-size: 22px; cursor: pointer; opacity: 0.8; transition: opacity 0.2s; }
+    .chat-header-close:hover { opacity: 1; }
+    
+    .chat-messages { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 16px; background: linear-gradient(180deg, rgba(248, 251, 254, 0.95), rgba(243, 247, 251, 0.95)); }
+    .chat-messages::-webkit-scrollbar { width: 6px; }
+    .chat-messages::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+    
+    .message { display: flex; gap: 10px; max-width: 85%; }
+    .message.user { flex-direction: row-reverse; margin-left: auto; }
+    .message-avatar { font-size: 20px; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, rgba(20, 58, 102, 0.1), rgba(31, 141, 184, 0.12)); border-radius: 50%; flex-shrink: 0; color: #143a66; }
+    .message.bot .message-avatar { background: linear-gradient(135deg, #143a66, #1f8db8); color: white; }
+    .message-bubble { padding: 12px 16px; border-radius: 16px; font-size: 14px; line-height: 1.5; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+    .message.user .message-bubble { background: linear-gradient(135deg, #143a66, #215ea8 60%, #1f8db8); color: white; border-bottom-right-radius: 6px; }
+    .message.bot .message-bubble { background: linear-gradient(180deg, #ffffff, #f8fbfe); color: #1e293b; border-bottom-left-radius: 6px; border: 1px solid rgba(184, 200, 216, 0.85); }
+    .message.loading .message-bubble { display: flex; gap: 4px; align-items: center; }
+    .loading-dot { animation: bounce 1.4s infinite; font-size: 18px; }
+    .loading-dot:nth-child(2) { animation-delay: 0.2s; }
+    .loading-dot:nth-child(3) { animation-delay: 0.4s; }
+    @keyframes bounce { 0%, 60%, 100% { transform: translateY(0); } 30% { transform: translateY(-4px); } }
+    
+    .chat-input-area { padding: 16px 20px; background: linear-gradient(180deg, rgba(247, 250, 252, 0.98), rgba(241, 246, 252, 0.98)); border-top: 1px solid rgba(184, 200, 216, 0.8); display: flex; gap: 12px; align-items: center; }
+    .chat-input { flex: 1; background: #ffffff; border: 1px solid rgba(184, 200, 216, 0.95); border-radius: 24px; padding: 12px 20px; font-size: 14px; color: #1e293b; outline: none; transition: all 0.2s; }
+    .chat-input:focus { border-color: rgba(31, 141, 184, 0.8); background: #ffffff; box-shadow: 0 0 0 3px rgba(31, 141, 184, 0.08); }
+    .chat-input::placeholder { color: #94a3b8; }
+    .chat-send { width: 44px; height: 44px; border-radius: 50%; background: linear-gradient(135deg, #143a66, #215ea8 60%, #1f8db8); border: none; color: white; font-size: 18px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s; box-shadow: 0 10px 24px -14px rgba(20, 58, 102, 0.6); }
+    .chat-send:hover:not(:disabled) { transform: scale(1.05); }
+    .chat-send:disabled { opacity: 0.5; cursor: not-allowed; }
+    
+    .chat-send.thinking {
+      pointer-events: none;
+      animation: sendRotate 1s linear infinite;
+    }
+    .chat-send.thinking::before {
+      content: '↻';
+      font-size: 22px;
+    }
+    
+    @keyframes sendRotate {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    
+    /* 思考中時的聊天視窗脈動邊框 */
+    .chat-window.thinking {
+      animation: borderPulse 1.5s ease-in-out infinite;
+    }
+    
+    @keyframes borderPulse {
+      0%, 100% {
+        box-shadow: 0 0 0 2px rgba(31, 141, 184, 0.24),
+                    0 0 20px rgba(31, 141, 184, 0.08);
+      }
+      50% {
+        box-shadow: 0 0 0 4px rgba(31, 141, 184, 0.5),
+                    0 0 40px rgba(31, 141, 184, 0.2);
+      }
+    }
+
+    /* ===== Markdown Rendered Content ===== */
+    .message-bubble h1 { font-size: 18px; color: #143a66; margin: 12px 0 8px 0; font-weight: 600; }
+    .message-bubble h2 { font-size: 16px; color: #143a66; margin: 10px 0 6px 0; font-weight: 600; }
+    .message-bubble h3 { font-size: 14px; color: #1f8db8; margin: 8px 0 4px 0; font-weight: 600; }
+    .message-bubble p { margin: 8px 0; line-height: 1.6; }
+    .message-bubble ul, .message-bubble ol { margin: 8px 0; padding-left: 20px; }
+    .message-bubble li { margin: 4px 0; }
+    .message-bubble code { background: #eef6ff; padding: 2px 6px; border-radius: 4px; font-family: 'Courier New', monospace; font-size: 13px; color: #143a66; }
+    .message-bubble pre { background: #143a66; color: #d6f2fb; padding: 12px; border-radius: 8px; overflow-x: auto; margin: 10px 0; }
+    .message-bubble pre code { background: transparent; color: inherit; padding: 0; }
+    .message-bubble table { border-collapse: collapse; margin: 10px 0; min-width: 100%; }
+    .message-bubble table th, .message-bubble table td { border: 1px solid rgba(255, 255, 255, 0.1); padding: 8px 12px; text-align: left; font-size: 13px; }
+    .message-bubble table th { background: #f5f7fa; font-weight: 600; color: #143a66; }
+    .message-bubble table tr:nth-child(even) { background: #fafafa; }
+    .message-bubble hr { border: none; border-top: 1px dashed #ccc; margin: 12px 0; }
+    .message-bubble blockquote { border-left: 4px solid #1f8db8; padding-left: 12px; color: #666; margin: 10px 0; font-style: italic; }
+    .message-bubble strong { font-weight: 600; color: #143a66; }
+    .message-bubble a { color: #1f8db8; text-decoration: none; }
+    .message-bubble a:hover { text-decoration: underline; }
+  </style>
+
+    <style>
+    .sources-footer { margin-top: 12px; padding-top: 10px; border-top: 1px dashed #ccc; }
+    .sources-divider { border: none; border-top: 1px dashed #ccc; margin: 8px 0; }
+    .sources-label { color: #666; font-size: 13px; }
+    .source-tag { 
+      display: inline-block; 
+      background: #e8f4f8; 
+      color: #2d5a87; 
+      padding: 4px 10px; 
+      border-radius: 12px; 
+      font-size: 12px; 
+      margin: 2px 4px;
+    }
+    </style>  <script src="./lib/marked.min.js"></script>
+</head>
+<body>
+  <!-- Header -->
+  <div class="header">
+    <div class="header-logo">
+      <div class="header-logo-icon">📊</div>
+      <h1>Knowledge-Base System <span>/ 知識庫搜尋系統</span></h1>
+    </div>
+    <div class="header-right">
+      <div class="header-time">Updated: 04/28 12:04</div>
+      <div class="connection-badge offline" id="connectionBadge">
+        <span class="dot"></span>
+        <span id="connectionText">未連線</span>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Sub Header -->
+  <div class="sub-header">
+    <div class="sub-header-left">
+      <h2>知識庫熱圖</h2>
+      <p>Knowledge Base Heatmap — 點擊感興趣的 Topic 與 CSIT_KM小幫手對話</p>
+    </div>
+    <div style="display: flex; align-items: center; gap: 24px;">
+      <div class="stats-row">
+        <div class="stat-box strong">
+          <div class="stat-number" id="strongCount">0</div>
+          <div class="stat-label">強 Strong</div>
+        </div>
+        <div class="stat-box medium">
+          <div class="stat-number" id="mediumCount">0</div>
+          <div class="stat-label">中 Medium</div>
+        </div>
+        <div class="stat-box weak">
+          <div class="stat-number" id="weakCount">0</div>
+          <div class="stat-label">弱 Weak</div>
+        </div>
+        <div class="stat-box none">
+          <div class="stat-number" id="noneCount">0</div>
+          <div class="stat-label">無 None</div>
+        </div>
+      </div>
+      <div class="legend">
+        <div class="legend-item"><span class="legend-dot strong"></span>強</div>
+        <div class="legend-item"><span class="legend-dot medium"></span>中</div>
+        <div class="legend-item"><span class="legend-dot weak"></span>弱</div>
+        <div class="legend-item"><span class="legend-dot none"></span>無</div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Main Content -->
+  <div class="main-content">
+    <div class="card-grid" id="cardGrid"></div>
+  </div>
+  
+  <!-- Footer -->
+  <div class="footer">
+    <div class="footer-left">© 2026 Knowledge-Base System. All rights reserved.</div>
+    <div class="footer-right">Last sync: 2026-04-28 12:04:00</div>
+  </div>
+  
+  <!-- Floating Chat Button -->
+  <button class="chat-fab" id="chatFab" onclick="toggleChat()">
+    <span class="chat-icon">💬</span>
+    <span class="close-icon">✕</span>
+  </button>
+  
+  <!-- Chat Window -->
+  <div class="chat-window" id="chatWindow">
+    <div class="chat-header">
+      <div class="chat-header-avatar">🦾</div>
+      <div class="chat-header-info">
+        <h3>CSIT_KM小幫手</h3>
+        <p id="chatStatus">連線中...</p>
+        <p id="queueStatus" style="display:none; font-size:11px; color: #facc15; margin-top:2px;">排隊中: <span id="queueCount">0</span> 人</p>
+      </div>
+      <button class="chat-header-close" onclick="toggleChat()">✕</button>
+    </div>
+    
+    <div class="chat-messages" id="chatMessages">
+      <div class="message bot">
+        <div class="message-avatar">🦾</div>
+        <div class="message-bubble">嗨！我是 CSIT_KM小幫手。點擊上方的 Topic 卡片開始探索研究主題，或直接輸入訊息詢問任何問題。</div>
+      </div>
+    </div>
+    
+    <div class="chat-input-area">
+      <input type="text" class="chat-input" id="chatInput" placeholder="輸入訊息..." disabled>
+      <button class="chat-send" id="chatSendBtn" onclick="sendMessage()" disabled>➤</button>
+    </div>
+  </div>
+  
+  <script>
+    // ===== WebSocket Configuration =====
+    let CHAT_RUNTIME_CONFIG = null;
+    let CHAT_RUNTIME_CONFIG_PROMISE = null;
+    const BROWSER_SESSION_STORAGE_KEY = 'openclaw.chat.browserSessionId';
+
+    function resolveApiBaseUrl() {
+      const params = new URLSearchParams(window.location.search);
+      const override = window.OPENCLAW_API_BASE_URL || params.get('api') || '';
+      return override.replace(/\/$/, '');
+    }
+
+    function apiUrl(path) {
+      const base = resolveApiBaseUrl();
+      const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+      return `${base}${normalizedPath}`;
+    }
+
+    async function loadChatRuntimeConfig() {
+      if (CHAT_RUNTIME_CONFIG) return CHAT_RUNTIME_CONFIG;
+      if (!CHAT_RUNTIME_CONFIG_PROMISE) {
+        CHAT_RUNTIME_CONFIG_PROMISE = fetch(apiUrl('/api/openclaw/chat-config'))
+          .then(async (response) => {
+            if (!response.ok) {
+              throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            return response.json();
+          })
+          .then((config) => {
+            if (config) {
+              config.sessionKey = buildBrowserSessionKey(config.sessionKey || 'fallback');
+            }
+            CHAT_RUNTIME_CONFIG = config;
+            return config;
+          })
+          .catch((error) => {
+            CHAT_RUNTIME_CONFIG_PROMISE = null;
+            throw error;
+          });
+      }
+      return CHAT_RUNTIME_CONFIG_PROMISE;
+    }
+
+    function getGatewayWsUrl() {
+      if (CHAT_RUNTIME_CONFIG && CHAT_RUNTIME_CONFIG.browserWsUrl) {
+        return normalizeWsUrl(CHAT_RUNTIME_CONFIG.browserWsUrl);
+      }
+      const params = new URLSearchParams(window.location.search);
+      const override = window.OPENCLAW_WS_URL || params.get('ws');
+      if (override) return normalizeWsUrl(override);
+
+      const scheme = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      return `${scheme}//${window.location.host}/ws`;
+    }
+
+    function normalizeWsUrl(url) {
+      if (url.startsWith('ws://') || url.startsWith('wss://')) return url;
+      if (url.startsWith('/')) {
+        const scheme = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        return `${scheme}//${window.location.host}${url}`;
+      }
+      return url;
+    }
+
+    function getOrCreateBrowserSessionId() {
+      try {
+        const existing = localStorage.getItem(BROWSER_SESSION_STORAGE_KEY);
+        if (existing) return existing;
+
+        const generated = (window.crypto && window.crypto.randomUUID)
+          ? window.crypto.randomUUID()
+          : `browser-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+        localStorage.setItem(BROWSER_SESSION_STORAGE_KEY, generated);
+        return generated;
+      } catch (error) {
+        return `browser-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+      }
+    }
+
+    function buildBrowserSessionKey(baseSessionKey) {
+      const base = (baseSessionKey || '').trim();
+      const browserId = getOrCreateBrowserSessionId();
+      return `${base}::browser:${browserId}`;
+    }
+    
+    let ws = null;
+    let isConnected = false;
+    let messageId = 0;
+    let isLoading = false;
+    let analyzingInProgress = false;
+    window.analyzingInProgress = false;
+    let intentAnalysisApplied = false;
+    
+    // ===== Topic Data (loaded from API) =====
+    // 只保留有定義的 5 個類別
+    const topics = [
+      { name: '4G/5G', status: 'loading', score: undefined, papers: undefined, fileCount: undefined },
+      { name: 'WiFi', status: 'loading', score: undefined, papers: undefined, fileCount: undefined },
+      { name: 'Lab', status: 'loading', score: undefined, papers: undefined, fileCount: undefined },
+      { name: 'Project', status: 'loading', score: undefined, papers: undefined, fileCount: undefined },
+      { name: 'Automation', status: 'loading', score: undefined, papers: undefined, fileCount: undefined },
+    ];
+    const topicFiles = {}; // 從 API 取得
+    
+    // ===== Render Cards =====
+    function renderCards() {
+      const grid = document.getElementById('cardGrid');
+      grid.innerHTML = '';
+      
+      topics.forEach((topic, index) => {
+        const card = document.createElement('div');
+        const statusClass = topic.status || 'none';
+        const scoreValue = Number.isFinite(topic.score) ? topic.score : null;
+        const fileCountValue = Number.isFinite(topic.fileCount)
+          ? topic.fileCount
+          : (Number.isFinite(topic.papers) ? topic.papers : null);
+        const scoreText = scoreValue !== null ? scoreValue.toFixed(2).replace(/\.00$/, '') : '-';
+        const fileCountText = fileCountValue !== null ? fileCountValue : '-';
+        card.className = `card ${statusClass}`;
+        card.innerHTML = `
+          <div class="card-header">
+            <div class="card-name">${topic.name}</div>
+            <div class="card-badge">${topic.status === 'loading' ? '載入中' : topic.status === 'strong' ? '強' : topic.status === 'medium' ? '中' : topic.status === 'weak' ? '弱' : '無'}</div>
+          </div>
+          <div class="card-count">
+            <div class="card-count-value">${scoreText}</div>
+            <div class="card-count-meta">文件 ${fileCountText}</div>
+          </div>
+          <div class="card-label">${topic.status === 'loading' ? '載入中...' : (fileCountValue !== null && fileCountValue > 0 ? '篇文章' : '尚無資料')}</div>
+          <div class="card-arrow">→</div>
+        `;
+        card.onclick = () => cardClick(topic);
+        grid.appendChild(card);
+      });
+      
+      console.log('[Heatmap] renderCards completed. Topics state:', topics.map(t => t.name + '=' + t.papers).join(', '));
+      updateStats();
+    }
+    
+    function updateStats() {
+      const strongCount = topics.filter(t => t.status === 'strong').length;
+      const mediumCount = topics.filter(t => t.status === 'medium').length;
+      const weakCount = topics.filter(t => t.status === 'weak').length;
+      const noneCount = topics.filter(t => t.status === 'none').length;
+      document.getElementById('strongCount').textContent = strongCount;
+      document.getElementById('mediumCount').textContent = mediumCount;
+      document.getElementById('weakCount').textContent = weakCount;
+      document.getElementById('noneCount').textContent = noneCount;
+    }
+    
+    // ===== Load Category Stats from API =====
+    async function loadCategoryStats() {
+      try {
+        console.log('[Heatmap] Fetching category stats...');
+        const response = await fetch(apiUrl('/api/category-stats'));
+        console.log('[Heatmap] Response status:', response.status);
+        const data = await response.json();
+        console.log('[Heatmap] Received categories:', data.categories ? data.categories.length : 0);
+        
+        if (data.categories) {
+          let updateCount = 0;
+          
+          // Only update from API if intent analysis hasn't been applied
+          // This preserves the intent-based card status until next user query
+          if (!intentAnalysisApplied) {
+            data.categories.forEach(cat => {
+              const topic = topics.find(t => t.name === cat.name);
+              if (topic) {
+                topic.status = cat.status;
+                topic.papers = cat.docs;
+                topic.score = cat.score;
+                topic.fileCount = cat.docs;
+                topic.files = cat.files;
+                updateCount++;
+              }
+            });
+            console.log('[Heatmap] Updated', updateCount, 'topics from API');
+          } else {
+            console.log('[Heatmap] Skipping API update - intent analysis is active');
+          }
+          
+          renderCards();
+          
+          // 每 30 秒更新一次
+          setTimeout(loadCategoryStats, 30000);
+        }
+      } catch (e) {
+        console.error('Failed to load category stats:', e);
+        // 使用預設值
+        setTimeout(loadCategoryStats, 10000);
+      }
+    }
+    
+    function updateCardClickState() {
+      const cards = document.querySelectorAll('.card-grid .card');
+      const state = window.analyzingInProgress;
+      console.log('[Heatmap] updateCardClickState called, analyzingInProgress=', state, 'cards found:', cards.length);
+      cards.forEach(card => {
+        if (state) {
+          card.style.opacity = '0.6';
+          card.style.cursor = 'not-allowed';
+          card.style.pointerEvents = 'none';
+        } else {
+          card.style.opacity = '1';
+          card.style.cursor = 'pointer';
+          card.style.pointerEvents = 'auto';
+        }
+      });
+    }
+
+function cardClick(topic) {
+      // Block click during analysis
+      if (window.analyzingInProgress) {
+        console.log('[Heatmap] Card click blocked - analyzing in progress');
+        return;
+      }
+      console.log('[Heatmap] cardClick called for:', topic.name);
+      
+      const category = topic.name;
+      const relatedFiles = topic.files || [];
+      
+      // Fetch actual files from API to validate against
+      const url = apiUrl('/api/category-files?category=' + encodeURIComponent(category));
+      
+      fetch(url)
+        .then(r => r.json())
+        .then(data => {
+          if (data.error) {
+            openDocModal(category, []);
+            return;
+          }
+          const availableFiles = data.files || [];
+          const availableNames = availableFiles.map(f => f.name);
+          
+          // Filter relatedFiles to only show files that actually exist in this category
+          let displayFiles;
+          if (relatedFiles.length > 0) {
+            const filtered = relatedFiles.filter(name => availableNames.includes(name));
+            console.log('[Heatmap] Related files:', relatedFiles.length, '-> After filter:', filtered.length);
+            displayFiles = filtered.length > 0 
+              ? filtered.map(name => ({ name })) 
+              : availableFiles;
+          } else {
+            displayFiles = availableFiles;
+          }
+          
+          openDocModal(category, displayFiles);
+        })
+        .catch(err => {
+          console.error('[Heatmap] Fetch files error:', err);
+          openDocModal(category, []);
+        });
+    }
+    // ===== WebSocket Functions =====
+    function extractEd25519Seed(pem) {
+      const lines = pem.split('\n').filter(l => !l.startsWith('-----'));
+      const base64 = lines.join('');
+      const binaryStr = atob(base64);
+      const bytes = new Uint8Array(binaryStr.length);
+      for (let i = 0; i < binaryStr.length; i++) bytes[i] = binaryStr.charCodeAt(i);
+      return bytes.slice(-32);
+    }
+    
+    function signMessage(message) {
+      try {
+        if (!CHAT_RUNTIME_CONFIG || !CHAT_RUNTIME_CONFIG.privateKeyPem) {
+          throw new Error('missing runtime private key');
+        }
+        const seed = extractEd25519Seed(CHAT_RUNTIME_CONFIG.privateKeyPem);
+        const keyPair = nacl.sign.keyPair.fromSeed(seed);
+        const msgBytes = new TextEncoder().encode(message);
+        const sig = nacl.sign(msgBytes, keyPair.secretKey);
+        const sigBytes = sig.slice(0, 64);
+        let base64 = btoa(String.fromCharCode.apply(null, sigBytes));
+        return base64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+      } catch (e) {
+        console.error('Sign error:', e);
+        return null;
+      }
+    }
+    
+    async function connectWebSocket() {
+      try {
+        await loadChatRuntimeConfig();
+      } catch (error) {
+        console.error('[Chat] 無法載入 runtime config:', error);
+        updateConnectionStatus(false);
+        return;
+      }
+
+      const wsUrl = getGatewayWsUrl();
+      console.log('[Chat] Connecting to WebSocket:', wsUrl);
+      ws = new WebSocket(wsUrl);
+      
+      ws.onopen = () => { console.log('WS Connected'); };
+      
+      ws.onmessage = (event) => {
+        const msg = JSON.parse(event.data);
+        handleMessage(msg);
+      };
+      
+      ws.onerror = (e) => { console.error('WS Error:', e); };
+      
+      ws.onclose = () => {
+        isConnected = false;
+        updateConnectionStatus(false);
+        setTimeout(connectWebSocket, 5000);
+      };
+    }
+    
+    function handleMessage(msg) {
+      if (msg.type === 'event' && msg.event === 'connect.challenge') {
+        const { nonce, ts } = msg.payload;
+        const config = CHAT_RUNTIME_CONFIG || {};
+        if (!config.deviceId || !config.privateKeyPem) {
+          console.error('[Chat] runtime config not ready');
+          return;
+        }
+        const scopes = config.scopes || [];
+        const v3Payload = ['v3', config.deviceId, 'cli', 'cli', 'operator', scopes.join(','), String(ts), config.authToken, nonce, 'linux', ''].join('|');
+        const signature = signMessage(v3Payload);
+        
+        ws.send(JSON.stringify({
+          type: 'req', id: 'c1', method: 'connect',
+          params: {
+            minProtocol: 3, maxProtocol: 3,
+            client: { id: 'cli', version: '1.0.0', platform: 'linux', mode: 'cli' },
+            role: 'operator', scopes,
+            auth: { token: config.authToken, deviceToken: config.deviceToken },
+            device: { id: config.deviceId, publicKey: config.publicKeyRaw, signature, signedAt: ts, nonce },
+            locale: config.locale || 'zh-TW', userAgent: config.userAgent || 'openclaw-web/1.0.0'
+          }
+        }));
+      }
+      
+      if (msg.type === 'res' && msg.id === 'c1' && msg.ok) {
+        isConnected = true;
+        updateConnectionStatus(true);
+      }
+      
+      // Handle chat events
+      if (msg.type === 'event' && msg.event === 'chat') {
+        const chatPayload = msg.payload || {};
+        
+        if (chatPayload.state === 'start') {
+          isLoading = true;
+          updateInputState();
+        }
+        
+        if (chatPayload.state === 'delta' && chatPayload.message) {
+          const content = chatPayload.message.content || [];
+          for (const block of content) {
+            if (block.type === 'text' && block.text) {
+              const lastMsg = document.querySelector('.message.bot:last-child .message-bubble');
+              if (lastMsg) {
+                lastMsg.textContent += block.text;
+                scrollChat();
+              }
+            }
+          }
+        }
+        
+        if (chatPayload.state === 'final' && chatPayload.message) {
+          console.log('[Heatmap] === FULL FINAL PAYLOAD ===');
+          console.log('[Heatmap] message keys:', Object.keys(chatPayload.message));
+          console.log('[Heatmap] content:', JSON.stringify(chatPayload.message.content));
+          console.log('[Heatmap] full payload:', JSON.stringify(chatPayload).slice(0, 1000));
+          const content = chatPayload.message.content || [];
+          let textContent = '';
+          let sourcesHtml = '';
+          let allSourceNames = [];
+          
+          console.log('[Heatmap] Total blocks in content:', content.length);
+          for (const block of content) {
+            console.log('[Heatmap] Block type:', block.type, 'keys:', Object.keys(block));
+            if (block.type === 'text' && block.text) {
+              textContent += block.text;
+            }
+            if (block.type === 'sources' && block.sources) {
+              console.log('[Heatmap] Found sources block with', block.sources.length, 'sources');
+              // 收集所有來源名稱
+              allSourceNames = block.sources.map(s => s.source || s.name || s);
+              
+              // 生成來源 HTML（折疊顯示）
+              const allSources = block.sources.map(s => `<span class="source-tag">${s.source || s.name || s}</span>`);
+              if (allSources.length <= 3) {
+                // 3 個或以下，全部顯示
+                sourcesHtml = `<div class="sources-footer"><hr class="sources-divider"><span class="sources-label">📄 參考來源：</span>${allSources.join(' ')}</div>`;
+              } else {
+                // 超過 3 個，折疊顯示
+                const visible = allSources.slice(0, 3).join(' ');
+                const hidden = allSources.slice(3).join(' ');
+                sourcesHtml = `<div class="sources-footer" id="sources-container">
+                  <hr class="sources-divider">
+                  <span class="sources-label">📄 參考來源：</span>
+                  ${visible}
+                  <span class="sources-toggle" onclick="toggleSources(this)" data-expanded="false" data-hidden="${hidden}" data-count="${block.sources.length - 3}">
+                    ...還有 ${block.sources.length - 3} 個檔案（點我展開）
+                  </span>
+                </div>`;
+              }
+            }
+          }
+          
+          if (textContent) {
+            addMessage('bot', textContent + sourcesHtml, true);
+          }
+          
+          // Update card status based on sources used in the answer
+          if (allSourceNames.length > 0) {
+            updateCardsFromSources(allSourceNames);
+          } else {
+            // Fallback: extract source names from text content and DOM
+            const renderedSources = Array.from(document.querySelectorAll('.source-tag')).map(el => el.textContent);
+            
+            // Also scan the actual text content for known document references
+            const allBotMessages = Array.from(document.querySelectorAll('.message.bot .message-content')).map(el => el.textContent);
+            const allTextContent = allBotMessages.join(' ');
+            
+            // Extract potential document names from text
+            const foundDocs = [];
+            for (const [category, keywords] of Object.entries(knownDocs)) {
+              for (const kw of keywords) {
+                if (allTextContent.toLowerCase().includes(kw.toLowerCase())) {
+                  foundDocs.push(kw);
+                }
+              }
+            }
+            
+            console.log('[Heatmap] Fallback - DOM sources:', renderedSources);
+            console.log('[Heatmap] Fallback - Found docs in text:', foundDocs);
+            
+            const sourcesToUse = renderedSources.length > 0 ? renderedSources : foundDocs;
+            if (sourcesToUse.length > 0) {
+              updateCardsFromSources(sourcesToUse);
+            } else {
+              console.log('[Heatmap] No sources found - neither from payload nor DOM');
+            }
+          }
+          isLoading = false;
+          updateInputState();
+        }
+      }
+      
+      if (msg.type === 'event' && msg.event === 'lifecycle') {
+        if (msg.payload && msg.payload.phase === 'end') {
+          // 停止排隊檢查
+          if (queueCheckInterval) {
+            clearInterval(queueCheckInterval);
+            queueCheckInterval = null;
+          }
+          document.getElementById('queueStatus').style.display = 'none';
+          isLoading = false;
+          updateInputState();
+        }
+      }
+      
+      if (msg.type === 'res' && msg.id && msg.id.startsWith('chat-')) {
+        if (!msg.ok) {
+          addMessage('bot', '抱歉，傳送失敗，請稍後再試。');
+          if (queueCheckInterval) {
+            clearInterval(queueCheckInterval);
+            queueCheckInterval = null;
+          }
+          document.getElementById('queueStatus').style.display = 'none';
+          isLoading = false;
+          updateInputState();
+        }
+      }
+    }
+    
+    function sendWs(data) {
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify(data));
+        return true;
+      }
+      return false;
+    }
+    
+    function updateConnectionStatus(connected) {
+      const badge = document.getElementById('connectionBadge');
+      const text = document.getElementById('connectionText');
+      const statusEl = document.getElementById('chatStatus');
+      const input = document.getElementById('chatInput');
+      const sendBtn = document.getElementById('chatSendBtn');
+      
+      if (connected) {
+        badge.className = 'connection-badge';
+        text.textContent = '已連線';
+        statusEl.textContent = '連線成功';
+        input.disabled = false;
+        sendBtn.disabled = false;
+      } else {
+        badge.className = 'connection-badge offline';
+        text.textContent = '未連線';
+        statusEl.textContent = '連線中...';
+        input.disabled = true;
+        sendBtn.disabled = true;
+      }
+    }
+    
+    function updateInputState() {
+      const input = document.getElementById('chatInput');
+      const sendBtn = document.getElementById('chatSendBtn');
+      const chatWindow = document.getElementById('chatWindow');
+      
+      if (isLoading) {
+        input.disabled = true;
+        sendBtn.disabled = true;
+        sendBtn.classList.add('thinking');
+        chatWindow.classList.add('thinking');
+      } else if (isConnected) {
+        input.disabled = false;
+        sendBtn.disabled = false;
+        sendBtn.classList.remove('thinking');
+        chatWindow.classList.remove('thinking');
+      } else {
+        input.disabled = true;
+        sendBtn.disabled = true;
+        sendBtn.classList.remove('thinking');
+        chatWindow.classList.remove('thinking');
+      }
+      
+      // 更新排隊狀態顯示
+      if (isLoading) {
+        document.getElementById('queueStatus').style.display = 'block';
+        checkQueueStatus();
+      } else {
+        document.getElementById('queueStatus').style.display = 'none';
+      }
+    }
+    
+    // ===== 排隊狀態檢查 =====
+    let queueCheckInterval = null;
+    
+    function checkQueueStatus() {
+      if (!isLoading) return;
+      
+      fetch(apiUrl('/stats'))
+        .then(r => r.json())
+        .then(data => {
+          const queued = data.queued_tasks || 0;
+          document.getElementById('queueCount').textContent = queued;
+        })
+        .catch(() => {});
+      
+      // 每 3 秒檢查一次
+      if (queueCheckInterval) clearInterval(queueCheckInterval);
+      queueCheckInterval = setInterval(checkQueueStatus, 3000);
+    }
+    
+    // ===== Chat Functions =====
+    function addMessage(role, content, replaceLast = false) {
+      const messages = document.getElementById('chatMessages');
+      
+      // Bot messages: render Markdown
+      if (role === 'bot' && typeof marked !== 'undefined') {
+        content = marked.parse(content, { breaks: true, gfm: true });
+      }
+      
+      if (replaceLast) {
+        const lastBot = document.querySelector('.message.bot:last-child');
+        if (lastBot) {
+          lastBot.querySelector('.message-bubble').innerHTML = content;
+          scrollChat();
+          return;
+        }
+      }
+      
+      const div = document.createElement('div');
+      div.className = `message ${role}`;
+      div.innerHTML = `
+        <div class="message-avatar">${role === 'bot' ? '🦾' : '👤'}</div>
+        <div class="message-bubble">${content}</div>
+      `;
+      messages.appendChild(div);
+      scrollChat();
+    }
+    
+    function scrollChat() {
+      const messages = document.getElementById('chatMessages');
+      messages.scrollTop = messages.scrollHeight;
+    }
+    
+    function saveChatPreferences() {
+      const win = document.getElementById('chatWindow');
+      const prefs = {
+        width: win.style.width || '1000px',
+        height: win.style.height || '560px'
+      };
+      localStorage.setItem('chatPrefs', JSON.stringify(prefs));
+    }
+    
+    function restoreChatPreferences() {
+      const prefs = localStorage.getItem('chatPrefs');
+      if (prefs) {
+        try {
+          const p = JSON.parse(prefs);
+          const win = document.getElementById('chatWindow');
+          if (p.width) win.style.width = p.width;
+          if (p.height) win.style.height = p.height;
+        } catch (e) {}
+      }
+    }
+    
+    function toggleChatFullscreen() {
+      const win = document.getElementById('chatWindow');
+      const isFullscreen = win.dataset.fullscreen === 'true';
+      
+      if (isFullscreen) {
+        // 還原
+        win.style.width = win.dataset.origWidth || '1000px';
+        win.style.height = win.dataset.origHeight || '560px';
+        win.style.top = '';
+        win.style.left = '';
+        win.style.bottom = '110px';
+        win.style.right = '32px';
+        win.style.maxWidth = 'calc(100vw - 64px)';
+        win.dataset.fullscreen = 'false';
+        win.querySelector('.chat-fullscreen-btn').textContent = '⛶';
+      } else {
+        // 全螢幕
+        win.dataset.origWidth = win.style.width || '1000px';
+        win.dataset.origHeight = win.style.height || '560px';
+        win.style.width = '95vw';
+        win.style.height = '90vh';
+        win.style.top = '5vh';
+        win.style.left = '2.5vw';
+        win.style.bottom = 'auto';
+        win.style.right = 'auto';
+        win.style.maxWidth = '95vw';
+        win.dataset.fullscreen = 'true';
+        win.querySelector('.chat-fullscreen-btn').textContent = '⛶';
+      }
+      
+      saveChatPreferences();
+    }
+    
+    function toggleSources(btn) {
+      const expanded = btn.getAttribute('data-expanded') === 'true';
+      const hiddenContent = btn.getAttribute('data-hidden');
+      const count = btn.getAttribute('data-count');
+      
+      if (expanded) {
+        // 折疊
+        btn.setAttribute('data-expanded', 'false');
+        btn.textContent = `...還有 ${count} 個檔案（點我展開）`;
+        btn.setAttribute('data-hidden', btn.previousElementSibling.innerHTML);
+        btn.previousElementSibling.innerHTML = '';
+      } else {
+        // 展開
+        btn.setAttribute('data-expanded', 'true');
+        btn.textContent = '（點我收起）';
+        btn.previousElementSibling.innerHTML = hiddenContent;
+      }
+    }
+    
+    function toggleChat() {
+      document.getElementById('chatFab').classList.toggle('open');
+      document.getElementById('chatWindow').classList.toggle('show');
+    }
+    
+    // ===== Knowledge Base Search Helper Functions =====
+    async function waitForSearchResult(taskId, timeoutMs) {
+      const startTime = Date.now();
+      while (Date.now() - startTime < timeoutMs) {
+        try {
+          const res = await fetch(apiUrl('/tasks/' + taskId));
+          const data = await res.json();
+          
+          if (data.status === 'completed') {
+            return data;
+          } else if (data.status === 'failed' || data.error) {
+            console.error('[KB] Search failed:', data.error);
+            return null;
+          }
+        } catch (err) {
+          console.error('[KB] Check status failed:', err);
+        }
+        
+        await new Promise(r => setTimeout(r, 500));
+      }
+      console.warn('[KB] Search timeout');
+      return null;
+    }
+    
+    function formatKnowledgeBaseContext(result) {
+      if (!result || !result.answer) return '';
+      
+      let context = '【知識庫參考資料】\n\n';
+      
+      if (result.sources && result.sources.length > 0) {
+        context += '相關文件：\n';
+        result.sources.forEach(s => {
+          context += `* ${s.source}\n`;
+        });
+        context += '\n';
+      }
+      
+      context += '內容摘要：\n' + result.answer;
+      
+      return context;
+    }
+    
+    // ===== Send Message with Knowledge Base Integration =====
+    async function sendMessage() {
+      const input = document.getElementById('chatInput');
+      const text = input.value.trim();
+      if (!text || isLoading || !isConnected) return;
+      
+      input.value = '';
+      addMessage('user', text);
+      
+      // Store the query globally for later use in card clicks
+      window.lastQuery = text;
+      
+      // === Step 1: Query Knowledge Base (async, non-blocking for cards) ===
+      let kbContext = '';
+      
+      // Start KB search in background
+      const searchPromise = (async () => {
+        try {
+          const searchRes = await fetch(apiUrl('/search'), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ query: text, mode: 'hybrid', top_k: 5 })
+          });
+          
+          if (searchRes.ok) {
+            const searchData = await searchRes.json();
+            if (searchData.task_id) {
+              const result = await waitForSearchResult(searchData.task_id, 15000);
+              if (result && result.answer) {
+                kbContext = formatKnowledgeBaseContext(result);
+                console.log('[KB] Context prepared:', kbContext.slice(0, 100) + '...');
+              }
+            }
+          }
+        } catch (err) {
+          console.error('[KB] Search failed:', err);
+        }
+      })();
+      
+      // === Step 2: Call /analyze-question for card updates (non-blocking) ===
+      window.analyzingInProgress = true;
+      updateCardClickState();
+      
+      fetch(apiUrl('/analyze-question'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: text })
+      })
+      .then(r => r.json())
+      .then(data => {
+        console.log('[Heatmap] Analyze result:', data);
+        window.lastAnalyzeData = data;
+        updateCardsFromAnalyze(data);
+        window.analyzingInProgress = false;
+        updateCardClickState();
+      })
+      .catch(err => {
+        console.error('[Heatmap] Analyze failed:', err);
+        const intentScores = analyzeQueryIntent(text);
+        updateCardsFromIntent(intentScores);
+        window.analyzingInProgress = false;
+        updateCardClickState();
+      });
+      
+      // === Step 3: Wait for KB context, then send to OpenClaw ===
+      isLoading = true;
+      updateInputState();
+      
+      // Wait for KB search to complete (with timeout)
+      await Promise.race([searchPromise, new Promise(r => setTimeout(r, 8000))]);
+      
+      // Build enriched message with KB context
+      const enrichedMessage = kbContext
+        ? kbContext + '\n\n請根據以上知識庫資料回答以下問題：\n\n' + text
+        : text;
+      
+      if (kbContext) {
+        console.log('[KB] Sending enriched message, KB context length:', kbContext.length);
+      }
+      
+      const chatReq = {
+        type: 'req',
+        id: 'chat-' + (messageId++),
+        method: 'chat.send',
+        params: {
+          sessionKey: (CHAT_RUNTIME_CONFIG && CHAT_RUNTIME_CONFIG.sessionKey) || '',
+          message: enrichedMessage,
+          idempotencyKey: 'msg-' + Date.now()
+        }
+      };
+      
+      if (!sendWs(chatReq)) {
+        addMessage('bot', '連線失敗，請稍後再試。');
+        isLoading = false;
+        updateInputState();
+      }
+    }
+    
+    // Enter key handler
+    document.getElementById('chatInput').addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') sendMessage();
+    });
+    
+
+    // ===== Update Card Relevance Based on Query =====
+    async function updateCardRelevance(query) {
+      try {
+        const response = await fetch(apiUrl('/category-relevance'), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ query: query, top_k: 20 })
+        });
+        
+        if (!response.ok) return;
+        
+        const data = await response.json();
+        const categories = data.categories;
+        
+        // Threshold for status: Strong>=15, Medium>=8, Weak>=1, None=0
+        topics.forEach(topic => {
+          const count = categories[topic.name] || 0;
+          if (count >= 15) {
+            topic.status = 'strong';
+          } else if (count >= 8) {
+            topic.status = 'medium';
+          } else if (count >= 1) {
+            topic.status = 'weak';
+          } else {
+            topic.status = 'none';
+          }
+          topic.papers = count;
+        });
+        
+        renderCards();
+        console.log('[Heatmap] Card relevance updated:', categories);
+      } catch (err) {
+        console.error('[Heatmap] Failed to update relevance:', err);
+      }
+    }
+
+    // ===== Update Cards Based on Sources Used =====
+    // ===== Analyze Query Intent (Pre-query) =====
+    const categoryKeywords = {
+      '4G/5G': ['5G', 'NR', 'LTE', '基站', '細胞', 'PCI', 'VoLTE', 'Handover', 'AMF', 'SMF', 
+                'Bearer', 'Beam', 'PDSCH', 'PUCCH', 'SCell', 'CA', 'MME', 'eNB', 'gNB',
+                'PRACH', 'TAC', 'S1', 'X2', 'EPS', 'QoS', 'ARP', 'DRB', 'ERAB'],
+      'WiFi': ['WiFi', 'Wi-Fi', 'AP', 'Mesh', '頻道', 'OFDMA', 'QAM', 'BSS', 'TWT', 
+               '路由器', 'SSID', 'Channel', '802.11', 'WPA3', '訊號', '干擾'],
+      'Lab': ['實驗室', '設備', '借用', '歸還', 'Lab', '儀器', '量測', '測試'],
+      'Project': ['專案', 'PM', '進度', '里程碑', '時程', '風險', '資源', '人員', '截止'],
+      'Automation': ['自動化', 'CI/CD', 'Pipeline', 'Jenkins', 'GitHub', 'Git', 
+                      'Docker', 'K8s', 'Kubernetes', 'Deploy', '部署', 'Build']
+    };
+
+    function updateCardsFromAnalyze(data) {
+      intentAnalysisApplied = true;
+      
+      const { category_scores, related_docs } = data;
+      
+      console.log('[Heatmap] updateCardsFromAnalyze called');
+      console.log('[Heatmap] category_scores:', JSON.stringify(category_scores));
+      console.log('[Heatmap] related_docs keys:', Object.keys(related_docs));
+      
+      topics.forEach(topic => {
+        const score = category_scores[topic.name] || 0;
+        const files = related_docs[topic.name] || [];
+        const fileCount = files.length;
+        
+        console.log('[Heatmap] Processing topic:', topic.name, 'score=', score, 'fileCount=', fileCount);
+        
+        // Use score for status, but file count for display
+        if (score >= 5) {
+          topic.status = 'strong';
+        } else if (score >= 2) {
+          topic.status = 'medium';
+        } else if (score >= 1) {
+          topic.status = 'weak';
+        } else {
+          topic.status = 'none';
+        }
+        topic.score = score;
+        topic.fileCount = fileCount;
+        
+        topic.papers = fileCount;  // Show file count, not score
+        topic.files = files;
+        console.log('[Heatmap] Set topic.papers =', fileCount, 'for', topic.name);
+      });
+      
+      renderCards();
+      console.log('[Heatmap] Cards updated from analyze API - renderCards called');
+    }
+
+    function analyzeQueryIntent(query) {
+      intentAnalysisApplied = true; // Mark that we've applied intent-based status
+      const lowerQuery = query.toLowerCase();
+      const scores = {};
+      
+      // Track which keywords matched for each category
+      const matchedKeywords = {};
+      
+      for (const [category, keywords] of Object.entries(categoryKeywords)) {
+        let score = 0;
+        const hits = [];
+        for (const kw of keywords) {
+          if (lowerQuery.includes(kw.toLowerCase())) {
+            score++;
+            hits.push(kw);
+          }
+        }
+        scores[category] = score;
+        matchedKeywords[category] = hits;
+      }
+      
+      console.log('[Heatmap] Query intent scores:', scores);
+      console.log('[Heatmap] Matched keywords:', matchedKeywords);
+      
+      // Store matched keywords globally so cardClick can use them
+      window.lastMatchedKeywords = matchedKeywords;
+      
+      return scores;
+    }
+
+    function updateCardsFromIntent(scores) {
+      console.log('[Heatmap] Updating cards from intent scores:', scores);
+      
+      // Get relevant docs for each category based on intent keywords
+      const knownDocs = {
+        '4G/5G': ['LTE_Parameter_Planning', 'NR_Beamforming_Config', '5G_NR_Bearer_Establishment', 'NR_CA_Configuration', 'NR_SCell_Config', 'LTE_PDSCH_Optimization', '4G_Volte_Optimization', 'LTE_S1_U_Troubleshooting'],
+        'WiFi': ['WiFi_Channel_Planning', 'WiFi6_AP_Deployment', 'Mesh_Network_Design', 'WiFi_Troubleshooting_Guide', 'WiFi7_Introduction', 'IOT_WiFi_Separation'],
+        'Lab': ['Lab_Equipment_Borrow', 'Lab_Device_Inventory', 'Lab_Safety_Protocol'],
+        'Project': ['Project_Milestone_Tracker', 'Project_Risk_Log', 'New_Equipment_Onboarding'],
+        'Automation': ['CI_CD_Pipeline_Setup', 'Automation_Workflow', 'Jenkins_GitHub_Integration']
+      };
+      
+      topics.forEach(topic => {
+        const score = scores[topic.name] || 0;
+        
+        if (score >= 3) {
+          topic.status = 'strong';
+        } else if (score >= 2) {
+          topic.status = 'medium';
+        } else if (score >= 1) {
+          topic.status = 'weak';
+        } else {
+          topic.status = 'none';
+        }
+        topic.score = score;
+        topic.fileCount = knownDocs[topic.name] ? knownDocs[topic.name].length : 0;
+        topic.papers = topic.fileCount;
+        
+        // Store the relevant docs based on this category's known docs
+        if (score > 0 && knownDocs[topic.name]) {
+          topic.files = knownDocs[topic.name]; // Store actual docs
+        }
+      });
+      
+      renderCards();
+      console.log('[Heatmap] Cards updated based on intent');
+    }
+
+    // Known document names in the knowledge base
+    const knownDocs = {
+      '4G/5G': ['LTE', 'NR', '5G', 'Bearer', 'Beamforming', 'CA', 'SCell', 'PCI', 'VoLTE', 'Handover', 'PDSCH', 'S1'],
+      'WiFi': ['WiFi', 'Wi-Fi', 'Mesh', 'AP', 'Channel', 'BSS', 'OFDMA', 'QAM', 'TWT', '802.11'],
+      'Lab': ['Lab', 'Equipment', 'Device', '借用', '歸還'],
+      'Project': ['Project', 'Milestone', 'PM', '進度', '時程', '風險'],
+      'Automation': ['CI/CD', 'Pipeline', 'Jenkins', 'GitHub', 'Automation', '自動化']
+    };
+
+    function updateCardsFromSources(sourceNames) {
+      console.log('[Heatmap] updateCardsFromSources called with:', sourceNames);
+      // Count sources by category
+      const categoryCounts = {'4G/5G': 0, 'WiFi': 0, 'Lab': 0, 'Project': 0, 'Automation': 0};
+      
+      sourceNames.forEach(name => {
+        const lower = name.toLowerCase();
+        console.log('[Heatmap] Processing source:', name, '->', lower);
+        
+        // Check against known document patterns
+        for (const [category, keywords] of Object.entries(knownDocs)) {
+          for (const kw of keywords) {
+            if (lower.includes(kw.toLowerCase())) {
+              categoryCounts[category]++;
+              console.log('[Heatmap] Matched', kw, '->', category);
+              break;
+            }
+          }
+        }
+      });
+      
+      // Update topic status based on counts
+      topics.forEach(topic => {
+        const count = categoryCounts[topic.name] || 0;
+        if (count >= 2) {
+          topic.status = 'strong';
+        } else if (count >= 1) {
+          topic.status = 'medium';
+        } else {
+          topic.status = 'none';
+        }
+        topic.score = count;
+        topic.fileCount = count;
+        topic.papers = count;
+      });
+      
+      renderCards();
+      console.log('[Heatmap] Cards updated from sources:', categoryCounts);
+    }
+
+    // ===== Init =====
+    // 恢復使用者偏好
+    restoreChatPreferences();
+    renderCards();
+    loadCategoryStats();
+    connectWebSocket();
+    
+    // 監聽視窗大小變化，保存偏好
+    window.addEventListener('resize', saveChatPreferences);
+    
+    // ===== Document Modal Functions =====
+    function openDocModal(category, docs) {
+      const modal = document.getElementById('docModal');
+      const title = document.getElementById('modalTitle');
+      const content = document.getElementById('modalContent');
+      
+      title.textContent = category + ' - 相關文件';
+      
+      // Encode category for safe use in onclick
+      const encodedCategory = encodeURIComponent(category);
+      const encodedCategorySafe = encodedCategory.replace(/'/g, "%27");
+      
+      // Store docs globally for filtering
+      window._currentDocList = docs;
+      window._currentDocCategory = category;
+      window._currentDocCategorySafe = encodedCategorySafe;
+      
+      if (!docs || docs.length === 0) {
+        content.innerHTML = '<p style="color: #64748b; text-align: center; padding: 40px;">請確認原始文件是否存在</p>';
+      } else {
+        // Add search input and doc list container
+        content.innerHTML = '<div style="margin-bottom: 12px;"><input type="text" id="docSearchInput" placeholder="🔍 搜尋文件名稱..." oninput="filterDocList()" style="width: 100%; padding: 10px 14px; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 14px; outline: none; box-sizing: border-box;"></div><div id="docListContainer"></div>';
+        
+        // Render initial list
+        renderDocList(docs, encodedCategorySafe);
+      }
+      
+      modal.style.display = 'block';
+    }
+    
+    function filterDocList() {
+      const searchTerm = document.getElementById('docSearchInput').value.toLowerCase();
+      const docs = window._currentDocList || [];
+      const encodedCategorySafe = window._currentDocCategorySafe || '';
+      
+      const filtered = docs.filter(doc => {
+        const docName = (doc.name || doc).toLowerCase();
+        return docName.includes(searchTerm);
+      });
+      
+      renderDocList(filtered, encodedCategorySafe);
+    }
+    
+    function renderDocList(docs, encodedCategorySafe) {
+      const container = document.getElementById('docListContainer');
+      if (!docs || docs.length === 0) {
+        container.innerHTML = '<p style="color: #64748b; text-align: center; padding: 20px;">找不到符合的文件</p>';
+        return;
+      }
+      
+      const docList = docs.map(doc => {
+        const docName = doc.name || doc;
+        const modified = doc.modified || '';
+        const encodedDocName = encodeURIComponent(docName).replace(/'/g, "%27");
+        const timeStr = modified ? '<div style="font-size: 11px; color: #94a3b8; margin-top: 2px;">📅 ' + modified + ' 建立</div>' : '';
+        return '<div onclick="openDocContentModal(decodeURIComponent(\'' + encodedCategorySafe + '\'), decodeURIComponent(\'' + encodedDocName + '\'))" style="padding: 12px 16px; background: #f8fafc; border-radius: 8px; margin-bottom: 8px; border: 1px solid #e2e8f0; cursor: pointer; transition: all 0.2s;" onmouseover="this.style.background=\'#e2e8f0\'" onmouseout="this.style.background=\'#f8fafc\'"><div style="font-weight: 600; color: #1e3a5f;">' + docName + '</div>' + timeStr + '</div>';
+      }).join('');
+      
+      container.innerHTML = docList;
+    }
+    
+    function closeDocModal() {
+      document.getElementById('docModal').style.display = 'none';
+    }
+    
+    function openDocContentModal(category, docName) {
+      const contentModal = document.getElementById('docContentModal');
+      const contentTitle = document.getElementById('docContentTitle');
+      const contentBody = document.getElementById('docContentBody');
+      
+      contentTitle.textContent = docName;
+      contentBody.innerHTML = '<div style="text-align: center; padding: 40px; color: #64748b;">載入中...</div>';
+      contentModal.style.display = 'block';
+      
+      // Strip .md extension if present since backend adds it
+      const docNameClean = docName.replace(/\.md$/i, '');
+      const url = apiUrl('/api/document?category=' + encodeURIComponent(category) + '&doc_name=' + encodeURIComponent(docNameClean));
+      console.log('[Heatmap] Fetching document:', url);
+      fetch(url)
+        .then(r => {
+          if (!r.ok) {
+            throw new Error('HTTP ' + r.status + ': ' + r.statusText);
+          }
+          return r.json();
+        })
+        .then(data => {
+          console.log('[Heatmap] Document data received:', Object.keys(data));
+          // Handle array response (error with 404 status) vs dict response (success)
+          if (Array.isArray(data)) {
+            // Error response - extract error message
+            const errorInfo = data[0] || {};
+            const errorMsg = errorInfo.error || '檔案讀取失敗';
+            contentBody.innerHTML = '<div style="color: #f87171; text-align: center; padding: 40px;">' + errorMsg + '</div>';
+          } else if (data.error) {
+            contentBody.innerHTML = '<div style="color: #f87171; text-align: center; padding: 40px;">' + data.error + '</div>';
+          } else if (!data.content) {
+            contentBody.innerHTML = '<div style="color: #f87171; text-align: center; padding: 40px;">檔案內容為空</div>';
+          } else {
+            let html = data.content
+              .replace(/```(\w+)?\n([\s\S]*?)```/g, '<pre style="background: #1e293b; color: #e2e8f0; padding: 12px; border-radius: 8px; overflow-x: auto;"><code>$2</code></pre>')
+              .replace(/`([^`]+)`/g, '<code style="background: #f1f5f9; padding: 2px 6px; border-radius: 4px;">$1</code>')
+              .replace(/^### (.+)$/gm, '<h3 style="color: #1e3a5f; margin-top: 20px;">$1</h3>')
+              .replace(/^## (.+)$/gm, '<h2 style="color: #1e3a5f; margin-top: 20px;">$1</h2>')
+              .replace(/^# (.+)$/gm, '<h1 style="color: #1e3a5f; margin-top: 20px;">$1</h1>')
+              .replace(/\n/g, '<br>');
+            contentBody.innerHTML = '<div style="max-height: 70vh; overflow-y: auto; line-height: 1.6;">' + html + '</div>';
+          }
+        })
+        .catch(err => {
+          contentBody.innerHTML = '<div style="color: #f87171; text-align: center; padding: 40px;">載入失敗: ' + err.message + '</div>';
+        });
+    }
+    
+    function closeDocContentModal() {
+      document.getElementById('docContentModal').style.display = 'none';
+    }
+  </script>
+  
+  <!-- Document Modal -->
+  <div id="docModal" class="modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 2000;">
+    <div class="modal-content" style="background: white; border-radius: 16px; max-width: 600px; margin: 10% auto; padding: 24px; box-shadow: 0 20px 60px rgba(0,0,0,0.3);">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+        <h3 id="modalTitle" style="color: #1e3a5f; font-size: 18px; font-weight: 600;">文件列表</h3>
+        <button onclick="closeDocModal()" style="background: none; border: none; font-size: 24px; cursor: pointer; color: #64748b;">✕</button>
+      </div>
+      <div id="modalContent" style="max-height: 400px; overflow-y: auto;"></div>
+    </div>
+  </div>
+  
+  <!-- Document Content Modal -->
+  <div id="docContentModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 2000; overflow-y: auto;">
+    <div style="background: white; margin: 50px auto; width: 90%; max-width: 800px; border-radius: 16px; overflow: hidden;">
+      <div style="background: linear-gradient(135deg, #0f3460, #1a4f8a); color: white; padding: 20px; display: flex; justify-content: space-between; align-items: center;">
+        <h3 id="docContentTitle" style="margin: 0;">文件內容</h3>
+        <button onclick="closeDocContentModal()" style="background: none; border: none; color: white; font-size: 24px; cursor: pointer;">✕</button>
+      </div>
+      <div id="docContentBody" style="padding: 20px; max-height: 70vh; overflow-y: auto;">
+      </div>
+    </div>
+  </div>
+
+</body>
+</html>

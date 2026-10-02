@@ -1,0 +1,357 @@
+"""
+Celery 任務 - 搜尋任務異步執行
+"""
+
+import logging
+from celery import Celery
+from celery.signals import worker_init
+
+logger = logging.getLogger(__name__)
+
+# ===== Celery 設定 =====
+
+redis_url = "redis://localhost:6379/0"
+
+celery_app = Celery(
+    "knowledge_base",
+    broker=redis_url,
+    backend=redis_url
+)
+
+celery_app.conf.update(
+    # 任務路由
+    task_routes={
+        "tasks.search_task": {"queue": "search"},
+    },
+    # 結果過期時間
+    result_expires=3600,  # 1小時
+    # worker 並發數
+    worker_concurrency=16,
+    # 任務超時
+    task_soft_time_limit=120,  # 2分鐘
+    task_time_limit=180,  # 3分鐘
+    # 失敗重試
+    task_acks_late=True,
+    task_reject_on_worker_lost=True,
+)
+
+
+# ===== Worker 啟動時預載入模型 =====
+
+# 全域變數（程序層級快取）
+_preloaded_vector_store = None
+_preloaded_neo4j_driver = None
+_preloaded_llm_client = None
+
+
+@worker_init.connect
+def preload_models(**kwargs):
+    """Worker 啟動時預先載入 Vector Store 和 Neo4j 連線"""
+    import warnings
+    warnings.filterwarnings("ignore")
+    
+    global _preloaded_vector_store, _preloaded_neo4j_driver, _preloaded_llm_client
+    
+    logger.info("=" * 50)
+    logger.info("Worker 啟動中 - 預載入模型...")
+    logger.info("=" * 50)
+    
+    try:
+        # 1. 預載入 Vector Store (BAAI/bge-base-zh-v1.5)
+        logger.info("[1/3] 載入 Vector Store (BAAI/bge-base-zh-v1.5)...")
+        from ..vector_store import VectorStore
+        _preloaded_vector_store = VectorStore()
+        logger.info(f"      Vector Store 維度: {_preloaded_vector_store.VECTOR_DIM}")
+        logger.info(f"      QDrant 連線: ✅")
+        
+        # 2. 預先建立 Neo4j 連線池
+        logger.info("[2/3] 測試 Neo4j 連線...")
+        from neo4j import GraphDatabase
+        from ..main import load_config
+        config = load_config()
+        neo4j_config = config.get("neo4j", {})
+        _preloaded_neo4j_driver = GraphDatabase.driver(
+            neo4j_config.get("uri", "bolt://neo4j:7687"),
+            auth=(neo4j_config.get("user", "neo4j"), neo4j_config.get("password", ""))
+        )
+        with _preloaded_neo4j_driver.session() as session:
+            session.run("RETURN 1")
+        logger.info("      Neo4j 連線: ✅")
+        
+        # 3. 預先初始化 Ollama Client
+        logger.info("[3/3] 初始化 Ollama Client...")
+        from ..web_api.ollama_client import OllamaClient
+        ollama_config = config.get("ollama", {})
+        _preloaded_llm_client = OllamaClient(
+            model=ollama_config.get("model", "gemma4:12b"),
+            base_url=ollama_config.get("instances", ["http://localhost:11434"])[0] if ollama_config.get("instances") else ollama_config.get("base_url", "http://localhost:11434")
+        )
+        logger.info("      Ollama Client: ✅")
+        
+        logger.info("=" * 50)
+        logger.info("✅ Worker 預載入完成！所有模型已就緒")
+        logger.info("=" * 50)
+        
+    except Exception as e:
+        logger.error(f"⚠️ Worker 預載入失敗: {e}")
+        logger.error("系統仍會正常運作，但首次 Vector 搜尋可能較慢")
+
+
+# ===== 任務定義 =====
+
+@celery_app.task(name="tasks.search_task", bind=True, max_retries=3)
+def search_task(self, query: str, mode: str, **kwargs):
+    """
+    搜尋任務本體
+
+    Args:
+        query: 搜尋查詢
+        mode: basic / deep / vector / hybrid / auto
+        **kwargs: 其他參數（如 user_id）
+
+    Returns:
+        dict: 包含 answer, sources, mode
+    """
+    hybrid_incremented = False
+    
+    try:
+        logger.info(f"執行搜尋任務: query={query[:50]}, mode={mode}")
+
+        # 延遲引入，避免迴圈相依
+        from ..main import KnowledgeBaseSystem
+        from .cache import cache_get, increment_hybrid_count, decrement_hybrid_count
+
+        # Hybrid 模式：增加計數
+        if mode == "hybrid":
+            current = increment_hybrid_count()
+            hybrid_incremented = True
+            logger.info(f"Hybrid 人數 +1，目前: {current}")
+
+        # 檢查任務是否被取消
+        if self.request.id and cache_get(f"cancel:{self.request.id}"):
+            if hybrid_incremented:
+                decrement_hybrid_count()
+            return {"status": "cancelled", "message": "任務已被取消"}
+
+        # 使用預載入的系統或建立新的
+        kb = KnowledgeBaseSystem()
+        
+        # 如果有預載入的資源，注入到 kb
+        global _preloaded_vector_store, _preloaded_llm_client
+        if _preloaded_vector_store is not None:
+            kb.search_engine.vector_store = _preloaded_vector_store
+            logger.info(f"已注入預載入的 vector_store")
+        else:
+            logger.warning("預載入的 vector_store 為 None")
+        if _preloaded_llm_client is not None:
+            kb.search_engine.llm_client = _preloaded_llm_client
+            logger.info(f"已注入預載入的 llm_client")
+
+        # 執行搜尋
+        result = kb.search(query, mode)
+
+        if result.get("status") == "success":
+            return {
+                "answer": result.get("answer"),
+                "sources": result.get("sources", []),
+                "mode": result.get("mode"),
+                "status": "completed"
+            }
+        else:
+            return {
+                "status": "failed",
+                "error": result.get("message", "未知錯誤"),
+                "mode": mode
+            }
+
+    except Exception as e:
+        logger.error(f"搜尋任務失敗: {e}")
+
+        # 重試機制
+        try:
+            self.retry(exc=e, countdown=5)
+        except self.MaxRetriesExceededError:
+            return {
+                "status": "failed",
+                "error": f"任務失敗已達最大重試次數: {e}",
+                "mode": mode
+            }
+    finally:
+        # Hybrid 模式：減少計數
+        if hybrid_incremented:
+            from .cache import decrement_hybrid_count
+            current = decrement_hybrid_count()
+            logger.info(f"Hybrid 人數 -1，目前: {current}")
+
+
+@celery_app.task(name="tasks.ingest_task")
+def ingest_task(markdown_folder: str, chunk_size: int = 1000, overlap: int = 200):
+    """文件攼入任務（長時間執行）"""
+    try:
+        logger.info(f"執行攼入任務: {markdown_folder}")
+
+        from ..main import KnowledgeBaseSystem
+
+        kb = KnowledgeBaseSystem()
+        success = kb.ingest_documents(markdown_folder, chunk_size, overlap)
+
+        return {
+            "status": "success" if success else "failed",
+            "message": "攼入完成" if success else "攼入失敗"
+        }
+
+    except Exception as e:
+        logger.error(f"攼入任務失敗: {e}")
+        return {"status": "failed", "error": str(e)}
+
+
+# ===== Celery Beat 定時任務設定 =====
+
+from pathlib import Path
+
+# 預設排程設定（可透過 API 修改）
+_beat_schedule_config = {
+    "enabled": False,
+    "interval_minutes": 5,
+    "watch_folder": "/home/da40_ai_gb10/.n8n-files/watch",
+    "processed_folder": "/home/da40_ai_gb10/knowledge-base/data/processed"
+}
+
+
+def get_beat_schedule_config():
+    """取得排程設定"""
+    from .cache import cache_get
+    config = cache_get("beat_schedule_config")
+    if config:
+        return config
+    return _beat_schedule_config.copy()
+
+
+def update_beat_schedule_config(enabled=None, interval_minutes=None, watch_folder=None):
+    """更新排程設定"""
+    from .cache import cache_set
+    config = get_beat_schedule_config()
+    
+    if enabled is not None:
+        config["enabled"] = enabled
+    if interval_minutes is not None:
+        config["interval_minutes"] = interval_minutes
+    if watch_folder is not None:
+        config["watch_folder"] = watch_folder
+    
+    cache_set("beat_schedule_config", config, ttl=None)
+    logger.info(f"排程設定已更新: {config}")
+    
+    # 如果啟用了排程，更新 Celery Beat
+    if config["enabled"]:
+        update_celery_beat(config["interval_minutes"])
+    
+    return config
+
+
+def update_celery_beat(interval_minutes):
+    """更新 Celery Beat 排程"""
+    celery_app.conf.beat_schedule = {
+        "process-watch-folder": {
+            "task": "tasks.watch_folder_scan",
+            "schedule": interval_minutes * 60,  # 轉換為秒
+            "options": {"queue": "search"}
+        }
+    }
+    logger.info(f"Celery Beat 已更新: 每 {interval_minutes} 分鐘執行")
+
+
+@celery_app.task(name="tasks.watch_folder_scan", bind=True, max_retries=3)
+def watch_folder_scan(self):
+    """
+    掃描監控資料夾，自動處理新檔案
+    """
+    try:
+        config = get_beat_schedule_config()
+        
+        if not config.get("enabled"):
+            logger.info("自動攝入已停用")
+            return {"status": "skipped", "message": "自動攝入已停用"}
+        
+        watch_folder = Path(config.get("watch_folder", "/home/da40_ai_gb10/.n8n-files/watch"))
+        processed_folder = Path(config.get("processed_folder", "/home/da40_ai_gb10/knowledge-base/data/processed"))
+        
+        processed_folder.mkdir(parents=True, exist_ok=True)
+        
+        logger.info(f"掃描監控資料夾: {watch_folder}")
+        
+        if not watch_folder.exists():
+            logger.warning(f"監控資料夾不存在: {watch_folder}")
+            return {"status": "skipped", "message": "監控資料夾不存在"}
+        
+        # 取得支援的副檔名
+        from ..converter import FileConverter
+        converter = FileConverter()
+        supported_extensions = {".xlsx", ".xls", ".pdf", ".docx", ".doc", ".pptx", ".ppt", ".txt", ".md", ".html", ".csv", ".json", ".xml", ".epub", ".msg"}
+        
+        # 掃描資料夾中的檔案
+        files_processed = []
+        files_failed = []
+        
+        for file_path in watch_folder.iterdir():
+            if not file_path.is_file():
+                continue
+            
+            ext = file_path.suffix.lower()
+            if ext not in supported_extensions:
+                continue
+            
+            try:
+                logger.info(f"處理檔案: {file_path.name}")
+                
+                # 讀取檔案並轉換為 Markdown
+                output_path = processed_folder / f"{file_path.stem}.md"
+                result = converter.convert_file(str(file_path), str(output_path))
+                
+                if result.get("status") == "success":
+                    # 攝入到知識庫（使用完整流程）
+                    from ..ingest import ingest_all
+                    try:
+                        ingest_all(str(processed_folder))
+                        logger.info(f"已攝入: {file_path.name}")
+                    except Exception as e:
+                        logger.error(f"攝入失敗: {e}")
+                    
+                    # 移動到已處理資料夾
+                    processed_path = processed_folder / file_path.name
+                    file_path.rename(processed_path)
+                    
+                    files_processed.append(file_path.name)
+                    logger.info(f"已完成: {file_path.name}")
+                else:
+                    files_failed.append((file_path.name, result.get("error", "轉換失敗")))
+                    
+            except Exception as e:
+                logger.error(f"處理失敗 {file_path.name}: {e}")
+                files_failed.append((file_path.name, str(e)))
+        
+        return {
+            "status": "completed",
+            "processed": files_processed,
+            "failed": files_failed,
+            "total": len(files_processed) + len(files_failed)
+        }
+        
+    except Exception as e:
+        logger.error(f"watch_folder_scan 任務失敗: {e}")
+        return {"status": "failed", "error": str(e)}
+
+
+# ===== Worker 啟動命令 =====
+
+"""
+# 啟動 Celery worker（含 Beat）
+celery -A src.web_api.tasks:celery_app worker --loglevel=info --concurrency=16 -Q search &
+celery -A src.web_api.tasks:celery_app beat --loglevel=info
+
+# 或使用 systemd 管理
+# /etc/systemd/system/celery-worker.service
+# /etc/systemd/system/celery-beat.service
+"""
+
+__all__ = ["celery_app", "search_task", "ingest_task", "watch_folder_scan"]

@@ -1,0 +1,49 @@
+# 知識庫系統設定檔
+# 請複製此檔案為 config.yaml 並填入實際值
+
+# LLM 設定（目前僅保留 Ollama）
+llm_provider: "ollama"
+llm_model: "qwen3-coder-next"
+
+# Neo4j 設定
+neo4j_uri: "bolt://neo4j:7687"
+neo4j_user: "neo4j"
+neo4j_password: "your-neo4j-password"
+
+# Embedding 模型（用於向量檢索）
+embedding_model: "sentence-transformers/all-MiniLM-L6-v2"
+
+# 檔案轉換設定
+converter:
+  chunk_size: 1000
+  chunk_overlap: 200
+  supported_formats:
+    - ".pdf"
+    - ".docx"
+    - ".pptx"
+    - ".xlsx"
+    - ".txt"
+    - ".md"
+    - ".html"
+
+# 搜尋設定
+search:
+  basic_top_k: 3
+  deep_top_k: 6
+  auto_mode_keywords:
+    - "為什麼"
+    - "如何"
+    - "怎麼"
+    - "比較"
+    - "關係"
+    - "原因"
+    - "哪些"
+
+# Ollama 設定
+ollama:
+  instances:
+    - "http://localhost:11434"
+  model: "qwen3-coder-next"
+  num_predict: 4096
+  strategy: "round_robin"
+  timeout: 300

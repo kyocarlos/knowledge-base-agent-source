@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>文件攝入流程架構圖</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Segoe UI', 'PingFang TC', sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            min-height: 100vh;
+            padding: 40px 20px;
+            color: #fff;
+        }
+        h1 {
+            text-align: center;
+            font-size: 28px;
+            margin-bottom: 10px;
+            color: #e94560;
+        }
+        .subtitle {
+            text-align: center;
+            color: #888;
+            margin-bottom: 40px;
+            font-size: 14px;
+        }
+        .flow-container {
+            max-width: 1100px;
+            margin: 0 auto;
+            display: flex;
+            flex-direction: column;
+            gap: 0;
+        }
+        .step {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            position: relative;
+        }
+        .step-number {
+            width: 50px;
+            height: 50px;
+            background: linear-gradient(135deg, #e94560, #ff6b6b);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            font-weight: bold;
+            flex-shrink: 0;
+            box-shadow: 0 4px 15px rgba(233, 69, 96, 0.4);
+            z-index: 2;
+        }
+        .step.llm .step-number {
+            background: linear-gradient(135deg, #00d9ff, #00ff88);
+            box-shadow: 0 4px 15px rgba(0, 217, 255, 0.4);
+        }
+        .step-content {
+            flex: 1;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 20px 25px;
+            backdrop-filter: blur(10px);
+            transition: all 0.3s ease;
+        }
+        .step-content:hover {
+            background: rgba(255, 255, 255, 0.08);
+            transform: translateX(5px);
+        }
+        .step.llm .step-content {
+            border-color: rgba(0, 217, 255, 0.3);
+            background: rgba(0, 217, 255, 0.05);
+        }
+        .step-title {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .step.llm .step-title {
+            color: #00d9ff;
+        }
+        .step-desc {
+            color: #aaa;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+        .step-badge {
+            font-size: 11px;
+            padding: 3px 10px;
+            border-radius: 20px;
+            font-weight: normal;
+        }
+        .step-badge.llm {
+            background: rgba(0, 217, 255, 0.2);
+            color: #00d9ff;
+            border: 1px solid rgba(0, 217, 255, 0.3);
+        }
+        .step-badge.no-llm {
+            background: rgba(255, 107, 107, 0.2);
+            color: #ff6b6b;
+            border: 1px solid rgba(255, 107, 107, 0.3);
+        }
+        .arrow {
+            width: 2px;
+            height: 40px;
+            background: linear-gradient(to bottom, rgba(255,255,255,0.3), rgba(255,255,255,0.1));
+            margin-left: 24px;
+        }
+        .arrow.llm {
+            background: linear-gradient(to bottom, rgba(0, 217, 255, 0.5), rgba(0, 255, 136, 0.3));
+        }
+        .tech-stack {
+            margin-top: 50px;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 20px;
+            max-width: 1100px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+        .tech-card {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 12px;
+            padding: 20px;
+        }
+        .tech-card h3 {
+            color: #e94560;
+            font-size: 16px;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .tech-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            font-size: 14px;
+        }
+        .tech-item:last-child {
+            border-bottom: none;
+        }
+        .tech-item .name {
+            color: #ccc;
+        }
+        .tech-item .value {
+            color: #00d9ff;
+            font-weight: 500;
+        }
+        .flow-diagram {
+            max-width: 1100px;
+            margin: 40px auto;
+            background: rgba(255, 255, 255, 0.02);
+            border-radius: 16px;
+            padding: 30px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+        .flow-row {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+        .flow-box {
+            padding: 12px 20px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+        }
+        .flow-box.input {
+            background: linear-gradient(135deg, #e94560, #ff6b6b);
+        }
+        .flow-box.process {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        .flow-box.llm {
+            background: linear-gradient(135deg, #00d9ff, #00ff88);
+            color: #1a1a2e;
+        }
+        .flow-box.output {
+            background: linear-gradient(135deg, #9b59b6, #3498db);
+        }
+        .flow-arrow {
+            font-size: 20px;
+            color: rgba(255, 255, 255, 0.5);
+        }
+        .legend {
+            max-width: 1100px;
+            margin: 30px auto;
+            display: flex;
+            justify-content: center;
+            gap: 30px;
+            flex-wrap: wrap;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 13px;
+            color: #888;
+        }
+        .legend-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+        }
+        .legend-dot.no-llm {
+            background: #ff6b6b;
+        }
+        .legend-dot.llm {
+            background: #00d9ff;
+        }
+        .legend-dot.storage {
+            background: #9b59b6;
+        }
+    </style>
+</head>
+<body>
+    <h1>📄 文件攝入流程架構圖</h1>
+    <p class="subtitle">Document Ingestion Pipeline Architecture</p>
+
+    <div class="flow-container">
+        <!-- Step 1 -->
+        <div class="step">
+            <div class="step-number">1</div>
+            <div class="step-content">
+                <div class="step-title">
+                    📤 文件上傳
+                    <span class="step-badge no-llm">不用 LLM</span>
+                </div>
+                <div class="step-desc">
+                    使用者上傳文件，支援 PDF、Word、Excel、PowerPoint、Markdown 等格式
+                </div>
+            </div>
+        </div>
+        <div class="arrow"></div>
+
+        <!-- Step 2 -->
+        <div class="step">
+            <div class="step-number">2</div>
+            <div class="step-content">
+                <div class="step-title">
+                    🔄 MarkItDown 轉換
+                    <span class="step-badge no-llm">不用 LLM</span>
+                </div>
+                <div class="step-desc">
+                    將各種格式轉換為 Markdown 純文字，保留標題結構（## 標題）
+                </div>
+            </div>
+        </div>
+        <div class="arrow"></div>
+
+        <!-- Step 3 -->
+        <div class="step">
+            <div class="step-number">3</div>
+            <div class="step-content">
+                <div class="step-title">
+                    ✂️ TextChunker 分割
+                    <span class="step-badge no-llm">不用 LLM</span>
+                </div>
+                <div class="step-desc">
+                    按 ## 標題將文件分割成多個 TextUnit（文字區塊）<br>
+                    <strong>輸出：</strong>3 個 TextUnit
+                </div>
+            </div>
+        </div>
+        <div class="arrow"></div>
+
+        <!-- Step 4 -->
+        <div class="step">
+            <div class="step-number">4</div>
+            <div class="step-content">
+                <div class="step-title">
+                    💾 存入 Neo4j
+                    <span class="step-badge no-llm">不用 LLM</span>
+                </div>
+                <div class="step-desc">
+                    建立 Document 節點 → 建立 TextUnit 節點 → 建立 CONTAINS 關係
+                </div>
+            </div>
+        </div>
+        <div class="arrow llm"></div>
+
+        <!-- Step 5 -->
+        <div class="step llm">
+            <div class="step-number">🤖</div>
+            <div class="step-content">
+                <div class="step-title">
+                    🧠 LLM 萃取實體
+                    <span class="step-badge llm">使用 LLM</span>
+                </div>
+                <div class="step-desc">
+                    叫用 gemma4:e4b 模型，分析 .md 內容找出：<br>
+                    • <strong>Entity</strong>：設備名稱、人名、機構、事件等<br>
+                    • <strong>RELATES_TO</strong>：實體之間的關係<br>
+                    <br>
+                    <strong>輸出：</strong>45 個 Entity，27 條 RELATES_TO 關係
+                </div>
+            </div>
+        </div>
+        <div class="arrow llm"></div>
+
+        <!-- Step 6 -->
+        <div class="step">
+            <div class="step-number">6</div>
+            <div class="step-content">
+                <div class="step-title">
+                    🔢 BGE 產生向量
+                    <span class="step-badge no-llm">不用 LLM</span>
+                </div>
+                <div class="step-desc">
+                    使用 BAAI/bge-base-zh-v1.5 模型將 TextUnit 轉為 768 維向量
+                </div>
+            </div>
+        </div>
+        <div class="arrow"></div>
+
+        <!-- Step 7 -->
+        <div class="step">
+            <div class="step-number">7</div>
+            <div class="step-content">
+                <div class="step-title">
+                    📍 存入 QDrant
+                    <span class="step-badge no-llm">不用 LLM</span>
+                </div>
+                <div class="step-desc">
+                    將向量與 TextUnit 內容存入 QDrant 向量資料庫，支援語意相似度搜尋
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 簡化流程圖 -->
+    <div class="flow-diagram">
+        <div class="flow-row">
+            <div class="flow-box input">📤 上傳文件</div>
+            <span class="flow-arrow">→</span>
+            <div class="flow-box process">MarkItDown</div>
+            <span class="flow-arrow">→</span>
+            <div class="flow-box process">TextChunker</div>
+            <span class="flow-arrow">→</span>
+            <div class="flow-box llm">🤖 LLM</div>
+            <span class="flow-arrow">→</span>
+            <div class="flow-box process">BGE</div>
+            <span class="flow-arrow">→</span>
+            <div class="flow-box output">📍 QDrant</div>
+        </div>
+    </div>
+
+    <!-- 圖例 -->
+    <div class="legend">
+        <div class="legend-item">
+            <div class="legend-dot no-llm"></div>
+            <span>機器處理（不用 LLM）</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-dot llm"></div>
+            <span>LLM 處理</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-dot storage"></div>
+            <span>儲存系統</span>
+        </div>
+    </div>
+
+    <!-- 技術棧 -->
+    <div class="tech-stack">
+        <div class="tech-card">
+            <h3>📊 當前統計數據</h3>
+            <div class="tech-item">
+                <span class="name">Document 節點</span>
+                <span class="value">2</span>
+            </div>
+            <div class="tech-item">
+                <span class="name">TextUnit 文字區塊</span>
+                <span class="value">3</span>
+            </div>
+            <div class="tech-item">
+                <span class="name">Entity 實體</span>
+                <span class="value">45</span>
+            </div>
+            <div class="tech-item">
+                <span class="name">RELATES_TO 關係</span>
+                <span class="value">27</span>
+            </div>
+        </div>
+
+        <div class="tech-card">
+            <h3>🔧 使用技術</h3>
+            <div class="tech-item">
+                <span class="name">文件轉換</span>
+                <span class="value">MarkItDown</span>
+            </div>
+            <div class="tech-item">
+                <span class="name">文字分割</span>
+                <span class="value">TextChunker</span>
+            </div>
+            <div class="tech-item">
+                <span class="name">LLM 模型</span>
+                <span class="value">gemma4:e4b</span>
+            </div>
+            <div class="tech-item">
+                <span class="name">Embedding</span>
+                <span class="value">BAAI/bge-base-zh-v1.5</span>
+            </div>
+        </div>
+
+        <div class="tech-card">
+            <h3>🗄️ 儲存系統</h3>
+            <div class="tech-item">
+                <span class="name">Neo4j</span>
+                <span class="value">知識圖譜</span>
+            </div>
+            <div class="tech-item">
+                <span class="name">QDrant</span>
+                <span class="value">向量資料庫</span>
+            </div>
+            <div class="tech-item">
+                <span class="name">Redis</span>
+                <span class="value">快取/佇列</span>
+            </div>
+            <div class="tech-item">
+                <span class="name">Celery</span>
+                <span class="value">任務排程</span>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

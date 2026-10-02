@@ -1,0 +1,2960 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>知識庫熱圖 | Knowledge Base Heatmap</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/tweetnacl@1.0.3/nacl.min.js"></script>
+  <script type="module" src="./lib/compare-rules.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { 
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; 
+      background:
+        radial-gradient(circle at top left, rgba(31, 141, 184, 0.08), transparent 30%),
+        linear-gradient(180deg, #f7fafc 0%, #eef3f8 42%, #e8eef5 100%);
+      min-height: 100vh;
+      color: #15263d;
+    }
+    
+    /* ===== Header ===== */
+    .header {
+      background: linear-gradient(135deg, rgba(11, 36, 64, 0.98) 0%, rgba(20, 58, 102, 0.94) 46%, rgba(31, 141, 184, 0.9) 100%);
+      padding: 0 32px;
+      height: 68px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      box-shadow: 0 14px 36px -24px rgba(15, 23, 42, 0.45);
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+    }
+    .header-logo {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+    .header-logo-icon {
+      width: 40px;
+      height: 40px;
+      background: rgba(255,255,255,0.12);
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+    }
+    .header-logo h1 { font-size: 18px; font-weight: 600; color: white; }
+    .header-logo h1 span { color: rgba(255,255,255,0.7); font-weight: 400; }
+    
+    .header-right { display: flex; align-items: center; gap: 24px; }
+    .header-time { font-size: 13px; color: rgba(255,255,255,0.8); }
+    .connection-badge {
+      background: rgba(255,255,255,0.15);
+      color: #4ade80;
+      padding: 6px 14px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 500;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      border: 1px solid rgba(74, 222, 128, 0.3);
+    }
+    .connection-badge.offline { color: #f87171; border-color: rgba(248, 113, 113, 0.3); }
+    .connection-badge.offline .dot { background: #f87171; }
+    .connection-badge .dot { width: 7px; height: 7px; background: #4ade80; border-radius: 50%; }
+    
+    /* ===== Sub Header ===== */
+    .sub-header {
+      background: linear-gradient(180deg, rgba(247, 250, 252, 0.98), rgba(241, 246, 252, 0.98));
+      padding: 20px 32px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid rgba(184, 200, 216, 0.8);
+    }
+    .sub-header-left h2 { font-size: 22px; font-weight: 600; color: #143a66; }
+    .sub-header-left p { font-size: 13px; color: #5f6f82; margin-top: 4px; }
+    .citation-summary {
+      margin-top: 8px;
+      padding: 10px 14px;
+      border-radius: 12px;
+      background: rgba(20, 58, 102, 0.06);
+      border: 1px solid rgba(20, 58, 102, 0.08);
+      color: #355176;
+      font-size: 13px;
+      line-height: 1.5;
+      font-weight: 500;
+      max-width: 760px;
+    }
+    
+    .stats-row { display: flex; gap: 12px; }
+    .stat-box {
+      text-align: center;
+      padding: 14px 28px;
+      border-radius: 12px;
+      border: none;
+      position: relative;
+      overflow: hidden;
+    }
+    .stat-box::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 4px; }
+    .stat-box.strong { background: linear-gradient(180deg, #eefbf4, #e2f7ee); }
+    .stat-box.strong::before { background: linear-gradient(90deg, #1f8db8, #69c7e5); }
+    .stat-box.medium { background: linear-gradient(180deg, #eef6ff, #e0efff); }
+    .stat-box.medium::before { background: linear-gradient(90deg, #1d4ed8, #38bdf8); }
+    .stat-box.weak { background: linear-gradient(180deg, #fff7d6, #fef0b8); }
+    .stat-box.weak::before { background: linear-gradient(90deg, #b45309, #f59e0b); }
+    .stat-box.none { background: linear-gradient(180deg, #fff0f0, #ffe1e1); }
+    .stat-box.none::before { background: linear-gradient(90deg, #c1363a, #ef4444); }
+    
+    .stat-number { font-size: 28px; font-weight: 700; }
+    .stat-box.strong .stat-number { color: #14835d; }
+    .stat-box.medium .stat-number { color: #1f8db8; }
+    .stat-box.weak .stat-number { color: #b9770e; }
+    .stat-box.none .stat-number { color: #c1363a; }
+    .stat-label { font-size: 12px; color: #5f6f82; margin-top: 2px; }
+    
+    .legend {
+      display: flex;
+      gap: 24px;
+      align-items: center;
+      padding: 12px 20px;
+      background: linear-gradient(180deg, rgba(247, 250, 252, 0.98), rgba(241, 246, 252, 0.98));
+      border-radius: 10px;
+      border: 1px solid rgba(184, 200, 216, 0.7);
+    }
+    .legend-item { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #475569; font-weight: 500; }
+    .legend-dot { width: 14px; height: 14px; border-radius: 4px; }
+    .legend-dot.strong { background: linear-gradient(135deg, #1f8db8, #69c7e5); }
+    .legend-dot.medium { background: linear-gradient(135deg, #1d4ed8, #38bdf8); }
+    .legend-dot.weak { background: linear-gradient(135deg, #b45309, #f59e0b); }
+    .legend-dot.none { background: linear-gradient(135deg, #c1363a, #ef4444); }
+    
+    /* ===== Main Content ===== */
+    .main-content { padding: 36px 48px; max-width: 1200px; margin: 0 auto; min-height: 500px; padding-bottom: 60px; }
+    
+    /* ===== Card Grid ===== */
+    .card-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 32px; max-width: 1100px; margin: 0 auto; margin-bottom: 48px; }
+    
+    .card {
+      background: linear-gradient(180deg, rgba(255,255,255,0.98), rgba(244, 249, 253, 0.96));
+      border-radius: 16px;
+      padding: 28px 20px;
+      cursor: pointer;
+      transition: all 0.25s ease;
+      border: 1px solid rgba(184, 200, 216, 0.85);
+      position: relative;
+      overflow: hidden;
+      min-height: 160px;
+      box-shadow: 0 12px 28px -22px rgba(15, 23, 42, 0.45);
+    }
+    .card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 5px; }
+    .card:hover { transform: translateY(-6px) scale(1.02); box-shadow: 0 20px 40px rgba(15, 23, 42, 0.16), 0 0 20px rgba(31, 141, 184, 0.14), inset 0 1px 0 rgba(255, 255, 255, 0.45); border-color: rgba(31, 141, 184, 0.3); }
+    .card.loading { background: linear-gradient(180deg, #ffffff, #f4f8fc); border-color: rgba(184, 200, 216, 0.8); }
+    .card.strong { background: linear-gradient(180deg, #eefbf4 0%, #dff4ec 100%); border-color: rgba(20, 131, 93, 0.25); }
+    .card.strong::before { background: linear-gradient(90deg, #1f8db8, #69c7e5); height: 8px; pointer-events: none; }
+    .card.medium { background: linear-gradient(180deg, #eef6ff 0%, #dfeeff 100%); border-color: rgba(31, 141, 184, 0.25); }
+    .card.medium::before { background: linear-gradient(90deg, #1d4ed8, #38bdf8); height: 8px; pointer-events: none; }
+    .card.weak { background: linear-gradient(180deg, #fff7d6 0%, #fef0b8 100%); border-color: rgba(185, 119, 14, 0.25); }
+    .card.weak::before { background: linear-gradient(90deg, #b45309, #f59e0b); height: 8px; pointer-events: none; }
+    .card.none { background: linear-gradient(180deg, #fff0f0 0%, #ffe1e1 100%); border-color: rgba(193, 54, 58, 0.25); }
+    .card.none::before { background: linear-gradient(90deg, #c1363a, #ef4444); height: 8px; pointer-events: none; }
+    
+    .card-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 14px; }
+    .card-name { font-size: 14px; font-weight: 600; color: #143a66; background: rgba(20, 58, 102, 0.08); padding: 6px 10px; border-radius: 8px; }
+    .card-badge { font-size: 10px; font-weight: 700; padding: 5px 12px; border-radius: 20px; text-transform: uppercase; letter-spacing: 0.5px; }
+    .card.strong .card-badge { background: #dff4ec; color: #14835d; }
+    .card.medium .card-badge { background: #dbeafe; color: #1f8db8; }
+    .card.weak .card-badge { background: #fff0d1; color: #b9770e; }
+    .card.none .card-badge { background: #ffe2e2; color: #c1363a; }
+    
+    .card-count {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      margin: 8px 0 4px;
+      text-shadow: none;
+    }
+    .card-count-value { font-size: 48px; font-weight: 800; letter-spacing: -2px; line-height: 1; }
+    .card-count-meta { font-size: 13px; font-weight: 700; color: rgba(21, 38, 61, 0.72); letter-spacing: 0; line-height: 1.2; }
+    .card.strong .card-count-value { color: #14835d; text-shadow: none; }
+    .card.medium .card-count-value { color: #1f8db8; text-shadow: none; }
+    .card.weak .card-count-value { color: #b9770e; text-shadow: none; }
+    .card.none .card-count-value { color: #c1363a; text-shadow: none; }
+    .card-label { 
+      font-size: 11px; 
+      color: #5f6f82; 
+      text-shadow: none;
+    }
+    .card-arrow { position: absolute; bottom: 18px; right: 18px; width: 30px; height: 30px; background: linear-gradient(135deg, #143a66, #215ea8 60%, #1f8db8); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; color: white; opacity: 0; transition: opacity 0.25s; }
+    .card:hover .card-arrow { opacity: 1; }
+    
+    /* ===== Footer ===== */
+    .footer { padding: 24px 32px; border-top: 1px solid rgba(184, 200, 216, 0.8); background: linear-gradient(180deg, rgba(247, 250, 252, 0.98), rgba(241, 246, 252, 0.98)); display: flex; justify-content: space-between; align-items: center; margin-top: 48px; }
+    .footer-left { font-size: 12px; color: #5f6f82; }
+    .footer-right { font-size: 12px; color: #5f6f82; }
+    
+    /* ===== Floating Chat Button ===== */
+    .chat-fab {
+      position: fixed;
+      bottom: 32px;
+      right: 32px;
+      width: 60px;
+      height: 60px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #143a66 0%, #215ea8 55%, #1f8db8 100%);
+      border: none;
+      cursor: pointer;
+      box-shadow: 0 14px 36px -24px rgba(15, 23, 42, 0.45);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 26px;
+      transition: all 0.3s ease;
+      z-index: 1000;
+    }
+    .chat-fab:hover { transform: scale(1.08); box-shadow: 0 12px 40px rgba(30, 58, 95, 0.45); }
+    .chat-fab .close-icon { display: none; }
+    .chat-fab.open .chat-icon { display: none; }
+    .chat-fab.open .close-icon { display: block; }
+    
+    /* ===== Chat Window ===== */
+    .chat-window {
+      position: fixed;
+      bottom: 110px;
+      right: 32px;
+      width: 1000px;
+      max-width: calc(100vw - 64px);
+      min-width: 400px;
+      height: 560px;
+      max-height: calc(100vh - 150px);
+      min-height: 300px;
+      background: linear-gradient(180deg, rgba(255,255,255,0.98), rgba(247, 250, 252, 0.98));
+      border-radius: 20px;
+      box-shadow: 0 24px 80px rgba(30, 58, 95, 0.18);
+      display: none;
+      flex-direction: column;
+      overflow: hidden;
+      z-index: 999;
+      resize: both;  /* 允許拖動調整大小 */
+    }
+    .chat-window.show { display: flex; }
+
+    .chat-version-badge {
+      position: fixed;
+      right: 36px;
+      bottom: 92px;
+      z-index: 1001;
+      font-size: 10px;
+      line-height: 1;
+      color: rgba(15, 23, 42, 0.72);
+      background: rgba(255, 255, 255, 0.82);
+      border: 1px solid rgba(148, 163, 184, 0.35);
+      border-radius: 999px;
+      padding: 4px 8px;
+      box-shadow: 0 8px 20px rgba(15, 23, 42, 0.08);
+      backdrop-filter: blur(8px);
+      pointer-events: none;
+      user-select: none;
+    }
+    
+    .chat-header { background: linear-gradient(135deg, rgba(11, 36, 64, 0.98) 0%, rgba(20, 58, 102, 0.94) 46%, rgba(31, 141, 184, 0.9) 100%); padding: 16px 20px; display: flex; align-items: center; gap: 12px; }
+    .chat-header-avatar { width: 38px; height: 38px; background: rgba(255,255,255,0.16); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 20px; }
+    .chat-header-info { flex: 1; }
+    .chat-header-info h3 { color: white; font-size: 15px; font-weight: 600; }
+    .chat-header-info p { color: rgba(255,255,255,0.8); font-size: 11px; margin-top: 2px; }
+    .chat-fullscreen-btn {
+      width: 32px;
+      height: 32px;
+      background: rgba(255,255,255,0.14);
+      border: none;
+      border-radius: 8px;
+      color: white;
+      font-size: 16px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.2s;
+    }
+    .chat-fullscreen-btn:hover { background: rgba(255,255,255,0.3); }
+    .chat-header-close { margin-left: auto; background: none; border: none; color: white; font-size: 22px; cursor: pointer; opacity: 0.8; transition: opacity 0.2s; }
+    .chat-header-close:hover { opacity: 1; }
+    
+    .chat-messages { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 16px; background: linear-gradient(180deg, rgba(248, 251, 254, 0.95), rgba(243, 247, 251, 0.95)); }
+    .chat-messages::-webkit-scrollbar { width: 6px; }
+    .chat-messages::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+    
+    .message { display: flex; gap: 10px; max-width: 85%; }
+    .message.user { flex-direction: row-reverse; margin-left: auto; }
+    .message-avatar { font-size: 20px; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, rgba(20, 58, 102, 0.1), rgba(31, 141, 184, 0.12)); border-radius: 50%; flex-shrink: 0; color: #143a66; }
+    .message.bot .message-avatar { background: linear-gradient(135deg, #143a66, #1f8db8); color: white; }
+    .message-content { display: flex; flex-direction: column; gap: 6px; }
+    .message.user .message-content { align-items: flex-end; }
+    .message-source-block { display: flex; flex-direction: column; gap: 4px; align-self: flex-start; }
+    .message-source-badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      background: rgba(20, 58, 102, 0.12);
+      color: #143a66;
+      border: 1px solid rgba(20, 58, 102, 0.16);
+    }
+    .message-source-hint {
+      font-size: 12px;
+      line-height: 1.4;
+      color: #64748b;
+    }
+    .message-latency {
+      font-size: 11px;
+      color: #64748b;
+      line-height: 1.4;
+      align-self: flex-start;
+    }
+    .message-bubble { padding: 12px 16px; border-radius: 16px; font-size: 14px; line-height: 1.5; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+    .message.user .message-bubble { background: linear-gradient(135deg, #143a66, #215ea8 60%, #1f8db8); color: white; border-bottom-right-radius: 6px; }
+    .message.bot .message-bubble { background: linear-gradient(180deg, #ffffff, #f8fbfe); color: #1e293b; border-bottom-left-radius: 6px; border: 1px solid rgba(184, 200, 216, 0.85); }
+    .message.loading .message-bubble { display: flex; gap: 4px; align-items: center; }
+    .loading-dot { animation: bounce 1.4s infinite; font-size: 18px; }
+    .loading-dot:nth-child(2) { animation-delay: 0.2s; }
+    .loading-dot:nth-child(3) { animation-delay: 0.4s; }
+    @keyframes bounce { 0%, 60%, 100% { transform: translateY(0); } 30% { transform: translateY(-4px); } }
+    
+    .chat-input-area { padding: 16px 20px; background: linear-gradient(180deg, rgba(247, 250, 252, 0.98), rgba(241, 246, 252, 0.98)); border-top: 1px solid rgba(184, 200, 216, 0.8); display: flex; gap: 12px; align-items: center; }
+    .chat-input { flex: 1; background: #ffffff; border: 1px solid rgba(184, 200, 216, 0.95); border-radius: 24px; padding: 12px 20px; font-size: 14px; color: #1e293b; outline: none; transition: all 0.2s; }
+    .chat-input:focus { border-color: rgba(31, 141, 184, 0.8); background: #ffffff; box-shadow: 0 0 0 3px rgba(31, 141, 184, 0.08); }
+    .chat-input::placeholder { color: #94a3b8; }
+    .chat-send { width: 44px; height: 44px; border-radius: 50%; background: linear-gradient(135deg, #143a66, #215ea8 60%, #1f8db8); border: none; color: white; font-size: 18px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s; box-shadow: 0 10px 24px -14px rgba(20, 58, 102, 0.6); }
+    .chat-send:hover:not(:disabled) { transform: scale(1.05); }
+    .chat-send:disabled { opacity: 0.5; cursor: not-allowed; }
+    
+    .chat-send.thinking {
+      pointer-events: none;
+      animation: sendRotate 1s linear infinite;
+    }
+    .chat-send.thinking::before {
+      content: '↻';
+      font-size: 22px;
+    }
+    
+    @keyframes sendRotate {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    
+    /* 思考中時的聊天視窗脈動邊框 */
+    .chat-window.thinking {
+      animation: borderPulse 1.5s ease-in-out infinite;
+    }
+    
+    @keyframes borderPulse {
+      0%, 100% {
+        box-shadow: 0 0 0 2px rgba(31, 141, 184, 0.24),
+                    0 0 20px rgba(31, 141, 184, 0.08);
+      }
+      50% {
+        box-shadow: 0 0 0 4px rgba(31, 141, 184, 0.5),
+                    0 0 40px rgba(31, 141, 184, 0.2);
+      }
+    }
+
+    /* ===== Markdown Rendered Content ===== */
+    .message-bubble h1 { font-size: 18px; color: #143a66; margin: 12px 0 8px 0; font-weight: 600; }
+    .message-bubble h2 { font-size: 16px; color: #143a66; margin: 10px 0 6px 0; font-weight: 600; }
+    .message-bubble h3 { font-size: 14px; color: #1f8db8; margin: 8px 0 4px 0; font-weight: 600; }
+    .message-bubble p { margin: 8px 0; line-height: 1.6; }
+    .message-bubble ul, .message-bubble ol { margin: 8px 0; padding-left: 20px; }
+    .message-bubble li { margin: 4px 0; }
+    .message-bubble code { background: #eef6ff; padding: 2px 6px; border-radius: 4px; font-family: 'Courier New', monospace; font-size: 13px; color: #143a66; }
+    .message-bubble pre { background: #143a66; color: #d6f2fb; padding: 12px; border-radius: 8px; overflow-x: auto; margin: 10px 0; }
+    .message-bubble pre code { background: transparent; color: inherit; padding: 0; }
+    .message-bubble table { border-collapse: collapse; margin: 10px 0; min-width: 100%; }
+    .message-bubble table th, .message-bubble table td { border: 1px solid rgba(255, 255, 255, 0.1); padding: 8px 12px; text-align: left; font-size: 13px; }
+    .message-bubble table th { background: #f5f7fa; font-weight: 600; color: #143a66; }
+    .message-bubble table tr:nth-child(even) { background: #fafafa; }
+    .message-bubble hr { border: none; border-top: 1px dashed #ccc; margin: 12px 0; }
+    .message-bubble blockquote { border-left: 4px solid #1f8db8; padding-left: 12px; color: #666; margin: 10px 0; font-style: italic; }
+    .message-bubble strong { font-weight: 600; color: #143a66; }
+    .message-bubble a { color: #1f8db8; text-decoration: none; }
+    .message-bubble a:hover { text-decoration: underline; }
+  </style>
+
+    <style>
+    .sources-footer { margin-top: 12px; padding-top: 10px; border-top: 1px dashed #ccc; }
+    .sources-divider { border: none; border-top: 1px dashed #ccc; margin: 8px 0; }
+    .sources-label { color: #666; font-size: 13px; }
+    .source-tag { 
+      display: inline-flex;
+      flex-direction: column;
+      gap: 2px;
+      background: #e8f4f8;
+      color: #2d5a87;
+      padding: 6px 10px;
+      border-radius: 12px;
+      font-size: 12px;
+      margin: 2px 4px;
+      min-width: 180px;
+      max-width: 100%;
+      vertical-align: top;
+    }
+    .source-tag--qdrant {
+      background: linear-gradient(135deg, #e8f4f8, #dff3ff);
+      border: 1px solid rgba(45, 90, 135, 0.12);
+    }
+    .source-tag--neo4j {
+      background: linear-gradient(135deg, #f5ecff, #efe3ff);
+      border: 1px solid rgba(99, 46, 154, 0.12);
+      color: #55317f;
+    }
+    .source-tag--kb {
+      background: linear-gradient(135deg, #eef7ea, #e5f4de);
+      border: 1px solid rgba(51, 104, 58, 0.12);
+      color: #31613c;
+    }
+    .source-tag-pipeline {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      text-transform: none;
+      opacity: 0.92;
+    }
+    .source-tag-name {
+      font-size: 12px;
+      font-weight: 600;
+      line-height: 1.35;
+      word-break: break-word;
+    }
+    </style>  <script src="./lib/marked.min.js"></script>
+</head>
+<body>
+  <!-- Header -->
+  <div class="header">
+    <div class="header-logo">
+      <div class="header-logo-icon">📊</div>
+      <h1>Knowledge-Base System <span>/ 知識庫搜尋系統</span></h1>
+    </div>
+    <div class="header-right">
+      <div class="header-time">Updated: 04/28 12:04</div>
+      <div class="connection-badge offline" id="connectionBadge">
+        <span class="dot"></span>
+        <span id="connectionText">未連線</span>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Sub Header -->
+  <div class="sub-header">
+    <div class="sub-header-left">
+      <h2>回答原始文件分布</h2>
+      <p>Answer Original File Distribution — 以最終回答回推到的原始文件數量決定 5 類資料比例</p>
+      <div class="citation-summary" id="citationSummary">尚未查詢，卡片會在回答完成後顯示各類原始文件比例。</div>
+    </div>
+    <div style="display: flex; align-items: center; gap: 24px;">
+      <div class="stats-row">
+        <div class="stat-box strong">
+          <div class="stat-number" id="strongCount">0</div>
+          <div class="stat-label">高 High</div>
+        </div>
+        <div class="stat-box medium">
+          <div class="stat-number" id="mediumCount">0</div>
+          <div class="stat-label">中 Medium</div>
+        </div>
+        <div class="stat-box weak">
+          <div class="stat-number" id="weakCount">0</div>
+          <div class="stat-label">低 Low</div>
+        </div>
+        <div class="stat-box none">
+          <div class="stat-number" id="noneCount">0</div>
+          <div class="stat-label">無 None</div>
+        </div>
+      </div>
+      <div class="legend">
+        <div class="legend-item"><span class="legend-dot strong"></span>高</div>
+        <div class="legend-item"><span class="legend-dot medium"></span>中</div>
+        <div class="legend-item"><span class="legend-dot weak"></span>低</div>
+        <div class="legend-item"><span class="legend-dot none"></span>無</div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Main Content -->
+  <div class="main-content">
+    <div class="card-grid" id="cardGrid"></div>
+  </div>
+  
+  <!-- Footer -->
+  <div class="footer">
+    <div class="footer-left">© 2026 Knowledge-Base System. All rights reserved.</div>
+    <div class="footer-right">Last sync: 2026-04-28 12:04:00</div>
+  </div>
+  
+  <!-- Floating Chat Button -->
+  <button class="chat-fab" id="chatFab" onclick="toggleChat()">
+    <span class="chat-icon">💬</span>
+    <span class="close-icon">✕</span>
+  </button>
+  <div class="chat-version-badge">KB Chat v2026-05-20</div>
+  
+  <!-- Chat Window -->
+  <div class="chat-window" id="chatWindow">
+    <div class="chat-header">
+      <div class="chat-header-avatar">🦾</div>
+      <div class="chat-header-info">
+        <h3>CSIT_KM小幫手</h3>
+        <p id="chatStatus">連線中...</p>
+        <p id="queueStatus" style="display:none; font-size:11px; color: #facc15; margin-top:2px;">排隊中: 前方 <span id="queueCount">0</span> 人</p>
+        <p id="stageStatus" style="display:none; font-size:11px; color: #93c5fd; margin-top:2px;">等待中</p>
+      </div>
+      <button class="chat-header-close" onclick="toggleChat()">✕</button>
+    </div>
+    
+    <div class="chat-messages" id="chatMessages">
+      <div class="message bot">
+        <div class="message-avatar">🦾</div>
+        <div class="message-bubble">嗨！我是 CSIT_KM小幫手。點擊上方的 Topic 卡片開始探索研究主題，或直接輸入訊息詢問任何問題。</div>
+      </div>
+    </div>
+    
+    <div class="chat-input-area">
+      <input type="text" class="chat-input" id="chatInput" placeholder="輸入訊息..." disabled>
+      <button class="chat-send" id="chatSendBtn" onclick="sendMessage()" disabled>➤</button>
+    </div>
+  </div>
+  
+  <script>
+    // ===== WebSocket Configuration =====
+    let CHAT_RUNTIME_CONFIG = null;
+    let CHAT_RUNTIME_CONFIG_PROMISE = null;
+    const BROWSER_SESSION_STORAGE_KEY = 'openclaw.chat.browserSessionId';
+
+    function resolveApiBaseUrl() {
+      const params = new URLSearchParams(window.location.search);
+      const override = window.OPENCLAW_API_BASE_URL || params.get('api') || '';
+      return override.replace(/\/$/, '');
+    }
+
+    function apiUrl(path) {
+      const base = resolveApiBaseUrl();
+      const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+      return `${base}${normalizedPath}`;
+    }
+
+    async function loadChatRuntimeConfig() {
+      if (CHAT_RUNTIME_CONFIG) return CHAT_RUNTIME_CONFIG;
+      if (!CHAT_RUNTIME_CONFIG_PROMISE) {
+        CHAT_RUNTIME_CONFIG_PROMISE = fetch(apiUrl('/api/openclaw/chat-config'))
+          .then(async (response) => {
+            if (!response.ok) {
+              throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            return response.json();
+          })
+          .then((config) => {
+            if (config) {
+              config.sessionKey = buildBrowserSessionKey(config.sessionKey || 'fallback');
+            }
+            CHAT_RUNTIME_CONFIG = config;
+            return config;
+          })
+          .catch((error) => {
+            CHAT_RUNTIME_CONFIG_PROMISE = null;
+            throw error;
+          });
+      }
+      return CHAT_RUNTIME_CONFIG_PROMISE;
+    }
+
+    function getGatewayWsUrl() {
+      if (CHAT_RUNTIME_CONFIG && CHAT_RUNTIME_CONFIG.browserWsUrl) {
+        return normalizeWsUrl(CHAT_RUNTIME_CONFIG.browserWsUrl);
+      }
+      const params = new URLSearchParams(window.location.search);
+      const override = window.OPENCLAW_WS_URL || params.get('ws');
+      if (override) return normalizeWsUrl(override);
+
+      const scheme = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      return `${scheme}//${window.location.host}/ws`;
+    }
+
+    function normalizeWsUrl(url) {
+      if (url.startsWith('ws://') || url.startsWith('wss://')) return url;
+      if (url.startsWith('/')) {
+        const scheme = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        return `${scheme}//${window.location.host}${url}`;
+      }
+      return url;
+    }
+
+    function getOrCreateBrowserSessionId() {
+      try {
+        const existing = localStorage.getItem(BROWSER_SESSION_STORAGE_KEY);
+        if (existing) return existing;
+
+        const generated = (window.crypto && window.crypto.randomUUID)
+          ? window.crypto.randomUUID()
+          : `browser-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+        localStorage.setItem(BROWSER_SESSION_STORAGE_KEY, generated);
+        return generated;
+      } catch (error) {
+        return `browser-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+      }
+    }
+
+    function buildBrowserSessionKey(baseSessionKey) {
+      const base = (baseSessionKey || '').trim();
+      const browserId = getOrCreateBrowserSessionId();
+      return `${base}__browser__${browserId}`;
+    }
+
+    function extractEventSessionKey(msg) {
+      if (!msg || typeof msg !== 'object') return '';
+      const payload = msg.payload && typeof msg.payload === 'object' ? msg.payload : {};
+      const message = payload.message && typeof payload.message === 'object' ? payload.message : {};
+      const meta = message.meta && typeof message.meta === 'object' ? message.meta : {};
+      return (
+        msg.sessionKey ||
+        msg.session_key ||
+        payload.sessionKey ||
+        payload.session_key ||
+        message.sessionKey ||
+        message.session_key ||
+        meta.sessionKey ||
+        meta.session_key ||
+        ''
+      );
+    }
+
+    function canonicalizeChatSessionKey(value) {
+      const text = normalizeText(value);
+      if (!text) return '';
+      if (text.startsWith('agent:')) {
+        const parts = text.split(':');
+        if (parts.length >= 3) {
+          return parts.slice(2).join(':').trim();
+        }
+      }
+      return text;
+    }
+
+    function shouldRenderChatEvent(msg) {
+      const currentSessionKey = canonicalizeChatSessionKey((CHAT_RUNTIME_CONFIG && CHAT_RUNTIME_CONFIG.sessionKey) || '');
+      if (!currentSessionKey) return true;
+      const eventSessionKey = canonicalizeChatSessionKey(extractEventSessionKey(msg));
+      return Boolean(eventSessionKey && eventSessionKey === currentSessionKey);
+    }
+
+    function extractAgentEventText(msg) {
+      if (!msg || typeof msg !== 'object') return '';
+      const payload = msg.payload && typeof msg.payload === 'object' ? msg.payload : {};
+      const data = payload.data && typeof payload.data === 'object' ? payload.data : {};
+      return String(data.delta || data.text || '').trim();
+    }
+    
+    let ws = null;
+    let isConnected = false;
+    let messageId = 0;
+    let isLoading = false;
+    let currentQueuePosition = null;
+    let currentQueueWaitSeconds = null;
+    let currentWaitStage = null;
+    let currentWaitStageStartedAt = null;
+    let currentWaitTimings = null;
+    let currentChatStartedAt = null;
+    let currentAssistantMeta = null;
+    let citationDisplayState = 'idle';
+    // Sources returned by the Knowledge Base /search API for the current user query.
+    // Hermes/OpenClaw final chat payload may contain only a text block, so keep
+    // these structured KB sources as the authoritative fallback for citation cards.
+    let pendingKbSourceItems = [];
+    let pendingKbCitationDistribution = null;
+    let pendingKbSearchInFlight = false;
+    let pendingDeterministicKbFallback = null;
+    let pendingAgentBotSeq = null;
+    let botMessageSequence = 0;
+    window.analyzingInProgress = false;
+    
+    // ===== Topic Data (loaded from API) =====
+    // 只保留有定義的 5 個類別
+    const topics = [
+      { name: '4G/5G', status: 'loading', score: undefined, papers: undefined, fileCount: undefined },
+      { name: 'WiFi', status: 'loading', score: undefined, papers: undefined, fileCount: undefined },
+      { name: 'Lab', status: 'loading', score: undefined, papers: undefined, fileCount: undefined },
+      { name: 'Project', status: 'loading', score: undefined, papers: undefined, fileCount: undefined },
+      { name: 'Automation', status: 'loading', score: undefined, papers: undefined, fileCount: undefined },
+    ];
+    const topicFiles = {}; // 從 API 取得
+
+    function normalizeText(value) {
+      return String(value || '').trim();
+    }
+
+    function isNeo4jMetaQuestion(text) {
+      const q = normalizeText(text).toLowerCase();
+      if (!q || !q.includes('neo4j')) return false;
+      return [
+        /連線|實例|bolt|browser|版本|哪一個|哪個|連到/i,
+        /neo4j.*(有任何的資料|有沒有資料|有資料|沒有資料|資料嗎|內有.*資料)/i,
+        /(目前|現在).*neo4j.*(資料|節點|關係)/i,
+        /neo4j.*(節點|關係|count|數量)/i,
+      ].some((pattern) => pattern.test(q));
+    }
+
+    function isCompareLikeQuery(text) {
+      const rules = window.KBCompareRules;
+      if (rules && typeof rules.isCompareLikeQuery === 'function') {
+        return rules.isCompareLikeQuery(text);
+      }
+      const q = normalizeText(text).toLowerCase();
+      if (!q) return false;
+      return [
+        /比較|差異|不同|對比|比對/i,
+        /\bvs\b/i,
+        /\bversus\b/i,
+      ].some((pattern) => pattern.test(q));
+    }
+
+    function shouldPreferWifiCompare(text) {
+      const rules = window.KBCompareRules;
+      if (rules && typeof rules.shouldPreferWifiCompare === 'function') {
+        return rules.shouldPreferWifiCompare(text, isWifiSpecificQuery);
+      }
+      return isCompareLikeQuery(text) && isWifiSpecificQuery(text);
+    }
+
+    function escapeMarkdownCell(value) {
+      return normalizeText(value).replace(/\|/g, '\\|');
+    }
+
+    function countMapTotal(map) {
+      return Object.values(map || {}).reduce((sum, value) => sum + (Number(value) || 0), 0);
+    }
+
+    function buildNeo4jMetaAnswer(info) {
+      const uri = normalizeText(info?.uri || 'bolt://neo4j:7687');
+      const user = normalizeText(info?.user || 'neo4j');
+      const database = normalizeText(info?.database || 'neo4j');
+      const nodes = info?.nodes && typeof info.nodes === 'object' ? info.nodes : {};
+      const relationships = info?.relationships && typeof info.relationships === 'object' ? info.relationships : {};
+      const totalNodes = countMapTotal(nodes);
+      const totalRelationships = countMapTotal(relationships);
+      const isConnected = normalizeText(info?.status || '') === 'ok';
+
+      const nodeRows = Object.keys(nodes).length > 0
+        ? Object.entries(nodes).map(([label, count]) => `| ${escapeMarkdownCell(label)} | ${Number(count) || 0} |`).join('\n')
+        : '| (無) | 0 |';
+      const relRows = Object.keys(relationships).length > 0
+        ? Object.entries(relationships).map(([type, count]) => `| ${escapeMarkdownCell(type)} | ${Number(count) || 0} |`).join('\n')
+        : '| (無) | 0 |';
+      const statusLabel = isConnected ? '已連線' : '未連線';
+
+      return [
+        '根據目前 KB runtime 的實際查詢結果，Neo4j 連線與資料狀態如下：',
+        '',
+        '| 項目 | 值 |',
+        '|------|------|',
+        '| 連線方式 | Bolt Protocol |',
+        `| 連線位址 | ${uri} |`,
+        `| 使用者 | ${user} |`,
+        `| 資料庫 | ${database} |`,
+        `| 狀態 | ${statusLabel} |`,
+        `| 來源 | Docker 內 KB 服務（kb-neo4j） |`,
+        '',
+        '**圖譜統計**',
+        '',
+        '| 類型 | 數量 |',
+        '|------|------|',
+        nodeRows,
+        '',
+        '| 關係 | 數量 |',
+        '|------|------|',
+        relRows,
+        '',
+        `總計 ${totalNodes} 個節點、${totalRelationships} 條關係。`,
+        '',
+        '這個回答是依目前 `/admin/graph-stats` 的即時回傳組成，不是記憶推測。',
+      ].join('\n');
+    }
+
+    async function fetchNeo4jMetaAnswer() {
+      const response = await fetch(apiUrl('/admin/graph-stats'));
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+      return response.json();
+    }
+
+    function getPathBaseName(value) {
+      const text = normalizeText(value);
+      if (!text) return '';
+      const segments = text.replace(/\\/g, '/').split('/').filter(Boolean);
+      return segments.length > 0 ? segments[segments.length - 1] : '';
+    }
+
+    function normalizeSourceItem(source) {
+      if (source && typeof source === 'object') {
+        return {
+          ...source,
+          displayName: normalizeText(
+            source.citation_source_name ||
+            getPathBaseName(source.citation_source_path || source.source_path || '') ||
+            source.source || source.name || source.doc_name || source.docName || source.title || ''
+          ),
+        };
+      }
+      return {
+        source: normalizeText(source),
+        displayName: normalizeText(source),
+        mode: '',
+      };
+    }
+
+    function getSourcePipelineType(source) {
+      if (!source || typeof source !== 'object') return 'kb';
+      const mode = normalizeText(source.mode || source.type).toLowerCase();
+      if (mode === 'vector' || mode === 'cleaned' || mode === 'doc' || mode === 'file') return 'qdrant';
+      if (mode === 'graph') return 'neo4j';
+      return mode ? 'kb' : 'kb';
+    }
+
+    function getSourcePipelineLabel(source) {
+      const pipeline = getSourcePipelineType(source);
+      if (pipeline === 'qdrant') return 'Qdrant 文件片段';
+      if (pipeline === 'neo4j') return 'Neo4j 圖譜關聯';
+      return 'KB 匯整來源';
+    }
+
+    function getSourceDisplayName(source) {
+      if (!source) return '';
+      if (typeof source === 'string') return normalizeText(source);
+      return normalizeText(source.displayName || source.source || source.name || source.doc_name || source.docName || source.title || '');
+    }
+
+    function buildSourceReferenceChip(source) {
+      const pipelineType = getSourcePipelineType(source);
+      const pipelineLabel = escapeHtml(getSourcePipelineLabel(source));
+      const sourceName = escapeHtml(getSourceDisplayName(source) || '未知來源');
+      return `<span class="source-tag source-tag--${pipelineType}"><span class="source-tag-pipeline">${pipelineLabel}</span><span class="source-tag-name">${sourceName}</span></span>`;
+    }
+
+    function isIncompleteKnowledgeAnswer(text) {
+      const value = normalizeText(text).toLowerCase();
+      if (!value) return true;
+      const hints = [
+        '目前知識庫中沒有',
+        '知識庫中沒有',
+        '查無資料',
+        '尚未含第 4 章',
+        '尚未找到',
+        '還沒有找到',
+        '僅包含測試環境配置',
+        '僅包含測試設定',
+        '僅檢索到一份',
+        '沒有關於',
+        '未取得任何',
+        '資料不足',
+        '片段不足',
+        '數值表格不足',
+        '吞吐量數值表格不足',
+        '目前只能確認',
+        '無法從提供的結果回答',
+        '只找到第 2 章',
+        'only section 2',
+        'section 2',
+        '建議用 `deep`',
+        '建議用 deep',
+        '建議用 hybrid',
+        '找不到 throughput 數值',
+        '沒有找到 throughput',
+      ];
+      return hints.some(hint => value.includes(hint.toLowerCase()));
+    }
+
+    function maybeApplyDeterministicKbFallback() {
+      if (!pendingDeterministicKbFallback || pendingDeterministicKbFallback.applied) return;
+      if (!Array.isArray(pendingKbSourceItems) || pendingKbSourceItems.length === 0) return;
+
+      const fallbackExcerpt = buildDeterministicKbExcerpt({
+        answer: '',
+        sources: pendingKbSourceItems,
+      });
+      if (!fallbackExcerpt) return;
+
+      const { targetSeq, baseText, sourcesHtml, messageMeta } = pendingDeterministicKbFallback;
+      const finalText = sourcesHtml
+        ? `${baseText}\n\n${fallbackExcerpt}\n\n${sourcesHtml}`
+        : `${baseText}\n\n${fallbackExcerpt}`;
+      replaceMessageContentBySeq(targetSeq, 'bot', finalText, messageMeta || {});
+      pendingDeterministicKbFallback.applied = true;
+      console.log('[Heatmap] Applied deterministic KB fallback after KB sources arrived.');
+    }
+
+    function buildDeterministicKbExcerpt(result) {
+      if (!result) return '';
+      const selected = selectKnowledgeBaseSources(result);
+      const sources = selected.sources || [];
+      if (sources.length === 0) return '';
+
+      let out = '【知識庫補充摘錄】\n\n';
+      sources.slice(0, 4).forEach((s, index) => {
+        const sourceName = getSourceDocName(s) || '未知來源';
+        const sectionLabel = selected.reportMode ? detectReportSectionLabel(s) : '';
+        const chunkIndex = Number.isFinite(Number(s?.chunk_index)) ? `chunk ${Number(s.chunk_index)}` : '';
+        out += `${index + 1}. 來源：${sourceName}${sectionLabel ? `｜${sectionLabel}` : ''}${chunkIndex ? `｜${chunkIndex}` : ''}\n`;
+        const snippet = summarizeContextText(getSourceRawText(s), selected.reportMode ? 900 : 260);
+        if (snippet) {
+          out += `   摘錄：${snippet}\n`;
+        }
+        out += '\n';
+      });
+
+      return out.trim();
+    }
+
+    function getSourcePipelineLabel(source) {
+      const mode = String(source?.mode || source?.type || '').toLowerCase();
+      if (mode === 'vector' || mode === 'cleaned' || mode === 'doc' || mode === 'file') return 'Qdrant 文件片段';
+      if (mode === 'graph') return 'Neo4j 圖譜關聯';
+      return 'KB 匯整來源';
+    }
+
+    function buildSourceReferenceHint(sources) {
+      const items = Array.isArray(sources) ? sources : [];
+      if (items.length === 0) return '已整合知識庫來源';
+
+      const unique = [...new Map(items.map((source) => {
+        const name = source?.source || source?.doc_name || source?.name || '未知來源';
+        return [`${getSourcePipelineLabel(source)}|${name}`, source];
+      })).values()];
+
+      const lines = unique.slice(0, 3).map((source) => {
+        const name = source?.source || source?.doc_name || source?.name || '未知來源';
+        return `- ${getSourcePipelineLabel(source)}：${name}`;
+      });
+
+      if (unique.length > 3) {
+        lines.push(`- 另有 ${unique.length - 3} 筆來源`);
+      }
+
+      return ['已整合知識庫來源', ...lines].join('\n');
+    }
+
+    function replaceMessageContentBySeq(seq, role, content, meta = {}) {
+      if (!Number.isFinite(Number(seq))) {
+        addMessage(role, content, true, meta);
+        return;
+      }
+
+      const target = document.querySelector(`.message.${role}[data-message-seq="${String(seq)}"]`);
+      if (!target) {
+        addMessage(role, content, true, meta);
+        return;
+      }
+
+      let rendered = content;
+      if (role === 'bot' && typeof marked !== 'undefined') {
+        rendered = marked.parse(rendered, { breaks: true, gfm: true });
+      }
+
+      const contentHost = target.querySelector('.message-content');
+      if (contentHost) {
+        contentHost.innerHTML = buildMessageContentHtml(role, rendered, meta);
+      }
+      scrollChat();
+    }
+
+    function shouldCountCitationSource(source) {
+      if (!source || typeof source !== 'object') return true;
+      const mode = normalizeText(source.mode || source.type).toLowerCase();
+      if (!mode) return true;
+      return mode === 'vector' || mode === 'cleaned' || mode === 'doc' || mode === 'file';
+    }
+
+    function setCitationCardsState(state = 'idle') {
+      citationDisplayState = state;
+      topics.forEach(topic => {
+        topic.status = state === 'loading' ? 'loading' : 'none';
+        topic.score = state === 'loading' ? undefined : null;
+        topic.papers = state === 'loading' ? undefined : null;
+        topic.fileCount = state === 'loading' ? undefined : null;
+        topic.files = [];
+      });
+      updateCitationSummary({ state });
+      renderCards();
+    }
+
+    function normalizeCitationDistribution(distribution) {
+      if (!distribution || typeof distribution !== 'object') return null;
+      const counts = distribution.category_counts || distribution.categoryCounts || distribution.categories || {};
+      const normalizedCounts = {
+        '4G/5G': Number(counts['4G/5G']) || 0,
+        'WiFi': Number(counts['WiFi']) || 0,
+        'Lab': Number(counts['Lab']) || 0,
+        'Project': Number(counts['Project']) || 0,
+        'Automation': Number(counts['Automation']) || 0,
+      };
+      const matchedTotal = Number.isFinite(distribution.matched_count)
+        ? Number(distribution.matched_count)
+        : Object.values(normalizedCounts).reduce((sum, count) => sum + count, 0);
+      return {
+        categoryCounts: normalizedCounts,
+        matchedTotal,
+        totalSources: Number.isFinite(distribution.total_sources) ? Number(distribution.total_sources) : 0,
+        unmatchedCount: Number.isFinite(distribution.unmatched_count) ? Number(distribution.unmatched_count) : 0,
+        excludedCount: Number.isFinite(distribution.excluded_count) ? Number(distribution.excluded_count) : 0,
+      };
+    }
+
+    function formatCitationPercent(value) {
+      if (!Number.isFinite(value)) return '-';
+      const rounded = Math.round(value * 10) / 10;
+      return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1).replace(/\.0$/, '');
+    }
+
+    function getCitationBadgeLabel(status) {
+      if (status === 'loading') return '載入中';
+      if (status === 'strong') return '高';
+      if (status === 'medium') return '中';
+      if (status === 'weak') return '低';
+      return '無';
+    }
+
+    function getCitationCardLabel(topic) {
+      if (citationDisplayState === 'loading') return '計算引用中...';
+      if (citationDisplayState === 'idle') return '尚未查詢';
+      const fileCount = Number.isFinite(topic.fileCount) ? topic.fileCount : 0;
+      return fileCount > 0 ? '原始文件占比' : '本次無原始文件';
+    }
+
+    function updateCitationSummary(summary = {}) {
+      const summaryEl = document.getElementById('citationSummary');
+      if (!summaryEl) return;
+
+      const state = summary.state || citationDisplayState;
+      if (state === 'loading') {
+        summaryEl.textContent = '正在統計這次回答回推到的原始文件類別...';
+        return;
+      }
+      if (state === 'idle') {
+        summaryEl.textContent = '尚未查詢，卡片會在回答完成後顯示各類原始文件比例。';
+        return;
+      }
+
+      const totalSources = Number.isFinite(summary.totalSources) ? summary.totalSources : 0;
+      const totalFiles = Number.isFinite(summary.totalFiles) ? summary.totalFiles : 0;
+      const matchedTotal = Number.isFinite(summary.matchedTotal) ? summary.matchedTotal : 0;
+      const unmatchedCount = Number.isFinite(summary.unmatchedCount) ? summary.unmatchedCount : 0;
+      const excludedCount = Number.isFinite(summary.excludedCount) ? summary.excludedCount : 0;
+
+      if (totalSources === 0 || matchedTotal === 0) {
+        summaryEl.textContent = '本次回答沒有可辨識的原始文件。';
+        return;
+      }
+
+      if (totalFiles > 0) {
+        summaryEl.textContent = `本次共引用 ${totalSources} 份來源，回推成 ${totalFiles} 份原始文件，已歸類 ${matchedTotal} 份來源，另有 ${excludedCount || unmatchedCount} 份非文件來源不計入。`;
+      } else {
+        summaryEl.textContent = `本次共引用 ${totalSources} 份來源，已歸類 ${matchedTotal} 份，另有 ${excludedCount || unmatchedCount} 份非文件來源不計入。卡片比例依已歸類原始文件數計算。`;
+      }
+    }
+    
+    // ===== Render Cards =====
+    function renderCards() {
+      const grid = document.getElementById('cardGrid');
+      grid.innerHTML = '';
+      
+      topics.forEach((topic, index) => {
+        const card = document.createElement('div');
+        const statusClass = topic.status || 'none';
+        const scoreValue = Number.isFinite(topic.score) ? topic.score : null;
+        const fileCountValue = Number.isFinite(topic.fileCount)
+          ? topic.fileCount
+          : (Number.isFinite(topic.papers) ? topic.papers : null);
+        const scoreText = scoreValue !== null ? `${formatCitationPercent(scoreValue)}%` : '-';
+        const fileCountText = fileCountValue !== null ? fileCountValue : '-';
+        card.className = `card ${statusClass}`;
+        card.innerHTML = `
+          <div class="card-header">
+            <div class="card-name">${topic.name}</div>
+            <div class="card-badge">${getCitationBadgeLabel(topic.status)}</div>
+          </div>
+          <div class="card-count">
+            <div class="card-count-value">${scoreText}</div>
+            <div class="card-count-meta">原始文件 ${fileCountText} 份</div>
+          </div>
+          <div class="card-label">${getCitationCardLabel(topic)}</div>
+          <div class="card-arrow">→</div>
+        `;
+        card.onclick = () => cardClick(topic);
+        grid.appendChild(card);
+      });
+      
+      console.log('[Heatmap] renderCards completed. Topics state:', topics.map(t => `${t.name}=${t.score ?? 'null'}/${t.fileCount ?? 'null'}`).join(', '));
+      updateStats();
+    }
+    
+    function updateStats() {
+      const strongCount = topics.filter(t => t.status === 'strong').length;
+      const mediumCount = topics.filter(t => t.status === 'medium').length;
+      const weakCount = topics.filter(t => t.status === 'weak').length;
+      const noneCount = topics.filter(t => t.status === 'none').length;
+      document.getElementById('strongCount').textContent = strongCount;
+      document.getElementById('mediumCount').textContent = mediumCount;
+      document.getElementById('weakCount').textContent = weakCount;
+      document.getElementById('noneCount').textContent = noneCount;
+    }
+    
+    // ===== Load Category Stats from API =====
+    async function loadCategoryStats() {
+      console.log('[Heatmap] Citation distribution mode is active; category stats polling is disabled.');
+    }
+    
+    function updateCardClickState() {
+      const cards = document.querySelectorAll('.card-grid .card');
+      const state = window.analyzingInProgress;
+      console.log('[Heatmap] updateCardClickState called, analyzingInProgress=', state, 'cards found:', cards.length);
+      cards.forEach(card => {
+        if (state) {
+          card.style.opacity = '0.6';
+          card.style.cursor = 'not-allowed';
+          card.style.pointerEvents = 'none';
+        } else {
+          card.style.opacity = '1';
+          card.style.cursor = 'pointer';
+          card.style.pointerEvents = 'auto';
+        }
+      });
+    }
+
+    function cardClick(topic) {
+      // Block click during analysis
+      if (window.analyzingInProgress) {
+        console.log('[Heatmap] Card click blocked - analyzing in progress');
+        return;
+      }
+      console.log('[Heatmap] cardClick called for:', topic.name);
+      
+      const category = topic.name;
+      const relatedFiles = topic.files || [];
+
+      if (relatedFiles.length > 0) {
+        openDocModal(category, relatedFiles.map(name => ({ name })));
+        return;
+      }
+
+      // 沒有來源回推結果時，回落到分類資料夾清單。
+      const url = apiUrl('/api/category-files?category=' + encodeURIComponent(category));
+      fetch(url)
+        .then(r => r.json())
+        .then(data => {
+          if (data.error) {
+            openDocModal(category, []);
+            return;
+          }
+          openDocModal(category, data.files || []);
+        })
+        .catch(err => {
+          console.error('[Heatmap] Fetch files error:', err);
+          openDocModal(category, []);
+        });
+    }
+    // ===== WebSocket Functions =====
+    function extractEd25519Seed(pem) {
+      const lines = pem.split('\n').filter(l => !l.startsWith('-----'));
+      const base64 = lines.join('');
+      const binaryStr = atob(base64);
+      const bytes = new Uint8Array(binaryStr.length);
+      for (let i = 0; i < binaryStr.length; i++) bytes[i] = binaryStr.charCodeAt(i);
+      return bytes.slice(-32);
+    }
+    
+    function signMessage(message) {
+      try {
+        if (!CHAT_RUNTIME_CONFIG || !CHAT_RUNTIME_CONFIG.privateKeyPem) {
+          throw new Error('missing runtime private key');
+        }
+        const seed = extractEd25519Seed(CHAT_RUNTIME_CONFIG.privateKeyPem);
+        const keyPair = nacl.sign.keyPair.fromSeed(seed);
+        const msgBytes = new TextEncoder().encode(message);
+        const sig = nacl.sign(msgBytes, keyPair.secretKey);
+        const sigBytes = sig.slice(0, 64);
+        let base64 = btoa(String.fromCharCode.apply(null, sigBytes));
+        return base64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+      } catch (e) {
+        console.error('Sign error:', e);
+        return null;
+      }
+    }
+    
+    async function connectWebSocket() {
+      try {
+        await loadChatRuntimeConfig();
+      } catch (error) {
+        console.error('[Chat] 無法載入 runtime config:', error);
+        updateConnectionStatus(false);
+        return;
+      }
+
+      const wsUrl = getGatewayWsUrl();
+      console.log('[Chat] Connecting to WebSocket:', wsUrl);
+      ws = new WebSocket(wsUrl);
+      
+      ws.onopen = () => { console.log('WS Connected'); };
+      
+      ws.onmessage = (event) => {
+        const msg = JSON.parse(event.data);
+        handleMessage(msg);
+      };
+      
+      ws.onerror = (e) => { console.error('WS Error:', e); };
+      
+      ws.onclose = () => {
+        isConnected = false;
+        clearQueueState();
+        currentWaitStage = null;
+        currentWaitStageStartedAt = null;
+        currentWaitTimings = null;
+        currentChatStartedAt = null;
+        updateConnectionStatus(false);
+        setTimeout(connectWebSocket, 5000);
+      };
+    }
+    
+    function handleMessage(msg) {
+      if (msg && msg.type === 'event' && (msg.event === 'chat' || msg.event === 'agent') && !shouldRenderChatEvent(msg)) {
+        console.warn('[Chat] 忽略其他 session 的 chat event:', extractEventSessionKey(msg));
+        return;
+      }
+
+      if (msg.type === 'event' && msg.event === 'connect.challenge') {
+        const { nonce, ts } = msg.payload;
+        const config = CHAT_RUNTIME_CONFIG || {};
+        if (!config.deviceId || !config.privateKeyPem) {
+          console.error('[Chat] runtime config not ready');
+          return;
+        }
+        const scopes = config.scopes || [];
+        const v3Payload = ['v3', config.deviceId, 'cli', 'cli', 'operator', scopes.join(','), String(ts), config.authToken, nonce, 'linux', ''].join('|');
+        const signature = signMessage(v3Payload);
+        
+        ws.send(JSON.stringify({
+          type: 'req', id: 'c1', method: 'connect',
+          params: {
+            minProtocol: 3, maxProtocol: 3,
+            client: { id: 'cli', version: '1.0.0', platform: 'linux', mode: 'cli' },
+            role: 'operator', scopes,
+            auth: { token: config.authToken, deviceToken: config.deviceToken },
+            device: { id: config.deviceId, publicKey: config.publicKeyRaw, signature, signedAt: ts, nonce },
+            locale: config.locale || 'zh-TW', userAgent: config.userAgent || 'openclaw-web/1.0.0'
+          }
+        }));
+      }
+      
+      if (msg.type === 'res' && msg.id === 'c1' && msg.ok) {
+        isConnected = true;
+        updateConnectionStatus(true);
+      }
+      
+      // Handle chat events
+      if (msg.type === 'event' && msg.event === 'chat') {
+        const chatPayload = msg.payload || {};
+        
+        if (chatPayload.state === 'start') {
+          setWaitStage('generating');
+          isLoading = true;
+          updateInputState();
+        }
+        
+        if (chatPayload.state === 'delta' && chatPayload.message) {
+          if (currentWaitTimings && currentWaitTimings.firstAssistantMs === null && currentChatStartedAt !== null) {
+            currentWaitTimings.firstAssistantMs = Math.max(0, performance.now() - currentChatStartedAt);
+          }
+          const content = chatPayload.message.content || [];
+          for (const block of content) {
+            if (block.type === 'text' && block.text) {
+              const lastMsg = document.querySelector('.message.bot:last-child .message-bubble');
+              if (lastMsg) {
+                lastMsg.textContent += block.text;
+                scrollChat();
+              }
+            }
+          }
+        }
+        
+        if (chatPayload.state === 'final' && chatPayload.message) {
+          console.log('[Heatmap] === FULL FINAL PAYLOAD ===');
+          console.log('[Heatmap] message keys:', Object.keys(chatPayload.message));
+          console.log('[Heatmap] content:', JSON.stringify(chatPayload.message.content));
+          console.log('[Heatmap] full payload:', JSON.stringify(chatPayload).slice(0, 1000));
+          const content = chatPayload.message.content || [];
+          let textContent = '';
+          let sourcesHtml = '';
+          let allSourceItems = [];
+          
+          console.log('[Heatmap] Total blocks in content:', content.length);
+          for (const block of content) {
+            console.log('[Heatmap] Block type:', block.type, 'keys:', Object.keys(block));
+            if (block.type === 'text' && block.text) {
+              textContent += block.text;
+            }
+            if (block.type === 'sources' && block.sources) {
+              console.log('[Heatmap] Found sources block with', block.sources.length, 'sources');
+              // 收集所有來源項目
+            allSourceItems = block.sources.map(s => normalizeSourceItem(s));
+            
+            // 生成來源 HTML（折疊顯示）
+              const uniqueSourceItems = [...new Map(
+                allSourceItems
+                  .filter(item => getSourceDisplayName(item))
+                  .map(item => [`${getSourcePipelineType(item)}|${getSourceDisplayName(item)}`, item])
+              ).values()];
+              const allSources = uniqueSourceItems.map(s => buildSourceReferenceChip(s));
+              if (allSources.length <= 3) {
+                // 3 個或以下，全部顯示
+                sourcesHtml = `<div class="sources-footer"><hr class="sources-divider"><span class="sources-label">📄 參考來源：</span>${allSources.join(' ')}</div>`;
+              } else {
+                // 超過 3 個，折疊顯示
+                const visible = allSources.slice(0, 3).join(' ');
+                const hidden = allSources.slice(3).join(' ');
+                sourcesHtml = `<div class="sources-footer" id="sources-container">
+                  <hr class="sources-divider">
+                  <span class="sources-label">📄 參考來源：</span>
+                  ${visible}
+                  <span class="sources-toggle" onclick="toggleSources(this)" data-expanded="false" data-hidden="${encodeURIComponent(hidden)}" data-count="${block.sources.length - 3}">
+                    ...還有 ${block.sources.length - 3} 個檔案（點我展開）
+                  </span>
+                </div>`;
+              }
+            }
+          }
+          
+          const reportLikeQuery = isReportLikeSource({ source: window.lastQuery || '' }) || /\b(?:scu|sce)\d+\b/i.test(window.lastQuery || '');
+          const waitSummary = finalizeWaitTimings();
+          const messageMeta = {
+            ...(currentAssistantMeta || {}),
+            latencyText: buildLatencyText(waitSummary)
+          };
+
+          if (reportLikeQuery && isIncompleteKnowledgeAnswer(textContent)) {
+            if (pendingKbSourceItems.length > 0) {
+              const fallbackExcerpt = buildDeterministicKbExcerpt({
+                answer: '',
+                sources: pendingKbSourceItems,
+              });
+              if (fallbackExcerpt) {
+                textContent = textContent
+                  ? `${textContent}\n\n${fallbackExcerpt}`
+                  : fallbackExcerpt;
+              }
+            } else {
+              pendingDeterministicKbFallback = {
+                targetSeq: botMessageSequence + 1,
+                baseText: textContent,
+                sourcesHtml,
+                messageMeta,
+                applied: false,
+              };
+            }
+          }
+
+          if (textContent) {
+            const botSeq = addMessage('bot', textContent + sourcesHtml, true, messageMeta);
+            if (pendingDeterministicKbFallback && Number.isFinite(Number(botSeq))) {
+              pendingDeterministicKbFallback.targetSeq = Number(botSeq);
+            }
+            currentAssistantMeta = null;
+          } else {
+            currentAssistantMeta = null;
+          }
+          
+          // Update card status from the backend citation distribution first.
+          // This is authoritative and avoids re-classifying on the client.
+          const citationDistribution = chatPayload.message.citation_distribution || pendingKbCitationDistribution || null;
+          if (citationDistribution) {
+            console.log('[Heatmap] Using citation distribution from task payload:', citationDistribution);
+            void updateCardsFromCitationDistribution(citationDistribution, allSourceItems.length > 0 ? allSourceItems : pendingKbSourceItems);
+          } else if (allSourceItems.length > 0) {
+            // Fallback to structured sources only if the backend didn't provide a distribution.
+            void updateCardsFromSources(allSourceItems);
+          } else if (!pendingKbSearchInFlight && pendingKbSourceItems.length > 0) {
+            console.log('[Heatmap] Final payload has no sources block; using KB search sources fallback:', pendingKbSourceItems);
+            void updateCardsFromSources(pendingKbSourceItems);
+          } else if (!pendingKbSearchInFlight) {
+            console.log('[Heatmap] No citation data from final payload or KB search.');
+            void updateCardsFromSources([]);
+          } else {
+            console.log('[Heatmap] Citation data still pending from KB search; keeping cards in loading state for now.');
+          }
+          isLoading = false;
+          clearQueueState();
+          updateInputState();
+        }
+      }
+
+      if (msg.type === 'event' && msg.event === 'agent') {
+        const agentPayload = msg.payload || {};
+        if (agentPayload.stream === 'lifecycle' && agentPayload.data && agentPayload.data.phase === 'start') {
+          setWaitStage('generating');
+          isLoading = true;
+          updateInputState();
+        } else if (agentPayload.stream === 'assistant') {
+          const assistantText = extractAgentEventText(msg);
+          if (assistantText) {
+            const messageMeta = currentAssistantMeta || {};
+            if (pendingAgentBotSeq === null) {
+              pendingAgentBotSeq = Number(addMessage('bot', assistantText, false, messageMeta));
+            } else {
+              replaceMessageContentBySeq(pendingAgentBotSeq, 'bot', assistantText, messageMeta);
+            }
+          }
+        } else if (agentPayload.stream === 'lifecycle' && agentPayload.data && agentPayload.data.phase === 'end') {
+          currentAssistantMeta = null;
+          pendingAgentBotSeq = null;
+          finalizeWaitTimings();
+          clearQueueState();
+          isLoading = false;
+          updateInputState();
+        }
+      }
+
+      if (msg.type === 'event' && msg.event === 'chat.queue') {
+        const queuePayload = msg.payload || {};
+        if (!currentWaitStage) {
+          setWaitStage('queue');
+        }
+        setQueueState(queuePayload.queuePosition ?? queuePayload.queue_position, queuePayload.estimatedWaitSeconds ?? queuePayload.estimated_wait_seconds);
+      }
+      
+      if (msg.type === 'event' && msg.event === 'lifecycle') {
+        if (msg.payload && msg.payload.phase === 'end') {
+          currentAssistantMeta = null;
+          finalizeWaitTimings();
+          clearQueueState();
+          isLoading = false;
+          updateInputState();
+        }
+      }
+      
+      if (msg.type === 'res' && msg.id && msg.id.startsWith('chat-')) {
+        if (msg.ok && msg.payload && (msg.payload.status === 'queued' || msg.payload.status === 'waiting')) {
+          setQueueState(msg.payload.queue_position ?? msg.payload.queuePosition, msg.payload.estimated_wait_seconds ?? msg.payload.estimatedWaitSeconds);
+        } else if (!msg.ok) {
+          addMessage('bot', '抱歉，傳送失敗，請稍後再試。');
+          currentAssistantMeta = null;
+          pendingDeterministicKbFallback = null;
+          pendingAgentBotSeq = null;
+          finalizeWaitTimings();
+          clearQueueState();
+          isLoading = false;
+          updateInputState();
+        }
+      }
+    }
+    
+    function sendWs(data) {
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify(data));
+        return true;
+      }
+      return false;
+    }
+    
+    function updateConnectionStatus(connected) {
+      const badge = document.getElementById('connectionBadge');
+      const text = document.getElementById('connectionText');
+      const statusEl = document.getElementById('chatStatus');
+      const input = document.getElementById('chatInput');
+      const sendBtn = document.getElementById('chatSendBtn');
+      
+      if (connected) {
+        badge.className = 'connection-badge';
+        text.textContent = '已連線';
+        statusEl.textContent = '連線成功';
+        input.disabled = false;
+        sendBtn.disabled = false;
+      } else {
+        badge.className = 'connection-badge offline';
+        text.textContent = '未連線';
+        statusEl.textContent = '連線中...';
+        input.disabled = true;
+        sendBtn.disabled = true;
+      }
+    }
+    
+    function updateInputState() {
+      const input = document.getElementById('chatInput');
+      const sendBtn = document.getElementById('chatSendBtn');
+      const chatWindow = document.getElementById('chatWindow');
+      const queueStatus = document.getElementById('queueStatus');
+      const queueCount = document.getElementById('queueCount');
+      const stageStatus = document.getElementById('stageStatus');
+      
+      if (isLoading) {
+        input.disabled = true;
+        sendBtn.disabled = true;
+        sendBtn.classList.add('thinking');
+        chatWindow.classList.add('thinking');
+      } else if (isConnected) {
+        input.disabled = false;
+        sendBtn.disabled = false;
+        sendBtn.classList.remove('thinking');
+        chatWindow.classList.remove('thinking');
+      } else {
+        input.disabled = true;
+        sendBtn.disabled = true;
+        sendBtn.classList.remove('thinking');
+        chatWindow.classList.remove('thinking');
+      }
+
+      if (queueStatus && queueCount) {
+        if (currentQueuePosition !== null) {
+          const aheadCount = Math.max(0, Number(currentQueuePosition) - 1);
+          queueCount.textContent = String(aheadCount);
+          queueStatus.title = currentQueueWaitSeconds !== null
+            ? `預估等待 ${currentQueueWaitSeconds} 秒`
+            : '';
+          queueStatus.style.display = 'block';
+        } else {
+          queueCount.textContent = '0';
+          queueStatus.title = '';
+          queueStatus.style.display = 'none';
+        }
+      }
+
+      if (stageStatus) {
+        if (currentWaitStage) {
+          stageStatus.textContent = `等待階段: ${getWaitStageLabel(currentWaitStage)}`;
+          stageStatus.style.display = 'block';
+        } else {
+          stageStatus.textContent = '';
+          stageStatus.style.display = 'none';
+        }
+      }
+    }
+
+    function setQueueState(queuePosition, estimatedWaitSeconds) {
+      const parsedPosition = Number(queuePosition);
+      currentQueuePosition = Number.isFinite(parsedPosition) ? parsedPosition : null;
+      const parsedWait = Number(estimatedWaitSeconds);
+      currentQueueWaitSeconds = Number.isFinite(parsedWait) ? parsedWait : null;
+      updateInputState();
+    }
+
+    function clearQueueState() {
+      currentQueuePosition = null;
+      currentQueueWaitSeconds = null;
+      updateInputState();
+    }
+
+    function resetWaitTimings() {
+      currentWaitStage = null;
+      currentWaitStageStartedAt = null;
+      currentWaitTimings = {
+        kbSearchMs: null,
+        queueWaitMs: null,
+        generationMs: null,
+        firstAssistantMs: null,
+        totalMs: null,
+      };
+      currentChatStartedAt = null;
+      updateInputState();
+    }
+
+    function getWaitStageLabel(stage) {
+      switch (stage) {
+        case 'kb-search':
+          return '知識庫搜尋中';
+        case 'queue':
+          return '排隊中';
+        case 'generating':
+          return '生成回覆中';
+        default:
+          return '';
+      }
+    }
+
+    function recordCurrentWaitStage() {
+      if (!currentWaitStage || currentWaitStageStartedAt === null || !currentWaitTimings) return;
+      const elapsed = Math.max(0, performance.now() - currentWaitStageStartedAt);
+      if (currentWaitStage === 'kb-search') {
+        currentWaitTimings.kbSearchMs = elapsed;
+      } else if (currentWaitStage === 'queue') {
+        currentWaitTimings.queueWaitMs = elapsed;
+      } else if (currentWaitStage === 'generating') {
+        currentWaitTimings.generationMs = elapsed;
+      }
+    }
+
+    function snapshotWaitTimings() {
+      recordCurrentWaitStage();
+      if (currentChatStartedAt !== null && currentWaitTimings) {
+        currentWaitTimings.totalMs = Math.max(0, performance.now() - currentChatStartedAt);
+        return { ...currentWaitTimings };
+      }
+      return null;
+    }
+
+    function formatLatencyMs(ms) {
+      if (!Number.isFinite(ms) || ms < 0) return '';
+      if (ms < 1000) return `${Math.round(ms)}ms`;
+      return `${(ms / 1000).toFixed(ms < 10000 ? 1 : 0)}s`;
+    }
+
+    function buildLatencyText(summary) {
+      if (!summary) return '';
+      const pieces = [];
+      if (Number.isFinite(summary.totalMs)) {
+        pieces.push(`回覆耗時 ${formatLatencyMs(summary.totalMs)}`);
+      }
+      if (Number.isFinite(summary.firstAssistantMs)) {
+        pieces.push(`首字 ${formatLatencyMs(summary.firstAssistantMs)}`);
+      }
+      return pieces.join('，');
+    }
+
+    function setWaitStage(stage) {
+      if (currentWaitStage === stage) {
+        updateInputState();
+        return;
+      }
+      recordCurrentWaitStage();
+      currentWaitStage = stage;
+      currentWaitStageStartedAt = stage ? performance.now() : null;
+      updateInputState();
+    }
+
+    function finalizeWaitTimings() {
+      const summary = snapshotWaitTimings();
+      if (summary) {
+        console.log('[Chat] wait timing summary:', {
+          kbSearchMs: Math.round(summary.kbSearchMs || 0),
+          queueWaitMs: Math.round(summary.queueWaitMs || 0),
+          generationMs: Math.round(summary.generationMs || 0),
+          firstAssistantMs: Math.round(summary.firstAssistantMs || 0),
+          totalMs: Math.round(summary.totalMs || 0),
+        });
+      }
+      currentWaitStage = null;
+      currentWaitStageStartedAt = null;
+      currentWaitTimings = null;
+      currentChatStartedAt = null;
+      updateInputState();
+      return summary;
+    }
+    
+    // ===== Chat Functions =====
+    function escapeHtml(text) {
+      return String(text)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    function buildMessageContentHtml(role, content, meta = {}) {
+      const sourceLabel = meta.sourceLabel ? escapeHtml(meta.sourceLabel) : '';
+      const sourceHint = meta.sourceHint ? escapeHtml(meta.sourceHint) : '';
+      const latencyText = role === 'bot' && meta.latencyText ? escapeHtml(meta.latencyText) : '';
+      const sourceBlock = sourceLabel
+        ? `<div class="message-source-block"><div class="message-source-badge">${sourceLabel}</div>${sourceHint ? `<div class="message-source-hint">${sourceHint}</div>` : ''}</div>`
+        : '';
+      const latencyBlock = latencyText
+        ? `<div class="message-latency">${latencyText}</div>`
+        : '';
+      return `
+        ${sourceBlock}
+        <div class="message-bubble">${content}</div>
+        ${latencyBlock}
+      `;
+    }
+
+    function addMessage(role, content, replaceLast = false, meta = {}) {
+      const messages = document.getElementById('chatMessages');
+      
+      // Bot messages: render Markdown
+      if (role === 'bot' && typeof marked !== 'undefined') {
+        content = marked.parse(content, { breaks: true, gfm: true });
+      }
+      
+      if (replaceLast) {
+        const lastBot = document.querySelector('.message.bot:last-child');
+        if (lastBot) {
+          const seq = lastBot.dataset.messageSeq || '';
+          const lastContent = lastBot.querySelector('.message-content');
+          if (lastContent) {
+            lastContent.innerHTML = buildMessageContentHtml(role, content, meta);
+          }
+          scrollChat();
+          return seq;
+        }
+      }
+      
+      const div = document.createElement('div');
+      div.className = `message ${role}`;
+      if (role === 'bot') {
+        botMessageSequence += 1;
+        div.dataset.messageSeq = String(botMessageSequence);
+      }
+      div.innerHTML = `
+        <div class="message-avatar">${role === 'bot' ? '🦾' : '👤'}</div>
+        <div class="message-content">
+          ${buildMessageContentHtml(role, content, meta)}
+        </div>
+      `;
+      messages.appendChild(div);
+      scrollChat();
+      return div.dataset.messageSeq || '';
+    }
+    
+    function scrollChat() {
+      const messages = document.getElementById('chatMessages');
+      messages.scrollTop = messages.scrollHeight;
+    }
+    
+    function saveChatPreferences() {
+      const win = document.getElementById('chatWindow');
+      const prefs = {
+        width: win.style.width || '1000px',
+        height: win.style.height || '560px'
+      };
+      localStorage.setItem('chatPrefs', JSON.stringify(prefs));
+    }
+    
+    function restoreChatPreferences() {
+      const prefs = localStorage.getItem('chatPrefs');
+      if (prefs) {
+        try {
+          const p = JSON.parse(prefs);
+          const win = document.getElementById('chatWindow');
+          if (p.width) win.style.width = p.width;
+          if (p.height) win.style.height = p.height;
+        } catch (e) {}
+      }
+    }
+    
+    function toggleChatFullscreen() {
+      const win = document.getElementById('chatWindow');
+      const isFullscreen = win.dataset.fullscreen === 'true';
+      
+      if (isFullscreen) {
+        // 還原
+        win.style.width = win.dataset.origWidth || '1000px';
+        win.style.height = win.dataset.origHeight || '560px';
+        win.style.top = '';
+        win.style.left = '';
+        win.style.bottom = '110px';
+        win.style.right = '32px';
+        win.style.maxWidth = 'calc(100vw - 64px)';
+        win.dataset.fullscreen = 'false';
+        win.querySelector('.chat-fullscreen-btn').textContent = '⛶';
+      } else {
+        // 全螢幕
+        win.dataset.origWidth = win.style.width || '1000px';
+        win.dataset.origHeight = win.style.height || '560px';
+        win.style.width = '95vw';
+        win.style.height = '90vh';
+        win.style.top = '5vh';
+        win.style.left = '2.5vw';
+        win.style.bottom = 'auto';
+        win.style.right = 'auto';
+        win.style.maxWidth = '95vw';
+        win.dataset.fullscreen = 'true';
+        win.querySelector('.chat-fullscreen-btn').textContent = '⛶';
+      }
+      
+      saveChatPreferences();
+    }
+    
+    function toggleSources(btn) {
+      const expanded = btn.getAttribute('data-expanded') === 'true';
+      const hiddenContent = decodeURIComponent(btn.getAttribute('data-hidden') || '');
+      const count = btn.getAttribute('data-count');
+      
+      if (expanded) {
+        // 折疊
+        btn.setAttribute('data-expanded', 'false');
+        btn.textContent = `...還有 ${count} 個檔案（點我展開）`;
+        btn.setAttribute('data-hidden', encodeURIComponent(btn.previousElementSibling.innerHTML));
+        btn.previousElementSibling.innerHTML = '';
+      } else {
+        // 展開
+        btn.setAttribute('data-expanded', 'true');
+        btn.textContent = '（點我收起）';
+        btn.previousElementSibling.innerHTML = hiddenContent;
+      }
+    }
+    
+    function toggleChat() {
+      document.getElementById('chatFab').classList.toggle('open');
+      document.getElementById('chatWindow').classList.toggle('show');
+    }
+    
+    // ===== Knowledge Base Search Helper Functions =====
+    async function waitForSearchResult(taskId, timeoutMs) {
+      if (taskId === 'cached') {
+        return { status: 'completed', task_id: 'cached' };
+      }
+      const startTime = Date.now();
+      while (Date.now() - startTime < timeoutMs) {
+        try {
+          const taskPath = '/tasks/' + encodeURIComponent(taskId) + '?t=' + Date.now();
+          const res = await fetch(apiUrl(taskPath), {
+            cache: 'no-store',
+            headers: {
+              'Cache-Control': 'no-cache',
+              'Pragma': 'no-cache',
+              'Expires': '0'
+            }
+          });
+          const data = await res.json();
+          
+          if (data.status === 'completed') {
+            return data;
+          } else if (data.status === 'failed' || data.error) {
+            console.error('[KB] Search failed:', data.error);
+            return null;
+          }
+        } catch (err) {
+          console.error('[KB] Check status failed:', err);
+        }
+        
+        await new Promise(r => setTimeout(r, 500));
+      }
+      console.warn('[KB] Search timeout');
+      return null;
+    }
+    
+    function summarizeContextText(text, limit = 220) {
+      const value = typeof text === 'string' ? text.trim() : '';
+      if (!value) return '';
+      return value.length > limit ? `${value.slice(0, limit)}...` : value;
+    }
+
+    function getSourceRawText(source) {
+      if (!source || typeof source !== 'object') return '';
+      return normalizeText(source.content || source.text || source.snippet || source.summary || '');
+    }
+
+    function getSourceDocName(source) {
+      if (!source || typeof source !== 'object') return '';
+      return normalizeText(
+        source.citation_source_name ||
+        getPathBaseName(source.citation_source_path || source.source_path || '') ||
+        source.source || source.doc_name || source.name || source.docName || source.title || ''
+      );
+    }
+
+    async function resolveSourceCategoryMap(sourceNames) {
+      const uniqueNames = [...new Set((sourceNames || []).map(name => normalizeText(name)).filter(Boolean))];
+      if (uniqueNames.length === 0) return null;
+
+      try {
+        const response = await fetch(apiUrl('/api/source-categories'), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ sources: uniqueNames })
+        });
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+        const data = await response.json();
+        return data.source_categories || data.sourceCategories || data.categories_by_source || null;
+      } catch (error) {
+        console.error('[Heatmap] Failed to resolve source categories:', error);
+        return null;
+      }
+    }
+
+    function buildFilesByCategoryFromSources(sourceItems, sourceCategoryMap) {
+      const filesByCategory = {'4G/5G': [], 'WiFi': [], 'Lab': [], 'Project': [], 'Automation': []};
+      const seenByCategory = {
+        '4G/5G': new Set(),
+        'WiFi': new Set(),
+        'Lab': new Set(),
+        'Project': new Set(),
+        'Automation': new Set(),
+      };
+
+      (sourceItems || []).forEach(item => {
+        const displayName = getSourceDocName(item);
+        if (!displayName) return;
+        const category = sourceCategoryMap ? sourceCategoryMap[displayName] : null;
+        if (!category || !filesByCategory[category]) return;
+        if (seenByCategory[category].has(displayName)) return;
+        seenByCategory[category].add(displayName);
+        filesByCategory[category].push(displayName);
+      });
+
+      return filesByCategory;
+    }
+
+    function isReportLikeSource(source) {
+      const haystack = `${getSourceDocName(source)}\n${getSourceRawText(source)}`.toLowerCase();
+      return (
+        haystack.includes('sit-tr-sc') ||
+        haystack.includes('ota throughput test report') ||
+        haystack.includes('performance test') ||
+        haystack.includes('test result summary') ||
+        haystack.includes('throughput') ||
+        haystack.includes('bler') ||
+        haystack.includes('rtt') ||
+        haystack.includes('latency')
+      );
+    }
+
+    function isHandoverReportSource(source) {
+      const haystack = `${getSourceDocName(source)}\n${getSourceRawText(source)}`.toLowerCase();
+      return (
+        haystack.includes('handover') &&
+        (
+          haystack.includes('nr-handover') ||
+          haystack.includes('handover test report') ||
+          haystack.includes('ng/xn handover test report') ||
+          haystack.includes('xn handover') ||
+          haystack.includes('ng handover') ||
+          haystack.includes('inter handover') ||
+          haystack.includes('intra handover')
+        )
+      );
+    }
+
+    function isHandoverGeneralQuery(text) {
+      const q = normalizeText(text).toLowerCase();
+      if (!q.includes('handover')) return false;
+      return ![
+        'performance test',
+        'throughput',
+        'latency',
+        'bler',
+        'rtt',
+        'case',
+        'test case',
+      ].some((hint) => q.includes(hint));
+    }
+
+    function shouldDirectRenderHandoverSummary(query, kbResult) {
+      const queryText = normalizeText(query).toLowerCase();
+      if (!queryText) return false;
+      if ([
+        'performance test',
+        'throughput',
+        'latency',
+        'bler',
+        'rtt',
+        'case',
+        'test case',
+      ].some((hint) => queryText.includes(hint))) {
+        return false;
+      }
+
+      const sources = Array.isArray(kbResult?.sources) ? kbResult.sources : [];
+      if (sources.length === 0 || !String(kbResult?.answer || '').trim()) return false;
+      return sources.every(isHandoverReportSource);
+    }
+
+    function isWifiSpecificQuery(text) {
+      const queryText = normalizeText(text).toLowerCase();
+      if (!queryText) return false;
+      if (/(?:scu|sce)\d+/.test(queryText)) return false;
+      return [
+        'tp-link',
+        'tp link',
+        'archer',
+        'be805',
+        'mesh',
+        'ssid',
+        'router',
+        'access point',
+        'ap',
+        '2.4ghz',
+        '5ghz',
+        '6ghz',
+        'wifi',
+        'wi-fi',
+        'wifi6',
+        'wifi7',
+        'wireless',
+        'unii',
+      ].some((hint) => queryText.includes(hint));
+    }
+
+    function isWifiSpecificSource(source) {
+      const haystack = `${getSourceDocName(source)}\n${getSourceRawText(source)}`.toLowerCase();
+      return (
+        haystack.includes('/wifi/') ||
+        haystack.includes('type2_wifi') ||
+        haystack.includes('tp-link') ||
+        haystack.includes('archer') ||
+        haystack.includes('be805')
+      );
+    }
+
+    function shouldDirectRenderWifiSummary(query, kbResult) {
+      if (!isWifiSpecificQuery(query)) return false;
+      const sources = Array.isArray(kbResult?.sources) ? kbResult.sources : [];
+      if (sources.length === 0) return false;
+      return sources.some(isWifiSpecificSource);
+    }
+
+    function detectReportSectionLabel(source) {
+      const text = getSourceRawText(source).toLowerCase();
+      if (!text) return '';
+      if (text.includes('performance test')) return 'Performance Test';
+      if (text.includes('test result summary')) return 'Test Result Summary';
+      if (text.includes('reference')) return 'Reference';
+      if (text.includes('test environment')) return 'Test Environment';
+      if (text.includes('test commands')) return 'Test Commands';
+      if (text.includes('preface')) return 'Preface';
+      if (text.includes('introduction')) return 'Introduction';
+      if (text.includes('screenshot')) return 'Screenshot';
+      return '';
+    }
+
+    function scoreReportSource(source, index = 0) {
+      const name = getSourceDocName(source).toLowerCase();
+      const text = getSourceRawText(source).toLowerCase();
+      let score = 0;
+
+      if (name.includes('sit-tr-sc')) score += 80;
+      if (name.includes('throughput')) score += 30;
+      if (text.includes('performance test')) score += 120;
+      if (text.includes('test result summary')) score += 110;
+      if (text.includes('reference')) score += 80;
+      if (text.includes('throughput')) score += 90;
+      if (text.includes('tcp')) score += 70;
+      if (text.includes('udp')) score += 60;
+      if (text.includes('bler')) score += 80;
+      if (text.includes('rtt')) score += 80;
+      if (text.includes('latency')) score += 80;
+      if (text.includes('bandwidth')) score += 30;
+      if (text.includes('time slot')) score += 30;
+      if (text.includes('|')) score += 10;
+      if (/\b\d{2,4}\b/.test(text)) score += 10;
+
+      const chunkIndex = Number(source && source.chunk_index);
+      if (Number.isFinite(chunkIndex)) {
+        if (chunkIndex === 7 || chunkIndex === 8) score += 120;
+        else if (chunkIndex === 5 || chunkIndex === 6) score += 30;
+        else if (chunkIndex === 4) score += 20;
+      }
+
+      return score - index * 0.001;
+    }
+
+    function selectKnowledgeBaseSources(result) {
+      const sources = Array.isArray(result?.sources)
+        ? result.sources.map((source, index) => ({ ...normalizeSourceItem(source), __index: index }))
+        : [];
+      if (sources.length === 0) {
+        return { sources: [], reportMode: false };
+      }
+
+      const reportMode = sources.some(isReportLikeSource);
+      if (!reportMode) {
+        return { sources: sources.slice(0, 5), reportMode: false };
+      }
+
+      const ranked = [...sources].sort((a, b) => {
+        const scoreDiff = scoreReportSource(b, b.__index) - scoreReportSource(a, a.__index);
+        if (Math.abs(scoreDiff) > 1e-6) return scoreDiff;
+        return a.__index - b.__index;
+      });
+
+      return {
+        sources: ranked.slice(0, 6),
+        reportMode: true,
+      };
+    }
+
+    function formatKnowledgeBaseContext(result) {
+      if (!result) return '';
+
+      const selected = selectKnowledgeBaseSources(result);
+      const sources = selected.sources;
+      if (sources.length === 0 && !result.answer) return '';
+
+      let context = '【知識庫參考資料】\n\n';
+      if (selected.reportMode) {
+        context += '文件類型：Report（測試報告）\n';
+        context += '優先內容：請優先閱讀性能測試、結果摘要與參考章節中的數值與表格。\n';
+        context += '回答要求：若來源中有 TCP/UDP throughput、RTT、BLER、Latency 等表格，請直接列出原始數值，不要只回章節大綱或文件摘要。\n\n';
+      }
+
+      if (sources.length > 0) {
+        context += '相關文件：\n';
+        sources.slice(0, 6).forEach(s => {
+          const sourceName = getSourceDocName(s) || '未知來源';
+          const sectionLabel = selected.reportMode ? detectReportSectionLabel(s) : '';
+          const chunkIndex = Number.isFinite(Number(s?.chunk_index)) ? `｜chunk ${Number(s.chunk_index)}` : '';
+          context += `* ${sourceName}${sectionLabel ? `｜${sectionLabel}` : ''}${chunkIndex}\n`;
+          const snippet = summarizeContextText(getSourceRawText(s), selected.reportMode ? 2600 : 180);
+          if (snippet) {
+            context += selected.reportMode ? `  原文：${snippet}\n` : `  摘要：${snippet}\n`;
+          }
+        });
+        context += '\n';
+      }
+
+      if (selected.reportMode) {
+        context += '補充說明：請把表格中的數字、單位、平均值、峰值與測試條件盡量原樣保留；若同一文件含多個 Test Case，請優先列出與使用者問題最相關的測試案例。\n\n';
+      }
+
+      context += '內容摘要：\n';
+      context += result.answer
+        ? result.answer
+        : '本次搜尋未產生摘要，但已取得知識庫來源內容，請優先根據來源內容回答；若是測試報告，請直接輸出數值表格或條列重點，不要只寫章節大綱。';
+
+      return context;
+    }
+
+    async function prepareKnowledgeBaseContext(query) {
+      const searchRes = await fetch(apiUrl('/search'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query, mode: 'vector', top_k: 5, sources_only: true })
+      });
+
+      if (!searchRes.ok) {
+        return { context: '', result: null };
+      }
+
+      const searchData = await searchRes.json();
+      if (!searchData.task_id) {
+        return { context: '', result: null };
+      }
+
+      const result = await waitForSearchResult(searchData.task_id, 360000);
+      if (result && (result.answer || (Array.isArray(result.sources) && result.sources.length > 0))) {
+        return {
+          context: formatKnowledgeBaseContext(result),
+          result,
+        };
+      }
+
+      return { context: '', result: null };
+    }
+
+    async function prepareReportGraphContext(query) {
+      const searchRes = await fetch(apiUrl('/search'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query, mode: 'auto', top_k: 12, sources_only: true })
+      });
+
+      if (!searchRes.ok) {
+        return { result: null };
+      }
+
+      const searchData = await searchRes.json();
+      if (!searchData.task_id) {
+        return { result: null };
+      }
+
+      const result = await waitForSearchResult(searchData.task_id, 240000);
+      if (result && result.mode === 'report_graph' && normalizeText(result.answer)) {
+        return { result };
+      }
+
+      return { result: null };
+    }
+
+    async function prepareGeneralHandoverSummary(query) {
+      const searchRes = await fetch(apiUrl('/search'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query, mode: 'basic', top_k: 6 })
+      });
+
+      if (!searchRes.ok) {
+        return { result: null };
+      }
+
+      const searchData = await searchRes.json();
+      if (!searchData.task_id) {
+        return { result: null };
+      }
+
+      const result = await waitForSearchResult(searchData.task_id, 240000);
+      if (result && String(result.answer || '').trim()) {
+        return { result };
+      }
+
+      return { result: null };
+    }
+
+    async function prepareWifiSpecificSummary(query) {
+      const searchRes = await fetch(apiUrl('/search'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query, mode: 'auto', top_k: 6, sources_only: true })
+      });
+
+      if (!searchRes.ok) {
+        return { result: null };
+      }
+
+      const searchData = await searchRes.json();
+      if (!searchData.task_id) {
+        return { result: null };
+      }
+
+      const result = await waitForSearchResult(searchData.task_id, 360000);
+      if (result && Array.isArray(result.sources) && result.sources.length > 0) {
+        return { result };
+      }
+
+      return { result: null };
+    }
+
+    // ===== Send Message with Knowledge Base Integration =====
+    async function sendMessage() {
+      const input = document.getElementById('chatInput');
+      const text = input.value.trim();
+      if (!text || isLoading || !isConnected) return;
+      
+      input.value = '';
+      addMessage('user', text);
+      
+      // Store the query globally for later use in card clicks
+      window.lastQuery = text;
+      pendingAgentBotSeq = null;
+      
+      if (isNeo4jMetaQuestion(text)) {
+        const botSeq = addMessage('bot', '正在查詢 Neo4j 實際連線與資料狀態...', true, {});
+        isLoading = true;
+        clearQueueState();
+        updateInputState();
+        currentAssistantMeta = null;
+        pendingKbSourceItems = [];
+        pendingKbCitationDistribution = null;
+        pendingKbSearchInFlight = false;
+        pendingDeterministicKbFallback = null;
+        resetWaitTimings();
+        currentChatStartedAt = performance.now();
+
+        (async () => {
+          try {
+            const info = await fetchNeo4jMetaAnswer();
+            replaceMessageContentBySeq(Number(botSeq), 'bot', buildNeo4jMetaAnswer(info), {});
+          } catch (error) {
+            console.error('[Neo4j] Meta query failed:', error);
+            replaceMessageContentBySeq(Number(botSeq), 'bot', `抱歉，無法取得 Neo4j 即時狀態：${escapeHtml(String(error.message || error))}`, {});
+          } finally {
+            finalizeWaitTimings();
+            isLoading = false;
+            clearQueueState();
+            updateInputState();
+          }
+        })();
+        return;
+      }
+
+      const compareLikeQuery = isCompareLikeQuery(text);
+      if (compareLikeQuery) {
+        pendingKbSearchInFlight = true;
+        pendingKbSourceItems = [];
+        pendingKbCitationDistribution = null;
+        pendingDeterministicKbFallback = null;
+        resetWaitTimings();
+        currentChatStartedAt = performance.now();
+        setCitationCardsState('loading');
+        isLoading = true;
+        clearQueueState();
+        updateInputState();
+        currentAssistantMeta = null;
+
+        try {
+          if (shouldPreferWifiCompare(text)) {
+            const wifiPrepared = await prepareWifiSpecificSummary(text);
+            const wifiResult = wifiPrepared.result;
+            pendingKbSourceItems = wifiResult && Array.isArray(wifiResult.sources)
+              ? wifiResult.sources.map(s => normalizeSourceItem(s))
+              : [];
+            pendingKbCitationDistribution = wifiResult ? (wifiResult.citation_distribution || null) : null;
+
+            if (wifiResult) {
+              console.log('[Heatmap] Prepared WiFi compare KB result.');
+              if (pendingKbCitationDistribution) {
+                console.log('[Heatmap] Captured KB citation distribution:', pendingKbCitationDistribution);
+              }
+              if (pendingKbSourceItems.length > 0) {
+                if (pendingKbCitationDistribution) {
+                  void updateCardsFromCitationDistribution(pendingKbCitationDistribution, pendingKbSourceItems);
+                } else {
+                  void updateCardsFromSources(pendingKbSourceItems);
+                }
+              }
+
+              const displayText = String(wifiResult.answer || '').trim() || formatKnowledgeBaseContext(wifiResult);
+              const latencySummary = finalizeWaitTimings();
+              addMessage('bot', displayText, true, {
+                sourceLabel: 'KB 參考',
+                sourceHint: buildSourceReferenceHint(wifiResult.sources || []),
+                latencyText: buildLatencyText(latencySummary),
+              });
+              currentAssistantMeta = null;
+              pendingKbSourceItems = [];
+              pendingKbCitationDistribution = null;
+              pendingDeterministicKbFallback = null;
+              isLoading = false;
+              clearQueueState();
+              updateInputState();
+              return;
+            }
+
+            const wifiFallbackText = pendingKbSourceItems.length > 0
+              ? formatKnowledgeBaseContext({
+                  answer: '',
+                  sources: pendingKbSourceItems,
+                  citation_distribution: pendingKbCitationDistribution,
+                })
+              : '目前尚未取得 WiFi 相關資料，請稍後再試。';
+            const latencySummary = finalizeWaitTimings();
+            addMessage('bot', wifiFallbackText || '目前尚未取得 WiFi 相關資料，請稍後再試。', true, {
+              sourceLabel: 'KB 參考',
+              sourceHint: buildSourceReferenceHint(pendingKbSourceItems || []),
+              latencyText: buildLatencyText(latencySummary),
+            });
+            currentAssistantMeta = null;
+            pendingKbSourceItems = [];
+            pendingKbCitationDistribution = null;
+            pendingDeterministicKbFallback = null;
+            isLoading = false;
+            clearQueueState();
+            updateInputState();
+            return;
+          }
+
+          const prepared = await prepareReportGraphContext(text);
+          const kbResult = prepared.result;
+          pendingKbSourceItems = kbResult && Array.isArray(kbResult.sources)
+            ? kbResult.sources.map(s => normalizeSourceItem(s))
+            : [];
+          pendingKbCitationDistribution = kbResult ? (kbResult.citation_distribution || null) : null;
+
+          if (kbResult && pendingKbSourceItems.length > 0) {
+            if (pendingKbCitationDistribution) {
+              void updateCardsFromCitationDistribution(pendingKbCitationDistribution, pendingKbSourceItems);
+            } else {
+              void updateCardsFromSources(pendingKbSourceItems);
+            }
+          }
+
+          if (kbResult) {
+            const latencySummary = finalizeWaitTimings();
+            addMessage('bot', kbResult.answer, true, {
+              sourceLabel: 'KB 參考',
+              sourceHint: buildSourceReferenceHint(kbResult.sources || []),
+              latencyText: buildLatencyText(latencySummary),
+            });
+            currentAssistantMeta = null;
+            pendingKbSourceItems = [];
+            pendingKbCitationDistribution = null;
+            pendingDeterministicKbFallback = null;
+            isLoading = false;
+            clearQueueState();
+            updateInputState();
+            return;
+          }
+        } catch (err) {
+          console.error('[KB] Compare report graph search failed:', err);
+        } finally {
+          pendingKbSearchInFlight = false;
+          if (citationDisplayState === 'loading' && !pendingKbCitationDistribution && pendingKbSourceItems.length === 0) {
+            void updateCardsFromSources([]);
+          }
+        }
+      }
+
+      pendingKbSourceItems = [];
+      pendingKbCitationDistribution = null;
+      pendingDeterministicKbFallback = null;
+
+      resetWaitTimings();
+      currentChatStartedAt = performance.now();
+      setCitationCardsState('loading');
+
+      // 先送出主訊息；若是報告 / case 題，先同步拿 KB 內容再送給聊天模型，
+      // 避免模型只看見抽象要求而回成章節摘要。
+      isLoading = true;
+      clearQueueState();
+      updateInputState();
+      currentAssistantMeta = null;
+
+      const reportLikeQuery = isReportLikeSource({ source: text }) || /\b(?:scu|sce)\d+\b/i.test(text);
+      let preparedKb = { context: '', result: null };
+
+      if (isWifiSpecificQuery(text)) {
+        pendingKbSearchInFlight = true;
+        try {
+          const wifiPrepared = await prepareWifiSpecificSummary(text);
+          const wifiResult = wifiPrepared.result;
+          pendingKbSourceItems = wifiResult && Array.isArray(wifiResult.sources)
+            ? wifiResult.sources.map(s => normalizeSourceItem(s))
+            : [];
+          pendingKbCitationDistribution = wifiResult ? (wifiResult.citation_distribution || null) : null;
+
+          if (wifiResult) {
+            console.log('[Heatmap] Prepared WiFi-specific KB result.');
+            if (pendingKbCitationDistribution) {
+              console.log('[Heatmap] Captured KB citation distribution:', pendingKbCitationDistribution);
+            }
+            if (pendingKbSourceItems.length > 0) {
+              if (pendingKbCitationDistribution) {
+                void updateCardsFromCitationDistribution(pendingKbCitationDistribution, pendingKbSourceItems);
+              } else {
+                void updateCardsFromSources(pendingKbSourceItems);
+              }
+            }
+
+            if (shouldDirectRenderWifiSummary(text, wifiResult)) {
+              const displayText = String(wifiResult.answer || '').trim() || formatKnowledgeBaseContext(wifiResult);
+              const latencySummary = finalizeWaitTimings();
+              addMessage('bot', displayText, true, {
+                sourceLabel: 'KB 參考',
+                sourceHint: buildSourceReferenceHint(wifiResult.sources || []),
+                latencyText: buildLatencyText(latencySummary),
+              });
+              currentAssistantMeta = null;
+              pendingKbSourceItems = [];
+              pendingKbCitationDistribution = null;
+              pendingDeterministicKbFallback = null;
+              isLoading = false;
+              clearQueueState();
+              updateInputState();
+              return;
+            }
+          }
+        } catch (err) {
+          console.error('[KB] WiFi-specific summary failed:', err);
+        } finally {
+          pendingKbSearchInFlight = false;
+        }
+
+        const wifiFallbackText = pendingKbSourceItems.length > 0
+          ? formatKnowledgeBaseContext({
+              answer: '',
+              sources: pendingKbSourceItems,
+              citation_distribution: pendingKbCitationDistribution,
+            })
+          : '目前尚未取得 WiFi 相關資料，請稍後再試。';
+        const latencySummary = finalizeWaitTimings();
+        addMessage('bot', wifiFallbackText || '目前尚未取得 WiFi 相關資料，請稍後再試。', true, {
+          sourceLabel: 'KB 參考',
+          sourceHint: buildSourceReferenceHint(pendingKbSourceItems || []),
+          latencyText: buildLatencyText(latencySummary),
+        });
+        currentAssistantMeta = null;
+        pendingKbSourceItems = [];
+        pendingKbCitationDistribution = null;
+        pendingDeterministicKbFallback = null;
+        isLoading = false;
+        clearQueueState();
+        updateInputState();
+        return;
+      }
+
+      if (reportLikeQuery) {
+        pendingKbSearchInFlight = true;
+        try {
+          const preparedSummary = await prepareGeneralHandoverSummary(text);
+          const summaryResult = preparedSummary.result;
+          if (summaryResult) {
+            pendingKbSourceItems = summaryResult && Array.isArray(summaryResult.sources)
+              ? summaryResult.sources.map(s => normalizeSourceItem(s))
+              : [];
+            pendingKbCitationDistribution = summaryResult ? (summaryResult.citation_distribution || null) : null;
+
+            console.log('[Heatmap] Prepared general report summary from auto search result.');
+            if (pendingKbCitationDistribution) {
+              console.log('[Heatmap] Captured KB citation distribution:', pendingKbCitationDistribution);
+            }
+            if (pendingKbSourceItems.length > 0) {
+              console.log('[Heatmap] KB sources ready; refreshing citation cards immediately.');
+              if (pendingKbCitationDistribution) {
+                void updateCardsFromCitationDistribution(pendingKbCitationDistribution, pendingKbSourceItems);
+              } else {
+                void updateCardsFromSources(pendingKbSourceItems);
+              }
+            }
+
+            if (summaryResult.answer) {
+              const latencySummary = finalizeWaitTimings();
+              addMessage('bot', summaryResult.answer, true, {
+                sourceLabel: 'KB 參考',
+                sourceHint: buildSourceReferenceHint(summaryResult.sources || []),
+                latencyText: buildLatencyText(latencySummary),
+              });
+              currentAssistantMeta = null;
+              pendingKbSourceItems = [];
+              pendingKbCitationDistribution = null;
+              pendingDeterministicKbFallback = null;
+              isLoading = false;
+              clearQueueState();
+              updateInputState();
+              return;
+            }
+          }
+        } catch (err) {
+          console.error('[KB] General report summary failed:', err);
+        }
+
+        try {
+          preparedKb = await prepareKnowledgeBaseContext(text);
+          const kbResult = preparedKb.result;
+          pendingKbSourceItems = kbResult && Array.isArray(kbResult.sources)
+            ? kbResult.sources.map(s => normalizeSourceItem(s))
+            : [];
+          pendingKbCitationDistribution = kbResult ? (kbResult.citation_distribution || null) : null;
+
+          if (kbResult) {
+            console.log('[Heatmap] Prepared KB context from report-like search result.');
+            if (pendingKbCitationDistribution) {
+              console.log('[Heatmap] Captured KB citation distribution:', pendingKbCitationDistribution);
+            }
+            if (pendingKbSourceItems.length > 0) {
+              console.log('[Heatmap] KB sources ready; refreshing citation cards immediately.');
+              if (pendingKbCitationDistribution) {
+                void updateCardsFromCitationDistribution(pendingKbCitationDistribution, pendingKbSourceItems);
+              } else {
+                void updateCardsFromSources(pendingKbSourceItems);
+              }
+            }
+
+            if (shouldDirectRenderHandoverSummary(text, kbResult)) {
+              const latencySummary = finalizeWaitTimings();
+              addMessage('bot', kbResult.answer, true, {
+                sourceLabel: 'KB 參考',
+                sourceHint: buildSourceReferenceHint(kbResult.sources || []),
+                latencyText: buildLatencyText(latencySummary),
+              });
+              currentAssistantMeta = null;
+              pendingKbSourceItems = [];
+              pendingKbCitationDistribution = null;
+              pendingDeterministicKbFallback = null;
+              isLoading = false;
+              clearQueueState();
+              updateInputState();
+              return;
+            }
+
+            if (kbResult && kbResult.mode === 'report_graph' && normalizeText(kbResult.answer)) {
+              const latencySummary = finalizeWaitTimings();
+              addMessage('bot', kbResult.answer, true, {
+                sourceLabel: 'KB 參考',
+                sourceHint: buildSourceReferenceHint(kbResult.sources || []),
+                latencyText: buildLatencyText(latencySummary),
+              });
+              currentAssistantMeta = null;
+              pendingKbSourceItems = [];
+              pendingKbCitationDistribution = null;
+              pendingDeterministicKbFallback = null;
+              isLoading = false;
+              clearQueueState();
+              updateInputState();
+              return;
+            }
+          }
+        } catch (err) {
+          console.error('[KB] Search failed:', err);
+        } finally {
+          pendingKbSearchInFlight = false;
+          if (citationDisplayState === 'loading' && !pendingKbCitationDistribution && pendingKbSourceItems.length === 0) {
+            console.log('[Heatmap] KB search finished without usable citation data; finalizing empty citation cards.');
+            void updateCardsFromSources([]);
+          }
+        }
+      } else {
+        pendingKbSearchInFlight = true;
+        void (async () => {
+          try {
+            const prepared = await prepareKnowledgeBaseContext(text);
+            const kbResult = prepared.result;
+            pendingKbSourceItems = kbResult && Array.isArray(kbResult.sources)
+              ? kbResult.sources.map(s => normalizeSourceItem(s))
+              : [];
+            pendingKbCitationDistribution = kbResult ? (kbResult.citation_distribution || null) : null;
+
+            if (kbResult) {
+              console.log('[Heatmap] Prepared KB context from search result.');
+              if (pendingKbCitationDistribution) {
+                console.log('[Heatmap] Captured KB citation distribution:', pendingKbCitationDistribution);
+              }
+              if (pendingKbSourceItems.length > 0) {
+                console.log('[Heatmap] KB sources ready; refreshing citation cards immediately.');
+                if (pendingKbCitationDistribution) {
+                  void updateCardsFromCitationDistribution(pendingKbCitationDistribution, pendingKbSourceItems);
+                } else {
+                  void updateCardsFromSources(pendingKbSourceItems);
+                }
+                maybeApplyDeterministicKbFallback();
+              }
+            }
+          } catch (err) {
+            console.error('[KB] Search failed:', err);
+          } finally {
+            pendingKbSearchInFlight = false;
+            if (citationDisplayState === 'loading' && !pendingKbCitationDistribution && pendingKbSourceItems.length === 0) {
+              console.log('[Heatmap] KB search finished without usable citation data; finalizing empty citation cards.');
+              void updateCardsFromSources([]);
+            }
+            maybeApplyDeterministicKbFallback();
+          }
+        })();
+      }
+
+      const kbContext = preparedKb && preparedKb.context ? `\n\n${preparedKb.context}` : '';
+      const outboundMessage = reportLikeQuery
+        ? `【使用者問題】\n${text}\n\n【回答要求】\n這是報告或 case 型問題，請優先根據下方知識庫原始文件作答；若有表格，請逐 case 列出原始數據，不要只回章節摘要或只說資料不足。${kbContext}`
+        : `【使用者問題】\n${text}\n\n【回答要求】\n請先直接回答，不要等待知識庫補資料而卡住；若你手上已有可用的知識庫來源，請在回覆末尾附上來源。若後續還會有知識庫補充，前端會另外整理引用資訊。`;
+
+      const chatReq = {
+        type: 'req',
+        id: 'chat-' + (messageId++),
+        method: 'chat.send',
+        params: {
+          sessionKey: (CHAT_RUNTIME_CONFIG && CHAT_RUNTIME_CONFIG.sessionKey) || '',
+          message: outboundMessage,
+          idempotencyKey: 'msg-' + Date.now()
+        }
+      };
+      if (!sendWs(chatReq)) {
+        addMessage('bot', '連線失敗，請稍後再試。');
+        pendingDeterministicKbFallback = null;
+        isLoading = false;
+        updateInputState();
+      }
+    }
+    
+    // Enter key handler
+    document.getElementById('chatInput').addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') sendMessage();
+    });
+    
+
+    async function updateCardsFromSources(sourceItems) {
+      console.log('[Heatmap] updateCardsFromSources called with:', sourceItems);
+      citationDisplayState = 'ready';
+
+      const normalizedSourceItems = [...new Map(
+        (sourceItems || [])
+          .map(normalizeSourceItem)
+          .filter(item => getSourceDisplayName(item))
+          .map(item => [getSourceDisplayName(item), item])
+      ).values()];
+
+      const fileSources = normalizedSourceItems.filter(shouldCountCitationSource);
+      const sourceNames = fileSources.map(getSourceDisplayName).filter(Boolean);
+      const categoryCounts = {'4G/5G': 0, 'WiFi': 0, 'Lab': 0, 'Project': 0, 'Automation': 0};
+      const categoryFiles = {'4G/5G': [], 'WiFi': [], 'Lab': [], 'Project': [], 'Automation': []};
+      let unmatchedCount = normalizedSourceItems.length - fileSources.length;
+
+      if (sourceNames.length === 0) {
+        window.lastCitationSummary = {
+          totalSources: normalizedSourceItems.length,
+          matchedTotal: 0,
+          unmatchedCount: normalizedSourceItems.length,
+          excludedCount: normalizedSourceItems.length,
+          categoryCounts: { ...categoryCounts }
+        };
+        updateCitationSummary(window.lastCitationSummary);
+        topics.forEach(topic => {
+          topic.status = 'none';
+          topic.score = null;
+          topic.fileCount = 0;
+          topic.papers = 0;
+          topic.files = [];
+        });
+        renderCards();
+        console.log('[Heatmap] No file-like sources to classify.');
+        return;
+      }
+
+      try {
+        const response = await fetch(apiUrl('/api/source-categories'), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ sources: sourceNames })
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+
+        const data = await response.json();
+        const sourceCategoryMap = data.source_categories || data.sourceCategories || data.categories_by_source || null;
+        const resolvedMatched = Number.isFinite(data.matched_count) ? data.matched_count : 0;
+        const resolvedUnmatched = Number.isFinite(data.unmatched_count) ? data.unmatched_count : 0;
+
+        sourceNames.forEach(name => {
+          const category = sourceCategoryMap ? sourceCategoryMap[name] : null;
+          console.log('[Heatmap] Resolved source category:', name, '->', category || 'unmatched');
+          if (category && categoryCounts.hasOwnProperty(category)) {
+            categoryCounts[category]++;
+            categoryFiles[category].push(name);
+          } else {
+            unmatchedCount++;
+          }
+        });
+
+        const matchedTotal = Object.values(categoryCounts).reduce((sum, count) => sum + count, 0);
+        window.lastCitationSummary = {
+          totalSources: normalizedSourceItems.length,
+          matchedTotal: resolvedMatched || matchedTotal,
+          unmatchedCount: resolvedUnmatched || unmatchedCount,
+          excludedCount: normalizedSourceItems.length - sourceNames.length,
+          categoryCounts: { ...categoryCounts }
+        };
+        updateCitationSummary(window.lastCitationSummary);
+
+        topics.forEach(topic => {
+          const count = categoryCounts[topic.name] || 0;
+          const share = matchedTotal > 0 ? (count / matchedTotal) * 100 : 0;
+          if (share >= 40) {
+            topic.status = 'strong';
+          } else if (share >= 20) {
+            topic.status = 'medium';
+          } else if (share > 0) {
+            topic.status = 'weak';
+          } else {
+            topic.status = 'none';
+          }
+          topic.score = share;
+          topic.fileCount = count;
+          topic.papers = count;
+          topic.files = categoryFiles[topic.name] || [];
+        });
+
+        renderCards();
+        console.log('[Heatmap] Cards updated from backend-resolved citations:', { categoryCounts, matchedTotal, unmatchedCount });
+      } catch (error) {
+        console.error('[Heatmap] Failed to resolve source categories:', error);
+        window.lastCitationSummary = {
+          totalSources: normalizedSourceItems.length,
+          matchedTotal: 0,
+          unmatchedCount: normalizedSourceItems.length,
+          excludedCount: normalizedSourceItems.length - sourceNames.length,
+          categoryCounts: { ...categoryCounts }
+        };
+        updateCitationSummary(window.lastCitationSummary);
+        topics.forEach(topic => {
+          topic.status = 'none';
+          topic.score = null;
+          topic.fileCount = 0;
+          topic.papers = 0;
+          topic.files = [];
+        });
+        renderCards();
+      }
+    }
+
+    async function updateCardsFromCitationDistribution(distribution, sourceItems = []) {
+      console.log('[Heatmap] updateCardsFromCitationDistribution called with:', distribution);
+      const normalized = normalizeCitationDistribution(distribution);
+      if (!normalized) {
+        console.warn('[Heatmap] Invalid citation distribution payload, falling back to source parsing.');
+        return updateCardsFromSources([]);
+      }
+
+      citationDisplayState = 'ready';
+      const categoryCounts = normalized.categoryCounts;
+      const matchedTotal = normalized.matchedTotal;
+      const sourceNames = (sourceItems || []).map(item => getSourceDocName(item)).filter(Boolean);
+      const sourceCategoryMap = await resolveSourceCategoryMap(sourceNames);
+      const filesByCategory = buildFilesByCategoryFromSources(sourceItems, sourceCategoryMap);
+      const fileTotal = Object.values(filesByCategory).reduce((sum, files) => sum + files.length, 0);
+
+      window.lastCitationSummary = {
+        totalSources: normalized.totalSources,
+        matchedTotal,
+        unmatchedCount: normalized.unmatchedCount,
+        excludedCount: normalized.excludedCount,
+        totalFiles: fileTotal,
+        categoryCounts: { ...categoryCounts }
+      };
+      updateCitationSummary(window.lastCitationSummary);
+
+      topics.forEach(topic => {
+        const count = (filesByCategory[topic.name] || []).length;
+        const share = fileTotal > 0 ? (count / fileTotal) * 100 : 0;
+        if (share >= 40) {
+          topic.status = 'strong';
+        } else if (share >= 20) {
+          topic.status = 'medium';
+        } else if (share > 0) {
+          topic.status = 'weak';
+        } else {
+          topic.status = 'none';
+        }
+        topic.score = share;
+        topic.fileCount = count;
+        topic.papers = count;
+        topic.files = filesByCategory[topic.name] || [];
+      });
+
+      renderCards();
+      console.log('[Heatmap] Cards updated from citation distribution:', normalized);
+    }
+
+    // ===== Init =====
+    // 恢復使用者偏好
+    restoreChatPreferences();
+    setCitationCardsState('idle');
+    connectWebSocket();
+    
+    // 監聽視窗大小變化，保存偏好
+    window.addEventListener('resize', saveChatPreferences);
+    
+    // ===== Document Modal Functions =====
+    function openDocModal(category, docs) {
+      const modal = document.getElementById('docModal');
+      const title = document.getElementById('modalTitle');
+      const content = document.getElementById('modalContent');
+      
+      title.textContent = category + ' - 相關文件';
+      
+      // Encode category for safe use in onclick
+      const encodedCategory = encodeURIComponent(category);
+      const encodedCategorySafe = encodedCategory.replace(/'/g, "%27");
+      
+      // Store docs globally for filtering
+      window._currentDocList = docs;
+      window._currentDocCategory = category;
+      window._currentDocCategorySafe = encodedCategorySafe;
+      
+      if (!docs || docs.length === 0) {
+        content.innerHTML = '<p style="color: #64748b; text-align: center; padding: 40px;">請確認原始文件是否存在</p>';
+      } else {
+        // Add search input and doc list container
+        content.innerHTML = '<div style="margin-bottom: 12px;"><input type="text" id="docSearchInput" placeholder="🔍 搜尋文件名稱..." oninput="filterDocList()" style="width: 100%; padding: 10px 14px; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 14px; outline: none; box-sizing: border-box;"></div><div id="docListContainer"></div>';
+        
+        // Render initial list
+        renderDocList(docs, encodedCategorySafe);
+      }
+      
+      modal.style.display = 'block';
+    }
+    
+    function filterDocList() {
+      const searchTerm = document.getElementById('docSearchInput').value.toLowerCase();
+      const docs = window._currentDocList || [];
+      const encodedCategorySafe = window._currentDocCategorySafe || '';
+      
+      const filtered = docs.filter(doc => {
+        const docName = (doc.name || doc).toLowerCase();
+        return docName.includes(searchTerm);
+      });
+      
+      renderDocList(filtered, encodedCategorySafe);
+    }
+    
+    function renderDocList(docs, encodedCategorySafe) {
+      const container = document.getElementById('docListContainer');
+      if (!docs || docs.length === 0) {
+        container.innerHTML = '<p style="color: #64748b; text-align: center; padding: 20px;">找不到符合的文件</p>';
+        return;
+      }
+      
+      const docList = docs.map(doc => {
+        const docName = doc.name || doc;
+        const modified = doc.modified || '';
+        const encodedDocName = encodeURIComponent(docName).replace(/'/g, "%27");
+        const timeStr = modified ? '<div style="font-size: 11px; color: #94a3b8; margin-top: 2px;">📅 ' + modified + ' 建立</div>' : '';
+        return '<div onclick="openDocContentModal(decodeURIComponent(\'' + encodedCategorySafe + '\'), decodeURIComponent(\'' + encodedDocName + '\'))" style="padding: 12px 16px; background: #f8fafc; border-radius: 8px; margin-bottom: 8px; border: 1px solid #e2e8f0; cursor: pointer; transition: all 0.2s;" onmouseover="this.style.background=\'#e2e8f0\'" onmouseout="this.style.background=\'#f8fafc\'"><div style="font-weight: 600; color: #1e3a5f;">' + docName + '</div>' + timeStr + '</div>';
+      }).join('');
+      
+      container.innerHTML = docList;
+    }
+    
+    function closeDocModal() {
+      document.getElementById('docModal').style.display = 'none';
+    }
+    
+    function openDocContentModal(category, docName) {
+      const contentModal = document.getElementById('docContentModal');
+      const contentTitle = document.getElementById('docContentTitle');
+      const contentBody = document.getElementById('docContentBody');
+      
+      contentTitle.textContent = docName;
+      contentBody.innerHTML = '<div style="text-align: center; padding: 40px; color: #64748b;">載入中...</div>';
+      contentModal.style.display = 'block';
+      
+      // Strip .md extension if present since backend adds it
+      const docNameClean = docName.replace(/\.md$/i, '');
+      const url = apiUrl('/api/document?category=' + encodeURIComponent(category) + '&doc_name=' + encodeURIComponent(docNameClean));
+      console.log('[Heatmap] Fetching document:', url);
+      fetch(url)
+        .then(r => {
+          if (!r.ok) {
+            throw new Error('HTTP ' + r.status + ': ' + r.statusText);
+          }
+          return r.json();
+        })
+        .then(data => {
+          console.log('[Heatmap] Document data received:', Object.keys(data));
+          // Handle array response (error with 404 status) vs dict response (success)
+          if (Array.isArray(data)) {
+            // Error response - extract error message
+            const errorInfo = data[0] || {};
+            const errorMsg = errorInfo.error || '檔案讀取失敗';
+            contentBody.innerHTML = '<div style="color: #f87171; text-align: center; padding: 40px;">' + errorMsg + '</div>';
+          } else if (data.error) {
+            contentBody.innerHTML = '<div style="color: #f87171; text-align: center; padding: 40px;">' + data.error + '</div>';
+          } else if (!data.content) {
+            contentBody.innerHTML = '<div style="color: #f87171; text-align: center; padding: 40px;">檔案內容為空</div>';
+          } else {
+            let html = data.content
+              .replace(/```(\w+)?\n([\s\S]*?)```/g, '<pre style="background: #1e293b; color: #e2e8f0; padding: 12px; border-radius: 8px; overflow-x: auto;"><code>$2</code></pre>')
+              .replace(/`([^`]+)`/g, '<code style="background: #f1f5f9; padding: 2px 6px; border-radius: 4px;">$1</code>')
+              .replace(/^### (.+)$/gm, '<h3 style="color: #1e3a5f; margin-top: 20px;">$1</h3>')
+              .replace(/^## (.+)$/gm, '<h2 style="color: #1e3a5f; margin-top: 20px;">$1</h2>')
+              .replace(/^# (.+)$/gm, '<h1 style="color: #1e3a5f; margin-top: 20px;">$1</h1>')
+              .replace(/\n/g, '<br>');
+            contentBody.innerHTML = '<div style="max-height: 70vh; overflow-y: auto; line-height: 1.6;">' + html + '</div>';
+          }
+        })
+        .catch(err => {
+          contentBody.innerHTML = '<div style="color: #f87171; text-align: center; padding: 40px;">載入失敗: ' + err.message + '</div>';
+        });
+    }
+    
+    function closeDocContentModal() {
+      document.getElementById('docContentModal').style.display = 'none';
+    }
+  </script>
+  
+  <!-- Document Modal -->
+  <div id="docModal" class="modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 2000;">
+    <div class="modal-content" style="background: white; border-radius: 16px; max-width: 600px; margin: 10% auto; padding: 24px; box-shadow: 0 20px 60px rgba(0,0,0,0.3);">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+        <h3 id="modalTitle" style="color: #1e3a5f; font-size: 18px; font-weight: 600;">文件列表</h3>
+        <button onclick="closeDocModal()" style="background: none; border: none; font-size: 24px; cursor: pointer; color: #64748b;">✕</button>
+      </div>
+      <div id="modalContent" style="max-height: 400px; overflow-y: auto;"></div>
+    </div>
+  </div>
+  
+  <!-- Document Content Modal -->
+  <div id="docContentModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 2000; overflow-y: auto;">
+    <div style="background: white; margin: 50px auto; width: 90%; max-width: 800px; border-radius: 16px; overflow: hidden;">
+      <div style="background: linear-gradient(135deg, #0f3460, #1a4f8a); color: white; padding: 20px; display: flex; justify-content: space-between; align-items: center;">
+        <h3 id="docContentTitle" style="margin: 0;">文件內容</h3>
+        <button onclick="closeDocContentModal()" style="background: none; border: none; color: white; font-size: 24px; cursor: pointer;">✕</button>
+      </div>
+      <div id="docContentBody" style="padding: 20px; max-height: 70vh; overflow-y: auto;">
+      </div>
+    </div>
+  </div>
+
+</body>
+</html>

@@ -1,0 +1,211 @@
+# Docker Compose - 知識庫系統 生產環境
+# 啟動：docker compose up -d
+
+services:
+  # ===== Redis - 任務佇列與快取 =====
+  redis:
+    image: redis:7-alpine
+    container_name: kb-redis
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+
+  # ===== PostgreSQL - 外部測試報告待審與稽核狀態 =====
+  report_registry:
+    image: postgres:16-alpine
+    container_name: kb-report-registry
+    restart: unless-stopped
+    environment:
+      - POSTGRES_DB=kb_reports
+      - POSTGRES_USER=kb_report
+      - POSTGRES_PASSWORD=${KB_REPORT_DB_PASSWORD:?KB_REPORT_DB_PASSWORD must be set}
+    volumes:
+      - report_registry_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U kb_report -d kb_reports"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ===== Neo4j - 知識圖譜資料庫 =====
+  neo4j:
+    image: neo4j:latest
+    container_name: kb-neo4j
+    restart: unless-stopped
+    ports:
+      # 改用非預設 host port，避免和主機上的 neo4j.service 衝突
+      - "127.0.0.1:17474:7474"
+      - "127.0.0.1:17687:7687"
+    environment:
+      - NEO4J_AUTH=neo4j/${NEO4J_PASSWORD:?NEO4J_PASSWORD must be set}
+      - NEO4J_PLUGINS=["apoc"]
+    volumes:
+      - neo4j_data:/data
+      - neo4j_logs:/logs
+    healthcheck:
+      test: ["CMD-SHELL", "/var/lib/neo4j/bin/cypher-shell -u neo4j -p \"$${NEO4J_AUTH#neo4j/}\" 'RETURN 1'"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # ===== FastAPI - Web API =====
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: kb-web
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+      - "3000:3000"
+    environment:
+      - OPENCLAW_HOME=/home/da40_ai_gb10/.openclaw
+      - KB_INGEST_UPLOAD_ROOT=/app/data/uploads
+      - KB_INGEST_REGISTRY_URL=sqlite:////home/da40_ai_gb10/knowledge-base/data/ingestion-registry.sqlite3
+      - KB_INGEST_REQUIRE_AGENT_AUTH=${KB_INGEST_REQUIRE_AGENT_AUTH:-false}
+      - KB_ALLOW_LEGACY_INGEST=${KB_ALLOW_LEGACY_INGEST:-false}
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - NEO4J_URI=bolt://neo4j:7687
+      - NEO4J_USER=neo4j
+      - NEO4J_PASSWORD=${NEO4J_PASSWORD:?NEO4J_PASSWORD must be set}
+      - KB_MAX_CONCURRENT_PROCESSING=${KB_MAX_CONCURRENT_PROCESSING:-2}
+      - KB_PROCESSING_LOCK_TTL_SECONDS=${KB_PROCESSING_LOCK_TTL_SECONDS:-600}
+      - KB_JOB_RESULT_TTL_SECONDS=${KB_JOB_RESULT_TTL_SECONDS:-3600}
+      - KB_JOB_SOFT_TIME_LIMIT_SECONDS=${KB_JOB_SOFT_TIME_LIMIT_SECONDS:-600}
+      - KB_JOB_TIME_LIMIT_SECONDS=${KB_JOB_TIME_LIMIT_SECONDS:-720}
+      - KB_JOB_MAX_RETRIES=${KB_JOB_MAX_RETRIES:-3}
+      - KB_JOB_RETRY_COUNTDOWN_SECONDS=${KB_JOB_RETRY_COUNTDOWN_SECONDS:-5}
+      - REDIS_HOST=redis
+      - LLM_MODEL=gpt-4o
+      - CHAT_GLOBAL_CONCURRENCY_LIMIT=1
+      - KB_REPORT_REGISTRY_URL=postgresql://kb_report:${KB_REPORT_DB_PASSWORD}@report_registry:5432/kb_reports
+      - KB_REPORT_STAGING_ROOT=/app/data/report-staging
+      - KB_AGENT_TOKEN_HASHES_JSON=${KB_AGENT_TOKEN_HASHES_JSON:-{}}
+      - KB_REVIEWER_TOKEN_HASHES_JSON=${KB_REVIEWER_TOKEN_HASHES_JSON:-{}}
+    volumes:
+      - /home/da40_ai_gb10/.openclaw:/home/da40_ai_gb10/.openclaw:ro
+      - ${KB_CONFIG_ROOT:-./config}:/app/config:ro
+      - ${KB_DATA_ROOT:-./data}:/home/da40_ai_gb10/knowledge-base/data
+      - ${KB_UPLOAD_ROOT:-./data/uploads}:/app/data/uploads
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      redis:
+        condition: service_healthy
+      neo4j:
+        condition: service_healthy
+      report_registry:
+        condition: service_healthy
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 4
+
+  # ===== Celery Workers - 背景任務處理 =====
+  celery_search_worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: kb-celery-search
+    restart: unless-stopped
+    environment:
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - REDIS_URL=redis://redis:6379/0
+      - NEO4J_URI=bolt://neo4j:7687
+      - NEO4J_USER=neo4j
+      - NEO4J_PASSWORD=${NEO4J_PASSWORD:?NEO4J_PASSWORD must be set}
+      - KB_INGEST_UPLOAD_ROOT=/app/data/uploads
+    volumes:
+      - ${KB_CONFIG_ROOT:-./config}:/app/config:ro
+      - ${KB_DATA_ROOT:-./data}:/home/da40_ai_gb10/knowledge-base/data
+      - ${KB_UPLOAD_ROOT:-./data/uploads}:/app/data/uploads
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      redis:
+        condition: service_healthy
+      neo4j:
+        condition: service_healthy
+    command: celery -A src.web_api.tasks:celery_app worker --loglevel=info --concurrency=4 -Q search
+
+  celery_ingest_worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: kb-celery-ingest
+    restart: unless-stopped
+    environment:
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - REDIS_URL=redis://redis:6379/0
+      - NEO4J_URI=bolt://neo4j:7687
+      - NEO4J_USER=neo4j
+      - NEO4J_PASSWORD=${NEO4J_PASSWORD:?NEO4J_PASSWORD must be set}
+      - KB_INGEST_UPLOAD_ROOT=/app/data/uploads
+      - KB_INGEST_REGISTRY_URL=sqlite:////home/da40_ai_gb10/knowledge-base/data/ingestion-registry.sqlite3
+      - KB_REPORT_REGISTRY_URL=postgresql://kb_report:${KB_REPORT_DB_PASSWORD}@report_registry:5432/kb_reports
+      - KB_REPORT_STAGING_ROOT=/app/data/report-staging
+    volumes:
+      - ${KB_CONFIG_ROOT:-./config}:/app/config:ro
+      - ${KB_DATA_ROOT:-./data}:/home/da40_ai_gb10/knowledge-base/data
+      - ${KB_UPLOAD_ROOT:-./data/uploads}:/app/data/uploads
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      redis:
+        condition: service_healthy
+      neo4j:
+        condition: service_healthy
+      report_registry:
+        condition: service_healthy
+    command: celery -A src.web_api.tasks:celery_app worker --loglevel=info --concurrency=1 -Q ingest
+
+  celery_beat:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: kb-celery-beat
+    environment:
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - REDIS_URL=redis://redis:6379/0
+      - NEO4J_URI=bolt://neo4j:7687
+      - NEO4J_USER=neo4j
+      - NEO4J_PASSWORD=${NEO4J_PASSWORD:?NEO4J_PASSWORD must be set}
+      - KB_INGEST_UPLOAD_ROOT=/app/data/uploads
+    volumes:
+      - ${KB_CONFIG_ROOT:-./config}:/app/config:ro
+      - ${KB_DATA_ROOT:-./data}:/home/da40_ai_gb10/knowledge-base/data
+      - ${KB_UPLOAD_ROOT:-./data/uploads}:/app/data/uploads
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      redis:
+        condition: service_healthy
+      neo4j:
+        condition: service_healthy
+    command: celery -A src.web_api.tasks:celery_app beat --loglevel=info
+
+  # ===== Nginx - 反向代理（可選）=====
+  nginx:
+    image: nginx:alpine
+    container_name: kb-nginx
+    ports:
+      - "3030:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./.frontend-build-runtime-user8:/usr/share/nginx/html:ro
+      - /home/da40_ai_gb10/nginx_certs:/etc/nginx/certs:ro
+    depends_on:
+      - web
+
+volumes:
+  redis_data:
+  neo4j_data:
+  neo4j_logs:
+  report_registry_data:

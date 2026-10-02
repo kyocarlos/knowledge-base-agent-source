@@ -1,0 +1,12 @@
+{
+  "schema": "csit.km-manifest.v1",
+  "boundary": "dedicated KM integration contract; not the general CSIT File DTO",
+  "method": "GET",
+  "path": "/api/km/v1/projects/{projectId}/manifest",
+  "lifecycle": {
+    "test_report": "ReviewStatus=Approved and IsFinal=true",
+    "attachment": "present in manifest means eligible"
+  },
+  "required_fields": ["documentId", "fileId", "version", "fileKind", "reviewStatus", "isFinal", "sha256", "contentType", "fileSize", "relativePath", "projectId", "caseId", "taskId", "uploadedBy", "uploadedAt", "finalizedAt"],
+  "forbidden_internal_fields": ["filePath", "localFilePath", "nasFilePath", "nasFolderPath"]
+}

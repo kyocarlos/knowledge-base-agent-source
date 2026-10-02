@@ -1,0 +1,8 @@
+<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>KM 身份綁定</title></head>
+<body><main><h1>KM 帳號綁定</h1><p id="status">請驗證既有 KM 帳號；完成後需由管理員核准。</p><form id="form"><label>既有 KM 帳號 <input name="username" required></label><label>密碼 <input name="password" type="password" minlength="12" required></label><button>送出驗證</button></form></main>
+<script>
+const status=document.querySelector('#status'),form=document.querySelector('#form');
+async function api(path,options={}){return fetch('/_control/api/auth/oidc'+path,{credentials:'same-origin',headers:{'content-type':'application/json',...(options.headers||{})},...options})}
+api('/binding').then(async r=>{if(!r.ok){status.textContent='身份綁定已過期，請重新使用 Shared Identity 登入。'}});
+form.onsubmit=async e=>{e.preventDefault();const r=await api('/binding/verify',{method:'POST',body:JSON.stringify(Object.fromEntries(new FormData(form)))});status.textContent=r.ok?'已提交，等待 KM 管理員核准。':'既有 KM 帳號驗證失敗。';};
+</script></body></html>

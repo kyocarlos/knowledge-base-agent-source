@@ -1,0 +1,41 @@
+# Central account and authorization plane.  It contains no KM business data
+# and has no Neo4j, Qdrant, TimescaleDB, Redis, or data-plane credentials.
+services:
+  control_db:
+    image: postgres:16-alpine
+    hostname: km-control-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: km_control
+      POSTGRES_USER: km_control_app
+      POSTGRES_PASSWORD: ${KM_CONTROL_DB_PASSWORD:?required}
+    volumes: [control_db_data:/var/lib/postgresql/data]
+    networks:
+      control_network:
+        aliases: [km-control-db]
+    healthcheck:
+      test: [CMD-SHELL, 'pg_isready -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  control_auth:
+    build: {context: ../.., dockerfile: Dockerfile}
+    restart: unless-stopped
+    environment:
+      KM_CONTROL_DB_URL: postgresql://km_control_app:${KM_CONTROL_DB_PASSWORD}@km-control-db:5432/km_control
+      KM_CONTROL_SESSION_SIGNING_KEY: ${KM_CONTROL_SESSION_SIGNING_KEY:?required}
+      KM_CONTROL_COOKIE_PATH: ${KM_CONTROL_COOKIE_PATH:-/_control/}
+      KM_TEST_PUBLIC_ORIGIN: ${KM_PUBLIC_ORIGIN:?required}
+      KM_DA40_PUBLIC_ORIGIN: ${KM_PUBLIC_ORIGIN:?required}
+      KM_RD2_PUBLIC_ORIGIN: ${KM_PUBLIC_ORIGIN:?required}
+    command: uvicorn app.control_main:app --host 0.0.0.0 --port 8000 --workers 2
+    depends_on: {control_db: {condition: service_healthy}}
+    networks: [control_network]
+
+volumes:
+  control_db_data: {}
+
+networks:
+  control_network:
+    name: ${KM_CONTROL_NETWORK:-km-control-private}

@@ -1,0 +1,44 @@
+{
+  "schema": "csit.km-manifest.v1.test-fixture",
+  "purpose": "KM-side lifecycle and identity contract tests; not Patty's CSIT Stage dataset",
+  "entries": [
+    {
+      "source": "CSIT", "moduleCode": "UAT", "documentId": "document-a",
+      "fileId": "document-a-v1", "projectId": "project-a", "caseId": "case-a", "taskId": "task-a",
+      "fileName": "document-a-v1.txt", "fileKind": "TestReport", "version": 1,
+      "reviewStatus": "Approved", "isFinal": true, "contentType": "text/plain", "fileSize": 15,
+      "sha256": "b5f1d1f3c3f2e5c4b5a7d5ad7c4d6f7a1d9e8c0b7a6f5e4d3c2b1a0987654321",
+      "uploadedBy": "uat", "uploadedAt": "2026-09-18T00:00:00Z", "finalizedAt": "2026-09-18T00:01:00Z",
+      "relativePath": "uat/document-a-v1.txt"
+    },
+    {
+      "source": "CSIT", "moduleCode": "UAT", "documentId": "document-a",
+      "fileId": "document-a-v2", "projectId": "project-a", "caseId": "case-a", "taskId": "task-a",
+      "fileName": "document-a-v2.txt", "fileKind": "TestReport", "version": 2,
+      "reviewStatus": "Rejected", "isFinal": false, "contentType": "text/plain", "fileSize": 15,
+      "sha256": "c5f1d1f3c3f2e5c4b5a7d5ad7c4d6f7a1d9e8c0b7a6f5e4d3c2b1a0987654321",
+      "uploadedBy": "uat", "uploadedAt": "2026-09-18T00:02:00Z", "finalizedAt": "",
+      "relativePath": "uat/document-a-v2.txt"
+    },
+    {
+      "source": "CSIT", "moduleCode": "UAT", "documentId": "document-a",
+      "fileId": "document-a-v3", "projectId": "project-a", "caseId": "case-a", "taskId": "task-a",
+      "fileName": "document-a-v3.txt", "fileKind": "TestReport", "version": 3,
+      "reviewStatus": "Pending", "isFinal": false, "contentType": "text/plain", "fileSize": 15,
+      "sha256": "d5f1d1f3c3f2e5c4b5a7d5ad7c4d6f7a1d9e8c0b7a6f5e4d3c2b1a0987654321",
+      "uploadedBy": "uat", "uploadedAt": "2026-09-18T00:03:00Z", "finalizedAt": "",
+      "relativePath": "uat/document-a-v3.txt"
+    },
+    {
+      "source": "CSIT", "moduleCode": "UAT", "documentId": "document-b",
+      "fileId": "document-b-v2", "projectId": "project-b", "caseId": "case-b", "taskId": "task-b",
+      "fileName": "document-b-v2.txt", "fileKind": "TestReport", "version": 2,
+      "reviewStatus": "Approved", "isFinal": true, "contentType": "text/plain", "fileSize": 15,
+      "sha256": "e5f1d1f3c3f2e5c4b5a7d5ad7c4d6f7a1d9e8c0b7a6f5e4d3c2b1a0987654321",
+      "uploadedBy": "uat", "uploadedAt": "2026-09-18T00:04:00Z", "finalizedAt": "2026-09-18T00:05:00Z",
+      "relativePath": "uat/document-b-v2.txt"
+    }
+  ],
+  "expected_importable": ["document-a-v1", "document-b-v2"],
+  "expected_excluded": ["document-a-v2", "document-a-v3"]
+}
