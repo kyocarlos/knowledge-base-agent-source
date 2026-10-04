@@ -1,6 +1,6 @@
 {
   "schema": "km.phase1-runtime-status.v1",
-  "collected_at": "2026-10-04T06:59:37.950567+00:00",
+  "collected_at": "2026-10-04T13:15:42.627467+00:00",
   "manifest": "docs/phase1-status-manifest.json",
   "collector_mode": "broker",
   "source_root": "broker-managed",
@@ -9,8 +9,8 @@
     "clean": false
   },
   "version": {
-    "health_status": 200,
-    "version_status": 401,
+    "health_status": 0,
+    "version_status": 0,
     "data": {
       "commit": null,
       "release_id": null,
@@ -33,7 +33,7 @@
     },
     "kb-celery-beat": {
       "image_id": "sha256:da2c149f89eb7250965cbc0d80cf78cddc2b0d8f8c6951e8aff04c5c6a0e4fe5",
-      "status": "running"
+      "status": "exited"
     }
   },
   "status": "STALE",
