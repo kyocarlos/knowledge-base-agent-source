@@ -4,7 +4,7 @@
 
 開發分支：`codex/km-dev-handoff-20261014`。由 `a3f51993ca02bd6c7bccb3112f6b11ea76d7319b` 的既有 review snapshot 整理，納入 DGX working-tree 的第一方 Python／Vue source、DEV Control 容器內的正式 source、最新 Integration v1 與隔離測試。
 
-`docs/handoff/source-origins.json` 保存來源對照；`docs/handoff/source-manifest.json` 保存交付檔案 SHA256。新分支是可 checkout 的開發來源；canonical adoption source commit `bbc6039a...` 已部署至 DGX 的 KM DEV Integration API 與停止中的 worker image；不代表完整平台、Production 或 Phase 1 全項驗收。詳見 [驗證與部署證據](CSIT_CANONICAL_ADOPTION_20261014.md)。
+`docs/handoff/source-origins.json` 保存來源對照；`docs/handoff/source-manifest.json` 保存交付檔案 SHA256。新分支是可 checkout 的開發來源；canonical adoption source commit `45108b1...` 已部署至 DGX 的 KM DEV Integration API 與停止中的 worker image；不代表完整平台、Production 或 Phase 1 全項驗收。詳見 [驗證與部署證據](CSIT_CANONICAL_ADOPTION_20261014.md)。
 
 ## 可重建範圍
 

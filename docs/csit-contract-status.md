@@ -6,3 +6,5 @@
 Current Integration v1 tests must load the vendored canonical JSON Schemas. They must not derive wire-contract expectations from the legacy JSON config or legacy manifest adapter.
 
 KM DEV rollout, CI result, runtime identity, migration and offline verification are recorded in [the 2026-10-14 adoption evidence](handoff/CSIT_CANONICAL_ADOPTION_20261014.md). Integration remains disabled pending a clean Live E2E.
+
+Current DEV code revision: `45108b1fb4a4672945d99238080f75069929f2ec`; canonical callback builder validates payloads before outbox insertion. Full isolated suite: 265 passed.

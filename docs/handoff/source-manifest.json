@@ -85,11 +85,11 @@
     },
     {
       "path": "PROJECT_MEMORY.md",
-      "sha256": "b3c1fc76269a6883574b001d3409e36dde5a9ecd432fb53a0b31ffa910dfe3f4"
+      "sha256": "428256ade1babd9c930675f4e682d697925f133d5878218ad21622365b6c556f"
     },
     {
       "path": "README.md",
-      "sha256": "bb5274de2301e87281bb6aa9c58fd9e3f911f7ed92b2a4990dda572d86ba97c4"
+      "sha256": "e656c7f1171885f4efaa00d5ea1567aeb3aa506eeb8f2f30fee092b8541798ac"
     },
     {
       "path": "SUB2API_LLM_Architecture_Diagram.pptx",
@@ -345,7 +345,7 @@
     },
     {
       "path": "docs/csit-contract-status.md",
-      "sha256": "eff55fca87c91375587b263e3ba4a0d0871159f6d6604f081710c0db877ed80f"
+      "sha256": "1c76e5f6f3ab2e0e0e8421e3be775a4998611d806ae3ad9e3b1319f458a38ff0"
     },
     {
       "path": "docs/csit-integration-api-v1-km-dev.md",
@@ -361,7 +361,7 @@
     },
     {
       "path": "docs/handoff/CSIT_CANONICAL_ADOPTION_20261014.md",
-      "sha256": "4cb363afb4edd467e5a943e41973cb8cf0bd75897a9a615e3572e7be334cc50c"
+      "sha256": "1487b3c1351a1cb66d71b33c371363d94cdb7e1fd8874a777265b1623a01468d"
     },
     {
       "path": "docs/handoff/LEGACY_README.md",
@@ -369,7 +369,7 @@
     },
     {
       "path": "docs/handoff/PATTY_DEVELOPMENT_HANDOFF.md",
-      "sha256": "c2680a59904f5822c7191069142d986c263c11dd92c51f88e59e00234fbc694f"
+      "sha256": "761e353eabdef162143f572f4914e73770f7fbfb2d6dfee76bf66fce32af409a"
     },
     {
       "path": "docs/handoff/source-origins.json",

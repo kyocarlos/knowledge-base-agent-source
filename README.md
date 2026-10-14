@@ -26,7 +26,7 @@ docker compose -p km-patty-sandbox -f deploy/csit-integration-v1/compose.yaml do
 
 預期 health: `status=ok`、`integrationEnabled=false`。Worker 維持 OFF。本機初始化新的空白 sandbox DB，不會匯入 DGX 的 job/文件/帳號。若要移除 sandbox 資料，僅對此 project 使用 `down --volumes`。
 
-Processing 的 `timestamps.startedAt` 與 Failed 的 `timestamps.failedAt` 修正已包含於本分支，並以 CSIT 固定 commit 的四份 canonical schema 驗證。已於 KM DEV 受控部署並完成實際 container 的離線驗證；integration 維持 disabled、worker OFF。詳見 [canonical adoption 驗證與部署證據](docs/handoff/CSIT_CANONICAL_ADOPTION_20261014.md)。
+Processing 的 `timestamps.startedAt` 與 Failed 的 `timestamps.failedAt` 修正已包含於本分支，並以 CSIT 固定 commit 的四份 canonical schema 驗證。實際出站 callback builder 也以 vendored schema 驗證，拒絕空白 Failed error.code/message。已於 KM DEV 受控部署並完成實際 container 的離線驗證；integration 維持 disabled、worker OFF。詳見 [canonical adoption 驗證與部署證據](docs/handoff/CSIT_CANONICAL_ADOPTION_20261014.md)。
 
 ## Build 驗證補充
 
