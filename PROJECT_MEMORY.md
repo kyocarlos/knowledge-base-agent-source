@@ -29,3 +29,6 @@ LLM 說明與結論：
 7. 沒有發出新 ingestion/document pull/callback、沒有新 job、沒有重送或 resume 既有 Completed job、沒有執行 Live E2E。Human OIDC 真實登入、CSIT live callback 與 graph/numeric 業務場景仍待後續受控驗收；本次不能宣稱 Integration v1 完成或 Production acceptance。
 
 **最終狀態：READY FOR CLEAN LIVE E2E。** 這代表 KM DEV code/schema/migration/image/disabled runtime/CI 已準備好做下一次受控的新事件驗收；integration 繼續 disabled，worker OFF。公開詳細證據：`docs/handoff/CSIT_CANONICAL_ADOPTION_20261014.md`。正式 source commit `bbc6039a...` 與實際 image revision 一致；之後的文檔記憶 commit 不改變 deployed code identity。
+
+### 2026-10-14 callback builder canonical guard follow-up — source verified, deployment pending
+Final audit found the production callback builder could serialize a Failed payload with blank error.code or error.message if handed an invalid internal IntegrationError. The builder now validates every built callback with its exact vendored canonical JSON Schema before Repository._outbox writes it. Four new tests prove blank/whitespace Failed fields are rejected at the production builder. Full isolated suite and packaged verifier reran: 265 passed, offline PASS. Existing deployed DEV images remain revision bbc6039 pending this follow-up code commit, CI and controlled image replacement. No Live E2E or new job/callback was executed.

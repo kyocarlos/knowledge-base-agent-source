@@ -85,7 +85,7 @@
     },
     {
       "path": "PROJECT_MEMORY.md",
-      "sha256": "e712a449fc70568d12a4ae89fc798b014044d45cc32bf30e30c5971c248584f2"
+      "sha256": "b3c1fc76269a6883574b001d3409e36dde5a9ecd432fb53a0b31ffa910dfe3f4"
     },
     {
       "path": "README.md",
@@ -1053,7 +1053,7 @@
     },
     {
       "path": "src/csit_integration_v1/callbacks.py",
-      "sha256": "046c9edb7285b435cf38c5ce919930cb5dcb2038bd0b60e789b7dd2d93abb88c"
+      "sha256": "a5422d8c19e8dc1f093972617b0f87dab2b2f6eb4329202b7e9f7cf3dc12228f"
     },
     {
       "path": "src/csit_integration_v1/client.py",
@@ -1361,7 +1361,7 @@
     },
     {
       "path": "tests/csit_v1/test_canonical_contracts.py",
-      "sha256": "295bcd377a1c36d17082618dcdbe46e124905236d1c4f4d116afca17d90ace0c"
+      "sha256": "67d978ad560e2d235c4c38c3e359efcfea796adb9d6ec68fc2e8f8d2c92a4081"
     },
     {
       "path": "tests/csit_v1/test_canonical_number_contract.py",

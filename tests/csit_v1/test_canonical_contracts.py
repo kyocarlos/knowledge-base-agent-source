@@ -126,3 +126,13 @@ def test_failed_callback_error_must_be_nonblank(repo,payload,field,invalid_value
     invalid=build_callback_payload(job,"Failed",error)
     invalid["error"][field]=invalid_value
     assert not validator("callback-failed.schema.json").is_valid(invalid)
+
+@pytest.mark.parametrize("field",["code","message"])
+@pytest.mark.parametrize("invalid_value",["","   "])
+def test_production_builder_rejects_blank_failed_error(repo,payload,field,invalid_value):
+    from jsonschema import ValidationError as SchemaValidationError
+    repo.submit(IngestionRequest.model_validate(payload));job=repo.claim("builder-error-gate",60)
+    error=IntegrationError("SOURCE_ERROR","Canonical failure fixture")
+    repo.fail(job,error,());job=repo.get(job["job_id"])
+    setattr(error,field,invalid_value)
+    with pytest.raises(SchemaValidationError):build_callback_payload(job,"Failed",error)
