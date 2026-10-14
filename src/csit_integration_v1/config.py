@@ -16,8 +16,8 @@ class Settings:
     client_id: str = ""
     secret_file: str = ""
     service_clients: tuple[str,...] = ()
-    service_claim: str = "gty"
-    service_claim_value: str = "client_credentials"
+    service_claim: str = "principal_type"
+    service_claim_value: str = "service"
     client_claim: str = "client_id"
     algorithm: str = "RS256"
     timeout: float = 30

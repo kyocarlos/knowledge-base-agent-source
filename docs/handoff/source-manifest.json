@@ -9,7 +9,7 @@
     },
     {
       "path": ".github/workflows/csit-handoff.yml",
-      "sha256": "2dff2289ccf5d36bfd73170a9715c0e15330bf4e928623278e6b9fae9b026f64"
+      "sha256": "beef71c696dbffdb5b6adfe71a470d90c23488c8c51062b286ad4f5d77e27e76"
     },
     {
       "path": ".github/workflows/csit-km-manifest.yml",
@@ -85,11 +85,11 @@
     },
     {
       "path": "PROJECT_MEMORY.md",
-      "sha256": "8ad1d18b2f9048669770d79070eb3aeb997725464693a9f273848e5df48656fd"
+      "sha256": "2d861f492e36a0cd2f15f8dda0fb78800309ddb5e01f5d115402e49412e3aea0"
     },
     {
       "path": "README.md",
-      "sha256": "9136ab60f8c8a257a7e2b78abe4583bd378ba2d7fc80a4b9c846fbf3ad6a5983"
+      "sha256": "2af266b5752e20f5f5d5a8f98da2b67bb4611ec4a9e561f923edac8f158bb7a4"
     },
     {
       "path": "SUB2API_LLM_Architecture_Diagram.pptx",
@@ -220,6 +220,26 @@
       "sha256": "4325d338cd96877b960a5979042f6a347930f551dd4fe9fa74def38d27bc86bb"
     },
     {
+      "path": "contracts/csit-km-integration-v1/UPSTREAM.json",
+      "sha256": "ede62f977da8db1adfa401d17a446d283b19bd510bbeebe7c5cc61aca5a29097"
+    },
+    {
+      "path": "contracts/csit-km-integration-v1/callback-completed.schema.json",
+      "sha256": "aa6f6986181bd60aa27cf06ec2bce8c77196db8ab97aa7602819135a951dfacb"
+    },
+    {
+      "path": "contracts/csit-km-integration-v1/callback-failed.schema.json",
+      "sha256": "79f5b2f0bd6441a31371287ffbc5250a690daf9fc2dfea4a7af8f96415931d0a"
+    },
+    {
+      "path": "contracts/csit-km-integration-v1/callback-processing.schema.json",
+      "sha256": "9133196844d556fab22314bfded3c6803c4f709fd78ed93b3ac90949c4d7a137"
+    },
+    {
+      "path": "contracts/csit-km-integration-v1/ingestion-request.schema.json",
+      "sha256": "cdbcde1923eccb26dbe03cd072a6a08cae37cc6459666081b0b6820a8eaf61cd"
+    },
+    {
       "path": "deploy/control-plane/control.env.example",
       "sha256": "d1dcf89c950c7a9f69b4331193240f358b72d722e8403bd0a8f90da2c98d690d"
     },
@@ -233,7 +253,7 @@
     },
     {
       "path": "deploy/csit-integration-v1/Dockerfile",
-      "sha256": "8baa26245f66af481ee0811ed4b0def4113f0517ddddbfdce0e8a8f61615d31b"
+      "sha256": "8477a4eee1745833fb5575e51488de3f1df7f17132e96eb15308a3ace62723f8"
     },
     {
       "path": "deploy/csit-integration-v1/Dockerfile.worker",
@@ -253,11 +273,11 @@
     },
     {
       "path": "deploy/csit-integration-v1/requirements.lock.txt",
-      "sha256": "6b38f2dd63e1c22d0a61da996332df3ebea63070adbd9fc868888b2f638334ef"
+      "sha256": "a3301d1b346aa0f73c7c7367298e52c957becb8853051e2b4f91669c47421850"
     },
     {
       "path": "deploy/csit-integration-v1/requirements.txt",
-      "sha256": "d3314ac40db493a456308f546cf78d3ff801f594ecf37ac470aa24acdee9166d"
+      "sha256": "047063e6bb50b73c26d9f4d3e2eba622acae90a11aa20352193ffc490bc04157"
     },
     {
       "path": "deploy/csit-integration-v1/test-compose.yaml",
@@ -324,6 +344,10 @@
       "sha256": "7a014078cfe5350a6eff442f35578ce3c18f9ff469a79da9bce273735e097f50"
     },
     {
+      "path": "docs/csit-contract-status.md",
+      "sha256": "a5a74e60e2c687382d64def154b8d6c4532051f672cc65afb4bb44810c877507"
+    },
+    {
       "path": "docs/csit-integration-api-v1-km-dev.md",
       "sha256": "a064712774cf93a5339628a591f78f58c1f44a5799cf8c5d6dc9e1277ab210d2"
     },
@@ -341,7 +365,7 @@
     },
     {
       "path": "docs/handoff/PATTY_DEVELOPMENT_HANDOFF.md",
-      "sha256": "fdda06d324795c41174dfabfa4bf9dc6cbbba426a92ae0faeaf470563f305e9e"
+      "sha256": "940df466d4fe4c69a109db84d022f8a0fa0429d7727685ae227ea02bbcb15805"
     },
     {
       "path": "docs/handoff/source-origins.json",
@@ -724,6 +748,10 @@
       "sha256": "40b10617865667bfb3ed7313f241d8382a9e30dcdc413706488808a7a38682f1"
     },
     {
+      "path": "migrations/20261014_csit_integration_v1_nullable_lineage.sql",
+      "sha256": "224c339fe693050ed50ac7af3e19258dc6385f31b21922b03cc93893333f1b2b"
+    },
+    {
       "path": "n8n-workflow/README.md",
       "sha256": "1f8d1ba7657342420e097aa70618f112fe1ee84744905bfc333d2e8b63564e8e"
     },
@@ -848,6 +876,10 @@
       "sha256": "c5457da6fc967a12ebb5d7680419c98eaee6973a895804b054a84be86f0ff582"
     },
     {
+      "path": "scripts/check-csit-contract-sync.py",
+      "sha256": "c76953253be3a5fff6aec1d28893f2b5019ca6362de816f321e07b1a991dee77"
+    },
+    {
       "path": "scripts/check_deployment_readiness.py",
       "sha256": "ab465816bfec9e269b94cf7fd6b1d77b5f0b96946ecf97a7798fb00a61654a82"
     },
@@ -917,7 +949,7 @@
     },
     {
       "path": "scripts/test-csit-handoff.sh",
-      "sha256": "b2af62882a9b8af15de7bf0c94f48ed4fc8d493380a94666f832a3bb89fc2c76"
+      "sha256": "0f4cd86c318554e8fdef992d2f2869b2355bb23bd07752a2abf875cb4942bc43"
     },
     {
       "path": "scripts/validate_release_compose_metadata.py",
@@ -1016,12 +1048,16 @@
       "sha256": "3b7baef3de522fd9808a094de3f15f5f3d15596d2237b54cf5aa48b86d0b2919"
     },
     {
+      "path": "src/csit_integration_v1/callbacks.py",
+      "sha256": "046c9edb7285b435cf38c5ce919930cb5dcb2038bd0b60e789b7dd2d93abb88c"
+    },
+    {
       "path": "src/csit_integration_v1/client.py",
       "sha256": "d66ba3c8755b6469e76df89937486ce7b5630ca6ca4c9557ceab617c7a478dd5"
     },
     {
       "path": "src/csit_integration_v1/config.py",
-      "sha256": "126d39999123f23cd680adb38cb091feaf5a94975efb2200e6531b410dda56e2"
+      "sha256": "25ee33a139d6206e761b6d8986a73455f524ad106889b8525e76ab9d4f4ff240"
     },
     {
       "path": "src/csit_integration_v1/errors.py",
@@ -1029,7 +1065,11 @@
     },
     {
       "path": "src/csit_integration_v1/models.py",
-      "sha256": "28c2c46384612f0117f0faf06c6bc976c782e3eb42016fdf0b869561e70f2616"
+      "sha256": "fe085e2f9987511492218b0290661ebd60d5929430eb220c7bca95f9eb1255ec"
+    },
+    {
+      "path": "src/csit_integration_v1/offline_verify.py",
+      "sha256": "68633e670e9a6a60de7757c32e93368863fc66e44ab26ea3f97a1086893a7e5e"
     },
     {
       "path": "src/csit_integration_v1/operator.py",
@@ -1041,7 +1081,7 @@
     },
     {
       "path": "src/csit_integration_v1/repository.py",
-      "sha256": "5c31959ff7b9fd42e649c073512a0dd35d44cf30e04d63ed2347e038ac5103f1"
+      "sha256": "99d85d21073633eb83399244bd965b7b33199f77ae5e3882152c7a069b428139"
     },
     {
       "path": "src/csit_integration_v1/runtime.py",
@@ -1301,7 +1341,11 @@
     },
     {
       "path": "tests/csit_v1/conftest.py",
-      "sha256": "0427771f669fb4bf08a90a23ee2db45a559997aa7c157969ae091126313e20cd"
+      "sha256": "c0095f153f8cd459508cca0030d92b4f56b4b678d9c2aba158f1f294e5593e67"
+    },
+    {
+      "path": "tests/csit_v1/fixtures/canonical-ingestion-request.json",
+      "sha256": "0139d615cb21154ee0e32e15f081d021a3bc02233545ba48c1c5858ceb47b825"
     },
     {
       "path": "tests/csit_v1/fixtures/processing-callback-20261014.json",
@@ -1309,19 +1353,27 @@
     },
     {
       "path": "tests/csit_v1/test_auth_writers.py",
-      "sha256": "4a9960d23a261e3597c8999d8dd32451589789489c8169e9d60476ebd1e579a4"
+      "sha256": "aa2530d0cdca496d716cb60cb11d7c26f9bd5b6be0a71453b96d2ff2faa66bd2"
+    },
+    {
+      "path": "tests/csit_v1/test_canonical_contracts.py",
+      "sha256": "295bcd377a1c36d17082618dcdbe46e124905236d1c4f4d116afca17d90ace0c"
     },
     {
       "path": "tests/csit_v1/test_canonical_number_contract.py",
-      "sha256": "03f86eea80aec29a1e4da19e6d239a5fafb0dc87925f37a99f61cce0aec5deec"
+      "sha256": "7c6bb91565e34e1ebba523774b09f9f445ff4defda6d5d7709c26161d5580547"
     },
     {
       "path": "tests/csit_v1/test_client_pipeline.py",
-      "sha256": "80bcc7f19ef40639415ea6ea13c0952aadbf5f7a7c298002cd347fcf27486ddd"
+      "sha256": "ad99ece47dfc0571c160ab2bb84fd8ac346f2e54165199a25e9b8d8dfcd87dec"
+    },
+    {
+      "path": "tests/csit_v1/test_config_defaults.py",
+      "sha256": "d4470b35cacd5231bfaac66d965a3afed5ec49dfc341bd58c8c2a45cd029b860"
     },
     {
       "path": "tests/csit_v1/test_contract_repository.py",
-      "sha256": "0d1bbd3ba8eaa9de3c4740e63869a5a1becb70b61d7bbd7e70c55fa9c6b396de"
+      "sha256": "2c867e74eb077abee9981b65d72405417481d7c918bba9fd41de06caf0977da1"
     },
     {
       "path": "tests/csit_v1/test_direct_auth_probe.py",
@@ -1341,7 +1393,7 @@
     },
     {
       "path": "tests/csit_v1/test_processing_callback_contract.py",
-      "sha256": "ded7cc505ce6fca2ea401e59b4a08b12952a75b56a0d875aeef1ab225481fc1c"
+      "sha256": "35b9608c91415e92812c849673c2674f66919a5e01b585c120d5ec8e9e39da48"
     },
     {
       "path": "tests/csit_v1/test_worker_lifecycle.py",
@@ -1631,5 +1683,6 @@
       "path": "websocket_stress_test.py",
       "sha256": "b58484220a306b25815d99668e31cc0667b97c80a2d636d6a67df240b94ece85"
     }
-  ]
+  ],
+  "canonical_upstream_commit": "3a9ae52f04625aeee5fd01e7a3565f5972fc9122"
 }

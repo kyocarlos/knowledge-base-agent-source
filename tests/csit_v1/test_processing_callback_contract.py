@@ -4,6 +4,7 @@ from datetime import datetime,timezone
 import pytest
 from src.csit_integration_v1.models import IngestionRequest
 from src.csit_integration_v1.errors import IntegrationError
+from src.csit_integration_v1.callbacks import build_callback_payload
 
 HISTORICAL=Path(__file__).parent/'fixtures/processing-callback-20261014.json'
 def processing_contract(p):
@@ -39,11 +40,10 @@ def stored_callback(repo,job,status):
 def test_normal_claim_produces_required_nested_started_at(repo,payload):
     request=IngestionRequest(**payload);repo.submit(request);job=repo.claim('test-worker',60)
     p=stored_callback(repo,job,'Processing')
-    assert p['status']=='Processing' and p['timestamps']=={'updatedAt':job['updated_at'].isoformat(),'startedAt':job['updated_at'].isoformat()}
+    assert p==build_callback_payload(job,'Processing')
     assert 'startedAt' not in p and 'error' not in p
     assert not {'processingAt','started_at','startAt','StartedAt'}&set(p['timestamps'])
     assert datetime.fromisoformat(p['timestamps']['startedAt']).tzinfo is not None
-    # Contract identities in the regular fixture can be non-UUID text; shape checks are separate.
     assert all(p[k]==payload[k] for k in ['sourceSystem','documentId','version'])
 
 def test_current_processing_transition_used_even_when_original_start_is_older(repo,payload):
@@ -56,11 +56,13 @@ def test_current_processing_transition_used_even_when_original_start_is_older(re
 def test_completed_branch_exact_original_behavior(repo,payload):
     repo.submit(IngestionRequest(**payload));job=repo.claim('test-worker',60)
     repo.finish(job,{},'test-parser','test-extraction');r=repo.get(job['job_id']);p=stored_callback(repo,job,'Completed')
-    assert p=={'jobId':str(job['job_id']),'sourceSystem':'CSIT','documentId':payload['documentId'],'version':payload['version'],'status':'Completed','timestamps':{'updatedAt':r['updated_at'].isoformat(),'completedAt':r['completed_at'].isoformat()}}
+    assert p==build_callback_payload(r,'Completed')
     assert 'startedAt' not in p['timestamps']
 
-def test_failed_branch_unchanged_per_explicit_scope_decision(repo,payload):
+def test_failed_branch_has_required_failure_transition_timestamp(repo,payload):
     repo.submit(IngestionRequest(**payload));job=repo.claim('test-worker',60)
     repo.fail(job,IntegrationError('SOURCE_ERROR','Sanitized test error'),());r=repo.get(job['job_id']);p=stored_callback(repo,job,'Failed')
-    assert p=={'jobId':str(job['job_id']),'sourceSystem':'CSIT','documentId':payload['documentId'],'version':payload['version'],'status':'Failed','timestamps':{'updatedAt':r['updated_at'].isoformat()},'error':{'code':'SOURCE_ERROR','message':'Sanitized test error'}}
-    assert 'failedAt' not in p['timestamps']  # Known pre-existing gap, deferred by the user.
+    assert p==build_callback_payload(r,'Failed',IntegrationError('SOURCE_ERROR','Sanitized test error'))
+    assert p['timestamps']['failedAt']==r['last_error_at'].isoformat()
+    assert p['timestamps']['updatedAt']==r['updated_at'].isoformat()
+    assert p['error']=={'code':'SOURCE_ERROR','message':'Sanitized test error'}

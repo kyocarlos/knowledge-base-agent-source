@@ -1,8 +1,12 @@
 FROM python:3.12-slim-bookworm@sha256:34386ef0cb081344d7ec1c103ba398e6e9f64e9ab3a1509accc92a4e24a07258 AS api
 WORKDIR /app
+ARG SOURCE_COMMIT=unknown
+LABEL org.opencontainers.image.revision=$SOURCE_COMMIT
 COPY deploy/csit-integration-v1/requirements.txt deploy/csit-integration-v1/requirements.lock.txt /tmp/
 RUN pip install --no-cache-dir -r /tmp/requirements.lock.txt
 COPY src /app/src
+COPY contracts/csit-km-integration-v1 /app/contracts/csit-km-integration-v1
+COPY tests/csit_v1/fixtures/canonical-ingestion-request.json /app/fixtures/canonical-ingestion-request.json
 COPY app /app/app
 COPY config/csit-integration-v1.numeric-rules.json /app/config/csit-integration-v1.numeric-rules.json
 ENV PYTHONPATH=/app PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1

@@ -18,6 +18,7 @@ def db_url():
     dsn=make_conninfo(raw,options="-c search_path="+schema)
     with psycopg.connect(dsn) as c:
         c.execute(Path(__file__).resolve().parents[2].joinpath("migrations/20261007_csit_integration_v1.sql").read_text())
+        c.execute(Path(__file__).resolve().parents[2].joinpath("migrations/20261014_csit_integration_v1_nullable_lineage.sql").read_text())
     with psycopg.connect(dsn) as c:
         c.execute("CREATE TABLE km_users(user_id text PRIMARY KEY,status text NOT NULL,is_admin boolean NOT NULL)")
         c.execute("CREATE TABLE km_audit_events(event_id text PRIMARY KEY,occurred_at bigint NOT NULL,actor_user_id text,target_user_id text,event_type text NOT NULL,detail_json text NOT NULL)")
@@ -35,10 +36,10 @@ def repo(db_url):
 @pytest.fixture
 def payload():
     return {"eventId":str(uuid.uuid4()),"eventType":"TestReportCommitted","sourceSystem":"CSIT",
-        "documentId":"report-"+uuid.uuid4().hex,"version":3,
-        "project":{"id":"p1","number":"PROJECT","name":"Project"},
-        "case":{"id":"c1","number":"CASE","name":"Case"},
-        "task":{"id":"t1","number":"TASK","name":"Task"},
+        "documentId":str(uuid.uuid4()),"version":3,
+        "project":{"id":str(uuid.uuid4()),"number":"PROJECT","name":"Project"},
+        "case":{"id":str(uuid.uuid4()),"number":"CASE","name":"Case"},
+        "task":{"id":str(uuid.uuid4()),"number":"TASK","name":"Task"},
         "document":{"fileName":"report.txt","contentType":"text/plain","sizeBytes":12},
         "committedAt":"2026-10-07T08:30:00+08:00"}
 

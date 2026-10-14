@@ -77,7 +77,7 @@ Operator wrapper `scripts/csit-integration-operator.py` 依 SSH/Unix identity �
 ## 已知事項與接手優先順序
 
 1. Processing 的 required `timestamps.startedAt` source 修正包含於分支，值取當次 Processing transition timestamp；這個 fix 在原 DGX live image 尚未部署。
-2. Failed callback required `timestamps.failedAt` 尚缺，使用者先前明確留為另案。這輪沒有擴大修改；既有 Failed regression PASS 只是行為不變。
+2. 本次 canonical adoption 已在 source 加入 Failed callback required `timestamps.failedAt`，取值為 `last_error_at` 的真實 failure transition time；部署與 live acceptance 另以實際 runtime 證據判定。
 3. 既有真實 v3 job 已 Completed，Completed callback 204；historical Processing callback 400 與舊 Failed callback rows 保留。不得用重送已 Completed job 驗證新 source。
 4. graph／numeric writer 有隔離測試；真實那筆文件無 entities／recognized KPI，Neo4j／Timescale live 該筆為 N/A，不能宣稱所有 business 場景驗收。
 5. 先跑 clean checkout regression／disabled API health；再整理對實際 DEV 的 deployment/rollback plan；Human OIDC 真正登入與 live integration 都須另行規劃 controlled acceptance。

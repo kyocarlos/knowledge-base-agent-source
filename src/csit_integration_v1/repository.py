@@ -5,6 +5,7 @@ import psycopg
 from psycopg.rows import dict_row
 from psycopg.types.json import Jsonb
 from .errors import IntegrationError, LeaseLost
+from .callbacks import build_callback_payload
 
 class Repository:
     def __init__(self, db_url):
@@ -88,11 +89,7 @@ class Repository:
         return {"jobId":str(r["job_id"]),"sourceSystem":r["source_system"],"documentId":r["document_id"],
             "version":r["version"],"status":r["status"]}
     def _outbox(self,c,r,status,error=None):
-        now=r["updated_at"].isoformat()
-        payload=self.response(r);payload["status"]=status;payload["timestamps"]={"updatedAt":now}
-        if status=="Processing": payload["timestamps"]["startedAt"]=now
-        if status=="Completed": payload["timestamps"]["completedAt"]=r["completed_at"].isoformat()
-        if error: payload["error"]={"code":error.code,"message":error.message}
+        payload=build_callback_payload(r,status,error)
         c.execute("INSERT INTO km_csit_callback_deliveries(delivery_id,job_id,payload) VALUES(%s,%s,%s)",
             (uuid.uuid4(),r["job_id"],Jsonb(payload)))
     def claim(self,worker_id,lease_seconds):

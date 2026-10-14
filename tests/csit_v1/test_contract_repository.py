@@ -37,7 +37,7 @@ def test_disabled_no_anonymous(repo,settings,payload):
 def test_same_source_retry(api,repo,payload):
     jobs=[]
     for i in range(10):
-        payload["eventId"]="retry-"+str(i)
+        payload["eventId"]=str(__import__("uuid").uuid4())
         jobs.append(api.post(ROUTE,json=payload,headers=AUTH).json()["jobId"])
     assert len(set(jobs))==1
     with repo.connect() as c:assert c.execute("SELECT count(*) FROM km_csit_ingestion_jobs").fetchone()["count"]==1

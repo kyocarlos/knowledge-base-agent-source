@@ -1,5 +1,6 @@
 from datetime import datetime
 from typing import Literal
+from uuid import UUID
 import re
 from pydantic import BaseModel, ConfigDict, Field, StrictInt, field_validator
 
@@ -7,9 +8,10 @@ class ContractModel(BaseModel):
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
 
 class Reference(ContractModel):
-    id: str = Field(min_length=1, max_length=256)
-    number: str = Field(min_length=1, max_length=256)
-    name: str = Field(min_length=1, max_length=1024)
+    id: UUID
+    number: str | None
+    name: str | None
+
 
 def safe_filename(value: str) -> str:
     if not isinstance(value, str):
@@ -23,7 +25,7 @@ def safe_filename(value: str) -> str:
 class Document(ContractModel):
     fileName: str = Field(min_length=1, max_length=255)
     contentType: str = Field(min_length=1, max_length=128)
-    sizeBytes: StrictInt = Field(ge=0)
+    sizeBytes: StrictInt = Field(ge=1)
     _filename = field_validator("fileName",mode="before")(safe_filename)
     @field_validator("contentType")
     @classmethod
@@ -33,10 +35,10 @@ class Document(ContractModel):
         return value.lower()
 
 class IngestionRequest(ContractModel):
-    eventId: str = Field(min_length=1, max_length=256)
+    eventId: UUID
     eventType: Literal["TestReportCommitted"]
     sourceSystem: Literal["CSIT"]
-    documentId: str = Field(min_length=1, max_length=256)
+    documentId: UUID
     version: StrictInt = Field(gt=0, le=2147483647)
     project: Reference
     case: Reference
@@ -53,6 +55,6 @@ class IngestionRequest(ContractModel):
 class JobResponse(ContractModel):
     jobId: str
     sourceSystem: Literal["CSIT"]
-    documentId: str
+    documentId: UUID
     version: int
     status: Literal["Accepted", "Processing", "Completed", "Failed"]

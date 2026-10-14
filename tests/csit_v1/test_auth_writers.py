@@ -15,14 +15,14 @@ from src.csit_integration_v1.pipeline import Entity,Relation,Metric,lineage
 from src.csit_integration_v1.writers import QdrantWriter,Neo4jWriter,TimescaleWriter
 
 @pytest.mark.parametrize("mutation,accepted",[
- ({},True),({"gty":"authorization_code"},False),({"client_id":"unapproved"},False),
+ ({},True),({"principal_type":"human"},False),({"client_id":"unapproved"},False),
  ({"iss":"https://wrong.invalid/"},False),({"aud":"wrong"},False),
- ({"exp":1},False),({"gty":None},False)])
+ ({"exp":1},False),({"principal_type":None},False)])
 def test_real_signature_service_policy(settings,mutation,accepted):
     key=rsa.generate_private_key(public_exponent=65537,key_size=2048)
     now=datetime.now(timezone.utc)
     claims={"iss":settings.authority,"aud":settings.audience,"iat":now,"exp":now+timedelta(minutes=5),
-        "gty":"client_credentials","client_id":"csit-test","scope":"km.ingestion.submit"}
+        "principal_type":"service","client_id":"csit-test","scope":"km.ingestion.submit"}
     claims.update(mutation)
     token=jwt.encode(claims,key,algorithm="RS256",headers={"kid":"test-key"})
     validator=JwtServiceTokenValidator(settings)
@@ -35,7 +35,7 @@ def test_invalid_signature(settings):
     other=rsa.generate_private_key(public_exponent=65537,key_size=2048)
     now=datetime.now(timezone.utc)
     t=jwt.encode({"iss":settings.authority,"aud":settings.audience,"iat":now,"exp":now+timedelta(minutes=1),
-        "gty":"client_credentials","client_id":"csit-test"},other,algorithm="RS256")
+        "principal_type":"service","client_id":"csit-test"},other,algorithm="RS256")
     v=JwtServiceTokenValidator(settings);v.keys=SimpleNamespace(get_signing_key_from_jwt=lambda _:SimpleNamespace(key=key.public_key()))
     with pytest.raises(HTTPException):v.validate(t)
 def test_outbound_token_cache_and_scopes(settings):

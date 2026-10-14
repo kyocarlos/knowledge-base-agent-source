@@ -24,9 +24,12 @@ class FakeCsit:
                 "Content-Type":self.payload["document"]["contentType"],
                 "Content-Disposition":'attachment; filename="'+self.payload["document"]["fileName"]+'"'})
         p=json.loads(r.content)
-        expected={'Processing':{'updatedAt','startedAt'},'Completed':{'updatedAt','completedAt'},'Failed':{'updatedAt'}}
+        expected={'Processing':{'updatedAt','startedAt'},'Completed':{'updatedAt','completedAt'},'Failed':{'updatedAt','failedAt'}}
         assert set(p['timestamps'])==expected[p['status']]
         assert not any(key in p for key in ['updatedAt','startedAt','completedAt','failedAt'])
+        if p['status']=='Failed':
+            assert set(p['error'])=={'code','message'}
+            assert p['error']['code'].strip() and p['error']['message'].strip()
         if p['status']=='Processing':
             from datetime import datetime
             assert datetime.fromisoformat(p['timestamps']['startedAt']).tzinfo is not None

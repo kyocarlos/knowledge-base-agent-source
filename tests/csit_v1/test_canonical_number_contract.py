@@ -17,8 +17,8 @@ def test_number_required_no_legacy_code_alias(payload,ref):
     assert ((ref,'code'),'extra_forbidden') in errors
 
 @pytest.mark.parametrize('ref',['project','case','task'])
-@pytest.mark.parametrize('value',[None,12,True,'','x'*257])
-def test_reference_number_remains_strict_bounded_required(payload,ref,value):
+@pytest.mark.parametrize('value',[12,True])
+def test_reference_number_rejects_non_string_value(payload,ref,value):
     p=copy.deepcopy(payload);p[ref]['number']=value
     with pytest.raises(ValidationError):IngestionRequest.model_validate(p)
 
@@ -74,3 +74,24 @@ def test_configured_file_limit_remains_schema_gate(inbound_settings,signing_key,
     with client:r=client.post(ROUTE,json=payload,headers={'Authorization':'Bearer '+token})
     assert r.status_code==422 and repo.submissions==0
     assert r.json()['detail']['errors'][0]['field']=='document.sizeBytes'
+
+
+def test_reference_empty_string_allowed_by_wire_contract(payload):
+    payload['project']['number']=''
+    payload['project']['name']=''
+    parsed=IngestionRequest.model_validate(payload)
+    assert parsed.project.number=='' and parsed.project.name==''
+
+def test_null_reference_metadata_survives_request_and_repository(repo,payload):
+    for ref in ('project','case','task'):
+        payload[ref]['number']=None
+        payload[ref]['name']=None
+    request=IngestionRequest.model_validate(payload)
+    assert request.model_dump(mode='json')['project']['number'] is None
+    row=repo.submit(request)
+    assert row['request_payload']['project']['number'] is None
+    assert row['request_payload']['project']['name'] is None
+    for ref in ('project','case','task'):
+        assert row[ref+'_code'] is None and row[ref+'_name'] is None
+        assert row['request_payload'][ref]['number'] is None
+        assert row['request_payload'][ref]['name'] is None
