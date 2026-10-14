@@ -1,5 +1,7 @@
 # KM v2.6 Phase 1 整合審查 Dossier
 
+> **後續進度：** [2026-10-14 最新進度與 GitHub／DGX 對帳](km-csit-integration-progress-20261014.md)。本文件保留 10/02 歷史基線；最新 integration source 尚未發布，不能由此舊快照推定目前 runtime。
+
 **審查基準日：** 2026-10-02（台灣時間）
 **範圍：** v2.6 Phase 1 實際工作分工 P1-WP01～P1-WP18、KM 三資料區（DA40/RD2/TEST）、目前 DEV 上傳／搜尋隔離驗收、OIDC 與 GitHub review 交付狀態。
 **用途：** 提供 Patty 與 KM 團隊快速核對已完成範圍、證據、依賴與待驗收項目。這是整合審查摘要，不是整體 Phase 1 完工或正式 release acceptance 聲明。
