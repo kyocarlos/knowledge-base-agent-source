@@ -1,6 +1,6 @@
 # Patty KM DEV 開發交接
 
-本分支整理 DGX 最新第一方 source，納入 CSIT Integration v1、Human OIDC/passwordless binding、tests、migrations 與可公開重建的 Docker targets。它是開發交接基線，不是 live deployment 或 Production release。
+本分支整理 DGX 最新第一方 source，納入 CSIT Integration v1、Human OIDC/passwordless binding、tests、migrations 與可公開重建的 Docker targets。目前 Integration v1 canonical adoption 已部署至 KM DEV；仍非 Production release 或 Live E2E 完成。
 
 開始前先讀 [交接與重建指南](docs/handoff/PATTY_DEVELOPMENT_HANDOFF.md)。原平台介紹移至 [legacy platform README](docs/handoff/LEGACY_README.md)。
 
@@ -26,7 +26,7 @@ docker compose -p km-patty-sandbox -f deploy/csit-integration-v1/compose.yaml do
 
 預期 health: `status=ok`、`integrationEnabled=false`。Worker 維持 OFF。本機初始化新的空白 sandbox DB，不會匯入 DGX 的 job/文件/帳號。若要移除 sandbox 資料，僅對此 project 使用 `down --volumes`。
 
-Processing 的 `timestamps.startedAt` 與 Failed 的 `timestamps.failedAt` 修正已包含於本分支，並以 CSIT 固定 commit 的四份 canonical schema 驗證。此版本仍待受控部署與 deployed-runtime 離線驗證。
+Processing 的 `timestamps.startedAt` 與 Failed 的 `timestamps.failedAt` 修正已包含於本分支，並以 CSIT 固定 commit 的四份 canonical schema 驗證。已於 KM DEV 受控部署並完成實際 container 的離線驗證；integration 維持 disabled、worker OFF。詳見 [canonical adoption 驗證與部署證據](docs/handoff/CSIT_CANONICAL_ADOPTION_20261014.md)。
 
 ## Build 驗證補充
 

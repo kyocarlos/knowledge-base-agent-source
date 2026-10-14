@@ -4,7 +4,7 @@
 
 開發分支：`codex/km-dev-handoff-20261014`。由 `a3f51993ca02bd6c7bccb3112f6b11ea76d7319b` 的既有 review snapshot 整理，納入 DGX working-tree 的第一方 Python／Vue source、DEV Control 容器內的正式 source、最新 Integration v1 與隔離測試。
 
-`docs/handoff/source-origins.json` 保存來源對照；`docs/handoff/source-manifest.json` 保存交付檔案 SHA256。新分支是可 checkout 的開發來源；它尚未部署到現有 DGX，也不代表完整平台、Production 或 Phase 1 全項驗收。
+`docs/handoff/source-origins.json` 保存來源對照；`docs/handoff/source-manifest.json` 保存交付檔案 SHA256。新分支是可 checkout 的開發來源；canonical adoption source commit `bbc6039a...` 已部署至 DGX 的 KM DEV Integration API 與停止中的 worker image；不代表完整平台、Production 或 Phase 1 全項驗收。詳見 [驗證與部署證據](CSIT_CANONICAL_ADOPTION_20261014.md)。
 
 ## 可重建範圍
 
@@ -76,8 +76,8 @@ Operator wrapper `scripts/csit-integration-operator.py` 依 SSH/Unix identity �
 
 ## 已知事項與接手優先順序
 
-1. Processing 的 required `timestamps.startedAt` source 修正包含於分支，值取當次 Processing transition timestamp；這個 fix 在原 DGX live image 尚未部署。
-2. 本次 canonical adoption 已在 source 加入 Failed callback required `timestamps.failedAt`，取值為 `last_error_at` 的真實 failure transition time；部署與 live acceptance 另以實際 runtime 證據判定。
+1. Processing 的 required `timestamps.startedAt` source 修正包含於分支，值取當次 Processing transition timestamp；此 fix 已進入 2026-10-14 的 KM DEV API image；實際 container 的離線 canonical 驗證 PASS。
+2. 本次 canonical adoption 已在 source 加入 Failed callback required `timestamps.failedAt`，取值為 `last_error_at` 的真實 failure transition time；此 fix 已進入 KM DEV API/worker image；離線 canonical 驗證 PASS。新的 Live E2E 尚未執行。
 3. 既有真實 v3 job 已 Completed，Completed callback 204；historical Processing callback 400 與舊 Failed callback rows 保留。不得用重送已 Completed job 驗證新 source。
 4. graph／numeric writer 有隔離測試；真實那筆文件無 entities／recognized KPI，Neo4j／Timescale live 該筆為 N/A，不能宣稱所有 business 場景驗收。
 5. 先跑 clean checkout regression／disabled API health；再整理對實際 DEV 的 deployment/rollback plan；Human OIDC 真正登入與 live integration 都須另行規劃 controlled acceptance。
