@@ -65,3 +65,16 @@ query_examples_slide.pptx
 /kb_*_state.png
 /kb_test_*.png
 /qa_*_latest.png
+
+# Local runtime state and secrets, never handoff source
+.env
+.env.*
+*.env
+!*.env.example
+secrets/
+outputs/
+config/config.yaml
+data/
+*.db
+*.sqlite*
+celerybeat-schedule*

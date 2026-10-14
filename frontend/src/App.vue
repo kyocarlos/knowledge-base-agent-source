@@ -28,6 +28,12 @@
           </svg>
           <span>檔案上傳</span>
         </router-link>
+        <router-link to="/csit" class="nav-link">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 8h10M7 12h6M7 16h8"/>
+          </svg>
+          <span>CSIT 瀏覽</span>
+        </router-link>
         <router-link to="/admin" class="nav-link">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"/>
@@ -143,37 +149,44 @@ onUnmounted(() => {
 }
 
 :root {
-  --primary: #7fffe3;
-  --primary-light: #17d9ff;
-  --primary-dark: #06161d;
-  --accent: #17d9ff;
-  --accent-light: #7fffe3;
-  --bg-page: #06161d;
-  --bg-card: rgba(10, 35, 44, .84);
-  --bg-surface: rgba(14, 48, 58, .92);
-  --text-primary: #e7ffff;
-  --text-secondary: #b9d6da;
-  --text-muted: #8da8ae;
-  --border: rgba(127, 255, 227, .2);
-  --border-strong: rgba(127, 255, 227, .35);
-  --success: #7fffe3;
-  --warning: #ffd36e;
-  --error: #ffaaa8;
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, .12);
-  --shadow: 0 16px 45px rgba(0, 0, 0, .16);
-  --shadow-lg: 0 24px 70px rgba(0, 0, 0, .3);
-  --radius: 12px;
-  --radius-lg: 18px;
+  --km-panel-bg: rgba(10, 35, 44, .84);
+  --km-panel-raised: rgba(14, 48, 58, .92);
+  --km-panel-hover: rgba(127, 255, 227, .08);
+  --km-text-primary: #e7ffff;
+  --km-text-secondary: #b9d6da;
+  --km-text-muted: #8da8ae;
+  --km-panel-border: rgba(127, 255, 227, .2);
+  --km-accent: #7fffe3;
+  --km-accent-strong: #17d9ff;
+  --km-panel-shadow: 0 16px 45px rgba(0, 0, 0, .16);
+  --primary: #143a66;
+  --primary-light: #215ea8;
+  --primary-dark: #0b2440;
+  --accent: #1f8db8;
+  --accent-light: #69c7e5;
+  --bg-page: #eef3f8;
+  --bg-card: #ffffff;
+  --bg-surface: #f8fbfe;
+  --text-primary: #15263d;
+  --text-secondary: #5f6f82;
+  --text-muted: #8694a6;
+  --border: #d8e2ee;
+  --border-strong: #b9c8d8;
+  --success: #14835d;
+  --warning: #b9770e;
+  --error: #c1363a;
+  --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.05);
+  --shadow: 0 8px 20px -12px rgba(15, 23, 42, 0.28);
+  --shadow-lg: 0 18px 44px -24px rgba(15, 23, 42, 0.42);
+  --radius: 10px;
+  --radius-lg: 16px;
 }
 
 body {
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   background:
-    linear-gradient(rgba(127,255,227,.035) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(127,255,227,.035) 1px, transparent 1px),
-    radial-gradient(circle at 55% 0%, rgba(0,228,255,.16), transparent 34%),
-    #06161d;
-  background-size: 48px 48px, 48px 48px, auto, auto;
+    radial-gradient(circle at top left, rgba(31, 141, 184, 0.08), transparent 34%),
+    linear-gradient(180deg, #f7fafc 0%, #eef3f8 38%, #e8eef5 100%);
   color: var(--text-primary);
   line-height: 1.6;
 }
@@ -182,23 +195,25 @@ body {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
-  background: transparent;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.62), rgba(255, 255, 255, 0.3)),
+    linear-gradient(135deg, rgba(20, 58, 102, 0.04), transparent 35%, rgba(31, 141, 184, 0.05));
 }
 
 /* === Navbar === */
 .navbar {
-  background: rgba(5, 25, 32, .9);
+  background: linear-gradient(135deg, rgba(11, 36, 64, 0.98) 0%, rgba(20, 58, 102, 0.96) 42%, rgba(33, 94, 168, 0.94) 100%);
   backdrop-filter: blur(14px);
   padding: 0 32px;
   height: 64px;
   display: flex;
   align-items: center;
   gap: 32px;
-  box-shadow: 0 16px 45px rgba(0, 0, 0, .16);
+  box-shadow: 0 8px 24px rgba(11, 36, 64, 0.22);
   position: sticky;
   top: 0;
   z-index: 100;
-  border-bottom: 1px solid rgba(127, 255, 227, .2);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 .navbar-brand {
@@ -247,7 +262,7 @@ body {
   padding: 8px 16px;
   border-radius: 8px;
   text-decoration: none;
-  color: #829ba1;
+  color: rgba(255,255,255,0.7);
   font-size: 0.9em;
   font-weight: 500;
   transition: all 0.2s;
@@ -256,14 +271,14 @@ body {
 }
 
 .nav-link:hover {
-  color: #06161d;
-  background: #f5ffff;
+  color: white;
+  background: rgba(255,255,255,0.08);
 }
 
 .nav-link.router-link-active {
-  color: #06161d;
-  background: #f5ffff;
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.35);
+  color: white;
+  background: linear-gradient(135deg, rgba(255,255,255,0.14), rgba(255,255,255,0.06));
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.12);
 }
 
 .nav-link svg {
@@ -284,9 +299,9 @@ body {
   align-items: center;
   gap: 7px;
   padding: 5px 12px;
-  background: rgba(127,255,227,.08);
+  background: linear-gradient(135deg, rgba(255,255,255,0.12), rgba(255,255,255,0.06));
   border-radius: 20px;
-  color: #d8ffff;
+  color: rgba(255,255,255,0.85);
   font-size: 0.8em;
   font-weight: 500;
   border: 1px solid rgba(255,255,255,0.08);
@@ -311,16 +326,12 @@ body {
 /* === Main Content === */
 .main-content {
   flex: 1;
-  padding: 28px clamp(16px, 4vw, 48px);
+  padding: 32px;
   max-width: 1200px;
   width: 100%;
   margin: 0 auto;
   background: transparent;
 }
-
-/* chat-v2 visual language for legacy Vue management views; component behavior is unchanged. */
-.page-header,.search-card,.result-card,.task-card,.error-card,.system-card,.analysis-card{border-color:var(--border)!important;background:linear-gradient(145deg,rgba(24,78,88,.72),rgba(7,35,43,.82))!important;color:var(--text-primary)!important;box-shadow:var(--shadow)!important}
-.page-header{background:linear-gradient(135deg,rgba(24,78,88,.9),rgba(7,35,43,.9))!important}.page-title,.page-desc,.section-label,.category-label,.mode-label,.analysis-title-block h3,.analysis-name,.analysis-score,.answer-content,.source-name,.stat-value{color:var(--text-primary)!important}.page-desc,.mode-detail,.analysis-title-block p,.analysis-docs,.analysis-preview,.source-preview,.text-secondary,.text-muted{color:var(--muted,#8da8ae)!important}.mode-btn,.category-section,.mode-detail,.search-input-wrapper,.analysis-row,.source-item,.stats-grid{border-color:rgba(127,255,227,.16)!important;background:rgba(0,0,0,.16)!important;color:var(--text-primary)!important}.mode-btn.active{border-color:var(--mint,#7fffe3)!important;background:rgba(127,255,227,.1)!important}.search-input-wrapper textarea,.category-select{color:#f2ffff!important;background:transparent!important}.search-input-wrapper textarea::placeholder{color:#617f87!important}.search-btn{color:#06161d!important;background:linear-gradient(90deg,#7fffe3,#17d9ff)!important}.result-header,.answer-section,.sources-section,.quality-summary-card{border-color:rgba(127,255,227,.12)!important;background:rgba(0,0,0,.12)!important}.answer-content code,.task-info code{color:#dffaff!important;background:rgba(127,255,227,.12)!important}.source-item{color:var(--text-primary)!important}
 
 /* === Scrollbar === */
 ::-webkit-scrollbar {

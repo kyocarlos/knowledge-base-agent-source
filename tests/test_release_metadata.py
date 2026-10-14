@@ -2,12 +2,36 @@ from __future__ import annotations
 
 import pytest
 
+from app.core.config import AppSettings
 from app.core.release_metadata import (
     validate_build_timestamp,
     validate_image_digest,
     validate_release_id,
     validate_source_commit,
 )
+
+
+def test_app_settings_reads_complete_release_metadata(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("KM_GIT_COMMIT", "a" * 40)
+    monkeypatch.setenv("KM_RELEASE_ID", "wp1-selfread-auth-20260831-r1")
+    monkeypatch.setenv("KM_IMAGE_DIGEST", "sha256:" + "b" * 64)
+    monkeypatch.setenv("KM_BUILD_TIMESTAMP", "2026-08-31T15:46:55.251425676+08:00")
+
+    settings = AppSettings.from_env()
+
+    assert settings.release_id == "wp1-selfread-auth-20260831-r1"
+    assert settings.image_digest == "sha256:" + "b" * 64
+    assert settings.build_timestamp == "2026-08-31T15:46:55.251425676+08:00"
+
+
+def test_app_settings_rejects_partial_release_metadata(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("KM_GIT_COMMIT", "a" * 40)
+    monkeypatch.setenv("KM_RELEASE_ID", "wp1-selfread-auth-20260831-r1")
+    monkeypatch.delenv("KM_IMAGE_DIGEST", raising=False)
+    monkeypatch.delenv("KM_BUILD_TIMESTAMP", raising=False)
+
+    with pytest.raises(ValueError, match="configured together"):
+        AppSettings.from_env()
 
 
 @pytest.mark.parametrize(

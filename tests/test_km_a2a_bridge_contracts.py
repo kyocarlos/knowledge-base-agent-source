@@ -263,6 +263,8 @@ def test_correlation_ids_can_be_assigned_over_time():
     assert assigned.model_dump() == {
         "context_id": "ctx-1", "a2a_task_id": "task-1", "run_id": "run-1",
         "ingest_task_id": "ingest-1", "file_hash": "abc123",
+        "openclaw_forward_status": None, "openclaw_receiver": None,
+        "openclaw_audit_id": None, "dry_run_side_effect_counts": {},
     }
 
 

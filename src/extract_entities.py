@@ -418,7 +418,6 @@ def extract_and_write(content: str, doc_name: str, doc_path: str, mode: Literal[
         
         config = load_config()
         neo4j_config = config["neo4j"]
-        ollama_config = config["ollama"]
 
         if mode == "report":
             from src.graphrag.neo4j_schema import setup_neo4j_schema
@@ -454,11 +453,8 @@ def extract_and_write(content: str, doc_name: str, doc_path: str, mode: Literal[
         system_prompt = get_extraction_prompt(mode)
         
         # 建立 LLM 客戶端
-        from src.web_api.ollama_client import OllamaClient
-        llm = OllamaClient(
-            model=ollama_config.get("model", "gemma4:12b"),
-            base_url=ollama_config["instances"][0] if len(ollama_config["instances"]) > 0 else ollama_config.get("base_url", "http://localhost:11434")
-        )
+        from src.web_api.llm_factory import create_llm_client
+        llm = create_llm_client(config)
         
         # 呼叫 LLM 萃取（最多重試 2 次）
         max_retries = 2

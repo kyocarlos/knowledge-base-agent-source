@@ -5,6 +5,8 @@ Vector Store 模組 - 使用 QDrant + BAAI/bge-base-zh-v1.5
 import logging
 import os
 import re
+import uuid
+from importlib import metadata as importlib_metadata
 from typing import List, Optional, Tuple
 from pathlib import Path
 import yaml
@@ -15,25 +17,48 @@ from ..image_refs import extract_image_refs_from_text, merge_image_refs, normali
 logger = logging.getLogger(__name__)
 
 
+def qdrant_point_id(chunk_id: str) -> str:
+    """Map a Knowledge Package chunk identity to Qdrant's UUID ID format."""
+    if not str(chunk_id).strip():
+        raise ValueError("chunk_id is required")
+    return str(uuid.uuid5(uuid.NAMESPACE_URL, str(chunk_id)))
+
+
 class VectorStore:
     """向量資料庫管理器"""
 
     COLLECTION_NAME = "knowledge_base"
-    VECTOR_DIM = 768  # BAAI/bge-base-zh-v1.5
+    DEFAULT_EMBEDDING_MODEL = "BAAI/bge-base-zh-v1.5"
+    VECTOR_DIM = 768  # fallback; actual dimension is read from the model
 
-    def __init__(self, model_name: str = "BAAI/bge-base-zh-v1.5"):
+    def __init__(self, model_name: str | None = None):
         """
         初始化向量儲存
 
         Args:
             model_name: Sentence Transformer 模型名稱
         """
-        self.model_name = model_name
+        self.model_name = model_name or self._configured_model_name()
         self.model = None
         self.client = None
         self.available = True
+        self.vector_dim = self.VECTOR_DIM
+        self.embedding_runtime_version = ""
+        self.embedding_model_version = os.getenv("EMBEDDING_MODEL_VERSION", "")
+        self.embedding_version = ""
         self._init_model()
         self._init_qdrant()
+
+    def _configured_model_name(self) -> str:
+        config_path = Path(__file__).parent.parent.parent / "config" / "config.yaml"
+        if config_path.exists():
+            try:
+                with open(config_path, "r", encoding="utf-8") as f:
+                    config = yaml.safe_load(f) or {}
+                return str(config.get("embedding_model") or self.DEFAULT_EMBEDDING_MODEL)
+            except Exception as error:
+                logger.warning("載入 embedding model 設定失敗，使用預設模型: %s", error)
+        return self.DEFAULT_EMBEDDING_MODEL
 
     def _init_model(self):
         """初始化 embedding 模型"""
@@ -42,6 +67,12 @@ class VectorStore:
             logger.info(f"載入 embedding 模型: {self.model_name}")
             # 使用 CPU 避免 CUDA fork 問題
             self.model = SentenceTransformer(self.model_name, device='cpu')
+            self.vector_dim = int(self.model.get_sentence_embedding_dimension())
+            try:
+                self.embedding_runtime_version = importlib_metadata.version("sentence-transformers")
+            except importlib_metadata.PackageNotFoundError:
+                self.embedding_runtime_version = ""
+            self.embedding_version = self.embedding_model_version or self.embedding_runtime_version
             logger.info("Embedding 模型載入完成 (CPU mode)")
         except Exception as e:
             logger.error(f"模型載入失敗: {e}")
@@ -80,7 +111,7 @@ class VectorStore:
                 self.client.create_collection(
                     collection_name=self.COLLECTION_NAME,
                     vectors_config=VectorParams(
-                        size=self.VECTOR_DIM,
+                        size=self.vector_dim,
                         distance=Distance.COSINE
                     )
                 )
@@ -133,11 +164,11 @@ class VectorStore:
             points = []
             for i, doc in enumerate(documents):
                 vector = self.encode([doc["content"]])[0]
-                # QDrant 接受 UUID 或整數作為 ID
-                import uuid
-                point_id = str(uuid.uuid5(uuid.NAMESPACE_DNS, f"{doc_name}_{i}"))
-
                 metadata = doc.get("metadata", {}) or {}
+                chunk_id = str(metadata.get("chunk_id") or doc.get("id") or f"{doc_name}::{i}")
+                # Qdrant accepts UUIDs; the UUID is a deterministic storage
+                # representation of the revision-scoped Knowledge Package ID.
+                point_id = qdrant_point_id(chunk_id)
                 image_refs = merge_image_refs(
                     extract_image_refs_from_text(doc.get("content", "")),
                     metadata.get("image_refs", []),
@@ -148,6 +179,7 @@ class VectorStore:
                     "content": doc["content"],
                     "doc_name": doc_name,
                     "chunk_index": i,
+                    "chunk_id": chunk_id,
                     "metadata": metadata,
                     "source_path": metadata.get("source_path", ""),
                     "section_title": metadata.get("header", ""),
@@ -175,6 +207,20 @@ class VectorStore:
                     "source_file_hash": metadata.get("source_file_hash", ""),
                     "ingest_file_hash": metadata.get("ingest_file_hash", ""),
                     "document_id": metadata.get("document_id", ""),
+                    "package_schema_version": metadata.get("package_schema_version", ""),
+                    "package_id": metadata.get("package_id", ""),
+                    "document_version": metadata.get("document_version", ""),
+                    "content_hash": metadata.get("content_hash", ""),
+                    "publish_status": metadata.get("publish_status", ""),
+                    "is_current": metadata.get("is_current", False),
+                    "source_locator": metadata.get("source_locator", {}),
+                    "document_route": metadata.get("document_route", {}),
+                    "normalization_provenance": metadata.get("normalization_provenance", {}),
+                    "embedding_model": self.model_name,
+                    "embedding_model_version": self.embedding_model_version,
+                    "embedding_version": self.embedding_version,
+                    "embedding_runtime_version": self.embedding_runtime_version,
+                    "vector_dimension": self.vector_dim,
                     "idempotency_key": metadata.get("idempotency_key", ""),
                     "generated_at": metadata.get("generated_at", ""),
                     "image_refs": image_refs,
@@ -227,6 +273,7 @@ class VectorStore:
         top_k: int = 3,
         filter_doc: Optional[str] = None,
         filters: Optional[dict] = None,
+        published_only: bool = True,
     ) -> List[dict]:
         """
         搜尋相似文件
@@ -248,13 +295,18 @@ class VectorStore:
             query_vector = self.encode([query])[0]
 
             conditions = []
+            if published_only:
+                conditions.extend([
+                    FieldCondition(key="publish_status", match=MatchValue(value="published")),
+                    FieldCondition(key="is_current", match=MatchValue(value=True)),
+                ])
             if filter_doc:
                 conditions.append(FieldCondition(key="doc_name", match=MatchValue(value=filter_doc)))
             allowed_filters = {
                 "environment", "run_id", "project_code", "dut_model", "band",
                 "protocol", "direction", "verdict", "schema_version",
                 "source_system", "environment_id", "project_id", "artifact_type",
-                "report_schema", "document_id", "idempotency_key",
+                "report_schema", "document_id", "idempotency_key", "publish_status", "is_current",
             }
             for key, value in (filters or {}).items():
                 if key not in allowed_filters or value in (None, "", []):
@@ -313,6 +365,21 @@ class VectorStore:
                     "source_file_hash": result.payload.get("source_file_hash", ""),
                     "ingest_file_hash": result.payload.get("ingest_file_hash", ""),
                     "document_id": result.payload.get("document_id", ""),
+                    "chunk_id": result.payload.get("chunk_id", ""),
+                    "package_schema_version": result.payload.get("package_schema_version", ""),
+                    "package_id": result.payload.get("package_id", ""),
+                    "document_version": result.payload.get("document_version", ""),
+                    "content_hash": result.payload.get("content_hash", ""),
+                    "publish_status": result.payload.get("publish_status", ""),
+                    "is_current": result.payload.get("is_current", False),
+                    "source_locator": result.payload.get("source_locator", {}),
+                    "document_route": result.payload.get("document_route", {}),
+                    "normalization_provenance": result.payload.get("normalization_provenance", {}),
+                    "embedding_model": result.payload.get("embedding_model", ""),
+                    "embedding_model_version": result.payload.get("embedding_model_version", ""),
+                    "embedding_version": result.payload.get("embedding_version", ""),
+                    "embedding_runtime_version": result.payload.get("embedding_runtime_version", ""),
+                    "vector_dimension": result.payload.get("vector_dimension", 0),
                     "idempotency_key": result.payload.get("idempotency_key", ""),
                     "generated_at": result.payload.get("generated_at", ""),
                     "score": result.score,
@@ -324,6 +391,75 @@ class VectorStore:
         except Exception as e:
             logger.error(f"搜尋失敗: {e}")
             return []
+
+    def search_by_document_names(
+        self,
+        query: str,
+        document_names: List[str],
+        top_k: int = 3,
+    ) -> List[dict]:
+        """取得指定文件的 published/current chunks，不重新計算 query embedding."""
+        if not self.available or self.client is None or not document_names:
+            return []
+
+        from qdrant_client.models import Filter, FieldCondition, MatchAny, MatchValue
+
+        names = [str(name).strip() for name in document_names if str(name).strip()]
+        if not names:
+            return []
+
+        visibility_filter = Filter(must=[
+            FieldCondition(key="publish_status", match=MatchValue(value="published")),
+            FieldCondition(key="is_current", match=MatchValue(value=True)),
+            FieldCondition(key="doc_name", match=MatchAny(any=names)),
+        ])
+        points, _ = self.client.scroll(
+            collection_name=self.COLLECTION_NAME,
+            scroll_filter=visibility_filter,
+            limit=256,
+            with_payload=True,
+            with_vectors=False,
+        )
+        # Existing indexed documents predate the lifecycle payload fields.
+        # Keep them readable during migration, but only within the exact
+        # document set resolved from Neo4j above.
+        if not points:
+            points, _ = self.client.scroll(
+                collection_name=self.COLLECTION_NAME,
+                scroll_filter=Filter(must=[
+                    FieldCondition(key="doc_name", match=MatchAny(any=names)),
+                ]),
+                limit=256,
+                with_payload=True,
+                with_vectors=False,
+            )
+
+        terms = [term.lower() for term in re.findall(r"[A-Za-z0-9]+", query or "") if len(term) >= 3]
+        unique_terms = list(dict.fromkeys(terms))
+        results = []
+        fields = (
+            "content", "doc_name", "chunk_index", "section_title", "source_path", "source_name",
+            "source_ext", "storage_category", "extraction_mode", "run_id", "environment", "project_code",
+            "dut_model", "band", "protocol", "direction", "verdict", "started_at", "schema_version",
+            "source_system", "environment_id", "project_id", "artifact_type", "report_schema",
+            "original_file_name", "source_file_hash", "ingest_file_hash", "document_id",
+            "package_schema_version", "package_id", "document_version", "content_hash", "publish_status",
+            "is_current", "idempotency_key", "generated_at", "chunk_id", "source_locator",
+            "document_route", "normalization_provenance", "embedding_model",
+            "embedding_model_version", "embedding_runtime_version", "vector_dimension",
+            "embedding_version",
+        )
+        for point in points:
+            payload = point.payload or {}
+            blob = " ".join(str(payload.get(key, "") or "") for key in ("doc_name", "section_title", "content")).lower()
+            item = {key: payload.get(key, "") for key in fields}
+            item["is_current"] = payload.get("is_current", False)
+            item["score"] = float(sum(blob.count(term) for term in unique_terms))
+            item["id"] = str(point.id)
+            results.append(item)
+
+        results.sort(key=lambda item: (item["score"], -int(item.get("chunk_index", 0) or 0)), reverse=True)
+        return results[: max(1, int(top_k))]
 
     def delete_by_doc(self, doc_name: str) -> bool:
         """
@@ -481,6 +617,12 @@ class VectorStore:
                 )
                 for point in points:
                     payload = point.payload or {}
+                    metadata = payload.get("metadata", {}) or {}
+                    image_refs = merge_image_refs(
+                        payload.get("image_refs", []),
+                        metadata.get("image_refs", []),
+                        extract_image_refs_from_text(payload.get("content", "")),
+                    )
                     chunks.append({
                         "id": str(point.id),
                         "doc_name": payload.get("doc_name", ""),
@@ -491,8 +633,8 @@ class VectorStore:
                         "source_name": payload.get("source_name", ""),
                         "source_ext": payload.get("source_ext", ""),
                         "source_dir": payload.get("source_dir", ""),
-                        "image_refs": payload.get("image_refs", []) or [],
-                        "metadata": payload.get("metadata", {}) or {},
+                        "image_refs": image_refs,
+                        "metadata": metadata,
                     })
                 if not next_offset:
                     break

@@ -265,7 +265,7 @@ class SearchEngine:
                     search_config = config.get("search", {})
                     self.default_basic_top_k = int(search_config.get("basic_top_k", self.default_basic_top_k))
                     self.default_deep_top_k = int(search_config.get("deep_top_k", self.default_deep_top_k))
-                    self.llm_model = config.get("ollama", {}).get("model", "gemma4:12b")
+                    self.llm_model = config.get("llm_model") or config.get("ollama", {}).get("model", "gemma4:12b")
         else:
             config_path = Path(__file__).parent.parent.parent / "config" / "config.yaml"
             if config_path.exists():
@@ -1322,7 +1322,9 @@ class SearchEngine:
 
                 cypher = f"""
                     MATCH (d:Document)
-                    WHERE {keyword_conditions}
+                    WHERE coalesce(d.publish_status, 'published') = 'published'
+                      AND coalesce(d.is_current, true) = true
+                      AND ({keyword_conditions})
                     RETURN d.name as name, d.content as content, d.source as source
                     LIMIT $limit
                 """
@@ -1489,7 +1491,9 @@ class SearchEngine:
 
                     cypher = f"""
                         MATCH (d:Document)
-                        WHERE {keyword_conditions}
+                        WHERE coalesce(d.publish_status, 'published') = 'published'
+                          AND coalesce(d.is_current, true) = true
+                          AND ({keyword_conditions})
                         RETURN d.name as name, d.content as content
                         LIMIT $limit
                     """
@@ -3838,7 +3842,9 @@ class SearchEngine:
         """執行 Neo4j report graph rows 查詢。"""
         cypher = """
             MATCH (r:Report)
-            WHERE ($project_count = 0 OR toUpper(r.project_code) IN $project_hints)
+            WHERE coalesce(r.publish_status, 'published') = 'published'
+              AND coalesce(r.is_current, true) = true
+              AND ($project_count = 0 OR toUpper(r.project_code) IN $project_hints)
               AND (
                 $test_item_count = 0 OR EXISTS {
                     MATCH (r)-[:HAS_TEST_ITEM]->(t:TestItem)
@@ -4254,9 +4260,18 @@ class SearchEngine:
                     "chunk_index": r.get("chunk_index", 0),
                     "section_title": r.get("section_title", ""),
                     "source_path": r.get("source_path", ""),
+                    "chunk_id": r.get("chunk_id", ""),
+                    "source_locator": r.get("source_locator", {}),
+                    "document_route": r.get("document_route", {}),
+                    "normalization_provenance": r.get("normalization_provenance", {}),
+                    "embedding_model": r.get("embedding_model", ""),
+                    "embedding_model_version": r.get("embedding_model_version", ""),
+                    "embedding_version": r.get("embedding_version", ""),
+                    "embedding_runtime_version": r.get("embedding_runtime_version", ""),
+                    "vector_dimension": r.get("vector_dimension", 0),
                     "storage_category": r.get("storage_category", ""),
                     "extraction_mode": r.get("extraction_mode", ""),
-                    **{key: r.get(key, "") for key in ("run_id", "environment", "project_code", "dut_model", "band", "protocol", "direction", "verdict", "started_at", "schema_version", "source_system", "environment_id", "project_id", "artifact_type", "report_schema", "document_id", "idempotency_key")},
+                    **{key: r.get(key, "") for key in ("run_id", "environment", "project_code", "dut_model", "band", "protocol", "direction", "verdict", "started_at", "schema_version", "source_system", "environment_id", "project_id", "artifact_type", "report_schema", "document_id", "package_schema_version", "package_id", "document_version", "content_hash", "publish_status", "is_current", "idempotency_key")},
                 })
                 for r in results
             ]
@@ -4597,7 +4612,24 @@ class SearchEngine:
             from ..vector_store import get_vector_store
             vector_store = self.vector_store if self.vector_store is not None else get_vector_store()
 
-            results = vector_store.search(query, top_k=max(top_k * 3, top_k), filters=filters)
+            document_names = []
+            if not filters and self._extract_doc_hints(query):
+                profiles = self._find_document_profiles_for_query(query, limit=6)
+                document_names = list(dict.fromkeys(
+                    str(profile.get("doc_name") or "").strip()
+                    for profile in profiles
+                    if str(profile.get("doc_name") or "").strip()
+                ))
+
+            if document_names and hasattr(vector_store, "search_by_document_names"):
+                results = vector_store.search_by_document_names(
+                    query,
+                    document_names,
+                    top_k=max(top_k * 3, top_k),
+                )
+                logger.info("_vector_search_raw 文件範圍檢索: %d 個文件", len(document_names))
+            else:
+                results = vector_store.search(query, top_k=max(top_k * 3, top_k), filters=filters)
             logger.info(f"_vector_search_raw 原始結果: {len(results)} 筆")
             results = self._rank_vector_results(results, query, top_k)
             logger.info(f"_vector_search_raw 重排後結果: {len(results)} 筆")
@@ -4613,6 +4645,15 @@ class SearchEngine:
                     "chunk_index": r.get("chunk_index", 0),
                     "section_title": r.get("section_title", ""),
                     "source_path": r.get("source_path", ""),
+                    "chunk_id": r.get("chunk_id", ""),
+                    "source_locator": r.get("source_locator", {}),
+                    "document_route": r.get("document_route", {}),
+                    "normalization_provenance": r.get("normalization_provenance", {}),
+                    "embedding_model": r.get("embedding_model", ""),
+                    "embedding_model_version": r.get("embedding_model_version", ""),
+                    "embedding_version": r.get("embedding_version", ""),
+                    "embedding_runtime_version": r.get("embedding_runtime_version", ""),
+                    "vector_dimension": r.get("vector_dimension", 0),
                     **{key: r.get(key, "") for key in ("run_id", "environment", "project_code", "dut_model", "band", "protocol", "direction", "verdict", "started_at", "schema_version", "source_system", "environment_id", "project_id", "artifact_type", "report_schema", "document_id", "idempotency_key")},
                 })
                 for r in results
@@ -4694,7 +4735,9 @@ class SearchEngine:
 
                     cypher = f"""
                         MATCH (d:Document)
-                        WHERE {keyword_conditions}
+                        WHERE coalesce(d.publish_status, 'published') = 'published'
+                          AND coalesce(d.is_current, true) = true
+                          AND ({keyword_conditions})
                         RETURN d.name as name, d.content as content
                         LIMIT $limit
                     """

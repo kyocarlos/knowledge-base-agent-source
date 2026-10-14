@@ -57,15 +57,8 @@ class FileConverter:
             return None
 
         try:
-            from src.web_api.ollama_client import OllamaClient
-
-            ollama_cfg = config.get("ollama", {})
-            instances = ollama_cfg.get("instances") or []
-            base_url = instances[0] if instances else ollama_cfg.get("base_url", "http://localhost:11434")
-            llm = OllamaClient(
-                    model=llm_model or ollama_cfg.get("model", config.get("llm_model", "gemma4:12b")),
-                base_url=base_url
-            )
+            from src.web_api.llm_factory import create_llm_client
+            llm = create_llm_client(config, model_override=llm_model)
 
             FileConverter._shared_default_llm_client = llm
             logger.info("已啟用預設 LLM client 作為圖片/OCR 增強")

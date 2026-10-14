@@ -31,9 +31,9 @@ from ..compare_rules import is_compare_like_query
 from .tasks import search_task
 from app.core.job_config import celery_headers
 from .cache import cache_get, cache_set
+from ..csit.assistant import is_csit_query
+from .csit_routes import router as csit_router, run_csit_assistant_query
 from ..storage_paths import resolve_storage_category
-from ..instance_isolation import configured_instance_id, require_instance_config
-from ..km_control import ControlAuthenticationError, ControlAuthorizationError, ControlError, ControlRegistry, verify_entry_session
 
 WORKSPACE_DIR = "/home/da40_ai_gb10/.openclaw/workspace"
 UPLOAD_RETENTION_LIMIT = 10
@@ -1162,11 +1162,6 @@ logging.getLogger().addHandler(log_capture)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("FastAPI 啟動")
-    if configured_instance_id():
-        # An isolated deployment must prove every backing store and file root
-        # before it can accept any traffic.  Legacy source-only tests without
-        # KM_INSTANCE_ID intentionally retain their existing behaviour.
-        require_instance_config()
     
     # 初始化 Celery Beat 排程
     try:
@@ -1192,9 +1187,10 @@ app = FastAPI(
 )
 
 from .report_routes import router as report_router
-from .instance_auth_routes import InstanceAuthMiddleware, SESSION_COOKIE, router as instance_auth_router
 app.include_router(report_router)
-app.include_router(instance_auth_router)
+app.include_router(csit_router)
+from .e2e_cleanup_routes import router as e2e_cleanup_router
+app.include_router(e2e_cleanup_router)
 
 # CORS 允許前端跨域
 app.add_middleware(
@@ -1204,7 +1200,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-app.add_middleware(InstanceAuthMiddleware)
 
 
 # ===== API Endpoints =====
@@ -1245,19 +1240,6 @@ async def websocket_chat_proxy(websocket: WebSocket):
     """
     代理 browser chat websocket 到外部 gateway，並在此層做 session / concurrency 控制。
     """
-    instance_id = configured_instance_id()
-    if instance_id:
-        try:
-            # WebSockets do not pass through BaseHTTPMiddleware.  Validate the
-            # same signed, deployment-bound account session before accepting.
-            claims = verify_entry_session(websocket.cookies.get(SESSION_COOKIE, ""), instance_id)
-            ControlRegistry.from_environment().validate_entry_claims(
-                claims["sub"], instance_id, claims["role"], claims["epoch"]
-            )
-            websocket.scope.setdefault("state", {})["km_identity"] = claims
-        except (ControlError, ControlAuthenticationError, ControlAuthorizationError):
-            await websocket.close(code=4401, reason="KM login required")
-            return
     browser_id = _get_or_create_chat_browser_id(websocket.cookies.get(CHAT_BROWSER_COOKIE))
     proxy_conn_id = uuid.uuid4().hex[:8]
     await websocket.accept()
@@ -1275,6 +1257,19 @@ async def websocket_chat_proxy(websocket: WebSocket):
     async def send_to_browser(payload: dict):
         async with browser_send_lock:
             await websocket.send_json(payload)
+
+    async def send_direct_chat_final(request_id: str, content: str):
+        """Adapt local shortcut results to the legacy chat.html final-event contract."""
+        await send_to_browser({
+            "type": "event",
+            "event": "chat",
+            "payload": {
+                "state": "final",
+                "message": {"content": [{"type": "text", "text": content}]},
+                "requestId": request_id,
+                "sessionKey": session_key,
+            },
+        })
 
     async def release_current_request():
         nonlocal session_key, active_request_id, current_queue_position, session_lock_acquired
@@ -1314,6 +1309,19 @@ async def websocket_chat_proxy(websocket: WebSocket):
         if not str(result.get("answer") or "").strip():
             return None
         return result
+
+    async def run_csit_query_direct(message_text: str) -> Optional[str]:
+        """Handle explicit CSIT questions inside KM, without exposing secrets."""
+        if not is_csit_query(message_text):
+            return None
+        try:
+            return await asyncio.to_thread(run_csit_assistant_query, message_text)
+        except HTTPException as exc:
+            logger.warning("CSIT assistant query unavailable status=%s", exc.status_code)
+            return f"目前無法查詢 CSIT：{exc.detail}"
+        except Exception as exc:
+            logger.error("CSIT assistant query failed: %s", type(exc).__name__)
+            return "目前無法查詢 CSIT，請稍後再試。"
 
     def _run_compare_report_graph_via_local_api(message_text: str, top_k: int = 12) -> Optional[dict]:
         """
@@ -1473,9 +1481,22 @@ async def websocket_chat_proxy(websocket: WebSocket):
                                 current_queue_position = None
                                 pending_request_ids.discard(request_id)
                                 logger.info("WebSocket chat request granted request_id=%s session_key=%s", request_id, session_key)
+                                csit_result = await run_csit_query_direct(params.get("message", ""))
+                                if csit_result is not None:
+                                    logger.info("WebSocket CSIT read-only shortcut applied request_id=%s", request_id)
+                                    await send_direct_chat_final(request_id, csit_result)
+                                    await send_to_browser({
+                                        "type": "res",
+                                        "id": request_id,
+                                        "ok": True,
+                                        "content": csit_result,
+                                    })
+                                    await release_current_request()
+                                    break
                                 compare_result = await run_compare_report_graph_direct(params.get("message", ""))
                                 if compare_result is not None:
                                     logger.info("WebSocket compare shortcut applied request_id=%s", request_id)
+                                    await send_direct_chat_final(request_id, compare_result.get("answer", ""))
                                     await send_to_browser({
                                         "type": "res",
                                         "id": request_id,
@@ -1639,6 +1660,7 @@ async def websocket_chat_proxy(websocket: WebSocket):
                             compare_result = await run_compare_report_graph_direct(normalized_message.get("params", {}).get("message", ""))
                             if compare_result is not None:
                                 logger.info("WebSocket bare compare shortcut applied request_id=%s", request_id)
+                                await send_direct_chat_final(request_id, compare_result.get("answer", ""))
                                 await send_to_browser({
                                     "type": "res",
                                     "id": request_id,
@@ -2059,12 +2081,8 @@ async def analyze_question(request: AnalyzeQuestionRequest):
 
     config = load_config()
     neo4j_config = config.get("neo4j", {})
-    llm_config = config.get("ollama", {})
-    from .ollama_client import OllamaClient
-    llm = OllamaClient(
-        model=llm_config.get("model", "qwen3-coder-next"),
-        base_url=llm_config.get("instances", ["http://localhost:11434"])[0] if llm_config.get("instances") else llm_config.get("base_url", "http://localhost:11434")
-    )
+    from .llm_factory import create_llm_client
+    llm = create_llm_client(config)
     
     # Step 1: LLM 提取實體
     entity_prompt = f"""你是一個專業的知識庫助理。請從以下問題中提取關鍵實體名詞。
@@ -2811,7 +2829,6 @@ async def upload_file(request: Request, background_tasks: BackgroundTasks):
 
 @app.post("/upload/ingest")
 @app.post("/api/upload/ingest")
-@app.post("/api/ui/upload/ingest")
 async def upload_and_ingest(request: Request, extraction_mode: str = "4g5g"):
     """
     上傳檔案並提交背景攝入任務。
@@ -2835,15 +2852,8 @@ async def upload_and_ingest(request: Request, extraction_mode: str = "4g5g"):
     from ..ingest_registry import IngestRegistry, IngestRegistryConflict
     import shutil
 
-    ui_session_upload = request.url.path == "/api/ui/upload/ingest"
-    data_zone = None
-    if ui_session_upload:
-        session_identity = getattr(request.state, "km_identity", None)
-        data_zone = configured_instance_id()
-        if not session_identity or not data_zone or session_identity.get("instance_id") != data_zone:
-            raise HTTPException(status_code=401, detail={"code": "session_required", "message": "請先登入並選擇資料區"})
-        data_zone = data_zone.upper()
-    allowed_upload_modes = {"4g5g", "wifi", "lab", "project", "automation", "report"}
+    allowed_upload_modes = {"4g5g", "wifi", "lab", "project", "automation"}
+
     staging_path = None
     try:
         form = await request.form(
@@ -2853,7 +2863,7 @@ async def upload_and_ingest(request: Request, extraction_mode: str = "4g5g"):
         )
         file = _extract_uploaded_file(form)
         agent_identity = None
-        if not ui_session_upload and os.getenv("KB_INGEST_REQUIRE_AGENT_AUTH", "false").lower() in {"1", "true", "yes"}:
+        if os.getenv("KB_INGEST_REQUIRE_AGENT_AUTH", "false").lower() in {"1", "true", "yes"}:
             from ..test_reports.auth import authenticate_agent
             agent_identity = authenticate_agent(request)
         content = await file.read()
@@ -2862,7 +2872,7 @@ async def upload_and_ingest(request: Request, extraction_mode: str = "4g5g"):
         filename_mode = detect_extraction_mode(Path(file.filename).stem)
         # 檔名若已明確指向特定類型，優先使用檔名判定結果，避免 UI 預設值覆蓋。
         # 只有檔名無法辨識時，才回退到前端傳入的 extraction_mode。
-        effective_mode = extraction_mode if ui_session_upload and extraction_mode == "report" else (filename_mode if filename_mode != "4g5g" else extraction_mode)
+        effective_mode = filename_mode if filename_mode != "4g5g" else extraction_mode
         if effective_mode not in allowed_upload_modes:
             logger.warning(
                 "upload/ingest 收到不支援的 extraction_mode=%s，回退為 4g5g",
@@ -2883,30 +2893,13 @@ async def upload_and_ingest(request: Request, extraction_mode: str = "4g5g"):
         staging_path = staging_dir / f"{uuid.uuid4().hex}_{file_name}"
         staging_path.write_bytes(content)
         try:
-            if ui_session_upload:
-                from ..ingest_conflict_protection import IngestIdentity
-                report_manifest = None
-                if effective_mode == "report":
-                    from ..test_reports.excel_contract import parse_and_validate_report, ReportValidationError
-                    try:
-                        report_manifest = parse_and_validate_report(staging_path)["manifest"]
-                    except ReportValidationError as report_error:
-                        raise HTTPException(status_code=422, detail={"code": "invalid_test_report", "message": str(report_error)})
-                identity = IngestIdentity(
-                    source_system="KM_UI", environment_id=data_zone, project_id="KM_UI",
-                    run_id=(report_manifest or {}).get("run_id") or f"ui-{uuid.uuid4().hex}",
-                    artifact_type="test_report" if effective_mode == "report" else "document",
-                    report_schema=(report_manifest or {}).get("schema_version", "none"),
-                    original_file_name=file_name, source_file_hash=file_hash, ingest_file_hash=file_hash,
-                    document_id=f"kmui-{uuid.uuid4().hex}", idempotency_key=f"kmui-{uuid.uuid4().hex}",
-                    generated_at=datetime.now().isoformat(timespec="seconds"),
-                )
-            else:
-                identity = validate_ingest_file(
-                    path=staging_path, headers=request.headers, extraction_mode=effective_mode,
-                    original_file_name=file_name,
-                    require_contract=not ((ui_session_upload or allow_legacy) and not supplied_identity_headers),
-                )
+            identity = validate_ingest_file(
+                path=staging_path,
+                headers=request.headers,
+                extraction_mode=effective_mode,
+                original_file_name=file_name,
+                require_contract=not (allow_legacy and not supplied_identity_headers),
+            )
         except IngestContractError as contract_error:
             if contract_error.code != "legacy_upload":
                 logger.warning(
@@ -3039,13 +3032,8 @@ async def upload_and_ingest(request: Request, extraction_mode: str = "4g5g"):
         if identity:
             state.update(identity.as_dict())
             state["file_hash"] = identity.ingest_file_hash
-            if ui_session_upload:
-                state.update({"data_zone": data_zone, "ui_session_upload": True, "canonical_test_report": effective_mode == "report"})
             registry.record_event("task_created", task_id, document_id=identity.document_id, idempotency_key=identity.idempotency_key)
         set_ingest_task_state(task_id, state)
-        if ui_session_upload:
-            from ..ui_upload_tracking import record_upload
-            record_upload(task_id=task_id, data_zone=data_zone, file_name=file_name, file_hash=file_hash, extraction_mode=effective_mode, status="queued")
         try:
             async_result = ingest_file_task.apply_async(
                 args=[task_id],
@@ -3055,9 +3043,6 @@ async def upload_and_ingest(request: Request, extraction_mode: str = "4g5g"):
         except Exception:
             if registry:
                 registry.update_status(task_id, "ingest_failed")
-            if ui_session_upload:
-                from ..ui_upload_tracking import update_upload_status
-                update_upload_status(state, "queue_failed")
             raise
         state["celery_task_id"] = async_result.id
         set_ingest_task_state(task_id, state)
@@ -3075,8 +3060,6 @@ async def upload_and_ingest(request: Request, extraction_mode: str = "4g5g"):
             "queue_position": queue_position,
             "message": "已加入攝入佇列"
         }
-        if ui_session_upload:
-            response["data_zone"] = data_zone
         if identity:
             response.update({
                 "document_id": identity.document_id,

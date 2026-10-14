@@ -23,7 +23,6 @@ from .graphrag.neo4j_schema import clear_all_data, setup_neo4j_schema
 from .storage_paths import resolve_storage_category
 from .runtime_config import resolve_qdrant_url
 from .vector_store import VectorStore
-from .instance_isolation import InstanceIsolationError, configured_instance_id, require_instance_config
 
 
 logging.basicConfig(level=logging.INFO)
@@ -193,7 +192,6 @@ def rebuild_knowledge_base(
     preserve_assets: bool = True,
     enable_vector: bool = True,
     dry_run: bool = False,
-    instance_id: str | None = None,
 ) -> dict:
     """
     重新建立知識庫索引。
@@ -225,13 +223,6 @@ def rebuild_knowledge_base(
                 "source_name": entry.source_name,
             })
         return summary
-
-    configured_id = configured_instance_id()
-    if not configured_id or instance_id != configured_id:
-        raise InstanceIsolationError(
-            "re-ingest requires --instance-id matching KM_INSTANCE_ID; refusing global operation"
-        )
-    require_instance_config()
 
     if purge:
         _purge_all_data()
@@ -306,11 +297,6 @@ def build_arg_parser() -> argparse.ArgumentParser:
         help="不要先清空 Neo4j / QDrant，僅重新攝入掃描到的文件",
     )
     parser.add_argument(
-        "--instance-id",
-        choices=("test", "da40", "rd2"),
-        help="required for a mutating run and must match KM_INSTANCE_ID",
-    )
-    parser.add_argument(
         "--dry-run",
         action="store_true",
         help="只列出將重攝入的文件，不實際執行",
@@ -337,7 +323,6 @@ def main(argv: list[str] | None = None) -> int:
         preserve_assets=not args.no_assets,
         enable_vector=not args.no_vector,
         dry_run=args.dry_run,
-        instance_id=args.instance_id,
     )
 
     print(json.dumps(summary, ensure_ascii=False, indent=2))

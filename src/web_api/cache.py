@@ -9,8 +9,6 @@ from typing import Optional, Any
 
 import redis
 
-from ..instance_isolation import configured_instance_id, redis_key
-
 logger = logging.getLogger(__name__)
 
 # ===== Redis 連線 =====
@@ -22,17 +20,6 @@ REDIS_URL = (
 )
 
 _redis_client = None
-
-
-def _scoped_key(key: str) -> str:
-    """Namespace cache state when this process belongs to an isolated entry."""
-    instance_id = configured_instance_id()
-    return redis_key(instance_id, key) if instance_id else key
-
-
-def _scoped_pattern(pattern: str) -> str:
-    instance_id = configured_instance_id()
-    return f"km:{instance_id}:{pattern.lstrip(':')}" if instance_id else pattern
 
 
 def get_redis_client() -> redis.Redis:
@@ -59,7 +46,7 @@ def cache_get(key: str) -> Optional[Any]:
     """
     try:
         client = get_redis_client()
-        value = client.get(_scoped_key(key))
+        value = client.get(key)
 
         if value:
             logger.debug(f"快取命中: {key}")
@@ -92,9 +79,9 @@ def cache_set(key: str, value: Any, ttl: int = 3600) -> bool:
         client = get_redis_client()
         serialized = json.dumps(value, ensure_ascii=False)
         if ttl is None:
-            client.set(_scoped_key(key), serialized)  # 無過期時間
+            client.set(key, serialized)  # 無過期時間
         else:
-            client.setex(_scoped_key(key), ttl, serialized)
+            client.setex(key, ttl, serialized)
         logger.debug(f"快取寫入: {key}, ttl={ttl}s")
         return True
 
@@ -110,7 +97,7 @@ def cache_delete(key: str) -> bool:
     """刪除快取"""
     try:
         client = get_redis_client()
-        client.delete(_scoped_key(key))
+        client.delete(key)
         return True
     except Exception as e:
         logger.error(f"快取刪除錯誤: {e}")
@@ -129,7 +116,7 @@ def cache_clear_pattern(pattern: str) -> int:
     """
     try:
         client = get_redis_client()
-        keys = client.keys(_scoped_pattern(pattern))
+        keys = client.keys(pattern)
         if keys:
             return client.delete(*keys)
         return 0
@@ -161,7 +148,7 @@ def get_hybrid_count() -> int:
     """取得目前 Hybrid 模式活躍人數"""
     try:
         client = get_redis_client()
-        count = client.get(_scoped_key(HYBRID_COUNT_KEY))
+        count = client.get(HYBRID_COUNT_KEY)
         return int(count) if count else 0
     except Exception as e:
         logger.error(f"Hybrid 人數取得錯誤: {e}")
@@ -172,10 +159,9 @@ def increment_hybrid_count() -> int:
     """增加 Hybrid 模式人數並回傳新總數"""
     try:
         client = get_redis_client()
-        scoped_key = _scoped_key(HYBRID_COUNT_KEY)
-        count = client.incr(scoped_key)
+        count = client.incr(HYBRID_COUNT_KEY)
         # 設定/更新 TTL
-        client.expire(scoped_key, HYBRID_TTL)
+        client.expire(HYBRID_COUNT_KEY, HYBRID_TTL)
         logger.info(f"Hybrid 人數 +1 = {count}")
         return count
     except Exception as e:
@@ -187,10 +173,9 @@ def decrement_hybrid_count() -> int:
     """減少 Hybrid 模式人數並回傳新總數"""
     try:
         client = get_redis_client()
-        scoped_key = _scoped_key(HYBRID_COUNT_KEY)
-        count = client.decr(scoped_key)
+        count = client.decr(HYBRID_COUNT_KEY)
         if count < 0:
-            client.set(scoped_key, 0)
+            client.set(HYBRID_COUNT_KEY, 0)
             count = 0
         logger.info(f"Hybrid 人數 -1 = {count}")
         return max(0, count)
@@ -205,7 +190,7 @@ def increment_query_count(query: str) -> int:
     """熱門查詢計數（用於分析哪些問題最常被問）"""
     try:
         client = get_redis_client()
-        key = _scoped_key(f"query_count:{query[:50]}")
+        key = f"query_count:{query[:50]}"
         return client.incr(key)
     except Exception:
         return 0
@@ -215,14 +200,12 @@ def get_top_queries(limit: int = 10) -> list:
     """取得最熱門的查詢"""
     try:
         client = get_redis_client()
-        keys = client.keys(_scoped_pattern("query_count:*"))
+        keys = client.keys("query_count:*")
 
         queries = []
         for key in keys:
             count = int(client.get(key) or 0)
-            if isinstance(key, bytes):
-                key = key.decode("utf-8")
-            query = key.removeprefix(f"km:{configured_instance_id()}:").replace("query_count:", "")
+            query = key.replace("query_count:", "")
             queries.append({"query": query, "count": count})
 
         queries.sort(key=lambda x: x["count"], reverse=True)

@@ -4,12 +4,14 @@
 """
 
 import logging
+import json
 import os
 import yaml
 from pathlib import Path
 
 from .storage_paths import resolve_storage_category, infer_storage_category_from_path
 from .runtime_config import resolve_neo4j_uri
+from .knowledge_package import build_package_metadata, resolve_document_version
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -127,6 +129,7 @@ def _write_neo4j_document(
 
     result = result or {}
     identity = {}
+    source_metadata = {}
     metadata_path = Path(doc_path).with_name(f"{Path(doc_path).stem}.source.json")
     if metadata_path.exists():
         try:
@@ -140,8 +143,20 @@ def _write_neo4j_document(
                 )
                 if source_metadata.get(key) not in (None, "")
             }
+            document_version = resolve_document_version(source_metadata)
         except Exception as metadata_error:
             logger.warning("讀取 Neo4j 文件身份 metadata 失敗: %s", metadata_error)
+            document_version = resolve_document_version({})
+    else:
+        document_version = resolve_document_version({})
+    package_metadata = build_package_metadata(
+        document_id=identity.get("document_id", doc_name),
+        document_version=document_version,
+        content_hash=str(source_metadata.get("content_hash") or ""),
+        publish_status=str(source_metadata.get("publish_status") or "draft"),
+        is_current=source_metadata.get("is_current", False),
+    )
+    identity.update(package_metadata)
     driver = GraphDatabase.driver(
         neo4j_uri,
         auth=(neo4j_user, neo4j_password)
@@ -154,8 +169,13 @@ def _write_neo4j_document(
                 d.source = $source,
                 d.extraction_mode = $mode,
                 d.storage_category = $storage_category,
+                d.package_schema_version = $package_schema_version,
+                d.package_id = $package_id,
+                d.document_version = $document_version,
+                d.publish_status = $publish_status,
+                d.is_current = $is_current,
                 d += $identity
-        """, name=doc_name, content=content[:1000], source=doc_path, mode=extraction_mode, storage_category=storage_category or "", identity=identity)
+        """, name=doc_name, content=content[:1000], source=doc_path, mode=extraction_mode, storage_category=storage_category or "", package_schema_version=identity["package_schema_version"], package_id=identity["package_id"], document_version=document_version, publish_status=identity["publish_status"], is_current=identity["is_current"], identity=identity)
 
         session.run("""
             MATCH (d:Document {name: $name})
@@ -458,19 +478,12 @@ def ingest_document(
         neo4j_uri, neo4j_user, neo4j_password = _get_neo4j_connection_info(config)
         content = Path(doc_path).read_text(encoding="utf-8")
         
-        # 讀取 ollama client
-        from src.web_api.ollama_client import OllamaClient
-        ollama_config = config["ollama"]
-        
-        llm = OllamaClient(
-            model=ollama_config.get("model", "gemma4:12b"),
-            base_url=ollama_config["instances"][0] if len(ollama_config["instances"]) > 0 else ollama_config.get("base_url", "http://localhost:11434")
-        )
+        from src.web_api.llm_factory import create_llm_client
+        llm = create_llm_client(config)
         
         # 嘗試萃取
         result = {}
         try:
-            import json
             import re
 
             # 呼叫 LLM 萃取（最多重試 2 次）

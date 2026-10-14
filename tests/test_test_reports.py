@@ -156,6 +156,43 @@ class ReportApiTests(unittest.TestCase):
         self.assertEqual(approved.json()["status"], "queued")
         self.assertEqual(repeated.status_code, 409)
 
+    def test_approval_carries_attachment_manifest_to_ingest_state(self):
+        attachment = Path(self.directory.name) / "execution.log"
+        attachment.write_text("synthetic execution\n", encoding="utf-8")
+        digest = hashlib.sha256(attachment.read_bytes()).hexdigest()
+        from openpyxl import load_workbook
+
+        workbook = load_workbook(self.report_path)
+        workbook["RawArtifacts"].append([attachment.name, digest])
+        workbook.save(self.report_path)
+
+        with self.report_path.open("rb") as report_handle, attachment.open("rb") as attachment_handle:
+            uploaded = self.client.post(
+                "/api/agent/v1/reports",
+                headers=self.agent_headers(),
+                files=[
+                    ("file", ("report.xlsx", report_handle, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")),
+                    ("attachments", (attachment.name, attachment_handle, "text/plain")),
+                ],
+            )
+        submission_id = uploaded.json()["submission_id"]
+        captured_states = []
+        async_result = Mock(id="celery-attachment-1")
+        with patch("src.web_api.tasks.INGEST_UPLOAD_ROOT", Path(self.directory.name) / "uploads"), \
+             patch("src.web_api.tasks.set_ingest_task_state", side_effect=lambda task_id, state, ttl=None: captured_states.append(state) or state), \
+             patch("src.web_api.tasks.create_ingest_task_id", return_value="ingest-attachment-1"), \
+             patch("src.web_api.tasks.ingest_file_task.apply_async", return_value=async_result):
+            approved = self.client.post(
+                f"/api/admin/v1/report-submissions/{submission_id}/approve",
+                headers=self.reviewer_headers(), json={"comment": "reviewed"},
+            )
+
+        self.assertEqual(approved.status_code, 200)
+        self.assertTrue(captured_states)
+        state = captured_states[0]
+        self.assertEqual(state["attachments"][0]["name"], attachment.name)
+        self.assertEqual(state["attachments"][0]["sha256"], digest)
+
 
 if __name__ == "__main__":
     unittest.main()

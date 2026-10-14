@@ -29,10 +29,6 @@ def resolve_neo4j_uri(candidate: str | None = None) -> str:
     若預設 service name 在目前 runtime 無法解析，會自動回退到本機映射的 17687。
     """
     value = os.getenv("NEO4J_URI") or candidate or "bolt://neo4j:7687"
-    # A tenant deployment must never quietly fall back to a host-level Neo4j
-    # listener; that could cross the configured data-plane boundary.
-    if os.getenv("KM_INSTANCE_ID", "").strip():
-        return value
     parsed = urlparse(value)
     host = parsed.hostname or ""
     port = parsed.port or 7687
@@ -67,10 +63,6 @@ def resolve_qdrant_url(candidate: str | None = None) -> str:
     若預設位址在目前 runtime 無法連線，會回退到本機 6335。
     """
     value = os.getenv("QDRANT_URL") or candidate or "http://host.docker.internal:6333"
-    # See resolve_neo4j_uri: fail at the configured endpoint in an isolated
-    # deployment instead of selecting a potentially shared local service.
-    if os.getenv("KM_INSTANCE_ID", "").strip():
-        return value
     parsed = urlparse(value)
     host = parsed.hostname or ""
     port = parsed.port or 6333

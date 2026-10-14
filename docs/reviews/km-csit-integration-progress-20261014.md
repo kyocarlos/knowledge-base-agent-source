@@ -1,5 +1,7 @@
 # KM 最新進度與 GitHub／DGX 對帳 — 2026-10-14
 
+> 本文件記錄進度文件發布當時的基線。本開發分支後續已補齊最新 source／tests／public-base build；接手開發請先讀 [最新交接指南](../handoff/PATTY_DEVELOPMENT_HANDOFF.md)，不要把本文歷史「source 尚未發布」當成此分支的現況。
+
 本文件提供 Patty 審視 CSIT ↔ KM Integration v1 的最新 DEV 進度。依使用者本次授權，僅更新進度文件；不代表最新 integration source 已發布、Production 已部署，或完整 Phase 1 已驗收。
 
 ## 審查結論

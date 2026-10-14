@@ -56,16 +56,19 @@ class SdkA2ATransport:
         ) as http_client:
             card = await A2ACardResolver(http_client, endpoint).get_agent_card()
             self._validate_card(endpoint, card)
-            client = ClientFactory(
-                ClientConfig(streaming=False, polling=True, httpx_client=http_client)
-            ).create(card)
+            wire_method = os.getenv("KM_A2A_JSONRPC_METHOD", "sdk").strip()
+            if wire_method not in {"sdk", "message/send"}:
+                raise TransportRejected(
+                    RejectionReason.INVALID_REQUEST,
+                    "unsupported KM_A2A_JSONRPC_METHOD",
+                )
+            client = None
+            if wire_method == "sdk":
+                client = ClientFactory(
+                    ClientConfig(streaming=False, polling=True, httpx_client=http_client)
+                ).create(card)
             try:
-                try:
-                    task = await self._send_with_sdk(client, job)
-                except InvalidParamsError:
-                    # A2A SDK 1.1.2 emits the operation name ``SendMessage``.
-                    # This POC peer follows the JSON-RPC 1.0 wire name
-                    # ``message/send`` documented by the integration contract.
+                if wire_method == "message/send":
                     task = await self._send_message_send(
                         http_client,
                         next(
@@ -77,6 +80,24 @@ class SdkA2ATransport:
                         headers,
                         job,
                     )
+                else:
+                    try:
+                        task = await self._send_with_sdk(client, job)
+                    except InvalidParamsError:
+                        # A2A SDK 1.1.2 emits the operation name ``SendMessage``.
+                        # Some A2A 1.0 peers use the JSON-RPC wire name
+                        # ``message/send`` documented by the integration contract.
+                        task = await self._send_message_send(
+                            http_client,
+                            next(
+                                interface.url
+                                for interface in card.supported_interfaces
+                                if interface.protocol_binding == "JSONRPC"
+                                and interface.protocol_version.startswith("1.")
+                            ),
+                            headers,
+                            job,
+                        )
                 if not task.id or not task.context_id:
                     raise TransportRejected(RejectionReason.INVALID_REQUEST, "agent returned incomplete correlation")
                 state = _STATE_MAP.get(task.status.state)
@@ -109,7 +130,8 @@ class SdkA2ATransport:
                     status=RunStatus(),
                 )
             finally:
-                await client.close()
+                if client is not None:
+                    await client.close()
 
     @staticmethod
     async def _send_with_sdk(client, job: TestJob):

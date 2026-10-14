@@ -1,0 +1,1353 @@
+{
+  "base_commit": "a3f51993ca02bd6c7bccb3112f6b11ea76d7319b",
+  "files": [
+    {
+      "path": "app/main.py",
+      "source": "DGX working tree",
+      "sha256": "cbaf82ba27b9e8226e934157e3c4718ef4db9935c2ecc8796c67b60545d8b595",
+      "delivered_sha256": "cbaf82ba27b9e8226e934157e3c4718ef4db9935c2ecc8796c67b60545d8b595"
+    },
+    {
+      "path": "app/__init__.py",
+      "source": "DGX working tree",
+      "sha256": "7749ae82b13808d97a4c75a6721f0f817c105a9bf5e494c688ea3a37f570493b",
+      "delivered_sha256": "7749ae82b13808d97a4c75a6721f0f817c105a9bf5e494c688ea3a37f570493b"
+    },
+    {
+      "path": "app/schemas/__init__.py",
+      "source": "DGX working tree",
+      "sha256": "545a9662272f6247cbacc1025aa33656976be017916249bdb92c5ec051540e04",
+      "delivered_sha256": "545a9662272f6247cbacc1025aa33656976be017916249bdb92c5ec051540e04"
+    },
+    {
+      "path": "app/schemas/common.py",
+      "source": "DGX working tree",
+      "sha256": "233faf665834e3a8d9d4cbbd490f5c2b06eaf65a7c1b6291ef00173299b6d9fc",
+      "delivered_sha256": "233faf665834e3a8d9d4cbbd490f5c2b06eaf65a7c1b6291ef00173299b6d9fc"
+    },
+    {
+      "path": "app/api/oidc_routes.py",
+      "source": "DGX working tree",
+      "sha256": "cfd44aceec4eb1835ff3415dd149d8da88eceb58b5ae21d55502f8c22cd08855",
+      "delivered_sha256": "cfd44aceec4eb1835ff3415dd149d8da88eceb58b5ae21d55502f8c22cd08855"
+    },
+    {
+      "path": "app/api/__init__.py",
+      "source": "DGX working tree",
+      "sha256": "f2c139c0809285a920ffb41147526c865d8af0c4b1a79e2c9d2c9e02fcc51063",
+      "delivered_sha256": "f2c139c0809285a920ffb41147526c865d8af0c4b1a79e2c9d2c9e02fcc51063"
+    },
+    {
+      "path": "app/core/config.py",
+      "source": "DGX working tree",
+      "sha256": "90eaa02f6cd9deb7f60dce410e318ab44fd5e69be00816c75668a59431bc7781",
+      "delivered_sha256": "90eaa02f6cd9deb7f60dce410e318ab44fd5e69be00816c75668a59431bc7781"
+    },
+    {
+      "path": "app/core/security.py",
+      "source": "DGX working tree",
+      "sha256": "5505ff61daa429ad327af9157d0c1b15cb4bcc23d802c905be6ef29fc3f3142d",
+      "delivered_sha256": "5505ff61daa429ad327af9157d0c1b15cb4bcc23d802c905be6ef29fc3f3142d"
+    },
+    {
+      "path": "app/core/trace.py",
+      "source": "DGX working tree",
+      "sha256": "af964afb2033327ce2a3f25a0c267f650835abadae223b38f8db4f26809a85d6",
+      "delivered_sha256": "af964afb2033327ce2a3f25a0c267f650835abadae223b38f8db4f26809a85d6"
+    },
+    {
+      "path": "app/core/job_config.py",
+      "source": "DGX working tree",
+      "sha256": "2fb2198e07d11ba17b28845d2fc0ccaeaa66802f24236d25ef89d88005a228c8",
+      "delivered_sha256": "2fb2198e07d11ba17b28845d2fc0ccaeaa66802f24236d25ef89d88005a228c8"
+    },
+    {
+      "path": "app/core/exceptions.py",
+      "source": "DGX working tree",
+      "sha256": "402410b49c24f622e4b86d54110502d8ef8c9f3246d00c07da07f2e994b36536",
+      "delivered_sha256": "402410b49c24f622e4b86d54110502d8ef8c9f3246d00c07da07f2e994b36536"
+    },
+    {
+      "path": "app/core/logging.py",
+      "source": "DGX working tree",
+      "sha256": "05bf92a6fd48dbaf91365a8dd0c50901246392739a37299857930c0bea67aaa0",
+      "delivered_sha256": "05bf92a6fd48dbaf91365a8dd0c50901246392739a37299857930c0bea67aaa0"
+    },
+    {
+      "path": "app/core/__init__.py",
+      "source": "DGX working tree",
+      "sha256": "42d06cc3f64be7ebff6a729acf74631b8faf88ba970e6838d067b0e6336a9e80",
+      "delivered_sha256": "42d06cc3f64be7ebff6a729acf74631b8faf88ba970e6838d067b0e6336a9e80"
+    },
+    {
+      "path": "app/core/release_metadata.py",
+      "source": "DGX working tree",
+      "sha256": "59d5c5c29ab19a3bf553a6a6b6b59ad4ac6187f5dbcf3f6be807e08f7cf0c3a9",
+      "delivered_sha256": "59d5c5c29ab19a3bf553a6a6b6b59ad4ac6187f5dbcf3f6be807e08f7cf0c3a9"
+    },
+    {
+      "path": "app/auth/audit.py",
+      "source": "DGX working tree",
+      "sha256": "4719c03abf83352cbd0b29e162353f4cae2abe25218d684de5c18644be2d6d71",
+      "delivered_sha256": "4719c03abf83352cbd0b29e162353f4cae2abe25218d684de5c18644be2d6d71"
+    },
+    {
+      "path": "app/auth/control.py",
+      "source": "DGX working tree",
+      "sha256": "60ae775e1b428e22090ca12e2c1e83b7e8f66093a706cab59e038ca31d468c15",
+      "delivered_sha256": "60ae775e1b428e22090ca12e2c1e83b7e8f66093a706cab59e038ca31d468c15"
+    },
+    {
+      "path": "app/auth/oidc.py",
+      "source": "DGX working tree",
+      "sha256": "bdc8e4cd9277b671dd4057c206af2257566bed1475348913fa31f5a280355c7a",
+      "delivered_sha256": "bdc8e4cd9277b671dd4057c206af2257566bed1475348913fa31f5a280355c7a"
+    },
+    {
+      "path": "app/auth/__init__.py",
+      "source": "DGX working tree",
+      "sha256": "f470768aaf2bcd1a2755078d6ee0baff4db6c64f0d93c41bbaabc12e7b0724bb",
+      "delivered_sha256": "f470768aaf2bcd1a2755078d6ee0baff4db6c64f0d93c41bbaabc12e7b0724bb"
+    },
+    {
+      "path": "app/api/v1/router.py",
+      "source": "DGX working tree",
+      "sha256": "4f60264d23d9098a1c6d75cecab368f64c9196a85caa58e34832a62f02796f05",
+      "delivered_sha256": "4f60264d23d9098a1c6d75cecab368f64c9196a85caa58e34832a62f02796f05"
+    },
+    {
+      "path": "app/api/v1/__init__.py",
+      "source": "DGX working tree",
+      "sha256": "4869cfce5fff808544e315610c8dab8f0ab63a3b06e69bb6310d9820cef69d72",
+      "delivered_sha256": "4869cfce5fff808544e315610c8dab8f0ab63a3b06e69bb6310d9820cef69d72"
+    },
+    {
+      "path": "src/qa_logger.py",
+      "source": "DGX working tree",
+      "sha256": "de7e4926c443cedf3d0069c5bb8109c79bfe82d47b20b4b1965a276143c81835",
+      "delivered_sha256": "de7e4926c443cedf3d0069c5bb8109c79bfe82d47b20b4b1965a276143c81835"
+    },
+    {
+      "path": "src/report_graph.py",
+      "source": "DGX working tree",
+      "sha256": "7ee766d9fa358a9a8c48624efb6f1a6e1b3226dd778db1e2eea1d2c76aa0fd6e",
+      "delivered_sha256": "7ee766d9fa358a9a8c48624efb6f1a6e1b3226dd778db1e2eea1d2c76aa0fd6e"
+    },
+    {
+      "path": "src/publish_lifecycle.py",
+      "source": "DGX working tree",
+      "sha256": "423ef2349ec10ec620b5c9f02d9e88c609d38226eb600ec1af8e44fa76128d7d",
+      "delivered_sha256": "423ef2349ec10ec620b5c9f02d9e88c609d38226eb600ec1af8e44fa76128d7d"
+    },
+    {
+      "path": "src/document_normalization.py",
+      "source": "DGX working tree",
+      "sha256": "1031ca33f2068293685928f76b58a4a41a5b4c9280f1135a9fc732910796f3cd",
+      "delivered_sha256": "1031ca33f2068293685928f76b58a4a41a5b4c9280f1135a9fc732910796f3cd"
+    },
+    {
+      "path": "src/conflict_detector.py",
+      "source": "DGX working tree",
+      "sha256": "b32a8328ccc3469682e7bb8669040c09866003b7650ebef66fd4fd8b17f8b175",
+      "delivered_sha256": "b32a8328ccc3469682e7bb8669040c09866003b7650ebef66fd4fd8b17f8b175"
+    },
+    {
+      "path": "src/image_refs.py",
+      "source": "DGX working tree",
+      "sha256": "728de5c9dc3571f142609f863276bc80563015171c5208bbd09a639f88e65178",
+      "delivered_sha256": "728de5c9dc3571f142609f863276bc80563015171c5208bbd09a639f88e65178"
+    },
+    {
+      "path": "src/qa_cache.py",
+      "source": "DGX working tree",
+      "sha256": "c207a23fa7b3ad1167cbedbf6d7f718b83ddb9a215c136646f9e702a97ef6222",
+      "delivered_sha256": "c207a23fa7b3ad1167cbedbf6d7f718b83ddb9a215c136646f9e702a97ef6222"
+    },
+    {
+      "path": "src/syntheses.py",
+      "source": "DGX working tree",
+      "sha256": "f4edf97e528271273e11e272161d9781af9ce0df242aff71379fdbd75f7cbfb1",
+      "delivered_sha256": "f4edf97e528271273e11e272161d9781af9ce0df242aff71379fdbd75f7cbfb1"
+    },
+    {
+      "path": "src/chunk_assets.py",
+      "source": "DGX working tree",
+      "sha256": "d2e810dcd0de61aab8ab55d87e75ff77bf2f0313375b468e92cb8af919b86916",
+      "delivered_sha256": "d2e810dcd0de61aab8ab55d87e75ff77bf2f0313375b468e92cb8af919b86916"
+    },
+    {
+      "path": "src/ingest.py",
+      "source": "DGX working tree",
+      "sha256": "3a929479007783b6fd79cff23d36097ac6a95923d3747e433c412c7a92c8ad6d",
+      "delivered_sha256": "3a929479007783b6fd79cff23d36097ac6a95923d3747e433c412c7a92c8ad6d"
+    },
+    {
+      "path": "src/reingest.py",
+      "source": "DGX working tree",
+      "sha256": "d05ee0957dfb32ba70639201be651d4a8450c229a87836903a66e89f78bed946",
+      "delivered_sha256": "d05ee0957dfb32ba70639201be651d4a8450c229a87836903a66e89f78bed946"
+    },
+    {
+      "path": "src/km_spec_contract.py",
+      "source": "DGX working tree",
+      "sha256": "f1c6469fdeb52ddf31b3746d1673f9082ff4a3895253aeafa0645381d235bf44",
+      "delivered_sha256": "f1c6469fdeb52ddf31b3746d1673f9082ff4a3895253aeafa0645381d235bf44"
+    },
+    {
+      "path": "src/document_intelligence.py",
+      "source": "DGX working tree",
+      "sha256": "a31994c2798b817c854c71bc69b33be2b71ad4e26872275055d06b15408a8b00",
+      "delivered_sha256": "a31994c2798b817c854c71bc69b33be2b71ad4e26872275055d06b15408a8b00"
+    },
+    {
+      "path": "src/main.py",
+      "source": "DGX working tree",
+      "sha256": "86454a4fd50940b9e10d303160a0280b9f34e7d3440cb0cf5ee819c5d42b3e64",
+      "delivered_sha256": "86454a4fd50940b9e10d303160a0280b9f34e7d3440cb0cf5ee819c5d42b3e64"
+    },
+    {
+      "path": "src/knowledge_package.py",
+      "source": "DGX working tree",
+      "sha256": "53a7d097d7e8afc3452a3a22e6893c085b75707142acb3b3174d71d0c0443595",
+      "delivered_sha256": "53a7d097d7e8afc3452a3a22e6893c085b75707142acb3b3174d71d0c0443595"
+    },
+    {
+      "path": "src/ingest_registry.py",
+      "source": "DGX working tree",
+      "sha256": "cca58228307e4824a115085db5c134809916b3e5661842d57bb4a121d4300854",
+      "delivered_sha256": "cca58228307e4824a115085db5c134809916b3e5661842d57bb4a121d4300854"
+    },
+    {
+      "path": "src/extract_entities.py",
+      "source": "DGX working tree",
+      "sha256": "29411668623342a7a03d552513454935559fdb55b8e939b40ef49ad3951bd2ab",
+      "delivered_sha256": "29411668623342a7a03d552513454935559fdb55b8e939b40ef49ad3951bd2ab"
+    },
+    {
+      "path": "src/runtime_config.py",
+      "source": "DGX working tree",
+      "sha256": "87f240cb005a3c1922caf5484ccc8ed231564cf5d62a56628c7245ef8f84671b",
+      "delivered_sha256": "87f240cb005a3c1922caf5484ccc8ed231564cf5d62a56628c7245ef8f84671b"
+    },
+    {
+      "path": "src/index_generator.py",
+      "source": "DGX working tree",
+      "sha256": "b74b367345a953c8dc4b6122b748edfab77e697842b2d7f0746229fe82f19911",
+      "delivered_sha256": "b74b367345a953c8dc4b6122b748edfab77e697842b2d7f0746229fe82f19911"
+    },
+    {
+      "path": "src/compare_rules.py",
+      "source": "DGX working tree",
+      "sha256": "4d1f53d5186739a0cc9ec95e5d63c0d6264f245a194b96f4a74a885dbac5f04e",
+      "delivered_sha256": "4d1f53d5186739a0cc9ec95e5d63c0d6264f245a194b96f4a74a885dbac5f04e"
+    },
+    {
+      "path": "src/__init__.py",
+      "source": "DGX working tree",
+      "sha256": "82faef2d75c363c75e357b121b9b3e30fe924a16ae4afdf2d922cb3ce795cdcf",
+      "delivered_sha256": "82faef2d75c363c75e357b121b9b3e30fe924a16ae4afdf2d922cb3ce795cdcf"
+    },
+    {
+      "path": "src/ingest_conflict_protection.py",
+      "source": "DGX working tree",
+      "sha256": "f6c4330bc2aec6b4e006abf2214b2bbbbc30dc05b62ee04075f5821f87d9d2e5",
+      "delivered_sha256": "f6c4330bc2aec6b4e006abf2214b2bbbbc30dc05b62ee04075f5821f87d9d2e5"
+    },
+    {
+      "path": "src/document_pipeline.py",
+      "source": "DGX working tree",
+      "sha256": "a755f9c52c66251d68b8e57cd26ac982947e565c99ec988e82e23865ed5d3876",
+      "delivered_sha256": "a755f9c52c66251d68b8e57cd26ac982947e565c99ec988e82e23865ed5d3876"
+    },
+    {
+      "path": "src/chunk_editing.py",
+      "source": "DGX working tree",
+      "sha256": "1a30dd90cce1f224e68267653f189af9811cce6a6ae6b346be54aa3f74cc5d92",
+      "delivered_sha256": "1a30dd90cce1f224e68267653f189af9811cce6a6ae6b346be54aa3f74cc5d92"
+    },
+    {
+      "path": "src/storage_paths.py",
+      "source": "DGX working tree",
+      "sha256": "22ae4b56b2ee95e9d1188518242b317e276a02e57991009224e76d981ad1921c",
+      "delivered_sha256": "22ae4b56b2ee95e9d1188518242b317e276a02e57991009224e76d981ad1921c"
+    },
+    {
+      "path": "src/km_dev_upload/repository.py",
+      "source": "DGX working tree",
+      "sha256": "698451d585348c398f0b1fed11128d28e7f725cc44529b80edbb1e546baaa0b9",
+      "delivered_sha256": "698451d585348c398f0b1fed11128d28e7f725cc44529b80edbb1e546baaa0b9"
+    },
+    {
+      "path": "src/km_dev_upload/pipeline.py",
+      "source": "DGX working tree",
+      "sha256": "5c93d92a4241d5743508249c598573a38cf44e9602a127ecf86cf7e3f57b8635",
+      "delivered_sha256": "5c93d92a4241d5743508249c598573a38cf44e9602a127ecf86cf7e3f57b8635"
+    },
+    {
+      "path": "src/km_dev_upload/runtime.py",
+      "source": "DGX working tree",
+      "sha256": "a7f86984503ca1049d94b925201388e7a8f5f45718918dcd18a25a1ed73fe42c",
+      "delivered_sha256": "a7f86984503ca1049d94b925201388e7a8f5f45718918dcd18a25a1ed73fe42c"
+    },
+    {
+      "path": "src/km_dev_upload/api.py",
+      "source": "DGX working tree",
+      "sha256": "965ef04b699625f1e6bde2c9779a94c17c9ccb7a4c0a0848ea9a09a559d35571",
+      "delivered_sha256": "965ef04b699625f1e6bde2c9779a94c17c9ccb7a4c0a0848ea9a09a559d35571"
+    },
+    {
+      "path": "src/km_dev_upload/auth.py",
+      "source": "DGX working tree",
+      "sha256": "ed1e4f930290d9389fd510120f33c98a09ccc5258fd9a403701569af6555dca5",
+      "delivered_sha256": "ed1e4f930290d9389fd510120f33c98a09ccc5258fd9a403701569af6555dca5"
+    },
+    {
+      "path": "src/km_dev_upload/__init__.py",
+      "source": "DGX working tree",
+      "sha256": "4ab5c810bbef311ddb9e4e712b4a9bb3e02019381896709a875b33fe458ac0ac",
+      "delivered_sha256": "4ab5c810bbef311ddb9e4e712b4a9bb3e02019381896709a875b33fe458ac0ac"
+    },
+    {
+      "path": "src/web_api/e2e_cleanup_routes.py",
+      "source": "DGX working tree",
+      "sha256": "4acd2d6daabcf3845aeef34ec5ff8cb53ef48dbd3019c595e83bb6029b762782",
+      "delivered_sha256": "4acd2d6daabcf3845aeef34ec5ff8cb53ef48dbd3019c595e83bb6029b762782"
+    },
+    {
+      "path": "src/web_api/llm_factory.py",
+      "source": "DGX working tree",
+      "sha256": "1f1f6f97d6b37bba5288d851321010f92d66f704daaa8af98e16d2838ff0248d",
+      "delivered_sha256": "1f1f6f97d6b37bba5288d851321010f92d66f704daaa8af98e16d2838ff0248d"
+    },
+    {
+      "path": "src/web_api/cache.py",
+      "source": "DGX working tree",
+      "sha256": "2be5fcf6669cfd7475828e96cd0f771b925071328b08ea991d50a4673250ed68",
+      "delivered_sha256": "2be5fcf6669cfd7475828e96cd0f771b925071328b08ea991d50a4673250ed68"
+    },
+    {
+      "path": "src/web_api/report_routes.py",
+      "source": "DGX working tree",
+      "sha256": "ca5ce03684e4e2adb75d8d94908cf25852f74b88997e29935a767968f97c26b0",
+      "delivered_sha256": "ca5ce03684e4e2adb75d8d94908cf25852f74b88997e29935a767968f97c26b0"
+    },
+    {
+      "path": "src/web_api/openai_compatible_client.py",
+      "source": "DGX working tree",
+      "sha256": "192bfa5f50fb1b582888d8d19022ceb0eba5d513050f8beff4058174a6b771a2",
+      "delivered_sha256": "192bfa5f50fb1b582888d8d19022ceb0eba5d513050f8beff4058174a6b771a2"
+    },
+    {
+      "path": "src/web_api/__init__.py",
+      "source": "DGX working tree",
+      "sha256": "2a76bb97aad5f868b349dfb5cb1d82c8bec1b3ddd73483a79928ad69f70649fc",
+      "delivered_sha256": "2a76bb97aad5f868b349dfb5cb1d82c8bec1b3ddd73483a79928ad69f70649fc"
+    },
+    {
+      "path": "src/web_api/tasks.py",
+      "source": "DGX working tree",
+      "sha256": "0299ffaa5b9a4349eb3fb76f16d16d509cbae19e2f7698b92b3db614a8215452",
+      "delivered_sha256": "0299ffaa5b9a4349eb3fb76f16d16d509cbae19e2f7698b92b3db614a8215452"
+    },
+    {
+      "path": "src/web_api/csit_routes.py",
+      "source": "DGX working tree",
+      "sha256": "b5fe91374a27c4e07e2b47abb2a1e10be384392f2e8e360492af5f367cd60e8c",
+      "delivered_sha256": "b5fe91374a27c4e07e2b47abb2a1e10be384392f2e8e360492af5f367cd60e8c"
+    },
+    {
+      "path": "src/web_api/ollama_client.py",
+      "source": "DGX working tree",
+      "sha256": "aaae0e1ff5868ab0c733103501075b7596f86facce148aca248a576d87920838",
+      "delivered_sha256": "aaae0e1ff5868ab0c733103501075b7596f86facce148aca248a576d87920838"
+    },
+    {
+      "path": "src/search/__init__.py",
+      "source": "DGX working tree",
+      "sha256": "2cef61efdb14370e079adcd14194ae0de37f6ab75fff856666a7561e0cd6682a",
+      "delivered_sha256": "2cef61efdb14370e079adcd14194ae0de37f6ab75fff856666a7561e0cd6682a"
+    },
+    {
+      "path": "src/ui/__init__.py",
+      "source": "DGX working tree",
+      "sha256": "cfa1e4462a22fbda4e53c2da9c49846c8e86b6d934301510ecd3350cc2dc7c90",
+      "delivered_sha256": "cfa1e4462a22fbda4e53c2da9c49846c8e86b6d934301510ecd3350cc2dc7c90"
+    },
+    {
+      "path": "src/csit/report_mapping.py",
+      "source": "DGX working tree",
+      "sha256": "ccc1f8c5b5214247cda56c5eff9fce5cf909b597640c94e279ee6cf07c56eb99",
+      "delivered_sha256": "ccc1f8c5b5214247cda56c5eff9fce5cf909b597640c94e279ee6cf07c56eb99"
+    },
+    {
+      "path": "src/csit/pull.py",
+      "source": "DGX working tree",
+      "sha256": "68c10e03586d7180287114b1d6970f8b4b120c5df7e8dcb89b26324b5ee1a5be",
+      "delivered_sha256": "68c10e03586d7180287114b1d6970f8b4b120c5df7e8dcb89b26324b5ee1a5be"
+    },
+    {
+      "path": "src/csit/client.py",
+      "source": "DGX working tree",
+      "sha256": "5957fbbf8fb64ad499459470a813b4f3ba332d95a94bdfb7f2c0ba88b7cb3764",
+      "delivered_sha256": "5957fbbf8fb64ad499459470a813b4f3ba332d95a94bdfb7f2c0ba88b7cb3764"
+    },
+    {
+      "path": "src/csit/manifest.py",
+      "source": "DGX working tree",
+      "sha256": "17f61c19c475772efaf3da17cc859735665d0c69ade0816fa2954dd7a84de0cf",
+      "delivered_sha256": "17f61c19c475772efaf3da17cc859735665d0c69ade0816fa2954dd7a84de0cf"
+    },
+    {
+      "path": "src/csit/sync.py",
+      "source": "DGX working tree",
+      "sha256": "e6aae61d4d9f8e4b654b1d8babf58c43541aecee4edb9f0e9bd0a3e00960f216",
+      "delivered_sha256": "e6aae61d4d9f8e4b654b1d8babf58c43541aecee4edb9f0e9bd0a3e00960f216"
+    },
+    {
+      "path": "src/csit/ingest.py",
+      "source": "DGX working tree",
+      "sha256": "543f9639579353dda3a64f9df7d4803d2239fdc28ee2bb6c782dbce03ae3eb15",
+      "delivered_sha256": "543f9639579353dda3a64f9df7d4803d2239fdc28ee2bb6c782dbce03ae3eb15"
+    },
+    {
+      "path": "src/csit/assistant.py",
+      "source": "DGX working tree",
+      "sha256": "931c99c3062f33046bd1555da57df6fd1719738173212bd07b7ef5daaf3477c1",
+      "delivered_sha256": "931c99c3062f33046bd1555da57df6fd1719738173212bd07b7ef5daaf3477c1"
+    },
+    {
+      "path": "src/csit/__init__.py",
+      "source": "DGX working tree",
+      "sha256": "10e6624d6dde6635737eaab51ba10e5f37b1569e7154cf4ddeff7dd1af89edf2",
+      "delivered_sha256": "10e6624d6dde6635737eaab51ba10e5f37b1569e7154cf4ddeff7dd1af89edf2"
+    },
+    {
+      "path": "src/csit/contract.py",
+      "source": "DGX working tree",
+      "sha256": "b12105063b729579b54e6889063e10c4efa9a993fffa9d490adf26b7dfdb5d70",
+      "delivered_sha256": "b12105063b729579b54e6889063e10c4efa9a993fffa9d490adf26b7dfdb5d70"
+    },
+    {
+      "path": "src/graphrag/neo4j_schema.py",
+      "source": "DGX working tree",
+      "sha256": "c90c094b60919330af75f95b5ee36568713448bcda00f11e260c45c2ac1626a4",
+      "delivered_sha256": "c90c094b60919330af75f95b5ee36568713448bcda00f11e260c45c2ac1626a4"
+    },
+    {
+      "path": "src/graphrag/__init__.py",
+      "source": "DGX working tree",
+      "sha256": "0e7033db795c029c9c439255f62e9afcf64185f584b9404d7f4c0625e5e9a672",
+      "delivered_sha256": "0e7033db795c029c9c439255f62e9afcf64185f584b9404d7f4c0625e5e9a672"
+    },
+    {
+      "path": "src/converter/__init__.py",
+      "source": "DGX working tree",
+      "sha256": "d7ce38d054151cd019ef646635999518c8d02c292c485e95c05d1d46b38aa658",
+      "delivered_sha256": "d7ce38d054151cd019ef646635999518c8d02c292c485e95c05d1d46b38aa658"
+    },
+    {
+      "path": "src/test_reports/km_uploader.py",
+      "source": "DGX working tree",
+      "sha256": "e8062d31d99b0f1ef0177b5de97ecfff55eb5ff800dad489df2c57fc6178526f",
+      "delivered_sha256": "e8062d31d99b0f1ef0177b5de97ecfff55eb5ff800dad489df2c57fc6178526f"
+    },
+    {
+      "path": "src/test_reports/e2e_cleanup.py",
+      "source": "DGX working tree",
+      "sha256": "62c7de279c1a4c088e20bfcb8459315bde78960a3f1ca6f78f7b39d4d95d3afc",
+      "delivered_sha256": "62c7de279c1a4c088e20bfcb8459315bde78960a3f1ca6f78f7b39d4d95d3afc"
+    },
+    {
+      "path": "src/test_reports/canonical_graph.py",
+      "source": "DGX working tree",
+      "sha256": "49af51fd11e7a7c57f367312f8f98c607be39abfc385fa161b97636d687f57b8",
+      "delivered_sha256": "49af51fd11e7a7c57f367312f8f98c607be39abfc385fa161b97636d687f57b8"
+    },
+    {
+      "path": "src/test_reports/registry.py",
+      "source": "DGX working tree",
+      "sha256": "7e4b97ecdf9feb9d77c9d8c7878f026135ca66ef386e4ba1c5559af17a71da59",
+      "delivered_sha256": "7e4b97ecdf9feb9d77c9d8c7878f026135ca66ef386e4ba1c5559af17a71da59"
+    },
+    {
+      "path": "src/test_reports/excel_contract.py",
+      "source": "DGX working tree",
+      "sha256": "04c4825e28ac3905167e8dba64294148aaf557c422a3c51fac44c8362516ad65",
+      "delivered_sha256": "04c4825e28ac3905167e8dba64294148aaf557c422a3c51fac44c8362516ad65"
+    },
+    {
+      "path": "src/test_reports/auth.py",
+      "source": "DGX working tree",
+      "sha256": "ec31d5d03fff6da812157efb08a1cfdd09ddd4437d0493219530edbdf9cfaa27",
+      "delivered_sha256": "ec31d5d03fff6da812157efb08a1cfdd09ddd4437d0493219530edbdf9cfaa27"
+    },
+    {
+      "path": "src/test_reports/__init__.py",
+      "source": "DGX working tree",
+      "sha256": "480f31aaffd8064c4699506ae1bc808db1f1aa55ff841c9c0c038db94fed9dcc",
+      "delivered_sha256": "480f31aaffd8064c4699506ae1bc808db1f1aa55ff841c9c0c038db94fed9dcc"
+    },
+    {
+      "path": "src/csit_integration_v1/repository.py",
+      "source": "DGX working tree",
+      "sha256": "5c31959ff7b9fd42e649c073512a0dd35d44cf30e04d63ed2347e038ac5103f1",
+      "delivered_sha256": "5c31959ff7b9fd42e649c073512a0dd35d44cf30e04d63ed2347e038ac5103f1"
+    },
+    {
+      "path": "src/csit_integration_v1/config.py",
+      "source": "DGX working tree",
+      "sha256": "126d39999123f23cd680adb38cb091feaf5a94975efb2200e6531b410dda56e2",
+      "delivered_sha256": "126d39999123f23cd680adb38cb091feaf5a94975efb2200e6531b410dda56e2"
+    },
+    {
+      "path": "src/csit_integration_v1/models.py",
+      "source": "DGX working tree",
+      "sha256": "28c2c46384612f0117f0faf06c6bc976c782e3eb42016fdf0b869561e70f2616",
+      "delivered_sha256": "28c2c46384612f0117f0faf06c6bc976c782e3eb42016fdf0b869561e70f2616"
+    },
+    {
+      "path": "src/csit_integration_v1/pipeline.py",
+      "source": "DGX working tree",
+      "sha256": "1c6b995f13e45825dd6a6e05e853426d84341dbee7b0e3658c4beb6e3218e993",
+      "delivered_sha256": "1c6b995f13e45825dd6a6e05e853426d84341dbee7b0e3658c4beb6e3218e993"
+    },
+    {
+      "path": "src/csit_integration_v1/operator.py",
+      "source": "DGX working tree",
+      "sha256": "c7fba6cba697e41a43c683197d4e1f0015c8c71348059c6f1f073d7fc6cfb913",
+      "delivered_sha256": "c7fba6cba697e41a43c683197d4e1f0015c8c71348059c6f1f073d7fc6cfb913"
+    },
+    {
+      "path": "src/csit_integration_v1/errors.py",
+      "source": "DGX working tree",
+      "sha256": "b1dc727a3f05ba596574d2b7664ee41540db31d97abed2bf1b249da1c47f278b",
+      "delivered_sha256": "b1dc727a3f05ba596574d2b7664ee41540db31d97abed2bf1b249da1c47f278b"
+    },
+    {
+      "path": "src/csit_integration_v1/client.py",
+      "source": "DGX working tree",
+      "sha256": "d66ba3c8755b6469e76df89937486ce7b5630ca6ca4c9557ceab617c7a478dd5",
+      "delivered_sha256": "d66ba3c8755b6469e76df89937486ce7b5630ca6ca4c9557ceab617c7a478dd5"
+    },
+    {
+      "path": "src/csit_integration_v1/runtime.py",
+      "source": "DGX working tree",
+      "sha256": "7f209ec5c4a0755f146c07fb778fb29ccf021798b8e7c7acb9584578a742a28e",
+      "delivered_sha256": "7f209ec5c4a0755f146c07fb778fb29ccf021798b8e7c7acb9584578a742a28e"
+    },
+    {
+      "path": "src/csit_integration_v1/worker.py",
+      "source": "DGX working tree",
+      "sha256": "16dcaa72105734e313d371761aa896d6c2f9cc00939649ac3cd639f1e27d6cc2",
+      "delivered_sha256": "16dcaa72105734e313d371761aa896d6c2f9cc00939649ac3cd639f1e27d6cc2"
+    },
+    {
+      "path": "src/csit_integration_v1/writers.py",
+      "source": "DGX working tree",
+      "sha256": "937128cf20405f62d72e390022c62c43c394962d8d3af6ee11a4df39b398b0d3",
+      "delivered_sha256": "937128cf20405f62d72e390022c62c43c394962d8d3af6ee11a4df39b398b0d3"
+    },
+    {
+      "path": "src/csit_integration_v1/api.py",
+      "source": "DGX working tree",
+      "sha256": "af560ca420117b49d91ada54111d48c0d4cd1e5e09545c811c8f530bde2a0c71",
+      "delivered_sha256": "af560ca420117b49d91ada54111d48c0d4cd1e5e09545c811c8f530bde2a0c71"
+    },
+    {
+      "path": "src/csit_integration_v1/auth.py",
+      "source": "DGX working tree",
+      "sha256": "3b7baef3de522fd9808a094de3f15f5f3d15596d2237b54cf5aa48b86d0b2919",
+      "delivered_sha256": "3b7baef3de522fd9808a094de3f15f5f3d15596d2237b54cf5aa48b86d0b2919"
+    },
+    {
+      "path": "src/csit_integration_v1/__init__.py",
+      "source": "DGX working tree",
+      "sha256": "31333d48bfe804ec649531dd6a4fc05707201f2c85781606fb2dd3f4abac10ca",
+      "delivered_sha256": "31333d48bfe804ec649531dd6a4fc05707201f2c85781606fb2dd3f4abac10ca"
+    },
+    {
+      "path": "src/chunker/__init__.py",
+      "source": "DGX working tree",
+      "sha256": "3a818b806e2e42e550ee872c1b7cad8324a62e6817712734f0b7a71f50becd52",
+      "delivered_sha256": "3a818b806e2e42e550ee872c1b7cad8324a62e6817712734f0b7a71f50becd52"
+    },
+    {
+      "path": "src/vector_store/__init__.py",
+      "source": "DGX working tree",
+      "sha256": "31795636bea171c51dec17045ec8a08b89d30dff8f0c2e0b73579846beac4c3f",
+      "delivered_sha256": "31795636bea171c51dec17045ec8a08b89d30dff8f0c2e0b73579846beac4c3f"
+    },
+    {
+      "path": "tests/test_csit_contract.py",
+      "source": "DGX working tree",
+      "sha256": "c1e4d88f1fb7eaf8bd9eacaee996c0f85a1f6d5ddc8241931d99cb8474911074",
+      "delivered_sha256": "c1e4d88f1fb7eaf8bd9eacaee996c0f85a1f6d5ddc8241931d99cb8474911074"
+    },
+    {
+      "path": "tests/test_csit_sync.py",
+      "source": "DGX working tree",
+      "sha256": "ba7de79322a8a83083c484cc82ea326e0ddf627ca8766ced3fc60cc84b209181",
+      "delivered_sha256": "ba7de79322a8a83083c484cc82ea326e0ddf627ca8766ced3fc60cc84b209181"
+    },
+    {
+      "path": "tests/test_km_a2a_bridge_contracts.py",
+      "source": "DGX working tree",
+      "sha256": "ec6151cbc87d3aa26b8f158a1ef18e830b881f3d27cb92e6e364cd026113d965",
+      "delivered_sha256": "ec6151cbc87d3aa26b8f158a1ef18e830b881f3d27cb92e6e364cd026113d965"
+    },
+    {
+      "path": "tests/test_wp1_maintenance_entrypoint.py",
+      "source": "DGX working tree",
+      "sha256": "3f28889a027f0a71d028902019d6bf959a78dff5e47cbc57b7cade2969f0c720",
+      "delivered_sha256": "3f28889a027f0a71d028902019d6bf959a78dff5e47cbc57b7cade2969f0c720"
+    },
+    {
+      "path": "tests/test_km_spec_contract.py",
+      "source": "DGX working tree",
+      "sha256": "90111d1d2970a9a3474097e6a3be6ad60ea9db9d91e36de7a0e9a0e51b6980c0",
+      "delivered_sha256": "90111d1d2970a9a3474097e6a3be6ad60ea9db9d91e36de7a0e9a0e51b6980c0"
+    },
+    {
+      "path": "tests/test_km_a2a_bridge_app.py",
+      "source": "DGX working tree",
+      "sha256": "592b0abc14cf4fc5cfc822e3d77b34395e122387d5a3982b355975c286610276",
+      "delivered_sha256": "592b0abc14cf4fc5cfc822e3d77b34395e122387d5a3982b355975c286610276"
+    },
+    {
+      "path": "tests/test_frontend_runtime_artifacts.py",
+      "source": "DGX working tree",
+      "sha256": "4efdb2ae1fcc08fee06966c7da95aa056817ae2da6c3b12079670cf8b818bab7",
+      "delivered_sha256": "4efdb2ae1fcc08fee06966c7da95aa056817ae2da6c3b12079670cf8b818bab7"
+    },
+    {
+      "path": "tests/test_wp1_production_transaction_orchestrator.py",
+      "source": "DGX working tree",
+      "sha256": "3d84f43f4090b09ca32008f65eb24aeb4e4351c96c52ce52076b75306975cbdc",
+      "delivered_sha256": "3d84f43f4090b09ca32008f65eb24aeb4e4351c96c52ce52076b75306975cbdc"
+    },
+    {
+      "path": "tests/test_generate_anritsu_real_draft.py",
+      "source": "DGX working tree",
+      "sha256": "4579110ebd818887c9dbf6bbb047fde8e5c07fef8210a5d9d6e1cf1947cdd363",
+      "delivered_sha256": "4579110ebd818887c9dbf6bbb047fde8e5c07fef8210a5d9d6e1cf1947cdd363"
+    },
+    {
+      "path": "tests/test_publish_lifecycle.py",
+      "source": "DGX working tree",
+      "sha256": "85924f3339d18b5f2441252a622e5e7a01c48ecdc4e0c41ebf928914e3b9ad60",
+      "delivered_sha256": "85924f3339d18b5f2441252a622e5e7a01c48ecdc4e0c41ebf928914e3b9ad60"
+    },
+    {
+      "path": "tests/test_wp0_api_contract.py",
+      "source": "DGX working tree",
+      "sha256": "5f7e6e34bc3d2242911835af5181332df0681e59f262ff68e0d01554aefc9a86",
+      "delivered_sha256": "5f7e6e34bc3d2242911835af5181332df0681e59f262ff68e0d01554aefc9a86"
+    },
+    {
+      "path": "tests/test_restart_kb_script.py",
+      "source": "DGX working tree",
+      "sha256": "f32e63056cd8d0ec794c657c6bcd981a9bd2e01991626b3c78170c3aba0fa802",
+      "delivered_sha256": "f32e63056cd8d0ec794c657c6bcd981a9bd2e01991626b3c78170c3aba0fa802"
+    },
+    {
+      "path": "tests/test_wp1_transaction_result.py",
+      "source": "DGX working tree",
+      "sha256": "38acaacde1353d6d1cbe25946834ab1819d37d3f62e777ee0c5f4ef5d3a79aa5",
+      "delivered_sha256": "38acaacde1353d6d1cbe25946834ab1819d37d3f62e777ee0c5f4ef5d3a79aa5"
+    },
+    {
+      "path": "tests/test_km_a2a_anritsu_shadow_adapter.py",
+      "source": "DGX working tree",
+      "sha256": "ae2b0aaba410ddc9295eb1ec747ca7c2bd232fd0dec4ef13e8aa95e70355f6e9",
+      "delivered_sha256": "ae2b0aaba410ddc9295eb1ec747ca7c2bd232fd0dec4ef13e8aa95e70355f6e9"
+    },
+    {
+      "path": "tests/test_asset_root_wiring.py",
+      "source": "DGX working tree",
+      "sha256": "1a666acdcd50abe545c6805693ae21dc7e46a51e516434774fe6a7946ff5c288",
+      "delivered_sha256": "1a666acdcd50abe545c6805693ae21dc7e46a51e516434774fe6a7946ff5c288"
+    },
+    {
+      "path": "tests/test_km_a2a_r3_evidence.py",
+      "source": "DGX working tree",
+      "sha256": "65add62064d43277f4c4fe18838c5849689bb32302d8d1931bbafaf22de14185",
+      "delivered_sha256": "65add62064d43277f4c4fe18838c5849689bb32302d8d1931bbafaf22de14185"
+    },
+    {
+      "path": "tests/test_openai_compatible_llm.py",
+      "source": "DGX working tree",
+      "sha256": "57ea0abe9a20f85f828f805d3628e35c9b503dae18d506a2dfbde4d9d326a418",
+      "delivered_sha256": "57ea0abe9a20f85f828f805d3628e35c9b503dae18d506a2dfbde4d9d326a418"
+    },
+    {
+      "path": "tests/test_job_ledger_mount_contract.py",
+      "source": "DGX working tree",
+      "sha256": "ea595341720efee291f49251c99b29bafe3d5d22c5811d0f07001179e9bb14be",
+      "delivered_sha256": "ea595341720efee291f49251c99b29bafe3d5d22c5811d0f07001179e9bb14be"
+    },
+    {
+      "path": "tests/test_wp1_transaction_dispatcher.py",
+      "source": "DGX working tree",
+      "sha256": "297c3bfbcd764821cb9e43e0799fb9c1f90f8d58a2590db7b0d13039233abe1c",
+      "delivered_sha256": "297c3bfbcd764821cb9e43e0799fb9c1f90f8d58a2590db7b0d13039233abe1c"
+    },
+    {
+      "path": "tests/test_ingest_conflict_protection.py",
+      "source": "DGX working tree",
+      "sha256": "50f11cdd1a2421558f1f6d538bf6162e564604cb9b44842322b06399932dc2b1",
+      "delivered_sha256": "50f11cdd1a2421558f1f6d538bf6162e564604cb9b44842322b06399932dc2b1"
+    },
+    {
+      "path": "tests/test_production_run_id_gate.py",
+      "source": "DGX working tree",
+      "sha256": "3bcb7a946fd4de40f3586a9b9963b8158ec22cad29b8e9816f36759b1138f9fc",
+      "delivered_sha256": "3bcb7a946fd4de40f3586a9b9963b8158ec22cad29b8e9816f36759b1138f9fc"
+    },
+    {
+      "path": "tests/test_test_reports.py",
+      "source": "DGX working tree",
+      "sha256": "b7bcfa38155965064add1f82fe29381c73d5094f7cae3920f6b58b37ed490340",
+      "delivered_sha256": "b7bcfa38155965064add1f82fe29381c73d5094f7cae3920f6b58b37ed490340"
+    },
+    {
+      "path": "tests/test_deployment_readiness.py",
+      "source": "DGX working tree",
+      "sha256": "8341b7dfac24e88ec20a756404097032049eb937f2edcde3fd10d21f71a17e6d",
+      "delivered_sha256": "8341b7dfac24e88ec20a756404097032049eb937f2edcde3fd10d21f71a17e6d"
+    },
+    {
+      "path": "tests/test_km_a2a_real_client.py",
+      "source": "DGX working tree",
+      "sha256": "884848b4d5385637050ad60bbdd510ce9a62ad61f1b977f360edfff801aa8936",
+      "delivered_sha256": "884848b4d5385637050ad60bbdd510ce9a62ad61f1b977f360edfff801aa8936"
+    },
+    {
+      "path": "tests/test_wp1_celery_contract.py",
+      "source": "DGX working tree",
+      "sha256": "3a71fb2c24d745876774f91a2e973afd9bed0f5797006161e00c9a0d10de3950",
+      "delivered_sha256": "3a71fb2c24d745876774f91a2e973afd9bed0f5797006161e00c9a0d10de3950"
+    },
+    {
+      "path": "tests/test_write_e2e_gate.py",
+      "source": "DGX working tree",
+      "sha256": "8078bbca8050b6c924aaae91f6f330433078c4f07882fcadd050d34568f2f694",
+      "delivered_sha256": "8078bbca8050b6c924aaae91f6f330433078c4f07882fcadd050d34568f2f694"
+    },
+    {
+      "path": "tests/test_pre_wp01_rollback_scripts.py",
+      "source": "DGX working tree",
+      "sha256": "01c547eada418c737e2a40ceb74fdcc10a65f8e43dc230f94962fce739e2a7d9",
+      "delivered_sha256": "01c547eada418c737e2a40ceb74fdcc10a65f8e43dc230f94962fce739e2a7d9"
+    },
+    {
+      "path": "tests/test_acceptance_failure_capture.py",
+      "source": "DGX working tree",
+      "sha256": "bfc47d606660d955e7c8205490a6bad59bae2da9441b82f079dfa0fde762e1bc",
+      "delivered_sha256": "bfc47d606660d955e7c8205490a6bad59bae2da9441b82f079dfa0fde762e1bc"
+    },
+    {
+      "path": "tests/test_km_a2a_gate_a_evidence.py",
+      "source": "DGX working tree",
+      "sha256": "69d8663eacdd7b362bbdeb7789fe8eead474c7ce6850d281d3ff747fa503c435",
+      "delivered_sha256": "69d8663eacdd7b362bbdeb7789fe8eead474c7ce6850d281d3ff747fa503c435"
+    },
+    {
+      "path": "tests/test_km_a2a_real_registry.py",
+      "source": "DGX working tree",
+      "sha256": "d34cb9b8e4bfc5ed5c3e0ac5c3b1bc4d144ddf1fd4292d18209f1e3e54e8df0d",
+      "delivered_sha256": "d34cb9b8e4bfc5ed5c3e0ac5c3b1bc4d144ddf1fd4292d18209f1e3e54e8df0d"
+    },
+    {
+      "path": "tests/test_wp1_retry_policy.py",
+      "source": "DGX working tree",
+      "sha256": "8df41a5ac3aecbdb6938ddeb65a3516b6ebe46796455b277dc97765087b87dc9",
+      "delivered_sha256": "8df41a5ac3aecbdb6938ddeb65a3516b6ebe46796455b277dc97765087b87dc9"
+    },
+    {
+      "path": "tests/test_prepare_wp1_acceptance_fixture.py",
+      "source": "DGX working tree",
+      "sha256": "f69ff8e67d6f9e646a87c6cb49322a63b829e06fe9ad7660ef83284a3dca8fc0",
+      "delivered_sha256": "f69ff8e67d6f9e646a87c6cb49322a63b829e06fe9ad7660ef83284a3dca8fc0"
+    },
+    {
+      "path": "tests/test_wp0_architecture.py",
+      "source": "DGX working tree",
+      "sha256": "86d6097cefe2b3ffb33544ff7089560f82cfc1bd908cd7078b43490ceb7af50e",
+      "delivered_sha256": "86d6097cefe2b3ffb33544ff7089560f82cfc1bd908cd7078b43490ceb7af50e"
+    },
+    {
+      "path": "tests/test_e2e_credentials.py",
+      "source": "DGX working tree",
+      "sha256": "4c8ddf51cd9d452415ed34d0fa075f4eed5f5a030f7108d4a4ef424b9168ffa7",
+      "delivered_sha256": "4c8ddf51cd9d452415ed34d0fa075f4eed5f5a030f7108d4a4ef424b9168ffa7"
+    },
+    {
+      "path": "tests/test_wp1_websocket_protocol_contract.py",
+      "source": "DGX working tree",
+      "sha256": "ab6acceff38b70d30bab57f6714db2c3def1ea8c55a26bae57a69728b7c6edf9",
+      "delivered_sha256": "ab6acceff38b70d30bab57f6714db2c3def1ea8c55a26bae57a69728b7c6edf9"
+    },
+    {
+      "path": "tests/test_phase1_status_contract.py",
+      "source": "DGX working tree",
+      "sha256": "5ebdbb582e21ef7ef0c397062f409eee812a04c340a116fc8c9aab73886a24e0",
+      "delivered_sha256": "5ebdbb582e21ef7ef0c397062f409eee812a04c340a116fc8c9aab73886a24e0"
+    },
+    {
+      "path": "tests/test_production_acceptance_hard_gates.py",
+      "source": "DGX working tree",
+      "sha256": "cb0bb896df061a5a80a4eac17083eb6070d5fe0affaec0abe3ff9e011723cdf9",
+      "delivered_sha256": "cb0bb896df061a5a80a4eac17083eb6070d5fe0affaec0abe3ff9e011723cdf9"
+    },
+    {
+      "path": "tests/test_ingress_failure_capture_contract.py",
+      "source": "DGX working tree",
+      "sha256": "72c04bd2c60e8a1a886bb30525a9a0c58d81340091985d2128aad5aaa94d4330",
+      "delivered_sha256": "72c04bd2c60e8a1a886bb30525a9a0c58d81340091985d2128aad5aaa94d4330"
+    },
+    {
+      "path": "tests/test_km_a2a_real_contracts.py",
+      "source": "DGX working tree",
+      "sha256": "29011cf2619db2926b7998b580782160c991db5b10b65d5eee90637a292338e8",
+      "delivered_sha256": "29011cf2619db2926b7998b580782160c991db5b10b65d5eee90637a292338e8"
+    },
+    {
+      "path": "tests/test_km_a2a_gate_a_execution_evidence.py",
+      "source": "DGX working tree",
+      "sha256": "a069d48a2b54f3b29205087ea3f0ffa28aae6c778df51be63b84305b20c085d1",
+      "delivered_sha256": "a069d48a2b54f3b29205087ea3f0ffa28aae6c778df51be63b84305b20c085d1"
+    },
+    {
+      "path": "tests/test_excel_chunk_image_contract.py",
+      "source": "DGX working tree",
+      "sha256": "b5e1c8df5d282d0c0c4d0aaf3f486abf2f48c8e0037d834bcd64e41eb372b833",
+      "delivered_sha256": "b5e1c8df5d282d0c0c4d0aaf3f486abf2f48c8e0037d834bcd64e41eb372b833"
+    },
+    {
+      "path": "tests/test_document_intelligence.py",
+      "source": "DGX working tree",
+      "sha256": "d5795206b3e2a2e40d7a3c12ff20c67db805c8311ac70c4a0c444ceb7171a21f",
+      "delivered_sha256": "d5795206b3e2a2e40d7a3c12ff20c67db805c8311ac70c4a0c444ceb7171a21f"
+    },
+    {
+      "path": "tests/test_wp1_upload_failure_observation.py",
+      "source": "DGX working tree",
+      "sha256": "049f081409f5c5ef74c5341d650c3b04ed9e6bd3a6b06646f4abff1f37f4bf51",
+      "delivered_sha256": "049f081409f5c5ef74c5341d650c3b04ed9e6bd3a6b06646f4abff1f37f4bf51"
+    },
+    {
+      "path": "tests/test_csit_manifest.py",
+      "source": "DGX working tree",
+      "sha256": "e82fb5de6a042238cde66b300c670399b1b6cd7af66e50c93d594cbb220628ce",
+      "delivered_sha256": "e82fb5de6a042238cde66b300c670399b1b6cd7af66e50c93d594cbb220628ce"
+    },
+    {
+      "path": "tests/test_anritsu_km_auto_upload.py",
+      "source": "DGX working tree",
+      "sha256": "f850b8231382ebe110725f2edff64bf63d2c8b2265474540959b348650fb166f",
+      "delivered_sha256": "f850b8231382ebe110725f2edff64bf63d2c8b2265474540959b348650fb166f"
+    },
+    {
+      "path": "tests/test_csit_pull.py",
+      "source": "DGX working tree",
+      "sha256": "f60a4d43d71253e59ade8e521b45e3b635584a5dfac6f9f8550641f5f54bab0c",
+      "delivered_sha256": "f60a4d43d71253e59ade8e521b45e3b635584a5dfac6f9f8550641f5f54bab0c"
+    },
+    {
+      "path": "tests/test_km_a2a_bridge_service.py",
+      "source": "DGX working tree",
+      "sha256": "a0033107c2e3acc93d14fc575bce283e738e76cf8cf4efc62b0f70ebcc64e59f",
+      "delivered_sha256": "a0033107c2e3acc93d14fc575bce283e738e76cf8cf4efc62b0f70ebcc64e59f"
+    },
+    {
+      "path": "tests/test_km_a2a_bridge_sdk_transport.py",
+      "source": "DGX working tree",
+      "sha256": "7632f4c72582e231011671576b6bc99b3f34d4e6a4ed5ee8c319c54dd752c341",
+      "delivered_sha256": "7632f4c72582e231011671576b6bc99b3f34d4e6a4ed5ee8c319c54dd752c341"
+    },
+    {
+      "path": "tests/test_km_a2a_safety_lifecycle.py",
+      "source": "DGX working tree",
+      "sha256": "22474c9b3a75aad4e3725006c9d7bf7fe2698383241d4c1d1b15c19765e66be7",
+      "delivered_sha256": "22474c9b3a75aad4e3725006c9d7bf7fe2698383241d4c1d1b15c19765e66be7"
+    },
+    {
+      "path": "tests/test_km_a2a_mock_real_runtime.py",
+      "source": "DGX working tree",
+      "sha256": "a2fef58ec95d0f781e2a27b3be5f2c3107c4edbc69707350f327bb235276d7f3",
+      "delivered_sha256": "a2fef58ec95d0f781e2a27b3be5f2c3107c4edbc69707350f327bb235276d7f3"
+    },
+    {
+      "path": "tests/test_csit_manifest_ingest.py",
+      "source": "DGX working tree",
+      "sha256": "eaa6b769f9bf6023ab7f3b46a8570a149e98428fad8fc81861e0b0e126f458fc",
+      "delivered_sha256": "eaa6b769f9bf6023ab7f3b46a8570a149e98428fad8fc81861e0b0e126f458fc"
+    },
+    {
+      "path": "tests/test_release_metadata.py",
+      "source": "DGX working tree",
+      "sha256": "23b09b8455cb32fddb0ee51a05bf66a5c8eab1d150fbd57711a4172dbe243cf4",
+      "delivered_sha256": "23b09b8455cb32fddb0ee51a05bf66a5c8eab1d150fbd57711a4172dbe243cf4"
+    },
+    {
+      "path": "tests/test_wp0_legacy_compatibility.py",
+      "source": "DGX working tree",
+      "sha256": "4ff07311ba8064e76e9e3f55e36d00c0cfe747a8f8491c88dff07eb7cb68279a",
+      "delivered_sha256": "4ff07311ba8064e76e9e3f55e36d00c0cfe747a8f8491c88dff07eb7cb68279a"
+    },
+    {
+      "path": "tests/test_e2e_cleanup.py",
+      "source": "DGX working tree",
+      "sha256": "7b8c21d64f65a052c8bdb8d59feed2ae3f90b64e5e17ce2ec6c20cd3657d2b2f",
+      "delivered_sha256": "7b8c21d64f65a052c8bdb8d59feed2ae3f90b64e5e17ce2ec6c20cd3657d2b2f"
+    },
+    {
+      "path": "tests/test_document_normalization.py",
+      "source": "DGX working tree",
+      "sha256": "8985dad7b8c526f66c79e1f97268fd3c4e1a281f47dc292e65fb9e48b95ecd7c",
+      "delivered_sha256": "8985dad7b8c526f66c79e1f97268fd3c4e1a281f47dc292e65fb9e48b95ecd7c"
+    },
+    {
+      "path": "tests/test_km_control_auth.py",
+      "source": "DGX working tree",
+      "sha256": "7ca197a3af4e397382bfb39489322acb5dbc21c877f02e40b9383ecf0b31331d",
+      "delivered_sha256": "7ca197a3af4e397382bfb39489322acb5dbc21c877f02e40b9383ecf0b31331d"
+    },
+    {
+      "path": "tests/test_wp1_isolated_diagnostics.py",
+      "source": "DGX working tree",
+      "sha256": "01ed08c9a3c220ada7a4439534a0afda5a86f6f827a411def11b00667dbe2c30",
+      "delivered_sha256": "01ed08c9a3c220ada7a4439534a0afda5a86f6f827a411def11b00667dbe2c30"
+    },
+    {
+      "path": "tests/test_release_compose_override.py",
+      "source": "DGX working tree",
+      "sha256": "d620f6699e53c254035b127efe47b6427edc27ac6986fe51c0464bba046082c8",
+      "delivered_sha256": "d620f6699e53c254035b127efe47b6427edc27ac6986fe51c0464bba046082c8"
+    },
+    {
+      "path": "tests/test_wp1_job_config.py",
+      "source": "DGX working tree",
+      "sha256": "e320bac4b24c5f52e219edd2f775b9ebdc781499e8e63f7cff2e61070ee1a044",
+      "delivered_sha256": "e320bac4b24c5f52e219edd2f775b9ebdc781499e8e63f7cff2e61070ee1a044"
+    },
+    {
+      "path": "tests/test_document_pipeline.py",
+      "source": "DGX working tree",
+      "sha256": "a5041531d3e784159bf9b11d451bbab1fb0dc96cec68503d51510b6afa56460c",
+      "delivered_sha256": "a5041531d3e784159bf9b11d451bbab1fb0dc96cec68503d51510b6afa56460c"
+    },
+    {
+      "path": "tests/test_km_uploader.py",
+      "source": "DGX working tree",
+      "sha256": "f48b2668bc4879a9bf6b134646395aea3b0cc0dab831ea81f7e71180afa107d4",
+      "delivered_sha256": "f48b2668bc4879a9bf6b134646395aea3b0cc0dab831ea81f7e71180afa107d4"
+    },
+    {
+      "path": "tests/km_dev_upload/test_upload.py",
+      "source": "DGX working tree",
+      "sha256": "032aa00fcc77ac81aeed93b50d96ae930e9c390b91d528f501ff99ea35c177ea",
+      "delivered_sha256": "032aa00fcc77ac81aeed93b50d96ae930e9c390b91d528f501ff99ea35c177ea"
+    },
+    {
+      "path": "tests/km_dev_upload/test_chat_bridge.py",
+      "source": "DGX working tree",
+      "sha256": "754ce6b909e291f382db4136924a6e2cb129de8f68d2958177fcd50e1a11d42d",
+      "delivered_sha256": "754ce6b909e291f382db4136924a6e2cb129de8f68d2958177fcd50e1a11d42d"
+    },
+    {
+      "path": "tests/csit_v1/test_direct_auth_probe.py",
+      "source": "DGX working tree",
+      "sha256": "ebb64df86c41730141d9e62d1e9de9f719f8afc97094692abee3f1f339593b48",
+      "delivered_sha256": "ebb64df86c41730141d9e62d1e9de9f719f8afc97094692abee3f1f339593b48"
+    },
+    {
+      "path": "tests/csit_v1/test_operator_resume.py",
+      "source": "DGX working tree",
+      "sha256": "aa9205089aae65bdba4e0b56a09c714df2e38a4786da58755c10e10c2a3af14e",
+      "delivered_sha256": "aa9205089aae65bdba4e0b56a09c714df2e38a4786da58755c10e10c2a3af14e"
+    },
+    {
+      "path": "tests/csit_v1/conftest.py",
+      "source": "DGX working tree",
+      "sha256": "3cd0a313754aa73904d71e4dea3bea4592ed5676d959d892908801b19fb3ea5b",
+      "delivered_sha256": "0427771f669fb4bf08a90a23ee2db45a559997aa7c157969ae091126313e20cd"
+    },
+    {
+      "path": "tests/csit_v1/test_outbound_provider.py",
+      "source": "DGX working tree",
+      "sha256": "064272ee7db8304ccd6ffd689b3bd212c11a32ac26016532af3b13de36a19374",
+      "delivered_sha256": "064272ee7db8304ccd6ffd689b3bd212c11a32ac26016532af3b13de36a19374"
+    },
+    {
+      "path": "tests/csit_v1/test_inbound_principal_contract.py",
+      "source": "DGX working tree",
+      "sha256": "1b351c6a6234b6012aa004939dd661f480791ad571fa285772eea29f42b69365",
+      "delivered_sha256": "1b351c6a6234b6012aa004939dd661f480791ad571fa285772eea29f42b69365"
+    },
+    {
+      "path": "tests/csit_v1/test_client_pipeline.py",
+      "source": "DGX working tree",
+      "sha256": "80bcc7f19ef40639415ea6ea13c0952aadbf5f7a7c298002cd347fcf27486ddd",
+      "delivered_sha256": "80bcc7f19ef40639415ea6ea13c0952aadbf5f7a7c298002cd347fcf27486ddd"
+    },
+    {
+      "path": "tests/csit_v1/test_worker_lifecycle.py",
+      "source": "DGX working tree",
+      "sha256": "b46061a8ab90606f4a6876c579a95127230dbdd468cea72f51075167f64c2304",
+      "delivered_sha256": "b46061a8ab90606f4a6876c579a95127230dbdd468cea72f51075167f64c2304"
+    },
+    {
+      "path": "tests/csit_v1/test_contract_repository.py",
+      "source": "DGX working tree",
+      "sha256": "0d1bbd3ba8eaa9de3c4740e63869a5a1becb70b61d7bbd7e70c55fa9c6b396de",
+      "delivered_sha256": "0d1bbd3ba8eaa9de3c4740e63869a5a1becb70b61d7bbd7e70c55fa9c6b396de"
+    },
+    {
+      "path": "tests/csit_v1/test_auth_writers.py",
+      "source": "DGX working tree",
+      "sha256": "b531b51f5bba0856ef2acc0076d8f14390453bcecb1ac0d0b0ea6de8df59a9e2",
+      "delivered_sha256": "4a9960d23a261e3597c8999d8dd32451589789489c8169e9d60476ebd1e579a4"
+    },
+    {
+      "path": "tests/csit_v1/test_zone_regression.py",
+      "source": "DGX working tree",
+      "sha256": "03b1137f1626804a39331988c062fd7bd9aac89f41ea4ec4f56f4f3724a5a247",
+      "delivered_sha256": "03b1137f1626804a39331988c062fd7bd9aac89f41ea4ec4f56f4f3724a5a247"
+    },
+    {
+      "path": "tests/csit_v1/test_processing_callback_contract.py",
+      "source": "DGX working tree",
+      "sha256": "ded7cc505ce6fca2ea401e59b4a08b12952a75b56a0d875aeef1ab225481fc1c",
+      "delivered_sha256": "ded7cc505ce6fca2ea401e59b4a08b12952a75b56a0d875aeef1ab225481fc1c"
+    },
+    {
+      "path": "tests/csit_v1/test_canonical_number_contract.py",
+      "source": "DGX working tree",
+      "sha256": "03f86eea80aec29a1e4da19e6d239a5fafb0dc87925f37a99f61cce0aec5deec",
+      "delivered_sha256": "03f86eea80aec29a1e4da19e6d239a5fafb0dc87925f37a99f61cce0aec5deec"
+    },
+    {
+      "path": "km_a2a_bridge/real_client.py",
+      "source": "DGX working tree",
+      "sha256": "11a5ac28c28c54b05f1104397ecedb316b9a0483ecb0a788bf369bff939dc437",
+      "delivered_sha256": "11a5ac28c28c54b05f1104397ecedb316b9a0483ecb0a788bf369bff939dc437"
+    },
+    {
+      "path": "km_a2a_bridge/journal.py",
+      "source": "DGX working tree",
+      "sha256": "2c0ca258bba2ba2a6a4cd9e06c0e0d6effc23058f439cd4a652b3339f5ed2989",
+      "delivered_sha256": "2c0ca258bba2ba2a6a4cd9e06c0e0d6effc23058f439cd4a652b3339f5ed2989"
+    },
+    {
+      "path": "km_a2a_bridge/real_contracts.py",
+      "source": "DGX working tree",
+      "sha256": "f8932b7684ed98e68f65114105f8362cf515c93b70ab78d0542ee2e0f66f04cc",
+      "delivered_sha256": "f8932b7684ed98e68f65114105f8362cf515c93b70ab78d0542ee2e0f66f04cc"
+    },
+    {
+      "path": "km_a2a_bridge/config.py",
+      "source": "DGX working tree",
+      "sha256": "232786514d6e34321ab14539bfa692728f96be7ae46fa4ce65bdad6cabcbf7e3",
+      "delivered_sha256": "232786514d6e34321ab14539bfa692728f96be7ae46fa4ce65bdad6cabcbf7e3"
+    },
+    {
+      "path": "km_a2a_bridge/sdk_transport.py",
+      "source": "DGX working tree",
+      "sha256": "98428b96ba3d4241a6f029a72a4f6335dc5ef46cc3a8ecb5a6e2d11f700280ad",
+      "delivered_sha256": "98428b96ba3d4241a6f029a72a4f6335dc5ef46cc3a8ecb5a6e2d11f700280ad"
+    },
+    {
+      "path": "km_a2a_bridge/contracts.py",
+      "source": "DGX working tree",
+      "sha256": "b1ef8e7569842b6aeb2b6d13fc95de3ea1429e6bcc1710f79e4b29c40a2e1d40",
+      "delivered_sha256": "b1ef8e7569842b6aeb2b6d13fc95de3ea1429e6bcc1710f79e4b29c40a2e1d40"
+    },
+    {
+      "path": "km_a2a_bridge/gate_a_evidence.py",
+      "source": "DGX working tree",
+      "sha256": "c0e809755b882baea90071ebbce3c4c306b677008840586fb64c226de770d35a",
+      "delivered_sha256": "c0e809755b882baea90071ebbce3c4c306b677008840586fb64c226de770d35a"
+    },
+    {
+      "path": "km_a2a_bridge/transport.py",
+      "source": "DGX working tree",
+      "sha256": "cf5b4f50e0d19ee0b6d4931d34d563ff6fc5ddf0f7e265c7d68695fb6c592dde",
+      "delivered_sha256": "cf5b4f50e0d19ee0b6d4931d34d563ff6fc5ddf0f7e265c7d68695fb6c592dde"
+    },
+    {
+      "path": "km_a2a_bridge/mock_real_runtime.py",
+      "source": "DGX working tree",
+      "sha256": "534a9f6154973ca753d8fbb078be519b1a0a8fb377a957b49e137265885eebce",
+      "delivered_sha256": "534a9f6154973ca753d8fbb078be519b1a0a8fb377a957b49e137265885eebce"
+    },
+    {
+      "path": "km_a2a_bridge/real_registry.py",
+      "source": "DGX working tree",
+      "sha256": "859d380e68a5508340ebaa42877b2b9ab43a4950896dacd5f73313d180a4c0b3",
+      "delivered_sha256": "859d380e68a5508340ebaa42877b2b9ab43a4950896dacd5f73313d180a4c0b3"
+    },
+    {
+      "path": "km_a2a_bridge/app.py",
+      "source": "DGX working tree",
+      "sha256": "6a3db8f3deb69d95d7d386e9932bbbfcaed488abae6bb10f3cc90143efdafeca",
+      "delivered_sha256": "6a3db8f3deb69d95d7d386e9932bbbfcaed488abae6bb10f3cc90143efdafeca"
+    },
+    {
+      "path": "km_a2a_bridge/safety_lifecycle.py",
+      "source": "DGX working tree",
+      "sha256": "b53cc14d1a6112afdbe52498c43a307b5762f5ab3bd3c5f7d7024f4349712a66",
+      "delivered_sha256": "b53cc14d1a6112afdbe52498c43a307b5762f5ab3bd3c5f7d7024f4349712a66"
+    },
+    {
+      "path": "km_a2a_bridge/gate_a_execution_evidence.py",
+      "source": "DGX working tree",
+      "sha256": "232bb45812fdd5f5964a6e059ea2a46b6c87f974831a7a258943a749a479d76e",
+      "delivered_sha256": "232bb45812fdd5f5964a6e059ea2a46b6c87f974831a7a258943a749a479d76e"
+    },
+    {
+      "path": "km_a2a_bridge/__init__.py",
+      "source": "DGX working tree",
+      "sha256": "3661dba1f7e3e1d638c6a4182b7f1b585f4ddf6eef2160ec7bb00b8726a2dec1",
+      "delivered_sha256": "3661dba1f7e3e1d638c6a4182b7f1b585f4ddf6eef2160ec7bb00b8726a2dec1"
+    },
+    {
+      "path": "km_a2a_bridge/r3_evidence.py",
+      "source": "DGX working tree",
+      "sha256": "fab79ed3b033ee368b4e1bad2272e5e2e0079a01074cb9cdab54ee227d9da04c",
+      "delivered_sha256": "fab79ed3b033ee368b4e1bad2272e5e2e0079a01074cb9cdab54ee227d9da04c"
+    },
+    {
+      "path": "km_a2a_bridge/service.py",
+      "source": "DGX working tree",
+      "sha256": "e4ff56926e75539d25c50d73bba335803b22c7c2c099f382bab7cae8c3b13b86",
+      "delivered_sha256": "e4ff56926e75539d25c50d73bba335803b22c7c2c099f382bab7cae8c3b13b86"
+    },
+    {
+      "path": "km_a2a_bridge/anritsu_shadow_adapter.py",
+      "source": "DGX working tree",
+      "sha256": "be287e29f69fa3e3ba78c738b8c6e56915a6ff2ff1dc2b3dcfd92ceee906f942",
+      "delivered_sha256": "be287e29f69fa3e3ba78c738b8c6e56915a6ff2ff1dc2b3dcfd92ceee906f942"
+    },
+    {
+      "path": "frontend/src/App.vue",
+      "source": "DGX working tree",
+      "sha256": "92a9313c02b79eca17233f52fa234f89eddf662b2d8ce4c4b50f639058bb2890",
+      "delivered_sha256": "92a9313c02b79eca17233f52fa234f89eddf662b2d8ce4c4b50f639058bb2890"
+    },
+    {
+      "path": "frontend/src/main.js",
+      "source": "DGX working tree",
+      "sha256": "802a9a1c2bb0a8ab41b49b2bbd71ae5290ac5e7fe464be08225893da28e2726b",
+      "delivered_sha256": "802a9a1c2bb0a8ab41b49b2bbd71ae5290ac5e7fe464be08225893da28e2726b"
+    },
+    {
+      "path": "frontend/src/services/admin.js",
+      "source": "DGX working tree",
+      "sha256": "516b2a256b197b741c95fdfaa7f1913170ee76c0a9d61dcd9641cc158156f722",
+      "delivered_sha256": "516b2a256b197b741c95fdfaa7f1913170ee76c0a9d61dcd9641cc158156f722"
+    },
+    {
+      "path": "frontend/src/services/api.js",
+      "source": "DGX working tree",
+      "sha256": "f83495b1d22ecdd2d6949ee2701b4ced48e05b008a375f62aeb277837e767a35",
+      "delivered_sha256": "f83495b1d22ecdd2d6949ee2701b4ced48e05b008a375f62aeb277837e767a35"
+    },
+    {
+      "path": "frontend/src/router/index.js",
+      "source": "DGX working tree",
+      "sha256": "6f06d7bab9a98d8e54074d476e5eed7c336f74d3c453388c48f508b8a30ba9be",
+      "delivered_sha256": "6f06d7bab9a98d8e54074d476e5eed7c336f74d3c453388c48f508b8a30ba9be"
+    },
+    {
+      "path": "frontend/src/views/AdminView.vue",
+      "source": "DGX working tree",
+      "sha256": "97235a5bb385964b0d0183d6d42188a36b7bd38d59e1634cc85da44f4c59cc49",
+      "delivered_sha256": "97235a5bb385964b0d0183d6d42188a36b7bd38d59e1634cc85da44f4c59cc49"
+    },
+    {
+      "path": "frontend/src/views/SearchView.vue",
+      "source": "DGX working tree",
+      "sha256": "6d088cfd83c1d7729ae5fe9b380379cc41ccc132aed2eb67c5636684bb0480ad",
+      "delivered_sha256": "6d088cfd83c1d7729ae5fe9b380379cc41ccc132aed2eb67c5636684bb0480ad"
+    },
+    {
+      "path": "frontend/src/views/SkillManagementView.vue",
+      "source": "DGX working tree",
+      "sha256": "97761d5fe4477324f052edbb9c11fdf491ed087877c3b0d047d9bcc1d9306427",
+      "delivered_sha256": "97761d5fe4477324f052edbb9c11fdf491ed087877c3b0d047d9bcc1d9306427"
+    },
+    {
+      "path": "frontend/src/views/CsitBrowserView.vue",
+      "source": "DGX working tree",
+      "sha256": "a09e23b03d4586215cf158090ebb3a7f729b40322de19d865c38b9ce66420b60",
+      "delivered_sha256": "a09e23b03d4586215cf158090ebb3a7f729b40322de19d865c38b9ce66420b60"
+    },
+    {
+      "path": "frontend/src/views/UploadView.vue",
+      "source": "DGX working tree",
+      "sha256": "95b0d87c8b0bbfe4537fd8dda33aab3dbe0591f9f5d12a0c9020ec91bf835bc6",
+      "delivered_sha256": "95b0d87c8b0bbfe4537fd8dda33aab3dbe0591f9f5d12a0c9020ec91bf835bc6"
+    },
+    {
+      "path": "frontend/src/views/ReportReviewView.vue",
+      "source": "DGX working tree",
+      "sha256": "723b2216d0bcd7ccad4b2c8203c03e7e9aeec47656db495dde47d7979f5da06a",
+      "delivered_sha256": "723b2216d0bcd7ccad4b2c8203c03e7e9aeec47656db495dde47d7979f5da06a"
+    },
+    {
+      "path": "frontend/src/views/ChunkViewerView.vue",
+      "source": "DGX working tree",
+      "sha256": "ec3c8f7b2628965dbbea7df7a23b702d148e6a8abab1aa37c302279f13a88494",
+      "delivered_sha256": "ec3c8f7b2628965dbbea7df7a23b702d148e6a8abab1aa37c302279f13a88494"
+    },
+    {
+      "path": "frontend/src/views/ChatView.vue",
+      "source": "DGX working tree",
+      "sha256": "5cc270ec0845872204295d03d418faab93d1083e3e649fc9a1a3220db75460b6",
+      "delivered_sha256": "5cc270ec0845872204295d03d418faab93d1083e3e649fc9a1a3220db75460b6"
+    },
+    {
+      "path": "frontend/chat.html",
+      "source": "DGX working tree",
+      "sha256": "4eb9b80bddd8deada05b79a809964dc90aed9d1026fce843ef35631db3507d38",
+      "delivered_sha256": "4eb9b80bddd8deada05b79a809964dc90aed9d1026fce843ef35631db3507d38"
+    },
+    {
+      "path": "frontend/ws-chat.cjs",
+      "source": "DGX working tree",
+      "sha256": "475ffc17661f95784615d3f0744bd049d80e828c40cb8c0f22c522706db7bcdd",
+      "delivered_sha256": "475ffc17661f95784615d3f0744bd049d80e828c40cb8c0f22c522706db7bcdd"
+    },
+    {
+      "path": "scripts/csit-integration-operator.py",
+      "source": "DGX working tree",
+      "sha256": "626e3f500aff0069c2adc2976d6732462557bbe57b763412ae86fe1c93a56279",
+      "delivered_sha256": "626e3f500aff0069c2adc2976d6732462557bbe57b763412ae86fe1c93a56279"
+    },
+    {
+      "path": "src/chunk_assets.py",
+      "source": "DGX working tree",
+      "sha256": "d2e810dcd0de61aab8ab55d87e75ff77bf2f0313375b468e92cb8af919b86916",
+      "delivered_sha256": "d2e810dcd0de61aab8ab55d87e75ff77bf2f0313375b468e92cb8af919b86916"
+    },
+    {
+      "path": "config/csit-integration-v1.env.example",
+      "source": "DGX working tree",
+      "sha256": "4caaf1f9481504ed7f160861f4275778b5d9dbd16be53db3659465197d5b617d",
+      "delivered_sha256": "accebaa2ce9f5e278c6cc54f67bacfded65dfbba84e02bd3d29f2006439523ad"
+    },
+    {
+      "path": "config/csit-integration-v1.numeric-rules.json",
+      "source": "DGX working tree",
+      "sha256": "110845f6795860e6dd85a820c4cfe092efe13ae5e4e7aaebc4430f8c3228f136",
+      "delivered_sha256": "110845f6795860e6dd85a820c4cfe092efe13ae5e4e7aaebc4430f8c3228f136"
+    },
+    {
+      "path": "config/config.yaml.example",
+      "source": "DGX working tree",
+      "sha256": "315793723b3f96ee4ca4d3dd3291a4cc0a64deaeb5e2780161f0064aa3fd926e",
+      "delivered_sha256": "315793723b3f96ee4ca4d3dd3291a4cc0a64deaeb5e2780161f0064aa3fd926e"
+    },
+    {
+      "path": "docs/csit-integration-api-v1-km-dev.md",
+      "source": "DGX working tree",
+      "sha256": "349fdb92979d01a29905b67ed526f49138dc8971381f5151a389685425074ad8",
+      "delivered_sha256": "a064712774cf93a5339628a591f78f58c1f44a5799cf8c5d6dc9e1277ab210d2"
+    },
+    {
+      "path": "migrations/20261007_csit_graph_v1.cypher",
+      "source": "DGX working tree",
+      "sha256": "285ea80b22282c84e40e1490dad81fab1d769203e74aa8a71dde5cab056e5c8d",
+      "delivered_sha256": "285ea80b22282c84e40e1490dad81fab1d769203e74aa8a71dde5cab056e5c8d"
+    },
+    {
+      "path": "migrations/20261007_csit_numeric_v1.sql",
+      "source": "DGX working tree",
+      "sha256": "67c57e3a514a53aa6f9465fa65844d282bbdd4ad97a9ef1c78e36418cb07e86d",
+      "delivered_sha256": "67c57e3a514a53aa6f9465fa65844d282bbdd4ad97a9ef1c78e36418cb07e86d"
+    },
+    {
+      "path": "migrations/20261007_km_dev_upload_numeric.sql",
+      "source": "DGX working tree",
+      "sha256": "40b10617865667bfb3ed7313f241d8382a9e30dcdc413706488808a7a38682f1",
+      "delivered_sha256": "40b10617865667bfb3ed7313f241d8382a9e30dcdc413706488808a7a38682f1"
+    },
+    {
+      "path": "migrations/20261007_km_dev_upload_graph.cypher",
+      "source": "DGX working tree",
+      "sha256": "b7dd880ab304d602d28e0f9bbefba6290b2d621a03a1bdb04267aac751426629",
+      "delivered_sha256": "b7dd880ab304d602d28e0f9bbefba6290b2d621a03a1bdb04267aac751426629"
+    },
+    {
+      "path": "migrations/20261007_csit_integration_v1.sql",
+      "source": "DGX working tree",
+      "sha256": "aeb27e42720315e5a296993b0ac92e1ab890cebe33fd8ebf6ddd48b5db7ac6f7",
+      "delivered_sha256": "aeb27e42720315e5a296993b0ac92e1ab890cebe33fd8ebf6ddd48b5db7ac6f7"
+    },
+    {
+      "path": "migrations/20261007_km_dev_upload_jobs.sql",
+      "source": "DGX working tree",
+      "sha256": "3f38f2e1b3367db2a089fbe2b9fceba05c70fd55d965c0dc4fbf415eb0f244de",
+      "delivered_sha256": "3f38f2e1b3367db2a089fbe2b9fceba05c70fd55d965c0dc4fbf415eb0f244de"
+    },
+    {
+      "path": "src/km_control.py",
+      "source": "deployed DEV Control image",
+      "sha256": "12d484486d1bed2249b3f826b09f45ad66b98b1464560417e20208d6ea46b01a",
+      "delivered_sha256": "12d484486d1bed2249b3f826b09f45ad66b98b1464560417e20208d6ea46b01a"
+    },
+    {
+      "path": "src/oidc_control.py",
+      "source": "deployed DEV Control image",
+      "sha256": "c5ad11a47276734a3ec783a690b07afa23787cdaf1ec1f022d4d62c1236612e8",
+      "delivered_sha256": "c5ad11a47276734a3ec783a690b07afa23787cdaf1ec1f022d4d62c1236612e8"
+    },
+    {
+      "path": "src/control_auth_routes.py",
+      "source": "deployed DEV Control image",
+      "sha256": "504358e76a59fbfc4665b4c50f463dbc8ab64506bcb4386b12b5a2694b22a5ef",
+      "delivered_sha256": "504358e76a59fbfc4665b4c50f463dbc8ab64506bcb4386b12b5a2694b22a5ef"
+    },
+    {
+      "path": "src/instance_isolation.py",
+      "source": "deployed DEV Control image",
+      "sha256": "7c54c94fbbd3b4088da1f949da1571b0498dcecea03bd0eacd3acda355bc4265",
+      "delivered_sha256": "7c54c94fbbd3b4088da1f949da1571b0498dcecea03bd0eacd3acda355bc4265"
+    },
+    {
+      "path": "src/km_accounts.py",
+      "source": "deployed DEV Control image",
+      "sha256": "4533fbb4766ecb9c35c16304130cc9684bd9b120d56c883e0f8c75cf2999837f",
+      "delivered_sha256": "4533fbb4766ecb9c35c16304130cc9684bd9b120d56c883e0f8c75cf2999837f"
+    },
+    {
+      "path": "app/control_main.py",
+      "source": "deployed DEV Control image",
+      "sha256": "f11a032788ed108e800f9756271adbc4a09ab08a22f02878c40e828e6ba3d595",
+      "delivered_sha256": "f11a032788ed108e800f9756271adbc4a09ab08a22f02878c40e828e6ba3d595"
+    },
+    {
+      "path": "tests/control_v1/test_passwordless_binding.py",
+      "source": "protected regression test source",
+      "sha256": "86dcf29a0a00857bf3c0d4d2dfb8f79d4585a8005487199b28a4d1bc90b85649",
+      "delivered_sha256": "86dcf29a0a00857bf3c0d4d2dfb8f79d4585a8005487199b28a4d1bc90b85649"
+    },
+    {
+      "path": "tests/control_v1/test_oidc_handoff.py",
+      "source": "protected regression test source",
+      "sha256": "2edb51160cdc6341efc135dea89530df61b2e4c12c416ada69a263d7cf4e6c22",
+      "delivered_sha256": "6152a13901b69dc333b8b3ce3183dd1920590c00566ec3f3299a7a89e3954b5c"
+    }
+  ],
+  "packaging_changes": [
+    "public-base Docker targets",
+    "resolved dependency locks",
+    "official CPU torch index",
+    "portable fixture paths",
+    "aligned empty auth config template",
+    "isolated test/sandbox Compose",
+    "frontend/control source from protected deployment",
+    "documentation and source verifier"
+  ]
+}

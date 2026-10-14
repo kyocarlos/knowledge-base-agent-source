@@ -18,6 +18,7 @@ _IDENTIFIER = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$")
 _REQUESTER = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:@-]{0,127}$")
 _SHA256 = re.compile(r"^[a-fA-F0-9]{64}$")
 MAX_APPROVAL_TTL = timedelta(minutes=15)
+REAL_RUN_SCHEMA_VERSION = "1.1-real-no-approval"
 
 
 class RealRunApproval(BaseModel):
@@ -69,7 +70,7 @@ class RealArtifactPolicy(BaseModel):
 
 
 class RealRunJob(BaseModel):
-    """Request contract kept separate from the existing dry-run ``TestJob``."""
+    """Legacy 1.0 contract retained for disabled rollback compatibility."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -115,6 +116,42 @@ class RealRunJob(BaseModel):
         return self
 
 
+class RealRunJobNoApproval(BaseModel):
+    """Enabled 1.1 contract; authorization is deployment-gated, not per job."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    job_schema_version: Literal["1.1-real-no-approval"] = REAL_RUN_SCHEMA_VERSION
+    dry_run: Literal[False] = False
+    job_type: Literal["run_iperf_test"]
+    environment: Literal["anritsu"]
+    profile_id: str
+    run_id: str
+    requested_by: str
+    duration_seconds: int = Field(ge=1, le=3600)
+    test_cases: list[str] = Field(min_length=1, max_length=1)
+
+    @field_validator("profile_id", "run_id")
+    @classmethod
+    def _safe_identifier(cls, value: str) -> str:
+        if not _IDENTIFIER.fullmatch(value):
+            raise ValueError("must use a safe identifier")
+        return value
+
+    @field_validator("requested_by")
+    @classmethod
+    def _safe_requester(cls, value: str) -> str:
+        if not _REQUESTER.fullmatch(value):
+            raise ValueError("must use a safe requester identifier")
+        return value
+
+    @field_validator("test_cases")
+    @classmethod
+    def _safe_single_case(cls, values: list[str]) -> list[str]:
+        if len(values) != 1 or not _IDENTIFIER.fullmatch(values[0]):
+            raise ValueError("real-run requires exactly one safe test case")
+        return values
+
 class RealRunState(str, Enum):
     SUBMITTED = "submitted"
     APPROVED = "approved"
@@ -133,14 +170,14 @@ class RealRunCorrelation(BaseModel):
     run_id: str
     context_id: str
     a2a_task_id: str
-    approval_id: str
+    approval_id: str | None = None
     execution_owner: Literal["anritsu-openclaw"]
     audit_id: str
     instrument_lock_id: str | None = None
     artifact_sha256: str | None = None
     ingest_task_id: str | None = None
 
-    @field_validator("run_id", "context_id", "a2a_task_id", "approval_id", "audit_id")
+    @field_validator("run_id", "context_id", "a2a_task_id", "audit_id")
     @classmethod
     def _nonblank_identifier(cls, value: str) -> str:
         if not value.strip():

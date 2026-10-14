@@ -1,0 +1,21 @@
+# Explicit opt-in overlay for a separately approved DEV target.
+services:
+  worker:
+    build:
+      context: ../..
+      dockerfile: deploy/csit-integration-v1/Dockerfile
+      target: worker
+    profiles: [worker]
+    env_file:
+      - ${KM_CSIT_ENV_FILE:?external DEV worker settings required}
+    volumes:
+      - sandbox-storage:/var/lib/km/data
+      - ${KM_CSIT_SERVICE_SECRET_HOST:?external service secret file required}:/run/secrets/km-csit-service:ro
+      - ${KM_CSIT_NEO4J_SECRET_HOST:?external DEV Neo4j secret required}:/run/secrets/km-da40-neo4j:ro
+      - ${KM_CSIT_TIMESCALE_DSN_HOST:?external DEV Timescale DSN required}:/run/secrets/km-da40-timescale:ro
+      - sandbox-models:/root/.cache/huggingface
+    deploy:
+      replicas: 1
+volumes:
+  sandbox-storage:
+  sandbox-models:

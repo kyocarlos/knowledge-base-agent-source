@@ -42,6 +42,7 @@ def test_rollback_never_deletes_volumes_or_restores_data_implicitly():
     assert "docker volume" not in source
     assert "--force-recreate" in source
     assert "--no-deps" in source
+    assert "verify_running_services" in source
 
 
 def test_backup_uses_logical_and_online_database_exports():
@@ -50,6 +51,17 @@ def test_backup_uses_logical_and_online_database_exports():
     assert "pg_dump" in source
     assert "/snapshots" in source
     assert "sqlite3" in source
+    assert '"NEO4J_PASSWORD"' in source
+
+
+def test_checkpoint_verifier_requires_runtime_and_database_artifacts():
+    source = (ROOT / "scripts/verify_pre_wp01_checkpoint.py").read_text()
+    assert "application-images.tar" in source
+    assert "postgres-kb-reports.dump" in source
+    assert "neo4j-export.cypher" in source
+    assert "NEO4J_PASSWORD=" in source
+    assert "openclaw-runtime.tar.gz" in source
+    assert "nginx-certs.tar.gz" in source
 
 
 def test_shadow_drill_uses_isolated_names_and_failure_injection():

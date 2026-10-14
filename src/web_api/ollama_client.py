@@ -29,7 +29,8 @@ class OllamaLoadBalancer:
         instances: List[str],
         model: str = "qwen3-coder-next",
         strategy: str = "round_robin",
-        num_predict: int = 768
+        num_predict: int = 768,
+        timeout: float = 300
     ):
         """
         初始化負載平衡器
@@ -43,6 +44,7 @@ class OllamaLoadBalancer:
         self.model = model
         self.strategy = strategy
         self.num_predict = num_predict
+        self.timeout = timeout
         self.current_index = 0
 
         logger.info(f"Ollama 負載平衡器初始化：{len(instances)} 個實例，策略：{strategy}")
@@ -54,7 +56,7 @@ class OllamaLoadBalancer:
 
         parsed = urlparse(instance)
         host = instance if parsed.scheme else f"http://{instance}"
-        return ollama.Client(host=host)
+        return ollama.Client(host=host, timeout=self.timeout)
 
     def get_next_instance(self) -> str:
         """根據策略取得下一個實例"""
@@ -168,6 +170,7 @@ class OllamaClient:
 
         ollama_config = config.get("ollama", {})
         self.num_predict = int(ollama_config.get("num_predict", 768))
+        self.timeout = float(ollama_config.get("timeout", 300))
 
         configured_instances = instances or ollama_config.get("instances")
 
@@ -177,14 +180,16 @@ class OllamaClient:
                 instances=configured_instances,
                 model=model,
                 strategy=strategy or ollama_config.get("strategy", "round_robin"),
-                num_predict=self.num_predict
+                num_predict=self.num_predict,
+                timeout=self.timeout
             )
         else:
             # 向後相容：使用單一實例
             self.client = OllamaLoadBalancer(
                 instances=[base_url],
                 model=model,
-                num_predict=self.num_predict
+                num_predict=self.num_predict,
+                timeout=self.timeout
             )
 
         self.model = model

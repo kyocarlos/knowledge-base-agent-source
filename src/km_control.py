@@ -87,12 +87,12 @@ def verify_control_session(token: str) -> dict:
 
 
 def issue_oidc_binding_session(identity_id: str) -> str:
-    return _issue_token({"identity_id": identity_id, "aud": "km-oidc-binding"}, "KM_OIDC_BINDING_SIGNING_KEY", 10 * 60)
+    return _issue_token({"sub": identity_id, "identity_id": identity_id, "aud": "km-oidc-binding"}, "KM_OIDC_BINDING_SIGNING_KEY", 10 * 60)
 
 
 def verify_oidc_binding_session(token: str) -> dict:
     claims = _verify_token(token, "KM_OIDC_BINDING_SIGNING_KEY", "km-oidc-binding")
-    if not claims.get("identity_id"):
+    if not claims.get("identity_id") or claims.get("sub") != claims.get("identity_id"):
         raise ControlAuthenticationError("invalid OIDC binding session")
     return claims
 
@@ -161,6 +161,11 @@ class ControlRegistry:
         return statement.replace("?", "%s") if self.is_postgres else statement
 
     def _initialize(self) -> None:
+        # PostgreSQL schema is managed by the explicit DEV DBA migration.
+        if self.is_postgres:
+            with self._connection() as connection:
+                connection.execute("SELECT identity_id, reviewed_by, reviewed_at, reject_reason FROM km_external_identities LIMIT 0")
+            return
         with self._connection() as connection:
             connection.execute(self._sql("""
                 CREATE TABLE IF NOT EXISTS km_users (
@@ -201,10 +206,14 @@ class ControlRegistry:
                     identity_id TEXT PRIMARY KEY, provider_issuer TEXT NOT NULL, subject TEXT NOT NULL,
                     user_id TEXT, binding_status TEXT NOT NULL, profile_json TEXT NOT NULL,
                     requested_at BIGINT NOT NULL, verified_at BIGINT, approved_at BIGINT,
-                    approved_by TEXT, updated_at BIGINT NOT NULL,
-                    UNIQUE(provider_issuer, subject)
+                    approved_by TEXT, reviewed_by TEXT, reviewed_at BIGINT, reject_reason TEXT, updated_at BIGINT NOT NULL,
+                    UNIQUE(provider_issuer, subject),
+                    CHECK(binding_status IN ('pending','bound','rejected')),
+                    CHECK(binding_status = 'bound' OR user_id IS NULL)
                 )
             """))
+
+            connection.execute("CREATE UNIQUE INDEX IF NOT EXISTS km_external_identities_bound_user_unique ON km_external_identities(user_id) WHERE binding_status = 'bound'")
 
     def _audit(self, connection: object, event_type: str, actor_user_id: str | None, target_user_id: str | None, detail: dict | None = None) -> None:
         connection.execute(self._sql("INSERT INTO km_audit_events (event_id, occurred_at, actor_user_id, target_user_id, event_type, detail_json) VALUES (?, ?, ?, ?, ?, ?)"),
@@ -444,16 +453,18 @@ class ControlRegistry:
         if not provider_issuer or not subject:
             raise ControlError("OIDC issuer and subject are required")
         now = _now()
+        # Profile claims are display references only, never binding keys/grants.
+        safe_profile = {key: profile.get(key) for key in ("account", "name", "email", "email_verified", "department", "team")}
+        encoded = json.dumps(safe_profile, separators=(",", ":"), sort_keys=True)
         with self._connection() as connection:
+            cursor = connection.execute(self._sql("INSERT INTO km_external_identities (identity_id, provider_issuer, subject, user_id, binding_status, profile_json, requested_at, verified_at, approved_at, approved_by, reviewed_by, reviewed_at, reject_reason, updated_at) VALUES (?, ?, ?, NULL, 'pending', ?, ?, NULL, NULL, NULL, NULL, NULL, NULL, ?) ON CONFLICT(provider_issuer, subject) DO NOTHING"),
+                (str(uuid.uuid4()), provider_issuer, subject, encoded, now, now))
+            created = cursor.rowcount == 1
             row = connection.execute(self._sql("SELECT * FROM km_external_identities WHERE provider_issuer = ? AND subject = ?"), (provider_issuer, subject)).fetchone()
-            if row:
-                connection.execute(self._sql("UPDATE km_external_identities SET profile_json = ?, updated_at = ? WHERE identity_id = ?"), (json.dumps(profile, separators=(",", ":"), sort_keys=True), now, row["identity_id"]))
-                row = connection.execute(self._sql("SELECT * FROM km_external_identities WHERE identity_id = ?"), (row["identity_id"],)).fetchone()
-            else:
-                identity_id = str(uuid.uuid4())
-                connection.execute(self._sql("INSERT INTO km_external_identities (identity_id, provider_issuer, subject, user_id, binding_status, profile_json, requested_at, verified_at, approved_at, approved_by, updated_at) VALUES (?, ?, ?, NULL, 'pending', ?, ?, NULL, NULL, NULL, ?)"), (identity_id, provider_issuer, subject, json.dumps(profile, separators=(",", ":"), sort_keys=True), now, now))
-                self._audit(connection, "oidc_identity_pending", None, None, {"identity_id": identity_id, "issuer": provider_issuer})
-                row = connection.execute(self._sql("SELECT * FROM km_external_identities WHERE identity_id = ?"), (identity_id,)).fetchone()
+            connection.execute(self._sql("UPDATE km_external_identities SET profile_json = ?, updated_at = ? WHERE identity_id = ?"), (encoded, now, row["identity_id"]))
+            if created:
+                self._audit(connection, "oidc_identity_pending", None, None, {"identity_id": row["identity_id"], "issuer": provider_issuer})
+            row = connection.execute(self._sql("SELECT * FROM km_external_identities WHERE identity_id = ?"), (row["identity_id"],)).fetchone()
         return dict(row)
 
     def get_external_identity(self, identity_id: str) -> dict | None:
@@ -461,35 +472,55 @@ class ControlRegistry:
             row = connection.execute(self._sql("SELECT * FROM km_external_identities WHERE identity_id = ?"), (identity_id,)).fetchone()
         return dict(row) if row else None
 
-    def verify_external_identity_local_account(self, identity_id: str, user: ControlUser) -> None:
-        now = _now()
-        with self._connection() as connection:
-            row = connection.execute(self._sql("SELECT binding_status FROM km_external_identities WHERE identity_id = ?"), (identity_id,)).fetchone()
-            if not row or row["binding_status"] != "pending":
-                raise ControlError("OIDC identity is not pending")
-            connection.execute(self._sql("UPDATE km_external_identities SET user_id = ?, binding_status = 'awaiting_approval', verified_at = ?, updated_at = ? WHERE identity_id = ?"), (user.user_id, now, now, identity_id))
-            self._audit(connection, "oidc_local_account_verified", user.user_id, user.user_id, {"identity_id": identity_id})
+    def _require_binding_admin(self, connection: object, actor_user_id: str) -> None:
+        actor = self._user(connection.execute(self._sql("SELECT user_id, username, status, is_admin, session_epoch FROM km_users WHERE user_id = ?"), (actor_user_id,)).fetchone())
+        if not actor or actor.status != "active" or not actor.is_admin:
+            raise ControlAuthorizationError("KM Control admin role required")
 
-    def approve_external_identity(self, actor_user_id: str, identity_id: str) -> ControlUser:
+    def approve_external_identity(self, actor_user_id: str, identity_id: str, target_user_id: str) -> ControlUser:
+        now = _now()
+        try:
+            with self._connection() as connection:
+                self._require_binding_admin(connection, actor_user_id)
+                lock = " FOR UPDATE" if self.is_postgres else ""
+                row = connection.execute(self._sql("SELECT user_id, binding_status FROM km_external_identities WHERE identity_id = ?" + lock), (identity_id,)).fetchone()
+                if not row or row["binding_status"] != "pending":
+                    raise ControlError("OIDC binding request is not pending")
+                user = self._user(connection.execute(self._sql("SELECT user_id, username, status, is_admin, session_epoch FROM km_users WHERE user_id = ?" + lock), (target_user_id,)).fetchone())
+                if not user or user.status != "active":
+                    raise ControlError("target KM account must exist and be active")
+                existing = connection.execute(self._sql("SELECT identity_id FROM km_external_identities WHERE user_id = ? AND binding_status = 'bound'"), (user.user_id,)).fetchone()
+                if existing:
+                    raise ControlError("target KM account already has an approved external identity")
+                cursor = connection.execute(self._sql("UPDATE km_external_identities SET user_id = ?, binding_status = 'bound', approved_at = ?, approved_by = ?, reviewed_at = ?, reviewed_by = ?, reject_reason = NULL, updated_at = ? WHERE identity_id = ? AND binding_status = 'pending'"),
+                    (user.user_id, now, actor_user_id, now, actor_user_id, now, identity_id))
+                if cursor.rowcount != 1:
+                    raise ControlError("OIDC binding request was already reviewed")
+                self._audit(connection, "oidc_identity_bound", actor_user_id, user.user_id, {"identity_id": identity_id})
+        except Exception as exc:
+            if isinstance(exc, sqlite3.IntegrityError) or getattr(exc, "sqlstate", None) == "23505":
+                raise ControlError("external identity or target KM account is already bound") from None
+            raise
+        # Binding never modifies accounts, passwords, roles or grants.
+        return user
+
+    def reject_external_identity(self, actor_user_id: str, identity_id: str, reason: str) -> None:
+        reason = reason.strip()
+        if not reason or len(reason) > 1000:
+            raise ControlError("a rejection reason of 1 to 1000 characters is required")
         now = _now()
         with self._connection() as connection:
-            row = connection.execute(self._sql("SELECT user_id, binding_status FROM km_external_identities WHERE identity_id = ?"), (identity_id,)).fetchone()
-            if not row or row["binding_status"] != "awaiting_approval" or not row["user_id"]:
-                raise ControlError("OIDC identity is not ready for approval")
-            user = self._user(connection.execute(self._sql("SELECT user_id, username, status, is_admin, session_epoch FROM km_users WHERE user_id = ?"), (row["user_id"],)).fetchone())
-            if not user:
-                raise ControlError("bound local account no longer exists")
-            connection.execute(self._sql("UPDATE km_external_identities SET binding_status = 'bound', approved_at = ?, approved_by = ?, updated_at = ? WHERE identity_id = ?"), (now, actor_user_id, now, identity_id))
-            connection.execute(self._sql("UPDATE km_users SET session_epoch = session_epoch + 1, updated_at = ? WHERE user_id = ?"), (now, user.user_id))
-            self._audit(connection, "oidc_identity_bound", actor_user_id, user.user_id, {"identity_id": identity_id})
-        approved = self.get_user(user.user_id)
-        assert approved is not None
-        return approved
+            self._require_binding_admin(connection, actor_user_id)
+            cursor = connection.execute(self._sql("UPDATE km_external_identities SET user_id = NULL, binding_status = 'rejected', reviewed_by = ?, reviewed_at = ?, reject_reason = ?, updated_at = ? WHERE identity_id = ? AND binding_status = 'pending'"),
+                (actor_user_id, now, reason, now, identity_id))
+            if cursor.rowcount != 1:
+                raise ControlError("OIDC binding request is not pending")
+            self._audit(connection, "oidc_identity_rejected", actor_user_id, None, {"identity_id": identity_id})
 
     def list_external_identities(self, only_pending: bool = False) -> list[dict]:
         statement = "SELECT * FROM km_external_identities"
         if only_pending:
-            statement += " WHERE binding_status IN ('pending', 'awaiting_approval')"
+            statement += " WHERE binding_status = 'pending'"
         statement += " ORDER BY requested_at DESC"
         with self._connection() as connection:
             return [dict(row) for row in connection.execute(self._sql(statement)).fetchall()]

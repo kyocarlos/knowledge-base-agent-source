@@ -43,6 +43,17 @@ REPORT_FOCUS_HINTS = ("throughput", "latency", "bler", "rtt")
 REPORT_PERFORMANCE_SECTION_HINTS = ("performance test",)
 
 
+def _attachment_hashes_from_state(state: dict) -> dict[str, str]:
+    """Rebuild the validated RawArtifacts hash mapping for worker re-validation."""
+    hashes: dict[str, str] = {}
+    for attachment in state.get("attachments", []) or []:
+        name = Path(str(attachment.get("name", ""))).name
+        digest = str(attachment.get("sha256", "")).strip().lower()
+        if name and re.fullmatch(r"[0-9a-f]{64}", digest):
+            hashes[name] = digest
+    return hashes
+
+
 def _is_report_like_query(query: str) -> bool:
     text = (query or "").lower()
     if any(hint in text for hint in REPORT_QUERY_HINTS):
@@ -366,15 +377,11 @@ def preload_models(**kwargs):
             session.run("RETURN 1")
         logger.info("      Neo4j 連線: ✅")
         
-        # 3. 預先初始化 Ollama Client
-        logger.info("[3/4] 初始化 Ollama Client...")
-        from ..web_api.ollama_client import OllamaClient
-        ollama_config = config.get("ollama", {})
-        _preloaded_llm_client = OllamaClient(
-            model=ollama_config.get("model", "qwen3-coder-next"),
-            base_url=ollama_config.get("instances", ["http://localhost:11434"])[0] if ollama_config.get("instances") else ollama_config.get("base_url", "http://localhost:11434")
-        )
-        logger.info("      Ollama Client: ✅")
+        # 3. 預先初始化 configured LLM provider
+        logger.info("[3/4] 初始化 configured LLM client...")
+        from ..web_api.llm_factory import create_llm_client
+        _preloaded_llm_client = create_llm_client(config)
+        logger.info("      LLM client: ✅")
         
         logger.info("=" * 50)
         logger.info("✅ Worker 預載入完成！所有模型已就緒")
@@ -683,25 +690,48 @@ def ingest_file_task(self, task_id: str):
         canonical_report = None
         if state.get("canonical_test_report"):
             from ..test_reports.excel_contract import parse_and_validate_report, render_report_markdown
-            canonical_report = parse_and_validate_report(original_path)
+            canonical_report = parse_and_validate_report(
+                original_path,
+                _attachment_hashes_from_state(state),
+            )
             converted_path.parent.mkdir(parents=True, exist_ok=True)
-            converted_path.write_text(render_report_markdown(canonical_report), encoding="utf-8")
+            canonical_markdown = render_report_markdown(canonical_report)
+            image_refs = []
+            if original_path.suffix.lower() == ".xlsx":
+                # The canonical report renderer owns the report contract, while
+                # the converter owns Excel embedded-image extraction. Keep both
+                # responsibilities and persist the image section beside the
+                # canonical report instead of losing it at this boundary.
+                from ..converter import FileConverter
+
+                excel_enrichment = FileConverter()._build_excel_enrichment(original_path)
+                enrichment_text = str(excel_enrichment.get("text") or "").strip()
+                image_refs = excel_enrichment.get("image_refs", []) or []
+                if enrichment_text:
+                    canonical_markdown = f"{canonical_markdown}\n\n{enrichment_text}"
+
+            converted_path.write_text(canonical_markdown, encoding="utf-8")
             manifest = canonical_report["manifest"]
+            # Keep the converted sidecar authoritative for downstream Neo4j/Qdrant
+            # writers.  The upload state is also persisted separately, but the
+            # vector writer reads metadata next to the converted document.
+            canonical_identity = {
+                "run_id": manifest["run_id"],
+                "environment": manifest["environment"],
+                "project_code": manifest["project_code"],
+                "dut_model": manifest["dut_model"],
+                "verdict": manifest["overall_verdict"],
+                "started_at": manifest["started_at"],
+                "schema_version": manifest["schema_version"],
+                "storage_category": "Report",
+                "extraction_mode": "report",
+                "image_refs": image_refs,
+            }
             converted_path.with_name(f"{converted_path.stem}.source.json").write_text(
-                json.dumps({
-                    "run_id": manifest["run_id"],
-                    "environment": manifest["environment"],
-                    "project_code": manifest["project_code"],
-                    "dut_model": manifest["dut_model"],
-                    "verdict": manifest["overall_verdict"],
-                    "started_at": manifest["started_at"],
-                    "schema_version": manifest["schema_version"],
-                    "storage_category": "Report",
-                    "extraction_mode": "report",
-                }, ensure_ascii=False, indent=2),
+                json.dumps(canonical_identity, ensure_ascii=False, indent=2),
                 encoding="utf-8",
             )
-            result = {"status": "success", "image_refs": []}
+            result = {"status": "success", "image_refs": image_refs}
         else:
             from ..converter import FileConverter
             converter = FileConverter()
@@ -755,9 +785,6 @@ def ingest_file_task(self, task_id: str):
         except Exception as index_error:
             logger.warning(f"更新 index.md 失敗（不阻斷攝入完成）: {index_error}")
 
-        if state.get("ui_session_upload"):
-            from ..ui_upload_tracking import record_upload
-            record_upload(task_id=task_id, data_zone=state["data_zone"], file_name=state["file_name"], file_hash=state["file_hash"], extraction_mode=extraction_mode, status="completed", report=canonical_report)
         final_state = update_ingest_task_state(
             task_id,
             status="completed",
@@ -789,21 +816,9 @@ def ingest_file_task(self, task_id: str):
         logger.error("攝入任務失敗 task_id=%s trace_id=%s retryable=%s: %s", task_id, trace_id, decision.retryable, e)
         if decision.retryable and self.request.retries < JOB_CONFIG.max_retries:
             update_ingest_task_state(task_id, status="retrying", error=decision.reason, trace_id=trace_id)
-            if state.get("ui_session_upload"):
-                try:
-                    from ..ui_upload_tracking import update_upload_status
-                    update_upload_status(state, "retrying")
-                except Exception as tracking_error:
-                    logger.error("更新 UI 上傳重試狀態失敗 task_id=%s: %s", task_id, tracking_error)
             if lock_acquired:
                 release_document_lock(document_id, lock_owner)
             raise self.retry(exc=e, countdown=JOB_CONFIG.retry_countdown_seconds)
-        if state.get("ui_session_upload"):
-            try:
-                from ..ui_upload_tracking import update_upload_status
-                update_upload_status(state, "failed")
-            except Exception as tracking_error:
-                logger.error("更新 UI 上傳追蹤狀態失敗 task_id=%s: %s", task_id, tracking_error)
         failed_state = update_ingest_task_state(task_id, status="failed", error=str(e))
         if state.get("document_id"):
             try:
@@ -923,7 +938,10 @@ def search_task(self, query: str, mode: str, top_k: int | None = None, sources_o
 
         # 對報告型查詢拉高召回，避免只拿到 TOC / 前言
         effective_top_k = top_k
-        if _is_report_like_query(query):
+        # Source-only requests feed the citation/source-first UI path and must
+        # not fan out to the full report recall set. Full answer generation
+        # keeps the existing high-recall behavior.
+        if _is_report_like_query(query) and not sources_only:
             effective_top_k = max(effective_top_k or 0, REPORT_RECALL_TOP_K)
             logger.info(f"Report-like query detected, top_k adjusted to {effective_top_k}")
 
@@ -1044,19 +1062,9 @@ def search_task(self, query: str, mode: str, top_k: int | None = None, sources_o
                             "status": "completed"
                         }
 
-            if kb.search_engine._is_report_like_query(query):
-                report_graph_result = kb.search_engine._report_graph_search_raw(query, effective_top_k)
-                raw_sources = report_graph_result.get("sources", []) or []
-                answer = report_graph_result.get("answer", "") or ""
-                if raw_sources:
-                    citation_distribution = _build_search_citation_distribution(raw_sources)
-                    return {
-                        "answer": answer,
-                        "sources": raw_sources,
-                        "citation_distribution": citation_distribution,
-                        "mode": report_graph_result.get("mode", search_mode),
-                        "status": "completed"
-                    }
+            # Source-only is deliberately a retrieval contract.  Do not call
+            # report-graph answer generation here: that path may invoke the
+            # LLM and defeats the source-first UI latency boundary.
             if search_mode == "vector":
                 vector_result = kb.search_engine._vector_search_raw(query, effective_top_k)
                 raw_sources = _prefer_report_detailed_sources(query, vector_result.get("sources", []))
@@ -1351,7 +1359,7 @@ def _write_source_metadata(
         "updated_at": _now_iso(),
     }
     for key in (
-        "source_system", "environment_id", "project_id", "run_id", "artifact_type",
+        "source_system", "environment", "environment_id", "project_id", "run_id", "artifact_type",
         "report_schema", "original_file_name", "source_file_hash", "ingest_file_hash",
         "document_id", "idempotency_key", "generated_at",
     ):

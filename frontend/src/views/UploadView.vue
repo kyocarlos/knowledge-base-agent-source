@@ -146,10 +146,6 @@
             <span class="result-label">轉換檔案</span>
             <span class="result-value">{{ result.converted_path }}</span>
           </div>
-          <div class="result-item" v-if="result.data_zone">
-            <span class="result-label">資料區</span>
-            <span class="result-value">{{ result.data_zone }}</span>
-          </div>
           <div class="result-item" v-if="result.task_id">
             <span class="result-label">任務 ID</span>
             <span class="result-value">{{ result.task_id }}</span>
@@ -343,12 +339,6 @@ const extractionModes = [
     icon: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2zM22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>'
   },
   {
-    id: 'report',
-    name: '測試報告（Excel）',
-    description: '驗證既有報告格式，寫入知識庫並記錄結構化指標',
-    icon: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 3h16v18H4zM8 8h8M8 12h8M8 16h5"/></svg>'
-  },
-  {
     id: 'automation',
     name: 'Automation 自動化',
     description: 'Chunk 後直接寫入 QDrant，不寫入 Neo4j',
@@ -391,7 +381,7 @@ async function uploadFile() {
     const formData = new FormData()
     formData.append('file', selectedFile.value)
 
-    let endpoint = autoIngest.value ? '/api/ui/upload/ingest' : '/api/upload'
+    let endpoint = autoIngest.value ? '/api/upload/ingest' : '/api/upload'
 
     if (autoIngest.value) {
       endpoint += `?extraction_mode=${selectedMode.value}`
@@ -426,7 +416,7 @@ async function uploadFile() {
       result.value = {
         status: 'failed',
         file_name: selectedFile.value.name,
-        error: parsedBody?.error || parsedBody?.detail?.message || parsedBody?.detail || parsedBody?.message || `HTTP ${response.status} ${response.statusText}`,
+        error: parsedBody?.error || `HTTP ${response.status} ${response.statusText}`,
         response_status: response.status,
         response_preview: parsedBody?.response_preview || bodyText.slice(0, 1000)
       }
@@ -1426,235 +1416,5 @@ onUnmounted(() => {
   border-radius: 4px;
   font-size: 0.72em;
   font-weight: 600;
-}
-
-/* === chat-v2 high-contrast upload theme === */
-.upload-page {
-  color: #e7ffff;
-}
-
-.upload-card,
-.result-card,
-.tasks-card,
-.files-card {
-  background: linear-gradient(145deg, rgba(24, 78, 88, .78), rgba(7, 35, 43, .9));
-  border-color: rgba(127, 255, 227, .22);
-  box-shadow: 0 16px 45px rgba(0, 0, 0, .2);
-}
-
-.upload-card::before,
-.result-card::before,
-.tasks-card::before,
-.files-card::before {
-  background: linear-gradient(90deg, #7fffe3, #17d9ff);
-}
-
-.upload-zone {
-  background: rgba(4, 25, 32, .52);
-  border-bottom-color: rgba(127, 255, 227, .18);
-  outline: none;
-}
-
-.upload-zone:hover,
-.upload-zone:focus-within {
-  background: linear-gradient(145deg, rgba(24, 78, 88, .7), rgba(7, 35, 43, .82));
-  box-shadow: inset 0 0 0 1px rgba(127, 255, 227, .24);
-}
-
-.zone-icon,
-.file-icon-wrapper,
-.file-type-icon {
-  background: rgba(127, 255, 227, .1);
-  color: #7fffe3;
-}
-
-.zone-primary,
-.file-name,
-.task-file-name,
-.result-value {
-  color: #e7ffff;
-}
-
-.zone-secondary,
-.file-size,
-.file-meta,
-.task-step,
-.task-queue,
-.task-percent,
-.files-empty,
-.result-label,
-.status-file,
-.error-status {
-  color: #b9d6da;
-}
-
-.selected-file,
-.content-preview,
-.task-item,
-.preview-content,
-.error-preview {
-  background: rgba(3, 22, 29, .58);
-  border-color: rgba(127, 255, 227, .18);
-  color: #e7ffff;
-}
-
-.selected-file:hover,
-.task-item:hover,
-.file-item:hover {
-  background: rgba(127, 255, 227, .08);
-}
-
-.options-section,
-.result-header,
-.tasks-header,
-.files-header {
-  border-color: rgba(127, 255, 227, .16);
-  color: #e7ffff;
-}
-
-.checkbox-label {
-  background: rgba(3, 22, 29, .58);
-  border-color: rgba(127, 255, 227, .18);
-  color: #e7ffff;
-}
-
-.checkbox-label:hover {
-  background: rgba(127, 255, 227, .08);
-  border-color: rgba(127, 255, 227, .5);
-}
-
-.checkbox {
-  border-color: rgba(127, 255, 227, .45);
-}
-
-.checkbox.checked {
-  background: linear-gradient(135deg, #7fffe3, #17d9ff);
-  border-color: #7fffe3;
-  color: #06161d;
-}
-
-.checkbox-title,
-.mode-name,
-.section-label,
-.tasks-title h3,
-.files-title h3,
-.status-title,
-.preview-header {
-  color: #e7ffff;
-}
-
-.checkbox-desc,
-.mode-desc,
-.task-notice {
-  color: #b9d6da;
-}
-
-.extraction-option {
-  background: rgba(0, 0, 0, .16);
-  border-color: rgba(127, 255, 227, .16);
-}
-
-.extraction-option:hover,
-.extraction-option.active {
-  background: rgba(127, 255, 227, .1);
-  border-color: rgba(127, 255, 227, .5);
-}
-
-.upload-submit-btn {
-  background: linear-gradient(90deg, #7fffe3, #17d9ff);
-  border-color: transparent;
-  color: #06161d;
-  box-shadow: 0 10px 24px rgba(23, 217, 255, .16);
-}
-
-.upload-submit-btn:hover:not(:disabled) {
-  background: linear-gradient(90deg, #a2ffed, #5de7ff);
-  color: #06161d;
-}
-
-.upload-submit-btn:focus-visible,
-.refresh-btn:focus-visible,
-.clear-history-btn:focus-visible,
-.file-remove:focus-visible {
-  outline: 2px solid #7fffe3;
-  outline-offset: 3px;
-}
-
-.refresh-btn {
-  background: rgba(127, 255, 227, .08);
-  border-color: rgba(127, 255, 227, .28);
-  color: #7fffe3;
-}
-
-.refresh-btn:hover {
-  background: rgba(127, 255, 227, .16);
-  border-color: #7fffe3;
-  color: #e7ffff;
-}
-
-.clear-history-btn {
-  background: rgba(255, 170, 168, .1);
-  border-color: rgba(255, 170, 168, .35);
-  color: #ffaaa8;
-}
-
-.clear-history-btn:hover:not(:disabled) {
-  background: rgba(255, 170, 168, .18);
-  border-color: #ffaaa8;
-  color: #ffd3d1;
-}
-
-.task-item.completed {
-  background: rgba(127, 255, 227, .08);
-  border-color: rgba(127, 255, 227, .35);
-}
-
-.task-item.failed {
-  background: rgba(255, 170, 168, .08);
-  border-color: rgba(255, 170, 168, .35);
-}
-
-.task-status-badge,
-.result-badge {
-  border: 1px solid rgba(127, 255, 227, .2);
-}
-
-.task-status-badge.completed,
-.result-badge.success {
-  background: rgba(127, 255, 227, .16);
-  color: #7fffe3;
-}
-
-.task-status-badge.queued,
-.task-status-badge.processing,
-.result-badge.neutral {
-  background: rgba(255, 211, 110, .14);
-  color: #ffd36e;
-}
-
-.task-status-badge.failed {
-  background: rgba(255, 170, 168, .16);
-  color: #ffaaa8;
-}
-
-.task-progress {
-  background: rgba(127, 255, 227, .12);
-}
-
-.task-progress-bar {
-  background: linear-gradient(90deg, #7fffe3, #17d9ff);
-}
-
-.file-item {
-  border-bottom-color: rgba(127, 255, 227, .14);
-}
-
-.file-remove {
-  color: #b9d6da;
-}
-
-.file-remove:hover {
-  background: rgba(255, 170, 168, .14);
-  color: #ffaaa8;
 }
 </style>

@@ -2,12 +2,17 @@
 from __future__ import annotations
 
 import os
+import logging
+import uuid
+import json
+import hashlib
+import hmac
 import secrets
 from urllib.parse import urlencode
 
 from fastapi import APIRouter, HTTPException, Request, Response
 from fastapi.responses import HTMLResponse, RedirectResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 from .instance_isolation import VALID_INSTANCE_IDS
 from .km_control import (
@@ -22,8 +27,17 @@ from .km_control import (
 )
 from .oidc_control import OIDCError, OIDCSettings, read_client_jwks
 
+logger = logging.getLogger("km.oidc.audit")
+logger.setLevel(logging.INFO)
+if not logger.handlers:
+    audit_handler = logging.StreamHandler()
+    audit_handler.setFormatter(logging.Formatter("%(message)s"))
+    logger.addHandler(audit_handler)
+logger.propagate = False
+
 CONTROL_COOKIE = "km_control_session"
 BINDING_COOKIE = "km_oidc_binding"
+TRANSACTION_COOKIE = "km_oidc_transaction"
 router = APIRouter(prefix="/api/auth", tags=["KM control authentication"])
 oidc_router = APIRouter(tags=["KM OIDC control authentication"])
 
@@ -41,6 +55,16 @@ class AdminCreateUser(BaseModel):
     username: str = Field(min_length=1, max_length=128)
     password: str = Field(min_length=12, max_length=1024)
     role: str = Field(default="user", pattern="^(user|admin)$")
+
+
+class BindingApproval(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    target_km_account_id: str = Field(min_length=1, max_length=128)
+
+
+class BindingRejection(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    reason: str = Field(min_length=1, max_length=1000)
 
 
 def _enabled_instance_ids() -> frozenset[str]:
@@ -66,8 +90,12 @@ def _visible_grants(user_id: str) -> list[dict]:
 
 def _identity(request: Request) -> dict:
     try:
-        return verify_control_session(request.cookies.get(CONTROL_COOKIE, ""))
-    except (ControlError, ControlAuthenticationError) as exc:
+        claims = verify_control_session(request.cookies.get(CONTROL_COOKIE, ""))
+        user = ControlRegistry.from_environment().get_user(str(claims["sub"]))
+        if not user or user.status != "active" or user.session_epoch != int(claims.get("epoch", 0)):
+            raise ControlAuthenticationError("session revoked")
+        return {**claims, "admin": user.is_admin}
+    except (ControlError, ControlAuthenticationError, ValueError, TypeError) as exc:
         raise HTTPException(status_code=401, detail="KM Control login required") from exc
 
 
@@ -88,6 +116,7 @@ def _oidc_settings() -> OIDCSettings:
 def _clear_km_cookies(response: Response) -> None:
     response.delete_cookie(CONTROL_COOKIE, path=_control_cookie_path())
     response.delete_cookie(BINDING_COOKIE, path=_control_cookie_path())
+    response.delete_cookie(TRANSACTION_COOKIE, path="/oidc/")
     response.delete_cookie("km_entry_session", path="/")
     response.delete_cookie("km_instance_route", path="/")
 
@@ -134,7 +163,9 @@ async def logout(response: Response):
 async def oidc_login():
     settings = _oidc_settings()
     state, verifier, nonce = ControlRegistry.from_environment().create_oidc_transaction()
-    return RedirectResponse(settings.authorization_url(state, nonce, verifier), status_code=302, headers={"Cache-Control": "no-store"})
+    response = RedirectResponse(settings.authorization_url(state, nonce, verifier), status_code=302, headers={"Cache-Control": "no-store", "Referrer-Policy": "no-referrer"})
+    response.set_cookie(TRANSACTION_COOKIE, hashlib.sha256(state.encode()).hexdigest(), httponly=True, secure=True, samesite="lax", max_age=300, path="/oidc/")
+    return response
 
 
 @oidc_router.get("/oidc/availability", include_in_schema=False)
@@ -156,25 +187,42 @@ async def oidc_client_jwks():
 
 
 @oidc_router.get("/oidc/callback", include_in_schema=False)
-async def oidc_callback(code: str | None = None, state: str | None = None, error: str | None = None):
+async def oidc_callback(request: Request, code: str | None = None, state: str | None = None, error: str | None = None):
     if error or not code or not state:
         raise HTTPException(status_code=401, detail="OIDC authorization was denied")
     settings = _oidc_settings()
     registry = ControlRegistry.from_environment()
+    trace = uuid.uuid4().hex
+    stage = "state_validation"
+    logger.info("oidc_e2e trace=%s step=callback result=RECEIVED code_present=YES", trace)
     try:
+        expected = request.cookies.get(TRANSACTION_COOKIE, "")
+        if not expected or not hmac.compare_digest(expected, hashlib.sha256(state.encode()).hexdigest()):
+            raise ControlAuthenticationError("OIDC transaction does not belong to this browser")
         nonce, verifier = registry.consume_oidc_transaction(state)
+        logger.info("oidc_e2e trace=%s step=state_validation result=PASS single_use=YES", trace)
+        stage = "token_exchange"
         tokens = settings.exchange_code(code, verifier)
+        logger.info("oidc_e2e trace=%s step=token_exchange result=PASS client_auth=%s pkce=S256", trace, settings.client_auth_method)
+        stage = "id_token_validation"
         claims = settings.validate_id_token(tokens["id_token"], nonce)
+        logger.info("oidc_e2e trace=%s step=id_token_validation result=PASS signature=PASS issuer=PASS audience=PASS nonce=PASS expiry=PASS jwks=PASS", trace)
+        stage = "identity_mapping"
         identity = registry.upsert_external_identity(settings.issuer, str(claims["sub"]), settings.profile(claims))
-    except (OIDCError, ControlError, ControlAuthenticationError) as exc:
-        raise HTTPException(status_code=401, detail="OIDC authentication failed") from exc
+        logger.info("oidc_e2e trace=%s step=identity_mapping result=PASS key=iss_sub binding_status=%s binding_reference=%s", trace, identity["binding_status"], identity["identity_id"])
+    except (OIDCError, ControlError, ControlAuthenticationError):
+        logger.warning("oidc_e2e trace=%s step=%s result=FAIL", trace, stage)
+        raise HTTPException(status_code=401, detail="OIDC authentication failed") from None
     if identity["binding_status"] == "bound" and identity["user_id"]:
         user = registry.get_user(str(identity["user_id"]))
         if user and user.status == "active":
-            response = RedirectResponse(url="/login.html", status_code=303)
+            response = RedirectResponse(url="/login.html", status_code=303, headers={"Referrer-Policy": "no-referrer", "Cache-Control": "no-store"})
+            logger.info("oidc_e2e trace=%s step=km_session result=ISSUED authorization_source=KM", trace)
+            _clear_km_cookies(response)
             response.set_cookie(CONTROL_COOKIE, issue_control_session(user), httponly=True, secure=True, samesite="strict", max_age=8 * 60 * 60, path=_control_cookie_path())
             return response
-    response = RedirectResponse(url="/oidc/binding.html", status_code=303)
+    response = RedirectResponse(url="/oidc/binding.html", status_code=303, headers={"Referrer-Policy": "no-referrer", "Cache-Control": "no-store"})
+    _clear_km_cookies(response)
     response.set_cookie(BINDING_COOKIE, issue_oidc_binding_session(str(identity["identity_id"])), httponly=True, secure=True, samesite="strict", max_age=10 * 60, path=_control_cookie_path())
     return response
 
@@ -207,38 +255,59 @@ async def oidc_logout_callback():
     return response
 
 
-@router.get("/api/auth/oidc/binding")
-async def oidc_binding_status(request: Request):
-    identity = _binding_identity(request)
-    return {"identity_id": identity["identity_id"], "status": identity["binding_status"]}
+def _binding_view(identity: dict, admin: bool = False) -> dict:
+    profile = json.loads(identity["profile_json"])
+    reference = {key: value[:256] if isinstance(value, str) else None for key, value in profile.items() if key in {"name", "account", "email"}}
+    result = {"binding_request_id": identity["identity_id"], "status": {"bound": "approved"}.get(identity["binding_status"], identity["binding_status"]),
+              "profile": reference, "requested_at": identity["requested_at"], "reviewed_at": identity["reviewed_at"], "reject_reason": identity["reject_reason"]}
+    if admin:
+        result.update({"provider_issuer": identity["provider_issuer"], "target_km_account_id": identity["user_id"], "reviewed_by": identity["reviewed_by"], "updated_at": identity["updated_at"]})
+    return result
 
 
-@router.post("/api/auth/oidc/binding/verify")
-async def oidc_binding_verify(payload: Credentials, request: Request):
-    identity = _binding_identity(request)
-    try:
-        user = ControlRegistry.from_environment().authenticate(payload.username, payload.password)
-        ControlRegistry.from_environment().verify_external_identity_local_account(str(identity["identity_id"]), user)
-    except (ControlError, ControlAuthenticationError, ControlAuthorizationError) as exc:
-        raise HTTPException(status_code=401, detail="local KM account verification failed") from exc
-    return {"status": "awaiting_approval"}
+@router.get("/oidc/binding")
+async def oidc_binding_status(request: Request, response: Response):
+    response.headers["Cache-Control"] = "no-store"
+    response.headers["Referrer-Policy"] = "no-referrer"
+    return _binding_view(_binding_identity(request))
 
 
-@router.get("/api/auth/admin/oidc-bindings")
-async def list_oidc_bindings(request: Request):
+# The former /oidc/binding/verify route is deliberately removed. Only an
+# authenticated KM administrator can select a target account.
+@router.get("/admin/oidc-bindings")
+async def list_oidc_bindings(request: Request, response: Response, only_pending: bool = False):
     _admin(request)
-    identities = ControlRegistry.from_environment().list_external_identities(only_pending=True)
-    return {"bindings": [{key: item[key] for key in ("identity_id", "binding_status", "user_id", "provider_issuer", "requested_at", "verified_at")} for item in identities]}
+    registry = ControlRegistry.from_environment()
+    all_identities = registry.list_external_identities()
+    used = {item["user_id"] for item in all_identities if item["binding_status"] == "bound"}
+    identities = [item for item in all_identities if not only_pending or item["binding_status"] == "pending"]
+    response.headers["Cache-Control"] = "no-store"
+    return {"bindings": [_binding_view(item, admin=True) for item in identities],
+            "target_km_accounts": [{"user_id": user.user_id, "username": user.username} for user in registry.list_users() if user.status == "active" and user.user_id not in used]}
 
 
-@router.post("/api/auth/admin/oidc-bindings/{identity_id}/approve")
-async def approve_oidc_binding(identity_id: str, request: Request):
+@router.post("/admin/oidc-bindings/{identity_id}/approve")
+async def approve_oidc_binding(identity_id: str, payload: BindingApproval, request: Request):
     admin = _admin(request)
     try:
-        user = ControlRegistry.from_environment().approve_external_identity(str(admin["sub"]), identity_id)
+        user = ControlRegistry.from_environment().approve_external_identity(str(admin["sub"]), identity_id, payload.target_km_account_id)
+    except ControlAuthorizationError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
     except ControlError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
-    return {"identity_id": identity_id, "user_id": user.user_id, "status": "bound"}
+    return {"binding_request_id": identity_id, "target_km_account_id": user.user_id, "status": "approved"}
+
+
+@router.post("/admin/oidc-bindings/{identity_id}/reject")
+async def reject_oidc_binding(identity_id: str, payload: BindingRejection, request: Request):
+    admin = _admin(request)
+    try:
+        ControlRegistry.from_environment().reject_external_identity(str(admin["sub"]), identity_id, payload.reason)
+    except ControlAuthorizationError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+    except ControlError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return {"binding_request_id": identity_id, "status": "rejected"}
 
 
 @router.get("/me")

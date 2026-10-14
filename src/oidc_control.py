@@ -6,6 +6,7 @@ import hashlib
 import json
 import os
 import secrets
+import stat
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -70,11 +71,11 @@ class OIDCSettings:
     def from_environment(cls) -> "OIDCSettings":
         if os.getenv("KM_OIDC_ENABLED", "false").lower() != "true":
             raise OIDCError("OIDC is disabled")
-        client_auth_method = os.getenv("KM_OIDC_CLIENT_AUTH_METHOD", "client_secret_basic").strip()
+        client_auth_method = os.getenv("KM_OIDC_CLIENT_AUTH_METHOD", "private_key_jwt").strip()
         if client_auth_method not in {"private_key_jwt", "client_secret_basic"}:
             raise OIDCError("unsupported KM_OIDC_CLIENT_AUTH_METHOD")
         try:
-            mapping = json.loads(os.getenv("KM_OIDC_CLAIM_MAPPING_JSON") or '{"account":"account","name":"name","email":"email","department":"department"}')
+            mapping = json.loads(os.getenv("KM_OIDC_CLAIM_MAPPING_JSON") or '{"account":"preferred_username","name":"name","email":"email","email_verified":"email_verified"}')
         except json.JSONDecodeError as exc:
             raise OIDCError("invalid KM_OIDC_CLAIM_MAPPING_JSON") from exc
         if not isinstance(mapping, dict) or any(not isinstance(k, str) or not isinstance(v, str) for k, v in mapping.items()):
@@ -86,7 +87,7 @@ class OIDCSettings:
             if forbidden not in mapping:
                 mapping[forbidden] = ""
         return cls(
-            issuer=_required("KM_OIDC_ISSUER").rstrip("/"),
+            issuer=_required("KM_OIDC_ISSUER"),
             authorization_endpoint=_required("KM_OIDC_AUTHORIZATION_ENDPOINT"),
             token_endpoint=_required("KM_OIDC_TOKEN_ENDPOINT"),
             jwks_uri=_required("KM_OIDC_JWKS_URI"),
@@ -117,6 +118,22 @@ class OIDCSettings:
         except OSError as exc:
             raise OIDCError("OIDC private key is unavailable") from exc
 
+    def _client_secret(self) -> str:
+        secret_path = os.getenv("KM_OIDC_CLIENT_SECRET_FILE", "").strip()
+        if not secret_path:
+            return _required("KM_OIDC_CLIENT_SECRET")
+        try:
+            path = Path(secret_path)
+            metadata = path.stat()
+            if not stat.S_ISREG(metadata.st_mode) or stat.S_IMODE(metadata.st_mode) != 0o600:
+                raise OIDCError("OIDC client secret is unavailable")
+            value = path.read_text(encoding="utf-8")
+        except (OSError, UnicodeError):
+            raise OIDCError("OIDC client secret is unavailable") from None
+        if not value or "\n" in value or "\r" in value or "\x00" in value:
+            raise OIDCError("OIDC client secret is unavailable")
+        return value
+
     def exchange_code(self, code: str, verifier: str) -> dict:
         payload = {"grant_type": "authorization_code", "code": code, "redirect_uri": self.redirect_uri, "client_id": self.client_id, "code_verifier": verifier}
         auth = None
@@ -125,9 +142,12 @@ class OIDCSettings:
             assertion = jwt.encode({"iss": self.client_id, "sub": self.client_id, "aud": self.token_endpoint, "iat": now, "exp": now + 60, "jti": _b64(secrets.token_bytes(18))}, self._private_key(), algorithm="RS256", headers={"kid": self.private_key_kid, "typ": "JWT"})
             payload.update({"client_assertion_type": "urn:ietf:params:oauth:client-assertion-type:jwt-bearer", "client_assertion": assertion})
         else:
-            secret = _required("KM_OIDC_CLIENT_SECRET")
+            secret = self._client_secret()
             auth = (self.client_id, secret)
-        response = requests.post(self.token_endpoint, data=payload, auth=auth, timeout=10)
+        try:
+            response = requests.post(self.token_endpoint, data=payload, auth=auth, timeout=10, verify=True, allow_redirects=False)
+        except requests.RequestException:
+            raise OIDCError("OIDC token exchange failed") from None
         if response.status_code != 200:
             raise OIDCError("OIDC token exchange failed")
         try:
