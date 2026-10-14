@@ -35,5 +35,18 @@
   "database_images": [
     "timescale/timescaledb:2.17.2-pg16",
     "neo4j:5.26-community"
-  ]
+  ],
+  "validated_source_commit": "8454c58433e0683230a5ad8e1618b9384bf46463",
+  "clean_git_archive_rebuild": {
+    "regression_exit": 0,
+    "control_build_exit": 0,
+    "worker_build_exit": 0,
+    "worker_import_exit": 0
+  },
+  "source_vs_existing_dgx_runtime": "MISMATCH: Processing startedAt source fix is published but not deployed",
+  "original_dgx_head_unchanged": "ebcc9de00861d4e6a83641e3fbb7a8b853a684f1",
+  "built_images": {
+    "control": "sha256:17831a11b5870b36ea9f1bf2a905218f9853c8f051a8adc59b788a3a91156feb",
+    "worker": "sha256:260d2c2ae8c296b54b2a6ebbb043104c7ae9b20312843c01920b3605dd9c0870"
+  }
 }
