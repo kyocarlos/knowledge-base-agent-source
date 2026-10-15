@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# DEV da40／rd2 資料區與 Control DB 的 compose 入口：dev-km-plane-compose.sh <da40|rd2|control-db> <compose 子指令...>
-# 取代已遺失的 /tmp/km-3030-control-cutover-clean 與 /tmp/km-chat-zone-runtime.override.yml。
+# DEV da40 資料區與 Control DB 的 compose 入口：dev-km-plane-compose.sh <da40|control-db> <compose 子指令...>
+# 取代已遺失的 /tmp/km-3030-control-cutover-clean。（RD2 已於 2026-10-15 完整移除）
 # runtime 副本須與 git 一致；不在 git 的外部檔以 SHA-256 鎖定；變更類指令只允許該組服務且需明確指定；禁止 down。
 set -euo pipefail
 repo="$(cd "$(dirname "$0")/.." && pwd)"
@@ -14,20 +14,14 @@ pinned() { [ "$(sha256sum "$1" 2>/dev/null | cut -d' ' -f1)" = "$2" ] || { echo 
 
 zone_services=(web celery_ingest_worker celery_search_worker neo4j qdrant redis report_registry timescaledb)
 case "$target" in
-  da40|rd2)
-    project="km-$target"; project_dir="$overlays/tenant-isolation"; env_file="$control/planes/$target.env"
+  da40)
+    project="km-da40"; project_dir="$overlays/tenant-isolation"; env_file="$control/planes/da40.env"
     same_as_git "$project_dir/docker-compose.instance.yml" deploy/tenant-isolation/docker-compose.instance.yml
-    files=("$project_dir/docker-compose.instance.yml" "$control/planes/$target.override.yml")
-    if [ "$target" = da40 ]; then
-      # Codex CSIT rotation package（2026-10-15），唯讀引用並鎖定內容
-      pinned "$csit_pkg/km-da40-runtime-supplement.yml" eb6218702f2c4fbe632dddb33279b81feccafec1cb8cda4e18e8612f8b9620d0
-      pinned "$csit_pkg/km-ui-ddl-free-images.override.yml" f878e1840f78c3267fa475153355948bd5d09ce696152af29f4883ef5e74f200
-      files+=("$csit_pkg/km-da40-runtime-supplement.yml" "$csit_pkg/km-ui-ddl-free-images.override.yml")
-    else
-      for name in km-rd2-web.chat-runtime.override.yml km-rd2-search-worker.pinned.override.yml; do
-        same_as_git "$overlays/$name" "deploy/dev-3030/compose/$name"; files+=("$overlays/$name")
-      done
-    fi
+    # Codex CSIT rotation package（2026-10-15），唯讀引用並鎖定內容
+    pinned "$csit_pkg/km-da40-runtime-supplement.yml" eb6218702f2c4fbe632dddb33279b81feccafec1cb8cda4e18e8612f8b9620d0
+    pinned "$csit_pkg/km-ui-ddl-free-images.override.yml" f878e1840f78c3267fa475153355948bd5d09ce696152af29f4883ef5e74f200
+    files=("$project_dir/docker-compose.instance.yml" "$control/planes/da40.override.yml"
+           "$csit_pkg/km-da40-runtime-supplement.yml" "$csit_pkg/km-ui-ddl-free-images.override.yml")
     allowed=("${zone_services[@]}")
     ;;
   control-db)
@@ -36,7 +30,7 @@ case "$target" in
     files=("$project_dir/docker-compose.control-auth.yml" "$control/control-auth.override.yml")
     allowed=(control_db)   # control_auth 由 cross-search-credentials-deploy 的 runtime-compose.json 管理
     ;;
-  *) echo "用法：$0 <da40|rd2|control-db> <compose 子指令...>" >&2; exit 2 ;;
+  *) echo "用法：$0 <da40|control-db> <compose 子指令...>" >&2; exit 2 ;;
 esac
 for f in "${files[@]}" "$env_file"; do [ -r "$f" ] || { echo "缺少檔案：$f" >&2; exit 2; }; done
 

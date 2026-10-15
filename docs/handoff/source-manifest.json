@@ -325,7 +325,7 @@
     },
     {
       "path": "deploy/dev-3030/README.md",
-      "sha256": "77d5968ce21ebc10541577baec638957552c629a4222e096c1dfe6bd078260fa"
+      "sha256": "3117c0ce5de8c0750f9061340067dc6128458f0a00847f198e50c8d8269929b8"
     },
     {
       "path": "deploy/dev-3030/compose/kb-redis-registry.compose.yml",
@@ -344,16 +344,8 @@
       "sha256": "4ea3beb06626355b17d9fa4bbea2d7fcba57238e8e67a697afa756ba29f89121"
     },
     {
-      "path": "deploy/dev-3030/compose/km-rd2-search-worker.pinned.override.yml",
-      "sha256": "e20c0fd3b4957625fcf95b46f4bf1b0b30ae14c8bfb9a80b22280b73c814e0b3"
-    },
-    {
-      "path": "deploy/dev-3030/compose/km-rd2-web.chat-runtime.override.yml",
-      "sha256": "ee91f8b3f91aa14a3dfe338bdf808fa20a23a51e19bca9473e624a2ebdb4c950"
-    },
-    {
       "path": "deploy/dev-3030/nginx.runtime.conf",
-      "sha256": "28ae70e260231c4eb3ae16e3333c3c80ad21220f5f04fa58232a73c842f12c4f"
+      "sha256": "c2e3670788b0ae82d994caebc54ce697c8b9338bbf3642f8db5feee4b6bef48d"
     },
     {
       "path": "deploy/legacy-test/control-3030.env.example",
@@ -973,7 +965,7 @@
     },
     {
       "path": "scripts/check-dev-compose-drift.sh",
-      "sha256": "de9ed196ce8fe22da642bd6b334fc88f9d8c1cc21fd62c0f103ecfdc04d00ccc"
+      "sha256": "11c8df2333b67ba45b8a23428364a106c1adefc96e52c4e05243ef8f8c584724"
     },
     {
       "path": "scripts/check-dev-nginx-drift.sh",
@@ -1005,7 +997,7 @@
     },
     {
       "path": "scripts/dev-km-plane-compose.sh",
-      "sha256": "6797daf6f0a338a9c04e3d40ac17d7c5ea2300658ad217d4b3e599b1a00df9ea"
+      "sha256": "a905394e5c72c52a35f3c0e4600c9392ab1eab79ace2c51e2b06f824ea69eba5"
     },
     {
       "path": "scripts/drill_pre_wp01_rollback.py",

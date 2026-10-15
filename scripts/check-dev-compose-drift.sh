@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # 唯讀對帳：以 dev-kb-test-compose.sh（TEST plane）、dev-kb-infra-compose.sh（共用基礎設施）、
-# dev-km-plane-compose.sh（da40／rd2 資料區與 Control DB）
+# dev-km-plane-compose.sh（da40 資料區與 Control DB）
 # 的檔案組合計算 config-hash，與執行中容器的 com.docker.compose.config-hash 比對。
 # 同時檢查映像漂移（標籤已指向新映像但容器仍跑舊映像）。全部一致輸出 MATCH（0），否則 MISMATCH（1）。
 set -uo pipefail
@@ -22,14 +22,6 @@ for entry in \
   dev-km-plane-compose.sh@da40:km-da40-redis-1:redis \
   dev-km-plane-compose.sh@da40:km-da40-report_registry-1:report_registry \
   dev-km-plane-compose.sh@da40:km-da40-timescaledb-1:timescaledb \
-  dev-km-plane-compose.sh@rd2:km-rd2-web-1:web \
-  dev-km-plane-compose.sh@rd2:km-rd2-celery_ingest_worker-1:celery_ingest_worker \
-  dev-km-plane-compose.sh@rd2:km-rd2-celery_search_worker-1:celery_search_worker \
-  dev-km-plane-compose.sh@rd2:km-rd2-neo4j-1:neo4j \
-  dev-km-plane-compose.sh@rd2:km-rd2-qdrant-1:qdrant \
-  dev-km-plane-compose.sh@rd2:km-rd2-redis-1:redis \
-  dev-km-plane-compose.sh@rd2:km-rd2-report_registry-1:report_registry \
-  dev-km-plane-compose.sh@rd2:km-rd2-timescaledb-1:timescaledb \
   dev-km-plane-compose.sh@control-db:km-control-3030-control_db-1:control_db; do
   IFS=: read -r wrapper container service <<<"$entry"
   target=""; [[ "$wrapper" == *@* ]] && { target="${wrapper#*@}"; wrapper="${wrapper%@*}"; }
