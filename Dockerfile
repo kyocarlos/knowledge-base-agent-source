@@ -18,6 +18,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 # 複製應用程式
 COPY app/ ./app/
 COPY src/ ./src/
+COPY km_credentials/ ./km_credentials/
 COPY config/ ./config/
 COPY data/ ./data/
 

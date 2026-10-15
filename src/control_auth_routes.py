@@ -12,10 +12,13 @@ from urllib.parse import urlencode
 
 from fastapi import APIRouter, HTTPException, Request, Response
 from fastapi.responses import HTMLResponse, RedirectResponse
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, Field, ConfigDict, SecretStr
+
+from km_credentials.crypto import CredentialCryptoError, SourceSecret, load_public_key_from_environment, seal
 
 from .instance_isolation import VALID_INSTANCE_IDS
 from .km_control import (
+    SOURCE_CREDENTIAL_SOURCES,
     ControlAuthenticationError,
     ControlAuthorizationError,
     ControlError,
@@ -314,6 +317,76 @@ async def reject_oidc_binding(identity_id: str, payload: BindingRejection, reque
 async def me(request: Request):
     claims = _identity(request)
     return {"user_id": claims["sub"], "is_admin": bool(claims.get("admin")), "instances": _visible_grants(claims["sub"]), "enabled_instances": sorted(_enabled_instance_ids())}
+
+
+class SourceCredentialInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    username: str = Field(min_length=1, max_length=256)
+    # SecretStr keeps the value masked in validation errors and reprs.
+    secret: SecretStr = Field(min_length=1, max_length=4096)
+    auth_type: str = Field(default="basic", pattern="^(basic|bearer)$")
+
+
+def _source(source: str) -> str:
+    if source not in SOURCE_CREDENTIAL_SOURCES:
+        raise HTTPException(status_code=404, detail="unknown source")
+    return source
+
+
+def _credential_store_unavailable(exc: ControlError) -> HTTPException:
+    return HTTPException(status_code=503, detail="source credential store is not available")
+
+
+@router.get("/source-credentials")
+async def list_source_credentials(request: Request, response: Response):
+    response.headers["Cache-Control"] = "no-store"
+    claims = _identity(request)
+    try:
+        linked = {row["source"]: row for row in ControlRegistry.from_environment().list_source_credentials(claims["sub"])}
+    except ControlError as exc:
+        raise _credential_store_unavailable(exc) from exc
+    items = []
+    for source in sorted(SOURCE_CREDENTIAL_SOURCES):
+        row = linked.get(source)
+        if not row:
+            items.append({"source": source, "status": "not_linked"})
+            continue
+        items.append({"source": source, "status": "active" if row["status"] == "active" else "needs_relink",
+                      "username": row["source_username"], "auth_type": row["auth_type"],
+                      "last_verified_at": row["last_verified_at"], "updated_at": row["updated_at"]})
+    return {"sources": items}
+
+
+@router.put("/source-credentials/{source}")
+async def link_source_credential(source: str, payload: SourceCredentialInput, request: Request, response: Response):
+    response.headers["Cache-Control"] = "no-store"
+    claims = _identity(request)
+    source = _source(source)
+    try:
+        key_id, public_key = load_public_key_from_environment()
+        envelope = seal(public_key, key_id, claims["sub"], source, SourceSecret(
+            username=payload.username.strip(), secret=payload.secret.get_secret_value(), auth_type=payload.auth_type))
+    except CredentialCryptoError as exc:
+        raise HTTPException(status_code=503, detail="source credential linking is not configured") from exc
+    try:
+        ControlRegistry.from_environment().upsert_source_credential(claims["sub"], source, payload.username.strip(), payload.auth_type, envelope, key_id)
+    except ControlAuthorizationError as exc:
+        raise HTTPException(status_code=403, detail="account is not active") from exc
+    except ControlError as exc:
+        raise _credential_store_unavailable(exc) from exc
+    return {"source": source, "status": "active", "username": payload.username.strip(), "auth_type": payload.auth_type}
+
+
+@router.delete("/source-credentials/{source}")
+async def unlink_source_credential(source: str, request: Request, response: Response):
+    response.headers["Cache-Control"] = "no-store"
+    claims = _identity(request)
+    source = _source(source)
+    try:
+        removed = ControlRegistry.from_environment().delete_source_credential(claims["sub"], source)
+    except ControlError as exc:
+        raise _credential_store_unavailable(exc) from exc
+    return {"source": source, "status": "not_linked", "removed": removed}
 
 
 @router.post("/select-instance")

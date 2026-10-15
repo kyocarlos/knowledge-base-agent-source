@@ -22,6 +22,8 @@ from .km_accounts import hash_password, verify_password
 CONTROL_ISSUER = "km-control"
 USER_STATUSES = frozenset({"pending", "active", "disabled"})
 GRANT_ROLES = frozenset({"user", "admin"})
+SOURCE_CREDENTIAL_SOURCES = frozenset({"confluence", "jira", "testrail"})
+SOURCE_CREDENTIAL_AUTH_TYPES = frozenset({"basic", "bearer"})
 
 
 class ControlError(RuntimeError):
@@ -214,6 +216,18 @@ class ControlRegistry:
             """))
 
             connection.execute("CREATE UNIQUE INDEX IF NOT EXISTS km_external_identities_bound_user_unique ON km_external_identities(user_id) WHERE binding_status = 'bound'")
+            connection.execute(self._sql("""
+                CREATE TABLE IF NOT EXISTS km_source_credentials (
+                    user_id TEXT NOT NULL REFERENCES km_users(user_id) ON DELETE CASCADE,
+                    source TEXT NOT NULL, source_username TEXT NOT NULL, auth_type TEXT NOT NULL,
+                    secret_envelope TEXT NOT NULL, key_id TEXT NOT NULL, status TEXT NOT NULL,
+                    last_error_code TEXT, last_verified_at BIGINT, created_at BIGINT NOT NULL, updated_at BIGINT NOT NULL,
+                    PRIMARY KEY (user_id, source),
+                    CHECK(source IN ('confluence','jira','testrail')),
+                    CHECK(auth_type IN ('basic','bearer')),
+                    CHECK(status IN ('active','invalid'))
+                )
+            """))
 
     def _audit(self, connection: object, event_type: str, actor_user_id: str | None, target_user_id: str | None, detail: dict | None = None) -> None:
         connection.execute(self._sql("INSERT INTO km_audit_events (event_id, occurred_at, actor_user_id, target_user_id, event_type, detail_json) VALUES (?, ?, ?, ?, ?, ?)"),
@@ -524,3 +538,82 @@ class ControlRegistry:
         statement += " ORDER BY requested_at DESC"
         with self._connection() as connection:
             return [dict(row) for row in connection.execute(self._sql(statement)).fetchall()]
+
+    # ---- Per-user external source credentials (sealed envelopes only) ----
+
+    @contextmanager
+    def _source_credentials(self) -> Iterator[object]:
+        """Fail closed when the explicit PostgreSQL migration has not been applied."""
+        try:
+            with self._connection() as connection:
+                yield connection
+        except ControlError:
+            raise
+        except Exception as exc:
+            if "km_source_credentials" in str(exc):
+                raise ControlError("source credential store is not available") from None
+            raise
+
+    def upsert_source_credential(self, user_id: str, source: str, source_username: str, auth_type: str, secret_envelope: str, key_id: str) -> None:
+        if source not in SOURCE_CREDENTIAL_SOURCES or auth_type not in SOURCE_CREDENTIAL_AUTH_TYPES:
+            raise ControlError("invalid source credential")
+        now = _now()
+        with self._source_credentials() as connection:
+            user = self._user(connection.execute(self._sql("SELECT user_id, username, status, is_admin, session_epoch FROM km_users WHERE user_id = ?"), (user_id,)).fetchone())
+            if not user or user.status != "active":
+                raise ControlAuthorizationError("account is not active")
+            connection.execute(self._sql(
+                "INSERT INTO km_source_credentials (user_id, source, source_username, auth_type, secret_envelope, key_id, status, last_error_code, last_verified_at, created_at, updated_at) "
+                "VALUES (?, ?, ?, ?, ?, ?, 'active', NULL, NULL, ?, ?) "
+                "ON CONFLICT(user_id, source) DO UPDATE SET source_username = excluded.source_username, auth_type = excluded.auth_type, "
+                "secret_envelope = excluded.secret_envelope, key_id = excluded.key_id, status = 'active', last_error_code = NULL, updated_at = excluded.updated_at"),
+                (user_id, source, source_username, auth_type, secret_envelope, key_id, now, now))
+            self._audit(connection, "source_credential_linked", user_id, user_id, {"source": source})
+
+    def list_source_credentials(self, user_id: str) -> list[dict]:
+        """Metadata only; never returns the sealed secret."""
+        with self._source_credentials() as connection:
+            rows = connection.execute(self._sql(
+                "SELECT source, source_username, auth_type, status, last_error_code, last_verified_at, updated_at FROM km_source_credentials WHERE user_id = ? ORDER BY source"), (user_id,)).fetchall()
+        return [dict(row) for row in rows]
+
+    def delete_source_credential(self, user_id: str, source: str) -> bool:
+        if source not in SOURCE_CREDENTIAL_SOURCES:
+            raise ControlError("unknown source")
+        with self._source_credentials() as connection:
+            cursor = connection.execute(self._sql("DELETE FROM km_source_credentials WHERE user_id = ? AND source = ?"), (user_id, source))
+            if cursor.rowcount == 1:
+                self._audit(connection, "source_credential_removed", user_id, user_id, {"source": source})
+            return cursor.rowcount == 1
+
+    def source_credential_envelopes(self, user_id: str, sources: list[str]) -> dict[str, dict]:
+        """For the CrossSearch bridge after principal validation: envelopes of active credentials only."""
+        wanted = [source for source in dict.fromkeys(sources) if source in SOURCE_CREDENTIAL_SOURCES]
+        result = {source: {"status": "not_linked"} for source in wanted}
+        if not wanted:
+            return result
+        with self._source_credentials() as connection:
+            rows = connection.execute(self._sql("SELECT source, status, key_id, secret_envelope FROM km_source_credentials WHERE user_id = ?"), (user_id,)).fetchall()
+        for row in rows:
+            if row["source"] not in result:
+                continue
+            if row["status"] == "active":
+                result[row["source"]] = {"status": "active", "key_id": row["key_id"], "envelope": row["secret_envelope"]}
+            else:
+                result[row["source"]] = {"status": "needs_relink"}
+        return result
+
+    def mark_source_credential_result(self, user_id: str, source: str, ok: bool, error_code: str | None = None) -> None:
+        """Record a verified use, or invalidate after the source rejected it (no automatic retry)."""
+        if source not in SOURCE_CREDENTIAL_SOURCES:
+            raise ControlError("unknown source")
+        now = _now()
+        code = (error_code or "rejected")[:64]
+        with self._source_credentials() as connection:
+            if ok:
+                connection.execute(self._sql("UPDATE km_source_credentials SET last_verified_at = ? WHERE user_id = ? AND source = ? AND status = 'active'"), (now, user_id, source))
+                return
+            cursor = connection.execute(self._sql("UPDATE km_source_credentials SET status = 'invalid', last_error_code = ?, updated_at = ? WHERE user_id = ? AND source = ? AND status = 'active'"),
+                (code, now, user_id, source))
+            if cursor.rowcount == 1:
+                self._audit(connection, "source_credential_invalidated", None, user_id, {"source": source, "code": code})
