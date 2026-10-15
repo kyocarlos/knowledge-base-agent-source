@@ -1,0 +1,4 @@
+services:
+  celery_search_worker:
+    environment:
+      TIMESCALEDB_URL: ${KM_ROTATION_TIMESCALE_URL:?protected credential required}
