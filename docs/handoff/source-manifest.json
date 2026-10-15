@@ -325,7 +325,7 @@
     },
     {
       "path": "deploy/dev-3030/README.md",
-      "sha256": "67d992965fa64da67582d4f0e034bde2a5c221bf42337da369c48f0c1a9f88e9"
+      "sha256": "1f88234ef3d5a0fee17023bd9b71ce81692c1d4dc9113560f56546795d5997c5"
     },
     {
       "path": "deploy/dev-3030/backports/sources-only-no-llm.patch",
@@ -1437,7 +1437,7 @@
     },
     {
       "path": "src/web_api/tasks.py",
-      "sha256": "0299ffaa5b9a4349eb3fb76f16d16d509cbae19e2f7698b92b3db614a8215452"
+      "sha256": "6db4f858cc9c7a6fa10a177bab9740d4bb128722cfca49abf07d112d3e3930c7"
     },
     {
       "path": "start.sh",
@@ -1638,6 +1638,10 @@
     {
       "path": "tests/test_ingest_conflict_protection.py",
       "sha256": "50f11cdd1a2421558f1f6d538bf6162e564604cb9b44842322b06399932dc2b1"
+    },
+    {
+      "path": "tests/test_ingest_ui_upload_tracking.py",
+      "sha256": "11bcf266d73818ca1b7bce7f810a22cd964c80475ed2280c94dd24b6fcbbc2b0"
     },
     {
       "path": "tests/test_ingress_failure_capture_contract.py",

@@ -785,6 +785,9 @@ def ingest_file_task(self, task_id: str):
         except Exception as index_error:
             logger.warning(f"更新 index.md 失敗（不阻斷攝入完成）: {index_error}")
 
+        if state.get("ui_session_upload"):
+            from ..ui_upload_tracking import record_upload
+            record_upload(task_id=task_id, data_zone=state["data_zone"], file_name=state["file_name"], file_hash=state["file_hash"], extraction_mode=extraction_mode, status="completed", report=canonical_report)
         final_state = update_ingest_task_state(
             task_id,
             status="completed",
@@ -816,9 +819,21 @@ def ingest_file_task(self, task_id: str):
         logger.error("攝入任務失敗 task_id=%s trace_id=%s retryable=%s: %s", task_id, trace_id, decision.retryable, e)
         if decision.retryable and self.request.retries < JOB_CONFIG.max_retries:
             update_ingest_task_state(task_id, status="retrying", error=decision.reason, trace_id=trace_id)
+            if state.get("ui_session_upload"):
+                try:
+                    from ..ui_upload_tracking import update_upload_status
+                    update_upload_status(state, "retrying")
+                except Exception as tracking_error:
+                    logger.error("更新 UI 上傳重試狀態失敗 task_id=%s: %s", task_id, tracking_error)
             if lock_acquired:
                 release_document_lock(document_id, lock_owner)
             raise self.retry(exc=e, countdown=JOB_CONFIG.retry_countdown_seconds)
+        if state.get("ui_session_upload"):
+            try:
+                from ..ui_upload_tracking import update_upload_status
+                update_upload_status(state, "failed")
+            except Exception as tracking_error:
+                logger.error("更新 UI 上傳追蹤狀態失敗 task_id=%s: %s", task_id, tracking_error)
         failed_state = update_ingest_task_state(task_id, status="failed", error=str(e))
         if state.get("document_id"):
             try:

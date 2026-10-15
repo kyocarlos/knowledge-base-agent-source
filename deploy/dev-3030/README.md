@@ -137,7 +137,24 @@ runtime 副本放在 `.km-control/compose/tenant-isolation/`、`.km-control/comp
 - 映像：`km-test-web:c8884f72-llm-ba82d79-srconly`（TEST 兩個 worker、da40 search）、`km-da40-ingest:ddl-free-fd8dd34-llm-ba82d79-srconly`。
 - 測試：`tests/test_search_task_sources_only.py`。部署版失敗、回補版與 git 版皆通過。
 - 驗收：CrossSearch 只取來源約 2 秒、LLM 用量 +0；da40／TEST 一般搜尋照常生成回答，用量各 +1。
-- 待辦：git 與部署版 `tasks.py` 需另行合併成單一來源，再由 git 重建映像。
+- **已合併**（見下節）：git 的 `tasks.py` 現在同時包含此修正與部署版的 UI 上傳追蹤。部署中的 `*-srconly` 映像仍是回補版，尚未換成合併版。
+
+## tasks.py 合併（2026-10-15）
+
+- 來源：部署版是 `6e8617b`（10-02）的 `tasks.py`；git 版是 `8454c58` 交接時取自「DGX working tree」的版本。兩條線各自演進。
+- `8454c58` 遺失了 UI 上傳追蹤：`ui_upload_tracking.py` 仍在，但 `tasks.py` 與 `web_api/__init__.py` 已沒有任何呼叫者，判斷為交接遺漏，不是刻意移除。
+- 合併方式：以 git 版為基礎，原樣補回 `6e8617b` 的 3 段追蹤呼叫：完成時 `record_upload`、重試時 `update_upload_status("retrying")`、失敗時 `update_upload_status("failed")`。
+- 合併後相對部署版只多 git 的 4 項改善：
+  - 報告附件雜湊驗證。
+  - 正式報告加入 Excel 圖片內容。
+  - worker 改經 `create_llm_client` 預載。
+  - 中繼資料新增 `environment` 欄位。
+- 部署版潛在 bug：`parse_and_validate_report` 的 `attachment_hashes or {}` 讓 `None` 與 `{}` 等價。部署版一律傳 `None`，所以 RawArtifacts 有附件的正式報告必定驗證失敗；合併版會帶入狀態中的附件雜湊。
+- 測試：
+  - 新增 `tests/test_ingest_ui_upload_tracking.py`（4 項）：合併版通過，合併前 git 版有 3 項失敗。
+  - 合併版放進兩個部署映像測試：15 passed。
+  - git 回歸 107 passed。`tests/test_wp1_job_config.py` 因測試映像缺 `itsdangerous` 無法收集，屬既有環境問題。
+- 尚未處理：`web_api/__init__.py` 在 `8454c58` 也遺失了上傳排入佇列時的 `record_upload`／`queue_failed` 呼叫。
 
 ## RD2 已移除（2026-10-15）
 
