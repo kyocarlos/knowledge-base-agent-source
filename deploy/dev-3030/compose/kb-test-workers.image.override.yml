@@ -1,8 +1,9 @@
 # Reconstructed 2026-10-15 from the running TEST celery workers. Replaces the
 # lost /tmp/km-ui-upload-image.override.yml, whose only remaining effect on the
-# workers is the image. No secrets in this file.
+# workers is the image. Worker images (*-tasks-ee2d3c9) carry the merged
+# src/web_api/tasks.py from commit ee2d3c9. No secrets in this file.
 services:
   celery_ingest_worker:
-    image: km-test-web:c8884f72-llm-ba82d79-srconly
+    image: km-test-web:c8884f72-llm-ba82d79-tasks-ee2d3c9
   celery_search_worker:
-    image: km-test-web:c8884f72-llm-ba82d79-srconly
+    image: km-test-web:c8884f72-llm-ba82d79-tasks-ee2d3c9

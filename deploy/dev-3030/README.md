@@ -137,7 +137,7 @@ runtime 副本放在 `.km-control/compose/tenant-isolation/`、`.km-control/comp
 - 映像：`km-test-web:c8884f72-llm-ba82d79-srconly`（TEST 兩個 worker、da40 search）、`km-da40-ingest:ddl-free-fd8dd34-llm-ba82d79-srconly`。
 - 測試：`tests/test_search_task_sources_only.py`。部署版失敗、回補版與 git 版皆通過。
 - 驗收：CrossSearch 只取來源約 2 秒、LLM 用量 +0；da40／TEST 一般搜尋照常生成回答，用量各 +1。
-- **已合併**（見下節）：git 的 `tasks.py` 現在同時包含此修正與部署版的 UI 上傳追蹤。部署中的 `*-srconly` 映像仍是回補版，尚未換成合併版。
+- **已合併**（見下節）：git 的 `tasks.py` 現在同時包含此修正與部署版的 UI 上傳追蹤。4 個 worker 已改用合併版映像（`*-tasks-ee2d3c9`，見下節「部署」）。
 
 ## tasks.py 合併（2026-10-15）
 
@@ -161,6 +161,16 @@ runtime 副本放在 `.km-control/compose/tenant-isolation/`、`.km-control/comp
   - 部署中的 web 映像本來就有此功能，所以不需要重新部署 web。
   - 新增 `tests/test_web_ui_upload_tracking.py`（4 項）：移植後與部署版程式都通過，移植前的 git 版無法執行。
   - 全套測試與 HEAD 比較沒有新增失敗（環境造成的既有失敗清單相同），通過數多 4 項。
+
+- **部署（2026-10-15）**：
+  - 映像：以 `*-srconly` 為基底，只把 `/app/src/web_api/tasks.py` 換成 `ee2d3c9` 版（sha256 `6db4f858`，權限維持 root 600），label `io.km.tasks-source-commit=ee2d3c9`。
+    - `km-test-web:c8884f72-llm-ba82d79-tasks-ee2d3c9` → kb-celery-search、kb-celery-ingest、da40 search worker。
+    - `km-da40-ingest:ddl-free-fd8dd34-llm-ba82d79-tasks-ee2d3c9` → da40 ingest worker。
+  - 部署前確認：映像內 15 項測試通過；兩個映像都已有合併版所需的 `create_llm_client`、`FileConverter._build_excel_enrichment`、`parse_and_validate_report(path, attachment_hashes)`；各 worker 的 Ollama `instances` 都只有一個，與部署版 `base_url` 寫法等效。
+  - dry-run 只有這 4 個 worker 需要 Recreate；佇列與執行中任務皆為 0。
+  - 驗收：4 個 worker 皆 ready、restarts=0、`tasks.py` 為 `6db4f858`，日誌顯示主要 LLM `sub2api:gpt-5.6-luna`；compose 漂移檢查 MATCH。E2E（Firefox）：TEST CrossSearch 只取來源約 2 秒、10 筆、LLM 用量 +0；DA40 一般搜尋 8.3 秒、TEST 4.1 秒，用量各 +1；report_graph 解讀與 Ollama 備援皆 0 次。
+  - 未在 runtime 驗證：UI 上傳追蹤（實際上傳會寫入知識庫資料），目前只有單元測試與映像內測試。
+  - 回滾：把兩個 override 檔的映像改回 `*-srconly`，再用同樣的 `up -d --no-deps` 指令重建。部署前狀態記錄在 `.km-control/worker-tasks-merge-deploy-20261015/before.txt`。
 
 ## RD2 已移除（2026-10-15）
 
