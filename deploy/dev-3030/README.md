@@ -41,4 +41,29 @@
 ## 注意
 
 - 檔內 `km-dev-da40.duckdns.org` 與 `:3030` 是 DEV 專用值，不可直接用於其他環境。
-- `kb-login.override.yml` 的 web 段落已被其他 compose 檔覆蓋；kb-web 目前疊了 6 個 compose 檔，其中 3 個位於 `/tmp`。此目錄只納入 Nginx 設定。
+- `kb-login.override.yml` 的 web 段落會被下方的 `kb-web.chat-runtime.override.yml` 覆蓋。
+
+## TEST plane compose（kb-web、kb-celery-ingest、kb-celery-search、kb-nginx）
+
+2026-10-15 查證：這些容器建立時使用的 `/tmp` compose 檔與 env 檔（`/tmp/km-ui-upload-image.override.yml`、`/tmp/codex-chatv2-secure-fix/deploy/legacy-test/docker-compose.chat-runtime.yml`、`/tmp/km-chat-image.override.yml`、`/tmp/km-test-compose.env`）已在 10-04 主機重開機後消失。容器靠 restart policy 持續運作，但無法以原設定重建。
+
+已從執行中容器反推重建，並以「compose config-hash 與容器 label 完全相同」驗證（4 個服務皆一致，`up --dry-run` 皆為 Running，不會重建）：
+
+| 檔案 | 位置 | 內容 |
+|---|---|---|
+| `compose/kb-web.chat-runtime.override.yml` | git + `.km-control/compose/` | web 映像 `km-chat-v2-secure:418610dc-202610021610`、`OPENCLAW_CHAT_CONFIG_PATH`、以 TEST chat runtime 檔取代 `~/.openclaw` 掛載 |
+| `compose/kb-test-workers.image.override.yml` | git + `.km-control/compose/` | 兩個 worker 映像 `km-test-web:c8884f72` |
+| `kb-test.env` | 只在 `.km-control/compose/`（0600，不進 git） | compose 實際引用的 25 個變數值（取自執行中容器） |
+
+操作一律透過 `scripts/dev-kb-test-compose.sh`。它固定使用基礎 runtime 目錄的 `docker-compose.yml`、`rollback-images.yml`、`.km-control/kb-login.override.yml`、`.km-control/planes/test-worker.override.yml` 與上述兩個 override，並有以下保護：
+- runtime override 必須與 git 內容一致，否則拒絕執行。
+- 會變更容器的子指令必須明確指定服務，且只允許 `web`、`celery_ingest_worker`、`celery_search_worker`、`nginx`。
+- 禁止 `down`。
+
+範例：
+- 對帳：`scripts/check-dev-compose-drift.sh`（4 個服務 config-hash 全一致才輸出 MATCH）
+- 預覽重建：`scripts/dev-kb-test-compose.sh up -d --no-deps --dry-run web`
+
+仍依賴已遺失 `/tmp` 項目、尚未處理：
+- `kb-redis`、`kb-report-registry`：工作目錄 `/tmp/km-v26-ci-cd-20260915-main-r2`（原始檔在主 repo 分支 `agent/km-v26-ci-cd-validation-20260915-r2`）
+- `kb-timescaledb`：`/tmp/phase1-timescaledb-infrastructure-override.yml`

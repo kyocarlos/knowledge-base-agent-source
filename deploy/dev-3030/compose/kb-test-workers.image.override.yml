@@ -1,0 +1,8 @@
+# Reconstructed 2026-10-15 from the running TEST celery workers. Replaces the
+# lost /tmp/km-ui-upload-image.override.yml, whose only remaining effect on the
+# workers is the image. No secrets in this file.
+services:
+  celery_ingest_worker:
+    image: km-test-web:c8884f72
+  celery_search_worker:
+    image: km-test-web:c8884f72

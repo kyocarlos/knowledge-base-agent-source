@@ -325,7 +325,15 @@
     },
     {
       "path": "deploy/dev-3030/README.md",
-      "sha256": "f3897ce3da5fd13dadacaaab4cddc73cab43fd9242b2a0f7f0a4928949260455"
+      "sha256": "c5fbf80144ac5cac2a6a9b8f5ccb907b9ff93d4a7c7513d200a4f6a4fd8c0cf8"
+    },
+    {
+      "path": "deploy/dev-3030/compose/kb-test-workers.image.override.yml",
+      "sha256": "c1cfe665de122a1b39ee31c2a4ab837ee50afd75dd2615acbb362ba1dc68e344"
+    },
+    {
+      "path": "deploy/dev-3030/compose/kb-web.chat-runtime.override.yml",
+      "sha256": "4ea3beb06626355b17d9fa4bbea2d7fcba57238e8e67a697afa756ba29f89121"
     },
     {
       "path": "deploy/dev-3030/nginx.runtime.conf",
@@ -948,6 +956,10 @@
       "sha256": "c76953253be3a5fff6aec1d28893f2b5019ca6362de816f321e07b1a991dee77"
     },
     {
+      "path": "scripts/check-dev-compose-drift.sh",
+      "sha256": "5a473b6dcb56f5f61bbeb1aebb7c1dac50211e1a103111055895858b8b9478aa"
+    },
+    {
       "path": "scripts/check-dev-nginx-drift.sh",
       "sha256": "456c56033a3d7bffe34f6179504a8b7ace74e213051de34be107ead391ddf2c0"
     },
@@ -966,6 +978,10 @@
     {
       "path": "scripts/csit-integration-operator.py",
       "sha256": "626e3f500aff0069c2adc2976d6732462557bbe57b763412ae86fe1c93a56279"
+    },
+    {
+      "path": "scripts/dev-kb-test-compose.sh",
+      "sha256": "803a6cae07bf44544fb0265c73e5a8cdb0c1411c8c22edb3caba9b1f19a50964"
     },
     {
       "path": "scripts/drill_pre_wp01_rollback.py",
