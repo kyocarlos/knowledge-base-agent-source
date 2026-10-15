@@ -105,7 +105,8 @@ runtime 副本放在 `.km-control/compose/tenant-isolation/`、`.km-control/comp
 1. ~~da40 `celery_search_worker` 映像漂移~~：2026-10-15 已依使用者決定改用新映像重建（`04086d0f60ba` → `02c62b78338e`，即 `km-test-web:c8884f72` 目前指向的映像）。新映像的 `tasks.py` 與搜尋路徑關鍵檔，與 da40 web／ingest 目前使用的版本相同。重建前佇列為 0；重建後設定 hash 不變，除映像外的環境變數、指令、掛載、網路、重啟策略皆相同；正式入口 da40 搜尋成功。舊映像保留標籤 `km-da40-search:approved-04086d0f` 可供退回。
 2. **da40 search worker 的 `KM_CONTROL_PUBLIC_ORIGIN` 仍為 3030 合併前的 `:3031`**，由 Codex 的 supplement 釘住；worker 只檢查此值為 https，無功能影響。
 
-3. **da40 資料區無法連線 Ollama（既有問題）**：`docker-compose.instance.yml` 沒有 `extra_hosts: host.docker.internal:host-gateway`，da40 web 與 worker 內無法解析 `host.docker.internal`，回答生成走備援。TEST plane（kb-web、kb-celery-*）有此設定且連線正常。修正需修改 instance compose 並重建 da40 web／worker。
+3. ~~da40 資料區無法連線 Ollama~~：2026-10-15 已修正。`docker-compose.instance.yml` 的 web、celery_search_worker、celery_ingest_worker 加入 `extra_hosts: ["host.docker.internal:host-gateway"]`（與 TEST plane 相同）；同時加在兩條部署路徑共用的 `.km-control/planes/da40.override.yml`，避免 Codex 以 `github-verified-clone` 範本重建時把修正蓋掉。兩路徑算出的 config-hash 相同。三個容器已重建，皆可解析 `host.docker.internal` 並取得 Ollama `/api/tags` 200。
+4. **主機 Ollama 全域容量限制（非 da40 設定問題）**：`/etc/systemd/system/ollama.service.d/override.conf` 設為 `OLLAMA_NUM_PARALLEL=1`、`OLLAMA_MAX_LOADED_MODELS=1`。當其他工作長時間佔用模型時（2026-10-15 觀察到 `qwen3.6:27b` 持續約 50 分鐘以上），da40、TEST 與主機本身對 `gemma4:12b` 的請求都會排隊逾時；da40 搜尋會在 Celery 10 分鐘軟性時限後改用備援回答。
 
 ## RD2 已移除（2026-10-15）
 
