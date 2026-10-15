@@ -325,11 +325,11 @@
     },
     {
       "path": "deploy/dev-3030/README.md",
-      "sha256": "a904784bd70daca0c2b0e30ca6e0901563350cc975a56773924558a267e58b67"
+      "sha256": "c789caddef41db7275ba233532dff9991de56467d1aebd9c566818024b7faf06"
     },
     {
       "path": "deploy/dev-3030/backports/ingest-doc-name-stem.patch",
-      "sha256": "66285745b183fc822d9a8fc61f8c4ea1f28d55a6ebcde72b043556042eeb6567"
+      "sha256": "a3203b26106d8e24fab7d92d69d702426c40db1999e5e846b5680cf53c8eb075"
     },
     {
       "path": "deploy/dev-3030/backports/sources-only-no-llm.patch",
@@ -341,7 +341,7 @@
     },
     {
       "path": "deploy/dev-3030/compose/kb-test-workers.image.override.yml",
-      "sha256": "9864aa4f07c885eebfc8c6be30cda65cd03906b9eb9a645490a2c05445d2828f"
+      "sha256": "b81bfc1c78c516c0076ad6937fe7e30ce69c5f1a7036050b1135ade44b58231a"
     },
     {
       "path": "deploy/dev-3030/compose/kb-test.llm-primary.override.yml",
@@ -357,7 +357,7 @@
     },
     {
       "path": "deploy/dev-3030/compose/km-da40.llm-primary.override.yml",
-      "sha256": "1b52e58809914524b883482ac9b07017782472521bd77dd9da392fbce4e73356"
+      "sha256": "f983b4ded7cf64caba7b4d8afebee6e9636f93a55d91c8eaef3d6540f7894e84"
     },
     {
       "path": "deploy/dev-3030/nginx.runtime.conf",

@@ -1,6 +1,14 @@
 --- a/src/ingest.py
 +++ b/src/ingest.py
-@@ -303,14 +303,9 @@
+@@ -4,6 +4,7 @@
+ """
+ 
+ import logging
++import json
+ import os
+ import yaml
+ from pathlib import Path
+@@ -303,14 +304,9 @@
      system_prompt = get_extraction_prompt(extraction_mode)
      mode_name = EXTRACTION_MODES.get(extraction_mode, {}).get("name", extraction_mode)
      logger.info(f"使用萃取模式: {mode_name}")
@@ -18,7 +26,7 @@
      content = Path(doc_path).read_text(encoding="utf-8")
      cleanup_existing_document(
          doc_name,
-@@ -626,7 +621,6 @@
+@@ -626,7 +622,6 @@
                  source_metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
              except Exception as metadata_error:
                  logger.warning(f"讀取向量 metadata 失敗: {metadata_error}")

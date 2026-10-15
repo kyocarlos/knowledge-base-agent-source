@@ -179,8 +179,35 @@ runtime 副本放在 `.km-control/compose/tenant-isolation/`、`.km-control/comp
       - 上傳目錄，以及因此產生的空 `Lab/` 目錄。
     - 清除後快照與上傳前基準完全相同；Neo4j 無殘留，UI 列表也已不見測試檔。
     - 證據：`.km-control/ui-upload-tracking-e2e-20261015/`。
-    - 附帶觀察（未修改）：測試檔太短，切出 0 個區塊，所以沒有寫入 QDrant。向量的 `doc_name` 取自檔名 stem，而不是 `document_id`：`source.json` 寫在 `original/`，但攝入讀的是 `converted/` 旁邊的檔案。
+    - 附帶觀察：測試檔太短，切出 0 個區塊，所以沒有寫入 QDrant。上傳身分沒有進入向量與 Neo4j，已在下節修正。
   - 回滾：把兩個 override 檔的映像改回 `*-srconly`，再用同樣的 `up -d --no-deps` 指令重建。部署前狀態記錄在 `.km-control/worker-tasks-merge-deploy-20261015/before.txt`。
+
+## 上傳身分寫入向量與 Neo4j，doc_name 維持檔名（2026-10-15，commit `2d6a062`）
+
+- 根因：
+  - 上傳任務只把 `document_id` 等身分寫在 `original/` 旁的 `source.json`；chunker、`ingest_vector`、Neo4j 讀的是 `converted/` 旁的 sidecar，所以身分從未進入 Qdrant 或 Neo4j。report 模式的 converted sidecar 也沒有帶 `document_id`。
+  - 部署版 `ingest.py` 另有潛在 bug：沒有在模組層級 `import json`，`ingest_vector` 和 `_write_neo4j_document` 讀 sidecar 時都會 `NameError`，被 `except` 吞掉，所以連 report 的 canonical 欄位也沒有寫入。
+- 使用者決策：`doc_name` 維持檔名，只補身分。理由：
+  - `doc_name` 是搜尋顯示、文件名稱比對與重新攝入覆蓋的鍵。
+  - KM_UI 的 `document_id` 每次隨機產生，拿來當 `doc_name` 會讓來源顯示成 `kmui-…`、無法以名稱比對，而且重新上傳會重複累加。
+- 修改：
+  - `tasks.py` 新增 `_write_converted_identity`，把身分合併寫入 converted sidecar；report canonical 欄位優先，沒有身分的 legacy 上傳不寫。
+  - `ingest.py` 不再用 `document_id` 覆寫 `doc_name`。
+  - 現有兩個資料區 113 份文件中，沒有任何一份的 `doc_name` 等於 `document_id`，這個分支從未生效，既有行為不變。
+- 測試：`tests/test_upload_identity_sidecar.py`（6 項），修改前 4 failed、2 errors。全套測試與 HEAD 比較沒有新增失敗，通過數 +6。
+- 部署：
+  - 部署版 `ingest.py` 已分岔，改以 `backports/ingest-doc-name-stem.patch` 回補（含 `import json`，`2a7fcc1b → 0c25fb02`）；`tasks.py` 用 `2d6a062` 版（`cb1f5488`）。
+  - 映像：`km-test-web:c8884f72-llm-ba82d79-docid-2d6a062`（TEST 兩個 worker、da40 search）、`km-da40-ingest:ddl-free-fd8dd34-llm-ba82d79-docid-2d6a062`（da40 ingest）；映像內 21 項測試通過。
+  - dry-run 只有 4 個 worker 重建；部署後 drift MATCH。
+- runtime 驗收（Webwright，TEST，Lab 模式）：
+  - 上傳後 Qdrant 有 3 個點；`doc_name` 為檔名 stem，頂層與 metadata 的 `document_id` 都是該次的 `kmui-…`，並帶有 `original_file_name` 與 `source_system=KM_UI`。
+  - `/search` 來源沒有出現 `kmui-`。
+  - 回歸：CrossSearch 只取來源 2 秒、+0 用量；DA40 10.3 秒、TEST 4.1 秒，用量各 +1。
+  - 測試資料已依 task_id／document_id 清除（含 3 個向量點），快照與上傳前基準完全相同；Neo4j 為 0，UI 列表無殘留。
+  - 第一次上傳的段落都低於 `min_chunk_size=100`，切出 0 個區塊，也已一併清除。
+- 行為變化：部署版補上 `import json` 後，report 模式的 canonical 欄位（run_id、environment 等）與上傳身分會開始寫入 chunk metadata，以及 Neo4j Document 屬性（`d += $identity`），符合 git 版原本的設計。
+- 附帶觀察（未修改）：`/search` 依查詢分類只回傳 `4G_5G` 類別的來源，所以 Lab 文件不會出現在一般搜尋中。
+- 回滾：把兩個 override 檔的映像改回 `*-tasks-ee2d3c9`，再用 `up -d --no-deps` 重建。證據放在 `.km-control/doc-identity-deploy-20261015/`。
 
 ## RD2 已移除（2026-10-15）
 
