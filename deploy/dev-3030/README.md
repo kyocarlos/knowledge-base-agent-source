@@ -154,7 +154,13 @@ runtime 副本放在 `.km-control/compose/tenant-isolation/`、`.km-control/comp
   - 新增 `tests/test_ingest_ui_upload_tracking.py`（4 項）：合併版通過，合併前 git 版有 3 項失敗。
   - 合併版放進兩個部署映像測試：15 passed。
   - git 回歸 107 passed。`tests/test_wp1_job_config.py` 因測試映像缺 `itsdangerous` 無法收集，屬既有環境問題。
-- 尚未處理：`web_api/__init__.py` 在 `8454c58` 也遺失了上傳排入佇列時的 `record_upload`／`queue_failed` 呼叫。
+- `web_api/__init__.py`：`8454c58` 遺失的不只追蹤呼叫，而是整個 UI session 上傳功能（`/api/ui/upload/ingest`）。已從部署映像的版本（sha256 `6f8d5df5`）移植回 git：
+  - 需要登入且資料區與 session 相符，否則回 401 `session_required`。
+  - 以 `KM_UI` 身分建立攝入識別；`report` 模式驗證正式報告格式，不符回 422 `invalid_test_report`。
+  - 排入佇列時 `record_upload(status="queued")`，排入失敗時 `update_upload_status("queue_failed")`。
+  - 部署中的 web 映像本來就有此功能，所以不需要重新部署 web。
+  - 新增 `tests/test_web_ui_upload_tracking.py`（4 項）：移植後與部署版程式都通過，移植前的 git 版無法執行。
+  - 全套測試與 HEAD 比較沒有新增失敗（環境造成的既有失敗清單相同），通過數多 4 項。
 
 ## RD2 已移除（2026-10-15）
 

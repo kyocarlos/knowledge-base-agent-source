@@ -34,6 +34,7 @@ from .cache import cache_get, cache_set
 from ..csit.assistant import is_csit_query
 from .csit_routes import router as csit_router, run_csit_assistant_query
 from ..storage_paths import resolve_storage_category
+from ..instance_isolation import configured_instance_id
 
 WORKSPACE_DIR = "/home/da40_ai_gb10/.openclaw/workspace"
 UPLOAD_RETENTION_LIMIT = 10
@@ -2829,6 +2830,7 @@ async def upload_file(request: Request, background_tasks: BackgroundTasks):
 
 @app.post("/upload/ingest")
 @app.post("/api/upload/ingest")
+@app.post("/api/ui/upload/ingest")
 async def upload_and_ingest(request: Request, extraction_mode: str = "4g5g"):
     """
     上傳檔案並提交背景攝入任務。
@@ -2852,8 +2854,15 @@ async def upload_and_ingest(request: Request, extraction_mode: str = "4g5g"):
     from ..ingest_registry import IngestRegistry, IngestRegistryConflict
     import shutil
 
-    allowed_upload_modes = {"4g5g", "wifi", "lab", "project", "automation"}
-
+    ui_session_upload = request.url.path == "/api/ui/upload/ingest"
+    data_zone = None
+    if ui_session_upload:
+        session_identity = getattr(request.state, "km_identity", None)
+        data_zone = configured_instance_id()
+        if not session_identity or not data_zone or session_identity.get("instance_id") != data_zone:
+            raise HTTPException(status_code=401, detail={"code": "session_required", "message": "請先登入並選擇資料區"})
+        data_zone = data_zone.upper()
+    allowed_upload_modes = {"4g5g", "wifi", "lab", "project", "automation", "report"}
     staging_path = None
     try:
         form = await request.form(
@@ -2863,7 +2872,7 @@ async def upload_and_ingest(request: Request, extraction_mode: str = "4g5g"):
         )
         file = _extract_uploaded_file(form)
         agent_identity = None
-        if os.getenv("KB_INGEST_REQUIRE_AGENT_AUTH", "false").lower() in {"1", "true", "yes"}:
+        if not ui_session_upload and os.getenv("KB_INGEST_REQUIRE_AGENT_AUTH", "false").lower() in {"1", "true", "yes"}:
             from ..test_reports.auth import authenticate_agent
             agent_identity = authenticate_agent(request)
         content = await file.read()
@@ -2872,7 +2881,7 @@ async def upload_and_ingest(request: Request, extraction_mode: str = "4g5g"):
         filename_mode = detect_extraction_mode(Path(file.filename).stem)
         # 檔名若已明確指向特定類型，優先使用檔名判定結果，避免 UI 預設值覆蓋。
         # 只有檔名無法辨識時，才回退到前端傳入的 extraction_mode。
-        effective_mode = filename_mode if filename_mode != "4g5g" else extraction_mode
+        effective_mode = extraction_mode if ui_session_upload and extraction_mode == "report" else (filename_mode if filename_mode != "4g5g" else extraction_mode)
         if effective_mode not in allowed_upload_modes:
             logger.warning(
                 "upload/ingest 收到不支援的 extraction_mode=%s，回退為 4g5g",
@@ -2893,13 +2902,30 @@ async def upload_and_ingest(request: Request, extraction_mode: str = "4g5g"):
         staging_path = staging_dir / f"{uuid.uuid4().hex}_{file_name}"
         staging_path.write_bytes(content)
         try:
-            identity = validate_ingest_file(
-                path=staging_path,
-                headers=request.headers,
-                extraction_mode=effective_mode,
-                original_file_name=file_name,
-                require_contract=not (allow_legacy and not supplied_identity_headers),
-            )
+            if ui_session_upload:
+                from ..ingest_conflict_protection import IngestIdentity
+                report_manifest = None
+                if effective_mode == "report":
+                    from ..test_reports.excel_contract import parse_and_validate_report, ReportValidationError
+                    try:
+                        report_manifest = parse_and_validate_report(staging_path)["manifest"]
+                    except ReportValidationError as report_error:
+                        raise HTTPException(status_code=422, detail={"code": "invalid_test_report", "message": str(report_error)})
+                identity = IngestIdentity(
+                    source_system="KM_UI", environment_id=data_zone, project_id="KM_UI",
+                    run_id=(report_manifest or {}).get("run_id") or f"ui-{uuid.uuid4().hex}",
+                    artifact_type="test_report" if effective_mode == "report" else "document",
+                    report_schema=(report_manifest or {}).get("schema_version", "none"),
+                    original_file_name=file_name, source_file_hash=file_hash, ingest_file_hash=file_hash,
+                    document_id=f"kmui-{uuid.uuid4().hex}", idempotency_key=f"kmui-{uuid.uuid4().hex}",
+                    generated_at=datetime.now().isoformat(timespec="seconds"),
+                )
+            else:
+                identity = validate_ingest_file(
+                    path=staging_path, headers=request.headers, extraction_mode=effective_mode,
+                    original_file_name=file_name,
+                    require_contract=not ((ui_session_upload or allow_legacy) and not supplied_identity_headers),
+                )
         except IngestContractError as contract_error:
             if contract_error.code != "legacy_upload":
                 logger.warning(
@@ -3032,8 +3058,13 @@ async def upload_and_ingest(request: Request, extraction_mode: str = "4g5g"):
         if identity:
             state.update(identity.as_dict())
             state["file_hash"] = identity.ingest_file_hash
+            if ui_session_upload:
+                state.update({"data_zone": data_zone, "ui_session_upload": True, "canonical_test_report": effective_mode == "report"})
             registry.record_event("task_created", task_id, document_id=identity.document_id, idempotency_key=identity.idempotency_key)
         set_ingest_task_state(task_id, state)
+        if ui_session_upload:
+            from ..ui_upload_tracking import record_upload
+            record_upload(task_id=task_id, data_zone=data_zone, file_name=file_name, file_hash=file_hash, extraction_mode=effective_mode, status="queued")
         try:
             async_result = ingest_file_task.apply_async(
                 args=[task_id],
@@ -3043,6 +3074,9 @@ async def upload_and_ingest(request: Request, extraction_mode: str = "4g5g"):
         except Exception:
             if registry:
                 registry.update_status(task_id, "ingest_failed")
+            if ui_session_upload:
+                from ..ui_upload_tracking import update_upload_status
+                update_upload_status(state, "queue_failed")
             raise
         state["celery_task_id"] = async_result.id
         set_ingest_task_state(task_id, state)
@@ -3060,6 +3094,8 @@ async def upload_and_ingest(request: Request, extraction_mode: str = "4g5g"):
             "queue_position": queue_position,
             "message": "已加入攝入佇列"
         }
+        if ui_session_upload:
+            response["data_zone"] = data_zone
         if identity:
             response.update({
                 "document_id": identity.document_id,

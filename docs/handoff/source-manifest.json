@@ -325,7 +325,7 @@
     },
     {
       "path": "deploy/dev-3030/README.md",
-      "sha256": "1f88234ef3d5a0fee17023bd9b71ce81692c1d4dc9113560f56546795d5997c5"
+      "sha256": "8acb014d27a94bffd2fc4fad12f656c7a503aedf80f4593231f5c8964ae1c014"
     },
     {
       "path": "deploy/dev-3030/backports/sources-only-no-llm.patch",
@@ -1393,7 +1393,7 @@
     },
     {
       "path": "src/web_api/__init__.py",
-      "sha256": "2a76bb97aad5f868b349dfb5cb1d82c8bec1b3ddd73483a79928ad69f70649fc"
+      "sha256": "7ed4ab2b33b11714bb3efa9b7b453888655c6fda339a977b4337bb1c2c0f3ffe"
     },
     {
       "path": "src/web_api/cache.py",
@@ -1782,6 +1782,10 @@
     {
       "path": "tests/test_test_reports.py",
       "sha256": "b7bcfa38155965064add1f82fe29381c73d5094f7cae3920f6b58b37ed490340"
+    },
+    {
+      "path": "tests/test_web_ui_upload_tracking.py",
+      "sha256": "23159f5ee568214b6c7a7271da7f770caafc7cc81166bf1f1bb7967c5567e160"
     },
     {
       "path": "tests/test_wp0_api_contract.py",
