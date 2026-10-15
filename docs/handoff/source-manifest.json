@@ -25,7 +25,7 @@
     },
     {
       "path": "AGENTS.md",
-      "sha256": "17a5482059f1f397b124f7fef3200b690551116551aa56a48ffe67b928839b9d"
+      "sha256": "4a662f2a3d58e801e148938d46158b218f85e1864ab390a66826c2e340139786"
     },
     {
       "path": "AI-KM-Phase1-Weekly-2026-W33-v2.6.pptx",
@@ -61,7 +61,11 @@
     },
     {
       "path": "Dockerfile",
-      "sha256": "5143027fa516f6a149430aca8e162510bb652fa60189633a532eeb01a81a661d"
+      "sha256": "e1ffd17cfbf88a4f96a017bba1cd2d3d17301cc3b34084adc8b206d25cb34324"
+    },
+    {
+      "path": "Dockerfile.cross-bridge",
+      "sha256": "5a54f4200f056668b9b85cebe4f0c7212e85f53f76a297b51835045c77b81020"
     },
     {
       "path": "EXTERNAL_AGENT_KB_INGEST_APIS.md",
@@ -240,6 +244,30 @@
       "sha256": "cdbcde1923eccb26dbe03cd072a6a08cae37cc6459666081b0b6820a8eaf61cd"
     },
     {
+      "path": "cross_bridge_main.py",
+      "sha256": "494a3339f81b1622ac52fb181b98f666247cc9e34fa58158302981d3dbaf0528"
+    },
+    {
+      "path": "cross_search/Dockerfile",
+      "sha256": "6b9fa72e0217d4f84ee4678e5a956801eb5864dfdc8a017a10fded9d16fb91a2"
+    },
+    {
+      "path": "cross_search/__init__.py",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "cross_search/connectors.py",
+      "sha256": "4a38ba60c0f070baa20cd5c50c228c8d2c7c57f5b05bb99c4efa24d7e2f02238"
+    },
+    {
+      "path": "cross_search/requirements.txt",
+      "sha256": "c64f10a0f3c69ea2afee4fd408df54f150086fcd6475674b611cbfca16ede0df"
+    },
+    {
+      "path": "cross_search/service.py",
+      "sha256": "d2fa53de8006c8290112d024c0668d97a2e7eb2dea89fa98b2b23910d015c8e7"
+    },
+    {
       "path": "deploy/control-plane/control.env.example",
       "sha256": "d1dcf89c950c7a9f69b4331193240f358b72d722e8403bd0a8f90da2c98d690d"
     },
@@ -250,6 +278,14 @@
     {
       "path": "deploy/control-plane/nginx.control.conf",
       "sha256": "0217c56f6b6206a33a5756fc022727b636c19b54942f605b65866d72d90a4a27"
+    },
+    {
+      "path": "deploy/cross-search-credentials/control-base-schema.sql",
+      "sha256": "eacef716dc43e2e974b1c616c41643c6f8afbcc047ec46a32ffdbaba017b24b4"
+    },
+    {
+      "path": "deploy/cross-search-credentials/sandbox-compose.yaml",
+      "sha256": "dcfc54752136e5e5475f67fce45ac5c29a22d16422d77f0596424415dc0fb209"
     },
     {
       "path": "deploy/csit-integration-v1/Dockerfile",
@@ -286,6 +322,14 @@
     {
       "path": "deploy/csit-integration-v1/worker-compose.yaml",
       "sha256": "f228af8d513dfca75eba3c38d0d62d167f35d8fa5cefdf6d4d421eba4538fd41"
+    },
+    {
+      "path": "deploy/dev-3030/README.md",
+      "sha256": "f3897ce3da5fd13dadacaaab4cddc73cab43fd9242b2a0f7f0a4928949260455"
+    },
+    {
+      "path": "deploy/dev-3030/nginx.runtime.conf",
+      "sha256": "28ae70e260231c4eb3ae16e3333c3c80ad21220f5f04fa58232a73c842f12c4f"
     },
     {
       "path": "deploy/legacy-test/control-3030.env.example",
@@ -342,6 +386,10 @@
     {
       "path": "docs/anritsu_amarisoft_kb_architecture.md",
       "sha256": "7a014078cfe5350a6eff442f35578ce3c18f9ff469a79da9bce273735e097f50"
+    },
+    {
+      "path": "docs/cross-search-credentials-deployment-plan.md",
+      "sha256": "4cdaeea332ca38d1283e76ebe43d84b8da095e042a9bdfff37f42d737bdc0e40"
     },
     {
       "path": "docs/csit-contract-status.md",
@@ -477,7 +525,7 @@
     },
     {
       "path": "frontend/login.html",
-      "sha256": "496c2b8dd8e7f4337619afec464dfb79e62cf26bb19771a7fccb6d2a861a9190"
+      "sha256": "24a569f26cc9b726186cdc84e6f77ed92c8cf94b40fa4bee895bb5487b00d78f"
     },
     {
       "path": "frontend/oidc-binding.html",
@@ -490,6 +538,10 @@
     {
       "path": "frontend/package.json",
       "sha256": "af583e2dd4003fb3b1f08ab05a2f2a2e92e37c0f3d04ab67d00e9f35f20ae991"
+    },
+    {
+      "path": "frontend/source-credentials.html",
+      "sha256": "219c784c3e5ca911ce6e18f9479a7bd77c73ffc1eceef24200c0697915e3ef14"
     },
     {
       "path": "frontend/src/App.vue",
@@ -696,6 +748,14 @@
       "sha256": "cf5b4f50e0d19ee0b6d4931d34d563ff6fc5ddf0f7e265c7d68695fb6c592dde"
     },
     {
+      "path": "km_credentials/__init__.py",
+      "sha256": "8b5cc225b4e364632504709860d2b0da963f4274b93c44d1501534c44a8bafd3"
+    },
+    {
+      "path": "km_credentials/crypto.py",
+      "sha256": "b58fac892c31cc24e0ed62503badc00136a8486fd0e9f9eae405357593fb5b44"
+    },
+    {
       "path": "knowledge-base_development_presentations_20260812.zip",
       "sha256": "d7f83ec54ff311514d5e6c0dbe1911f50efb2c3d2e0010a0e901fe587dd00990"
     },
@@ -754,6 +814,10 @@
     {
       "path": "migrations/20261014_csit_integration_v1_nullable_lineage.sql",
       "sha256": "224c339fe693050ed50ac7af3e19258dc6385f31b21922b03cc93893333f1b2b"
+    },
+    {
+      "path": "migrations/20261015_km_source_credentials.sql",
+      "sha256": "dd0855019c0ad5620964b048a7f9b506bd7dd44858b3e75e6fe9c9b4814c5362"
     },
     {
       "path": "n8n-workflow/README.md",
@@ -884,12 +948,20 @@
       "sha256": "c76953253be3a5fff6aec1d28893f2b5019ca6362de816f321e07b1a991dee77"
     },
     {
+      "path": "scripts/check-dev-nginx-drift.sh",
+      "sha256": "456c56033a3d7bffe34f6179504a8b7ace74e213051de34be107ead391ddf2c0"
+    },
+    {
       "path": "scripts/check_deployment_readiness.py",
       "sha256": "ab465816bfec9e269b94cf7fd6b1d77b5f0b96946ecf97a7798fb00a61654a82"
     },
     {
       "path": "scripts/create_data_backup_bundle.sh",
       "sha256": "fca28833dd158726fe9e97fc9d9da33c8795c6d00437fa725f83acb52632006b"
+    },
+    {
+      "path": "scripts/cross_search_credentials_sandbox_driver.py",
+      "sha256": "09828e628ea90872bda8c9ec1d82c0eb9b92f1c282b335bf420dbe49b6d44ffe"
     },
     {
       "path": "scripts/csit-integration-operator.py",
@@ -952,6 +1024,10 @@
       "sha256": "86b2a7d7305891996e55f369b88899bbce8b2c2fc18e849f12b885182ba93e99"
     },
     {
+      "path": "scripts/test-cross-search-credentials-sandbox.sh",
+      "sha256": "aa0a2663d5b37bed4d62701076fefed3d1b034d7c7e659607526c768b855f7ff"
+    },
+    {
       "path": "scripts/test-csit-handoff.sh",
       "sha256": "0f4cd86c318554e8fdef992d2f2869b2355bb23bd07752a2abf875cb4942bc43"
     },
@@ -997,7 +1073,7 @@
     },
     {
       "path": "src/control_auth_routes.py",
-      "sha256": "504358e76a59fbfc4665b4c50f463dbc8ab64506bcb4386b12b5a2694b22a5ef"
+      "sha256": "8c553a2f038e6d15f6dab799a341e9bfcc74935f9ece4bd19fca320072a2e209"
     },
     {
       "path": "src/converter/__init__.py",
@@ -1153,7 +1229,7 @@
     },
     {
       "path": "src/km_control.py",
-      "sha256": "12d484486d1bed2249b3f826b09f45ad66b98b1464560417e20208d6ea46b01a"
+      "sha256": "df3c9992b790bbaabe96729cd2540b059802c5924fb7ac99056c5ed02713b8a4"
     },
     {
       "path": "src/km_dev_upload/__init__.py",
@@ -1282,6 +1358,10 @@
     {
       "path": "src/web_api/control_auth_routes.py",
       "sha256": "3497ba3d814f12d3f952cc54ca1d76d4de37a080a4ce9abb75600cf67385a90a"
+    },
+    {
+      "path": "src/web_api/cross_search_bridge.py",
+      "sha256": "3a5eccaccb962aff8bbcc15366a7e4f20f03f5e2ece6f817c99447f1537ab3ae"
     },
     {
       "path": "src/web_api/csit_routes.py",
@@ -1420,6 +1500,14 @@
       "sha256": "032aa00fcc77ac81aeed93b50d96ae930e9c390b91d528f501ff99ea35c177ea"
     },
     {
+      "path": "tests/mocks/__init__.py",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "tests/mocks/external_sources_mock.py",
+      "sha256": "d9f214e5d9f40b9fb35ce284d40c639c93a87502d790b51ed0727f62b761a0ba"
+    },
+    {
       "path": "tests/test_acceptance_failure_capture.py",
       "sha256": "bfc47d606660d955e7c8205490a6bad59bae2da9441b82f079dfa0fde762e1bc"
     },
@@ -1434,6 +1522,18 @@
     {
       "path": "tests/test_control_auth_api.py",
       "sha256": "ffc98bb71fc49b471dacdbee028fb00de3afa1dc2b6849d5c96209db7e4f97e9"
+    },
+    {
+      "path": "tests/test_control_entry_origin.py",
+      "sha256": "1a54048a9feea422942f23b277899895c2a7aa5787e17af1f374c49ed1313183"
+    },
+    {
+      "path": "tests/test_control_source_credentials_api.py",
+      "sha256": "9e105d3a43050bf1e0dcbd04cfca4e998a732b1c0f7e455189a2ac0592d40f32"
+    },
+    {
+      "path": "tests/test_cross_search_external_sources.py",
+      "sha256": "c06e1bc993bc668e753cc1c22b71995d4f9c552a750571058243418724421c67"
     },
     {
       "path": "tests/test_csit_contract.py",
@@ -1616,6 +1716,10 @@
       "sha256": "f32e63056cd8d0ec794c657c6bcd981a9bd2e01991626b3c78170c3aba0fa802"
     },
     {
+      "path": "tests/test_source_credentials_crypto.py",
+      "sha256": "885bf1fb2857a126fa4f13c5b4576a09176e782592462081d71f094894c616bc"
+    },
+    {
       "path": "tests/test_tenant_deployment_templates.py",
       "sha256": "69d1055c2b1fc129fa7dae0d307022b99d3c5af68090be531d9445f0ab60ee42"
     },
@@ -1688,5 +1792,6 @@
       "sha256": "b58484220a306b25815d99668e31cc0667b97c80a2d636d6a67df240b94ece85"
     }
   ],
-  "canonical_upstream_commit": "3a9ae52f04625aeee5fd01e7a3565f5972fc9122"
+  "canonical_upstream_commit": "3a9ae52f04625aeee5fd01e7a3565f5972fc9122",
+  "derived_from_handoff_commit": "baeacc34c075555ae7fd5089c3ebfdb162524661"
 }
