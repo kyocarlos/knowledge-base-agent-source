@@ -1,0 +1,11 @@
+# Reconstructed 2026-10-15 from the running km-rd2-web-1 container. Replaces
+# the lost /tmp/km-chat-zone-runtime.override.yml, whose effect on rd2 web was
+# only: image, OPENCLAW_CHAT_CONFIG_PATH, and the read-only RD2 chat runtime
+# file mount. No secrets in this file.
+services:
+  web:
+    image: km-chat-v2-secure:418610dc-202610021610
+    environment:
+      OPENCLAW_CHAT_CONFIG_PATH: /run/secrets/km-chat/runtime.json
+    volumes:
+      - /home/da40_ai_gb10/.km-control/chat-runtime/rd2/runtime.json:/run/secrets/km-chat/runtime.json:ro

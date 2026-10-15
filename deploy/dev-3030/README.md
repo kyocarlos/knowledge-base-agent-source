@@ -85,7 +85,28 @@
 
 compose 只在建立容器時寫入 `config_files`、`working_dir` label，所以上述容器重建前，label 仍會指向已不存在的 `/tmp` 路徑。判斷能否正確重建，請以 `check-dev-compose-drift.sh` 的 config-hash 比對為準。
 
+## da40／rd2 資料區與 Control DB compose
+
+`/tmp/km-3030-control-cutover-clean`（da40、rd2 的 instance compose 與 Control DB 的 control-auth compose）和 `/tmp/km-chat-zone-runtime.override.yml`（rd2 web）都已遺失。遺失的基礎檔與 git 中的 `deploy/tenant-isolation/docker-compose.instance.yml`、`deploy/legacy-test/docker-compose.control-auth.yml`（commit `6e8617b`，與本分支目前版本相同）一致。
+
+| 組 | 檔案組合（依序） | env |
+|---|---|---|
+| da40 | instance.yml、`.km-control/planes/da40.override.yml`、Codex CSIT 換版包的 `km-da40-runtime-supplement.yml` 與 `km-ui-ddl-free-images.override.yml`（不在 git，以 SHA-256 鎖定） | `.km-control/planes/da40.env` |
+| rd2 | instance.yml、`.km-control/planes/rd2.override.yml`、`compose/km-rd2-web.chat-runtime.override.yml`、`compose/km-rd2-search-worker.pinned.override.yml` | `.km-control/planes/rd2.env` |
+| control-db | control-auth.yml、`.km-control/control-auth.override.yml` | `.km-control/control-3030.env` |
+
+runtime 副本放在 `.km-control/compose/tenant-isolation/`、`.km-control/compose/legacy-test/`。操作一律透過 `scripts/dev-km-plane-compose.sh <da40|rd2|control-db> ...`：
+- runtime 副本須與 git 一致；外部檔以 SHA-256 鎖定。
+- 變更類指令只允許該組服務：zone 為 web、兩個 worker、neo4j、qdrant、redis、report_registry、timescaledb；control-db 只允許 `control_db`，`control_auth` 由 cross-search-credentials-deploy 的 runtime-compose.json 管理。
+- 需明確指定服務，禁止 `down`。
+
+驗證：17 個容器的 config-hash 全部一致，且與專案目錄位置無關。
+
+### 已知漂移（如實記錄，未修正）
+
+1. **da40、rd2 的 `celery_search_worker` 映像漂移**：兩者建立於 2026-09-30，仍執行 `04086d0f60ba`（另有標籤 `km-da40-search:approved-04086d0f`）；但其設定的 `km-test-web:c8884f72` 已於 10-02 重新 build，現指向 `02c62b78338e`（其他 worker 已使用新映像）。**重建這兩個 worker 會換成新映像**，`up --dry-run` 顯示為 Recreate。drift 檢查會報「映像漂移」。重建前請決定：沿用新映像，或另以 override 把 image 固定為 `km-da40-search:approved-04086d0f`。
+2. **search worker 的 `KM_CONTROL_PUBLIC_ORIGIN` 仍為 3030 合併前的舊埠**（da40 `:3031`、rd2 `:3032`）：env 檔在 worker 建立一分鐘後才改為 `:3030`。worker 只檢查此值為 https，無功能影響。da40 由 Codex 的 supplement 釘住；rd2 由 `km-rd2-search-worker.pinned.override.yml` 釘住（刪除該檔並重建即可對齊）。
+
 ## 其他仍依賴已遺失 /tmp 檔的容器（2026-10-15 掃描，尚未處理）
 
-- `km-da40-*`、`km-rd2-*` 的 qdrant、neo4j、redis、timescaledb、report_registry 與部分 worker，以及 `km-control-3030-control_db-1`：來自 `/tmp/km-3030-control-cutover-clean`，對應 git 中的 `deploy/tenant-isolation/docker-compose.instance.yml`、`deploy/legacy-test/docker-compose.control-auth.yml`
 - `km-ts-report-ci-*`：CI 測試殘留，來自 `/tmp/km-ts-report-v1-20260921-Jv6Zxt`

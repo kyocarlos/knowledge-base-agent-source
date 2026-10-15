@@ -1,0 +1,11 @@
+# KNOWN DRIFT, pinned on purpose (2026-10-15). km-rd2-celery_search_worker-1 was
+# created 2026-09-30 15:33+08 with the pre-3030 per-zone origin; planes/rd2.env
+# was switched to https://61.216.9.52:3030 one minute later and this worker was
+# never recreated. Workers only validate that the value is https (no login-url
+# is served by a worker), so the stale port has no functional effect.
+# Same approach as km-da40-runtime-supplement.yml (pins :3031 for da40).
+# To align: delete this file, then recreate the rd2 search worker.
+services:
+  celery_search_worker:
+    environment:
+      KM_CONTROL_PUBLIC_ORIGIN: https://61.216.9.52:3032
