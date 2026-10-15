@@ -62,7 +62,7 @@
 - 禁止 `down`。
 
 範例：
-- 對帳：`scripts/check-dev-compose-drift.sh`（4 個服務 config-hash 全一致才輸出 MATCH）
+- 對帳：`scripts/check-dev-compose-drift.sh`（以 compose `up --no-deps --dry-run` 判斷各服務是否會被重建，並檢查映像漂移；全部一致才輸出 MATCH）
 - 預覽重建：`scripts/dev-kb-test-compose.sh up -d --no-deps --dry-run web`
 
 ## 共用基礎設施 compose（kb-redis、kb-report-registry、kb-timescaledb）
@@ -85,7 +85,7 @@
 
 ## 容器 label 說明
 
-compose 只在建立容器時寫入 `config_files`、`working_dir` label，所以上述容器重建前，label 仍會指向已不存在的 `/tmp` 路徑。判斷能否正確重建，請以 `check-dev-compose-drift.sh` 的 config-hash 比對為準。
+compose 只在建立容器時寫入 `config_files`、`working_dir` label，所以上述容器重建前，label 仍會指向已不存在的 `/tmp` 路徑。判斷能否正確重建，請以 `check-dev-compose-drift.sh`（compose dry-run）為準。服務使用 `env_file` 時，`config --hash` 與容器 label 的計算方式不同，不能單獨以 hash 判斷。
 
 ## da40 資料區與 Control DB compose
 

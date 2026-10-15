@@ -325,7 +325,7 @@
     },
     {
       "path": "deploy/dev-3030/README.md",
-      "sha256": "9752759027271772ab55065cc5b22dfd8d4a60912b6277a8dfc9d2b2558eadd9"
+      "sha256": "55e7610627fa9eee3ef3a6568030296fc760eff5a0e97787ed782ed11115f1ee"
     },
     {
       "path": "deploy/dev-3030/compose/kb-redis-registry.compose.yml",
@@ -973,7 +973,7 @@
     },
     {
       "path": "scripts/check-dev-compose-drift.sh",
-      "sha256": "11c8df2333b67ba45b8a23428364a106c1adefc96e52c4e05243ef8f8c584724"
+      "sha256": "8e9f137f0a0de031a14e83af300d237e30002fb6c40f088bb8a174a905c0f95e"
     },
     {
       "path": "scripts/check-dev-nginx-drift.sh",
