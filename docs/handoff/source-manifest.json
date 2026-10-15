@@ -328,6 +328,10 @@
       "sha256": "a904784bd70daca0c2b0e30ca6e0901563350cc975a56773924558a267e58b67"
     },
     {
+      "path": "deploy/dev-3030/backports/ingest-doc-name-stem.patch",
+      "sha256": "66285745b183fc822d9a8fc61f8c4ea1f28d55a6ebcde72b043556042eeb6567"
+    },
+    {
       "path": "deploy/dev-3030/backports/sources-only-no-llm.patch",
       "sha256": "cd133f3ece7d38d75e0972616f382d4314cd042fa987661982d1e5fb45314443"
     },
@@ -1253,7 +1257,7 @@
     },
     {
       "path": "src/ingest.py",
-      "sha256": "3a929479007783b6fd79cff23d36097ac6a95923d3747e433c412c7a92c8ad6d"
+      "sha256": "bb9319d0696f3e3512712d97b12b4fb4a7dc4b6d06d690304f9ea75d72709ec8"
     },
     {
       "path": "src/ingest_conflict_protection.py",
@@ -1437,7 +1441,7 @@
     },
     {
       "path": "src/web_api/tasks.py",
-      "sha256": "6db4f858cc9c7a6fa10a177bab9740d4bb128722cfca49abf07d112d3e3930c7"
+      "sha256": "cb1f5488b66d5656a306f8df0c3dff6543ac478b556c33fa368ac3f45f91367b"
     },
     {
       "path": "start.sh",
@@ -1782,6 +1786,10 @@
     {
       "path": "tests/test_test_reports.py",
       "sha256": "b7bcfa38155965064add1f82fe29381c73d5094f7cae3920f6b58b37ed490340"
+    },
+    {
+      "path": "tests/test_upload_identity_sidecar.py",
+      "sha256": "14f9f734d62f94ddc6528d03bb2c681a7fc5f52786f630866f3278d0e173fd5c"
     },
     {
       "path": "tests/test_web_ui_upload_tracking.py",

@@ -403,6 +403,11 @@ INGEST_TASK_SUCCESS_TTL = 24 * 60 * 60
 INGEST_TASK_FAILED_TTL = 72 * 60 * 60
 INGEST_UPLOAD_ROOT = Path(os.getenv("KB_INGEST_UPLOAD_ROOT", "data/uploads"))
 SOURCE_METADATA_SUFFIX = ".source.json"
+SOURCE_IDENTITY_KEYS = (
+    "source_system", "environment", "environment_id", "project_id", "run_id", "artifact_type",
+    "report_schema", "original_file_name", "source_file_hash", "ingest_file_hash",
+    "document_id", "idempotency_key", "generated_at",
+)
 SUPPORTED_WATCH_EXTENSIONS = {
     ".xlsx", ".xls", ".pdf", ".docx", ".doc", ".pptx", ".ppt",
     ".txt", ".md", ".html", ".csv", ".json", ".xml", ".epub", ".msg"
@@ -752,6 +757,7 @@ def ingest_file_task(self, task_id: str):
             )
         except Exception as meta_error:
             logger.warning(f"寫入來源中繼資料失敗，繼續攝入: {meta_error}")
+        _write_converted_identity(converted_path, state)
         update_ingest_task_state(task_id, status="extracting")
 
         from ..ingest import ingest_document
@@ -1373,11 +1379,7 @@ def _write_source_metadata(
         "image_refs": list(image_refs or []),
         "updated_at": _now_iso(),
     }
-    for key in (
-        "source_system", "environment", "environment_id", "project_id", "run_id", "artifact_type",
-        "report_schema", "original_file_name", "source_file_hash", "ingest_file_hash",
-        "document_id", "idempotency_key", "generated_at",
-    ):
+    for key in SOURCE_IDENTITY_KEYS:
         if identity and identity.get(key) not in (None, ""):
             payload[key] = identity[key]
     try:
@@ -1387,6 +1389,24 @@ def _write_source_metadata(
         )
     except Exception as e:
         logger.warning(f"寫入來源中繼資料失敗: {source_path} - {e}")
+
+
+def _write_converted_identity(converted_path: Path, identity: dict) -> None:
+    """Merge upload identity into the sidecar the chunker and graph writers read.
+
+    Downstream writers read ``<converted stem>.source.json``; without this the
+    identity only lands beside the original file and never reaches Qdrant or
+    Neo4j.  Keys already in the sidecar (canonical report fields) win.
+    """
+    fields = {key: identity[key] for key in SOURCE_IDENTITY_KEYS if identity.get(key) not in (None, "")}
+    if not fields:
+        return
+    sidecar = _source_metadata_path(converted_path)
+    try:
+        existing = json.loads(sidecar.read_text(encoding="utf-8")) if sidecar.exists() else {}
+        sidecar.write_text(json.dumps({**fields, **existing}, ensure_ascii=False, indent=2), encoding="utf-8")
+    except Exception as e:
+        logger.warning(f"寫入轉換檔身份中繼資料失敗: {sidecar} - {e}")
 
 
 def _build_processed_inventory(processed_folder: Path) -> dict:
