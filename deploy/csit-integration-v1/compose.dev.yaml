@@ -1,0 +1,42 @@
+# KM DEV deployed runtime definition; use protected env/secret references and the approved image-pin override.
+# The existing compose.yaml remains an isolated sandbox for tests.
+services:
+  api:
+    image: km-csit-integration:v1-canonical-45108b1
+    container_name: km-csit-integration-api
+    restart: unless-stopped
+    env_file:
+      - ${KM_CSIT_ENV_FILE:?protected external environment file required}
+    networks: [control]
+    volumes:
+      - ${KM_CSIT_SERVICE_SECRET_HOST:?backend service secret file required}:/run/secrets/km-csit-service:ro
+    read_only: true
+    tmpfs: [/tmp]
+    healthcheck:
+      test: ["CMD","python","-c","import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health',timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+  worker:
+    image: km-csit-worker:v1-canonical-45108b1
+    restart: unless-stopped
+    profiles: [m2m-ready]
+    healthcheck: {"test": ["CMD", "python", "-c", "import os;from src.csit_integration_v1.config import Settings;from src.csit_integration_v1.repository import Repository;os.kill(1,0);s=Settings.from_env();s.validate();assert s.enabled;Repository(s.db_url).check_schema()"], "interval": "15s", "timeout": "10s", "retries": 3, "start_period": "60s"}
+    env_file:
+      - ${KM_CSIT_ENV_FILE:?protected external environment file required}
+    networks: [control, da40]
+    volumes:
+      - km-da40_instance_data:/var/lib/km/data
+      - ${KM_CSIT_SERVICE_SECRET_HOST:?backend service secret file required}:/run/secrets/km-csit-service:ro
+      - ${KM_CSIT_NEO4J_SECRET_HOST:?DA40 Neo4j secret file required}:/run/secrets/km-da40-neo4j:ro
+      - ${KM_CSIT_TIMESCALE_DSN_HOST:?DA40 Timescale DSN file required}:/run/secrets/km-da40-timescale:ro
+networks:
+  control:
+    external: true
+    name: km-control-private
+  da40:
+    external: true
+    name: km-da40_default
+volumes:
+  km-da40_instance_data:
+    external: true
