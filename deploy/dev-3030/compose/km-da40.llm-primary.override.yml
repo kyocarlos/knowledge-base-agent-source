@@ -1,0 +1,33 @@
+# LLM primary for da40 (2026-10-15): OpenAI-compatible model through Sub2API,
+# Ollama as fallback. Applied last so it also overrides the images set by the
+# Codex CSIT package (km-ui-ddl-free-images.override.yml); the images below are
+# those images plus only src/web_api/ollama_client.py and
+# openai_compatible_client.py from commit ba82d79. No secrets in this file.
+services:
+  web:
+    image: km-da40-web:ddl-free-fd8dd34-llm-ba82d79
+    env_file: [/home/da40_ai_gb10/.km-control/llm/sub2api-km.env]
+    environment:
+      KM_LLM_PRIMARY_PROVIDER: ${KM_LLM_PRIMARY_PROVIDER:-sub2api}
+      KM_LLM_PRIMARY_MODEL: ${KM_LLM_PRIMARY_MODEL:-gpt-5.6-luna}
+      KM_LLM_PRIMARY_BASE_URL: ${KM_LLM_PRIMARY_BASE_URL:-http://host.docker.internal:18080/v1}
+      KM_LLM_PRIMARY_API_KEY_ENV: KM_SUB2API_API_KEY
+      KM_LLM_PRIMARY_TIMEOUT_SECONDS: ${KM_LLM_PRIMARY_TIMEOUT_SECONDS:-60}
+  celery_search_worker:
+    image: km-test-web:c8884f72-llm-ba82d79
+    env_file: [/home/da40_ai_gb10/.km-control/llm/sub2api-km.env]
+    environment:
+      KM_LLM_PRIMARY_PROVIDER: ${KM_LLM_PRIMARY_PROVIDER:-sub2api}
+      KM_LLM_PRIMARY_MODEL: ${KM_LLM_PRIMARY_MODEL:-gpt-5.6-luna}
+      KM_LLM_PRIMARY_BASE_URL: ${KM_LLM_PRIMARY_BASE_URL:-http://host.docker.internal:18080/v1}
+      KM_LLM_PRIMARY_API_KEY_ENV: KM_SUB2API_API_KEY
+      KM_LLM_PRIMARY_TIMEOUT_SECONDS: ${KM_LLM_PRIMARY_TIMEOUT_SECONDS:-60}
+  celery_ingest_worker:
+    image: km-da40-ingest:ddl-free-fd8dd34-llm-ba82d79
+    env_file: [/home/da40_ai_gb10/.km-control/llm/sub2api-km.env]
+    environment:
+      KM_LLM_PRIMARY_PROVIDER: ${KM_LLM_PRIMARY_PROVIDER:-sub2api}
+      KM_LLM_PRIMARY_MODEL: ${KM_LLM_PRIMARY_MODEL:-gpt-5.6-luna}
+      KM_LLM_PRIMARY_BASE_URL: ${KM_LLM_PRIMARY_BASE_URL:-http://host.docker.internal:18080/v1}
+      KM_LLM_PRIMARY_API_KEY_ENV: KM_SUB2API_API_KEY
+      KM_LLM_PRIMARY_TIMEOUT_SECONDS: ${KM_LLM_PRIMARY_TIMEOUT_SECONDS:-60}

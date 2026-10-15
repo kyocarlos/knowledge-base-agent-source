@@ -3,6 +3,6 @@
 # workers is the image. No secrets in this file.
 services:
   celery_ingest_worker:
-    image: km-test-web:c8884f72
+    image: km-test-web:c8884f72-llm-ba82d79
   celery_search_worker:
-    image: km-test-web:c8884f72
+    image: km-test-web:c8884f72-llm-ba82d79

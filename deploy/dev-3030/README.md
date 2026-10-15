@@ -109,6 +109,25 @@ runtime 副本放在 `.km-control/compose/tenant-isolation/`、`.km-control/comp
 3. ~~da40 資料區無法連線 Ollama~~：2026-10-15 已修正。`docker-compose.instance.yml` 的 web、celery_search_worker、celery_ingest_worker 加入 `extra_hosts: ["host.docker.internal:host-gateway"]`（與 TEST plane 相同）；同時加在兩條部署路徑共用的 `.km-control/planes/da40.override.yml`，避免 Codex 以 `github-verified-clone` 範本重建時把修正蓋掉。兩路徑算出的 config-hash 相同。三個容器已重建，皆可解析 `host.docker.internal` 並取得 Ollama `/api/tags` 200。
 4. **主機 Ollama 全域容量限制（非 da40 設定問題）**：`/etc/systemd/system/ollama.service.d/override.conf` 設為 `OLLAMA_NUM_PARALLEL=1`、`OLLAMA_MAX_LOADED_MODELS=1`。當其他工作長時間佔用模型時（2026-10-15 觀察到 `qwen3.6:27b` 持續約 50 分鐘以上），da40、TEST 與主機本身對 `gemma4:12b` 的請求都會排隊逾時；da40 搜尋會在 Celery 10 分鐘軟性時限後改用備援回答。
 
+## LLM：OpenAI 相容模型為主、Ollama 備援（2026-10-15）
+
+為了不受主機 Ollama 容量限制影響開發，da40 與 TEST 的 web、celery_search_worker、celery_ingest_worker 改以 Sub2API 的 `gpt-5.6-luna` 為主要 LLM，Ollama 為備援。
+
+- **程式**：commit `ba82d79`，改在 `src/web_api/ollama_client.py`。所有 LLM 呼叫點都經由 OllamaClient，未設定 `KM_LLM_PRIMARY_*` 時行為不變。主要 LLM 失敗會記錄警告並改用 Ollama；含圖片的訊息直接交給 Ollama。
+- **映像**：在原映像上只覆蓋 `ollama_client.py`，並加入 `openai_compatible_client.py`。
+  - `km-chat-v2-secure:418610dc-llm-ba82d79`（kb-web）
+  - `km-test-web:c8884f72-llm-ba82d79`（TEST 兩個 worker、da40 search）
+  - `km-da40-web:ddl-free-fd8dd34-llm-ba82d79`
+  - `km-da40-ingest:ddl-free-fd8dd34-llm-ba82d79`
+- **設定**：`compose/kb-test.llm-primary.override.yml`、`compose/km-da40.llm-primary.override.yml`。
+  - da40 的這份放在 Codex 換版檔之後，因此也覆蓋 web／ingest 映像。
+  - 模型、閘道、逾時可用 `KM_LLM_PRIMARY_MODEL`、`KM_LLM_PRIMARY_BASE_URL`、`KM_LLM_PRIMARY_TIMEOUT_SECONDS` 覆寫。
+  - key 透過 `env_file` 讀取 `/home/da40_ai_gb10/.km-control/llm/sub2api-km.env`（0600、不進 git，變數 `KM_SUB2API_API_KEY`）。這把 key 是 KM 專用、屬於 Sub2API `WifiSit01_DA40` 群組；舊的 `SUB2API_API_KEY` 已失效。
+- **驗證**：
+  - 3030 實測搜尋：da40 6.3 秒、TEST 3.2 秒。Sub2API `gpt-5.6-luna` 用量 +2；Ollama 失敗 0、備援 0。
+  - 在隔離網路以部署映像驗證「主要失敗 → 警告 → 改用 Ollama」。
+- **注意**：若 Codex 以自己的 CSIT 換版流程（不含 `km-da40.llm-primary.override.yml`）重建 da40 web／ingest，會變回只用 Ollama；drift 檢查會回報不一致。
+
 ## RD2 已移除（2026-10-15）
 
 DEV 只保留 da40 與 test。移除內容：
