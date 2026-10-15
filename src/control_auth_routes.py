@@ -8,7 +8,7 @@ import json
 import hashlib
 import hmac
 import secrets
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlsplit
 
 from fastapi import APIRouter, HTTPException, Request, Response
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -389,6 +389,38 @@ async def unlink_source_credential(source: str, request: Request, response: Resp
     return {"source": source, "status": "not_linked", "removed": removed}
 
 
+def _scheme_host(value: str, strict: bool = True) -> str:
+    """Return `https://host[:port]`; in strict mode the value must be a bare origin."""
+    parts = urlsplit(value)
+    if parts.scheme != "https" or not parts.hostname or "@" in parts.netloc:
+        return ""
+    if strict and (parts.path not in ("", "/") or parts.query or parts.fragment):
+        return ""
+    return f"{parts.scheme}://{parts.netloc}".lower()
+
+
+def _instance_entry_origin(instance_id: str, browser_origin: str | None) -> str:
+    """Keep the data-plane callback on the site the user signed in from.
+
+    The entry session cookies are SameSite=Strict, so a callback on another site
+    is reached through a cross-site redirect chain and the browser drops them.
+    The browser Origin is used only when it exactly matches the configured
+    origin or one of `KM_<ID>_PUBLIC_ORIGIN_ALIASES`; otherwise the configured
+    origin is used unchanged.  The instance path prefix is always preserved.
+    """
+    prefix = f"KM_{instance_id.upper()}_PUBLIC_ORIGIN"
+    configured = os.getenv(prefix, "").rstrip("/")
+    if not configured.startswith("https://"):
+        raise HTTPException(status_code=503, detail="target KM origin is not configured")
+    allowed = {_scheme_host(configured, strict=False)}
+    allowed.update(_scheme_host(alias.strip()) for alias in os.getenv(prefix + "_ALIASES", "").split(",") if alias.strip())
+    allowed.discard("")
+    requested = _scheme_host((browser_origin or "").strip())
+    if not requested or requested not in allowed:
+        return configured
+    return requested + urlsplit(configured).path.rstrip("/")
+
+
 @router.post("/select-instance")
 async def select_instance(payload: InstanceSelection, request: Request, return_to: str | None = None):
     if payload.instance_id not in _enabled_instance_ids():
@@ -401,9 +433,7 @@ async def select_instance(payload: InstanceSelection, request: Request, return_t
         code = ControlRegistry.from_environment().create_login_code(user, payload.instance_id)
     except ControlAuthorizationError as exc:
         raise HTTPException(status_code=403, detail="instance is not granted") from exc
-    origin = os.getenv(f"KM_{payload.instance_id.upper()}_PUBLIC_ORIGIN", "").rstrip("/")
-    if not origin.startswith("https://"):
-        raise HTTPException(status_code=503, detail="target KM origin is not configured")
+    origin = _instance_entry_origin(payload.instance_id, request.headers.get("origin"))
     callback_query = {"code": code}
     if return_to:
         callback_query["return_to"] = return_to
