@@ -64,6 +64,28 @@
 - 對帳：`scripts/check-dev-compose-drift.sh`（4 個服務 config-hash 全一致才輸出 MATCH）
 - 預覽重建：`scripts/dev-kb-test-compose.sh up -d --no-deps --dry-run web`
 
-仍依賴已遺失 `/tmp` 項目、尚未處理：
-- `kb-redis`、`kb-report-registry`：工作目錄 `/tmp/km-v26-ci-cd-20260915-main-r2`（原始檔在主 repo 分支 `agent/km-v26-ci-cd-validation-20260915-r2`）
-- `kb-timescaledb`：`/tmp/phase1-timescaledb-infrastructure-override.yml`
+## 共用基礎設施 compose（kb-redis、kb-report-registry、kb-timescaledb）
+
+原本的 `/tmp/km-v26-ci-cd-20260915-main-r2`（redis、report_registry）與 `/tmp/phase1-timescaledb-infrastructure-override.yml`（timescaledb；`/srv/...rebaseline-20260829-v3/docker-compose.yml` 沒有此服務）都已遺失。資料在 `knowledge-base_redis_data`、`knowledge-base_report_registry_data`、`knowledge-base_timescaledb_data` 具名 volume，不受影響。
+
+| 檔案 | 來源 | 驗證 |
+|---|---|---|
+| `compose/kb-redis-registry.compose.yml` | knowledge-base commit `680034c6`（分支 `agent/km-v26-ci-cd-validation-20260915-r2`）的 redis、report_registry 定義原樣抽出 | config-hash 與容器一致（fede19cda196／ba2c2b400ec1） |
+| `compose/kb-timescaledb.compose.yml` | knowledge-base commit `3e2c64aa` 的 timescaledb 定義原樣抽出 | config-hash 與容器一致（6995cff0bb35） |
+
+兩份檔案都是獨立檔，不需要其他基礎檔；專案目錄位置不影響 hash。密碼由 `/home/da40_ai_gb10/.config/knowledge-base/wp01-deployment.env`（0600）提供。
+
+操作一律透過 `scripts/dev-kb-infra-compose.sh`，只允許 `redis`、`report_registry`、`timescaledb`，需明確指定服務，禁止 `down`。`scripts/check-dev-compose-drift.sh` 會一併對帳這 3 個服務。
+
+已知現況（為保持 hash 一致而原樣保留，未修改）：
+- `kb-redis` 與 `kb-report-registry` 定義中沒有 `restart`，容器 restart policy 為 `no`，主機重開機後**不會自動啟動**。kb-redis 是共用 Redis，建議另行評估改為 `unless-stopped`（變更後需重建容器）。
+- `kb-report-registry` 自 2026-09-16 起為停止狀態。
+
+## 容器 label 說明
+
+compose 只在建立容器時寫入 `config_files`、`working_dir` label，所以上述容器重建前，label 仍會指向已不存在的 `/tmp` 路徑。判斷能否正確重建，請以 `check-dev-compose-drift.sh` 的 config-hash 比對為準。
+
+## 其他仍依賴已遺失 /tmp 檔的容器（2026-10-15 掃描，尚未處理）
+
+- `km-da40-*`、`km-rd2-*` 的 qdrant、neo4j、redis、timescaledb、report_registry 與部分 worker，以及 `km-control-3030-control_db-1`：來自 `/tmp/km-3030-control-cutover-clean`，對應 git 中的 `deploy/tenant-isolation/docker-compose.instance.yml`、`deploy/legacy-test/docker-compose.control-auth.yml`
+- `km-ts-report-ci-*`：CI 測試殘留，來自 `/tmp/km-ts-report-v1-20260921-Jv6Zxt`

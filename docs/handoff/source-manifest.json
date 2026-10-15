@@ -325,11 +325,19 @@
     },
     {
       "path": "deploy/dev-3030/README.md",
-      "sha256": "c5fbf80144ac5cac2a6a9b8f5ccb907b9ff93d4a7c7513d200a4f6a4fd8c0cf8"
+      "sha256": "491faa3e421d3be0fa4ee01aa06f9d904258df8b4cae205ea1c1206cf0693dd9"
+    },
+    {
+      "path": "deploy/dev-3030/compose/kb-redis-registry.compose.yml",
+      "sha256": "536f8fcef800b49959645e27c73ee688b3ea82e82ec1367bc54e513ecc28c3d3"
     },
     {
       "path": "deploy/dev-3030/compose/kb-test-workers.image.override.yml",
       "sha256": "c1cfe665de122a1b39ee31c2a4ab837ee50afd75dd2615acbb362ba1dc68e344"
+    },
+    {
+      "path": "deploy/dev-3030/compose/kb-timescaledb.compose.yml",
+      "sha256": "2501247e8c6dbd21a7bb0424ecd48cf4697f6702d131f7f811b2d38e57acd8bc"
     },
     {
       "path": "deploy/dev-3030/compose/kb-web.chat-runtime.override.yml",
@@ -957,7 +965,7 @@
     },
     {
       "path": "scripts/check-dev-compose-drift.sh",
-      "sha256": "5a473b6dcb56f5f61bbeb1aebb7c1dac50211e1a103111055895858b8b9478aa"
+      "sha256": "2ded61fe28af8fb76dc39c21f9196a9dea3c4258c5084af0fe3fff25a1e85079"
     },
     {
       "path": "scripts/check-dev-nginx-drift.sh",
@@ -978,6 +986,10 @@
     {
       "path": "scripts/csit-integration-operator.py",
       "sha256": "626e3f500aff0069c2adc2976d6732462557bbe57b763412ae86fe1c93a56279"
+    },
+    {
+      "path": "scripts/dev-kb-infra-compose.sh",
+      "sha256": "306f9948cacaa55d627f28d12a9ad88a457f0cb6e718e4b4e804f8c5cc803e63"
     },
     {
       "path": "scripts/dev-kb-test-compose.sh",
