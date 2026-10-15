@@ -325,11 +325,11 @@
     },
     {
       "path": "deploy/dev-3030/README.md",
-      "sha256": "e17888a0e1d2c52ce77c1a26f841bc901782794b452eed7160c11ca88af6b379"
+      "sha256": "f91eed12ee40eaf3db5acff40bccde26fcbc855cad14c9976f5873614fb35e64"
     },
     {
       "path": "deploy/dev-3030/compose/kb-redis-registry.compose.yml",
-      "sha256": "536f8fcef800b49959645e27c73ee688b3ea82e82ec1367bc54e513ecc28c3d3"
+      "sha256": "84543e4641cfe0c3b10e8c1c6a9237b0e0dfe8e65a29c55a15ad2b6abb175d76"
     },
     {
       "path": "deploy/dev-3030/compose/kb-test-workers.image.override.yml",

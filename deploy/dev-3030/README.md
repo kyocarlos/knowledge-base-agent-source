@@ -79,7 +79,8 @@
 操作一律透過 `scripts/dev-kb-infra-compose.sh`，只允許 `redis`、`report_registry`、`timescaledb`，需明確指定服務，禁止 `down`。`scripts/check-dev-compose-drift.sh` 會一併對帳這 3 個服務。
 
 已知現況（為保持 hash 一致而原樣保留，未修改）：
-- `kb-redis` 與 `kb-report-registry` 定義中沒有 `restart`，容器 restart policy 為 `no`，主機重開機後**不會自動啟動**。kb-redis 是共用 Redis，建議另行評估改為 `unless-stopped`（變更後需重建容器）。
+- ~~`kb-redis` restart policy 為 `no`~~：2026-10-15 已加入 `restart: ${KB_REDIS_RESTART_POLICY:-unless-stopped}` 並重建。資料鍵數與鍵名清單不變；以 `redis-cli SHUTDOWN SAVE` 模擬程序結束，約 10 秒內自動重啟（RestartCount 0→1），TEST worker 與 km-cross worker 皆自動重連。使用者僅 TEST plane（kb-web、kb-celery-*）與 km-cross-*；da40、sub2api 使用各自的 Redis。
+- `kb-report-registry` 定義中沒有 `restart`，restart policy 為 `no`，自 2026-09-16 起停止。
 - `kb-report-registry` 自 2026-09-16 起為停止狀態。
 
 ## 容器 label 說明

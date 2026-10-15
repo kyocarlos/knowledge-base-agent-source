@@ -2,13 +2,16 @@
 # agent/km-v26-ci-cd-validation-20260915-r2), the source of kb-redis and
 # kb-report-registry. Their original working directory
 # /tmp/km-v26-ci-cd-20260915-main-r2 was lost on the 10-04 reboot.
-# Definitions are kept byte-for-byte so the compose config-hash matches the
-# running containers. Data lives in the named volumes below, not on /tmp.
+# Definitions were kept byte-for-byte so the compose config-hash matched the
+# running containers; on 2026-10-15 redis gained a configurable restart policy.
+# Data lives in the named volumes below, not on /tmp.
 # KB_REPORT_DB_PASSWORD comes from the protected deployment env file.
 services:
   redis:
     image: redis:7-alpine
     container_name: kb-redis
+    # Shared TEST-plane broker: restart after host reboot or crash (AGENTS.md).
+    restart: ${KB_REDIS_RESTART_POLICY:-unless-stopped}
     volumes:
       - redis_data:/data
     command: redis-server --appendonly yes
