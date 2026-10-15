@@ -1413,7 +1413,7 @@
     },
     {
       "path": "src/web_api/ollama_client.py",
-      "sha256": "aaae0e1ff5868ab0c733103501075b7596f86facce148aca248a576d87920838"
+      "sha256": "00aca18c733999c195af316f2db2837b32f873fd6da3eaf5d625ed25f5cead72"
     },
     {
       "path": "src/web_api/openai_compatible_client.py",
@@ -1706,6 +1706,10 @@
     {
       "path": "tests/test_oidc_phase1.py",
       "sha256": "703d85dec3efb9ed72d5256a42090cb2b010e7e7ced3c880b6ee6d5d6cb66f0e"
+    },
+    {
+      "path": "tests/test_ollama_client_primary.py",
+      "sha256": "4ce7f44c56759d832d8e531303725299800fd78a902ec633d663812d2f151137"
     },
     {
       "path": "tests/test_openai_compatible_llm.py",
