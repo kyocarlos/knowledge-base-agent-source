@@ -128,6 +128,17 @@ runtime 副本放在 `.km-control/compose/tenant-isolation/`、`.km-control/comp
   - 在隔離網路以部署映像驗證「主要失敗 → 警告 → 改用 Ollama」。
 - **注意**：若 Codex 以自己的 CSIT 換版流程（不含 `km-da40.llm-primary.override.yml`）重建 da40 web／ingest，會變回只用 Ollama；drift 檢查會回報不一致。
 
+## 回補：sources_only 不呼叫 LLM（2026-10-15）
+
+部署中的 worker `tasks.py`（`6dd53e07`，10-02 build）在 `sources_only=True` 時，遇到報告類查詢仍會呼叫 `_report_graph_search_raw()`，進而以 LLM 生成 report_graph 解讀；召回筆數也會被拉高。git 已在 commit `8454c58` 修正。
+
+由於 git 版與部署版的 `tasks.py` 已分岔（部署版有 UI 上傳追蹤、git 版有附件雜湊驗證等），不整檔替換，只回補 `backports/sources-only-no-llm.patch` 的兩個區塊（`6dd53e07` → `fefcd7a4`）。
+
+- 映像：`km-test-web:c8884f72-llm-ba82d79-srconly`（TEST 兩個 worker、da40 search）、`km-da40-ingest:ddl-free-fd8dd34-llm-ba82d79-srconly`。
+- 測試：`tests/test_search_task_sources_only.py`。部署版失敗、回補版與 git 版皆通過。
+- 驗收：CrossSearch 只取來源約 2 秒、LLM 用量 +0；da40／TEST 一般搜尋照常生成回答，用量各 +1。
+- 待辦：git 與部署版 `tasks.py` 需另行合併成單一來源，再由 git 重建映像。
+
 ## RD2 已移除（2026-10-15）
 
 DEV 只保留 da40 與 test。移除內容：

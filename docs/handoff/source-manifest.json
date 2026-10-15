@@ -325,7 +325,11 @@
     },
     {
       "path": "deploy/dev-3030/README.md",
-      "sha256": "55e7610627fa9eee3ef3a6568030296fc760eff5a0e97787ed782ed11115f1ee"
+      "sha256": "67d992965fa64da67582d4f0e034bde2a5c221bf42337da369c48f0c1a9f88e9"
+    },
+    {
+      "path": "deploy/dev-3030/backports/sources-only-no-llm.patch",
+      "sha256": "cd133f3ece7d38d75e0972616f382d4314cd042fa987661982d1e5fb45314443"
     },
     {
       "path": "deploy/dev-3030/compose/kb-redis-registry.compose.yml",
@@ -333,7 +337,7 @@
     },
     {
       "path": "deploy/dev-3030/compose/kb-test-workers.image.override.yml",
-      "sha256": "f21cbdb2409659c9a0a89aea079b1f482203b68618f6f147b4d317ed266d8f38"
+      "sha256": "8f704a9ed51068605d461f4bc82d9c1eaf58218d4d0d9d3916f553074a4d664d"
     },
     {
       "path": "deploy/dev-3030/compose/kb-test.llm-primary.override.yml",
@@ -349,7 +353,7 @@
     },
     {
       "path": "deploy/dev-3030/compose/km-da40.llm-primary.override.yml",
-      "sha256": "15c32fca1ed70146b332cc1c160f7d2d05b19a398a98cd230a9299ca7b49bd60"
+      "sha256": "908d5396b65d83b644c9d44d9cb429fa621fc0a6438ff34b43053d05a9c31be6"
     },
     {
       "path": "deploy/dev-3030/nginx.runtime.conf",
@@ -1758,6 +1762,10 @@
     {
       "path": "tests/test_restart_kb_script.py",
       "sha256": "f32e63056cd8d0ec794c657c6bcd981a9bd2e01991626b3c78170c3aba0fa802"
+    },
+    {
+      "path": "tests/test_search_task_sources_only.py",
+      "sha256": "a7f70cf3cb0b6b871615b2b768ed5dfb4b17621dfdd01569526635190a4ad97f"
     },
     {
       "path": "tests/test_source_credentials_crypto.py",
