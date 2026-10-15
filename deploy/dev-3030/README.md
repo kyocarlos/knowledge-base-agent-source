@@ -102,8 +102,10 @@ runtime 副本放在 `.km-control/compose/tenant-isolation/`、`.km-control/comp
 
 ### 已知漂移（如實記錄，未修正）
 
-1. **da40 `celery_search_worker` 映像漂移**：建立於 2026-09-30，仍執行 `04086d0f60ba`（另有標籤 `km-da40-search:approved-04086d0f`）；設定的 `km-test-web:c8884f72` 已於 10-02 重新 build，現指向 `02c62b78338e`。**重建會換成新映像**（`up --dry-run` 顯示 Recreate），drift 檢查回報「映像漂移」。重建前請決定：沿用新映像，或另以 override 固定為 `km-da40-search:approved-04086d0f`。
+1. ~~da40 `celery_search_worker` 映像漂移~~：2026-10-15 已依使用者決定改用新映像重建（`04086d0f60ba` → `02c62b78338e`，即 `km-test-web:c8884f72` 目前指向的映像）。新映像的 `tasks.py` 與搜尋路徑關鍵檔，與 da40 web／ingest 目前使用的版本相同。重建前佇列為 0；重建後設定 hash 不變，除映像外的環境變數、指令、掛載、網路、重啟策略皆相同；正式入口 da40 搜尋成功。舊映像保留標籤 `km-da40-search:approved-04086d0f` 可供退回。
 2. **da40 search worker 的 `KM_CONTROL_PUBLIC_ORIGIN` 仍為 3030 合併前的 `:3031`**，由 Codex 的 supplement 釘住；worker 只檢查此值為 https，無功能影響。
+
+3. **da40 資料區無法連線 Ollama（既有問題）**：`docker-compose.instance.yml` 沒有 `extra_hosts: host.docker.internal:host-gateway`，da40 web 與 worker 內無法解析 `host.docker.internal`，回答生成走備援。TEST plane（kb-web、kb-celery-*）有此設定且連線正常。修正需修改 instance compose 並重建 da40 web／worker。
 
 ## RD2 已移除（2026-10-15）
 

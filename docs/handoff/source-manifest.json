@@ -325,7 +325,7 @@
     },
     {
       "path": "deploy/dev-3030/README.md",
-      "sha256": "3117c0ce5de8c0750f9061340067dc6128458f0a00847f198e50c8d8269929b8"
+      "sha256": "70fceec8fb21b72debba7e1af4b666c56e21c8e57c5e0df7f89bf1119d5be883"
     },
     {
       "path": "deploy/dev-3030/compose/kb-redis-registry.compose.yml",
