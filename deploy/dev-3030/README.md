@@ -169,7 +169,17 @@ runtime 副本放在 `.km-control/compose/tenant-isolation/`、`.km-control/comp
   - 部署前確認：映像內 15 項測試通過；兩個映像都已有合併版所需的 `create_llm_client`、`FileConverter._build_excel_enrichment`、`parse_and_validate_report(path, attachment_hashes)`；各 worker 的 Ollama `instances` 都只有一個，與部署版 `base_url` 寫法等效。
   - dry-run 只有這 4 個 worker 需要 Recreate；佇列與執行中任務皆為 0。
   - 驗收：4 個 worker 皆 ready、restarts=0、`tasks.py` 為 `6db4f858`，日誌顯示主要 LLM `sub2api:gpt-5.6-luna`；compose 漂移檢查 MATCH。E2E（Firefox）：TEST CrossSearch 只取來源約 2 秒、10 筆、LLM 用量 +0；DA40 一般搜尋 8.3 秒、TEST 4.1 秒，用量各 +1；report_graph 解讀與 Ollama 備援皆 0 次。
-  - 未在 runtime 驗證：UI 上傳追蹤（實際上傳會寫入知識庫資料），目前只有單元測試與映像內測試。
+  - UI 上傳追蹤 runtime 驗收（Webwright／Firefox，2026-10-15）：
+    - 流程：km-clude1 登入，選 TEST → `/upload` → 選「Lab 管理」（只寫入 QDrant）→ 上傳 `zz-km-ui-tracking-e2e-<時間>.md`。
+    - 結果：`/api/ui/upload/ingest` 回 200，`data_zone=TEST`；任務 completed，列表有顯示；`km_ui_uploads` 該筆為 TEST/lab/completed，且 `uploaded_at < updated_at`（先記錄 queued，完成後更新）。沒有 console error。
+    - 清除：以 task_id、document_id 與檔名標記限定範圍，刪除以下資料，並把 worker 容器內的 `index.md`、`wiki/index.md` 還原為上傳前版本：
+      - `km_ui_uploads` 1 筆。
+      - registry requests 1 筆、events 6 筆（其中 3 筆沒有 task_id，以 document_id 比對）。
+      - Redis 任務 key、索引與 hash 索引各 1。
+      - 上傳目錄，以及因此產生的空 `Lab/` 目錄。
+    - 清除後快照與上傳前基準完全相同；Neo4j 無殘留，UI 列表也已不見測試檔。
+    - 證據：`.km-control/ui-upload-tracking-e2e-20261015/`。
+    - 附帶觀察（未修改）：測試檔太短，切出 0 個區塊，所以沒有寫入 QDrant。向量的 `doc_name` 取自檔名 stem，而不是 `document_id`：`source.json` 寫在 `original/`，但攝入讀的是 `converted/` 旁邊的檔案。
   - 回滾：把兩個 override 檔的映像改回 `*-srconly`，再用同樣的 `up -d --no-deps` 指令重建。部署前狀態記錄在 `.km-control/worker-tasks-merge-deploy-20261015/before.txt`。
 
 ## RD2 已移除（2026-10-15）
