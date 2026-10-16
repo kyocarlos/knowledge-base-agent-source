@@ -1,6 +1,6 @@
 {
   "schema": "km.phase1-runtime-status.v1",
-  "collected_at": "2026-10-16T12:32:48.667093+00:00",
+  "collected_at": "2026-10-16T17:29:22.440049+00:00",
   "manifest": "docs/phase1-status-manifest.json",
   "collector_mode": "broker",
   "source_root": "broker-managed",
@@ -20,15 +20,15 @@
   },
   "services": {
     "kb-web": {
-      "image_id": "sha256:43efcaa708f1019f8c8e781c402b5b5dc48e87b18434c65711918118c4ec7cda",
+      "image_id": "sha256:9ea79972f43065a157a486dcc761031fc025f709785db82cb4ab2e127163d5a1",
       "status": "running"
     },
     "kb-celery-search": {
-      "image_id": "sha256:2a20e9d430d2a04591d0cc51557008deb14074b65e3864319b028f4025f0a505",
+      "image_id": "sha256:a4d31a13eb5c8243d2bbb791410f3df4dbf067a653c908001896409b05a1c8e1",
       "status": "running"
     },
     "kb-celery-ingest": {
-      "image_id": "sha256:2a20e9d430d2a04591d0cc51557008deb14074b65e3864319b028f4025f0a505",
+      "image_id": "sha256:a4d31a13eb5c8243d2bbb791410f3df4dbf067a653c908001896409b05a1c8e1",
       "status": "running"
     },
     "kb-celery-beat": {
