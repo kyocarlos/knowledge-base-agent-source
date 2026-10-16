@@ -1,0 +1,10 @@
+ARG BASE_IMAGE
+FROM ${BASE_IMAGE}
+ARG BASE_IMAGE
+ARG SOURCE_COMMIT
+LABEL io.km.wifi8-workspace-source-commit=${SOURCE_COMMIT} \
+      io.km.wifi8-workspace-base-image=${BASE_IMAGE}
+
+# The deployed web images already contain the WiFi package and router wiring.
+# Only replace this feature's route module so unrelated deployment backports stay intact.
+COPY src/web_api/wifi8_routes.py /app/src/web_api/wifi8_routes.py

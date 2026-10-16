@@ -8,7 +8,7 @@
 # deploy/dev-3030/backports/ingest-doc-name-stem.patch to src/ingest.py. No secrets in this file.
 services:
   web:
-    image: km-da40-web:ddl-free-fd8dd34-llm-ba82d79-wifi8-c01693c-ui-b67c223
+    image: km-da40-web:ddl-free-fd8dd34-llm-ba82d79-wifi8-c01693c-workspace-b67c223
     env_file: [/home/da40_ai_gb10/.km-control/llm/sub2api-km.env]
     environment:
       KM_LLM_PRIMARY_PROVIDER: ${KM_LLM_PRIMARY_PROVIDER:-sub2api}
