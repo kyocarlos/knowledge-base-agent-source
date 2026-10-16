@@ -318,6 +318,7 @@ celery_app.conf.update(
         "tasks.watch_folder_scan": {"queue": "search"},
         "tasks.ingest_task": {"queue": "ingest"},
         "tasks.wifi8_import_task": {"queue": "ingest"},
+        "tasks.wifi8_agent_task": {"queue": "search"},
     },
     # 結果過期時間
     result_expires=JOB_CONFIG.result_ttl_seconds,
@@ -954,6 +955,33 @@ def wifi8_import_task(self, job_id: str):
     if job.get("status") in WIFI8_ACTIVE_STATUSES:
         wifi8_import_task.apply_async(args=[job_id])
     return {"job_id": job_id, "status": job.get("status"), "phase": job.get("phase")}
+
+
+@celery_app.task(name="tasks.wifi8_agent_task", bind=True)
+def wifi8_agent_task(self, question: str, history: list | None = None, owner: dict | None = None):
+    """WiFi zone agent: the LLM picks read-only WiFi tools; limits and citations stay in code."""
+    from ..wifi8.agent import AgentSettings, CitationRegistry, WifiTools, run_agent
+    from ..wifi8.importer import Wifi8Importer, Wifi8Settings
+    from ..wifi8.search import SearchUnavailable, Wifi8Search
+    from ..vector_store import VectorStore
+    from ..main import load_config
+    from .ollama_client import _build_primary_client
+
+    base = {"owner": owner or {}, "question": question}
+    try:
+        vector_store = _preloaded_vector_store or VectorStore()
+        search = Wifi8Search.for_current(Wifi8Importer(Wifi8Settings.from_environment()), qdrant=vector_store.client,
+                                         encoder=vector_store.encode, embedding_model=vector_store.model_name)
+    except SearchUnavailable as exc:
+        return {**base, "status": "failed", "error": str(exc)}
+    client, label = _build_primary_client(load_config())
+    if client is None:
+        # The agent needs tool calling; the Ollama fallback is not used for it.
+        return {**base, "status": "failed", "error": "WiFi agent 需要主要 LLM（支援工具呼叫），目前未設定或無法建立"}
+    settings = AgentSettings.from_environment()
+    result = run_agent(question, llm=lambda **kw: client.chat.completions.create(**kw),
+                       tools=WifiTools(search, settings, CitationRegistry()), settings=settings, history=history)
+    return {**base, "status": "completed", "model": label, "package_id": search.package_id, **result}
 
 
 @celery_app.task(name="tasks.search_task", bind=True, max_retries=JOB_CONFIG.max_retries)

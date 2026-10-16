@@ -107,7 +107,10 @@ class OpenAICompatibleClient:
         return SimpleNamespace(
             id=data.get("id"),
             model=data.get("model", model),
-            choices=[SimpleNamespace(message=SimpleNamespace(content=content))],
+            choices=[SimpleNamespace(
+                message=SimpleNamespace(content=content, tool_calls=message.get("tool_calls") or []),
+                finish_reason=data["choices"][0].get("finish_reason"),
+            )],
             usage=data.get("usage"),
         )
 

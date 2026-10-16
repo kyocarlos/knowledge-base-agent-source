@@ -1449,7 +1449,7 @@
     },
     {
       "path": "src/web_api/openai_compatible_client.py",
-      "sha256": "192bfa5f50fb1b582888d8d19022ceb0eba5d513050f8beff4058174a6b771a2"
+      "sha256": "f5c9c571d50b68730c4825ba8764f685c4b7c188a90437666228ed265d548b08"
     },
     {
       "path": "src/web_api/report_routes.py",
@@ -1457,15 +1457,19 @@
     },
     {
       "path": "src/web_api/tasks.py",
-      "sha256": "7e513c50bb2fa40eaf99986717c72d1265ca37811697b006d6d4c383de66257a"
+      "sha256": "36d08d5d5bf96279dd58a08b86944e4d930c2e4326e374135c8dca60cf87a447"
     },
     {
       "path": "src/web_api/wifi8_routes.py",
-      "sha256": "00e7661ab63b9aad61f89be34f29db5c525fb86c00b75a923bea7d43794859c9"
+      "sha256": "b0e1dafaeba7a0d3f7eea2e5f68a02444a6d66e21853fc145d6850a64a79148e"
     },
     {
       "path": "src/wifi8/__init__.py",
       "sha256": "8536d2f94f4c4b6f934e8928471b2da1cc34714d53a789000e84320541e010cc"
+    },
+    {
+      "path": "src/wifi8/agent.py",
+      "sha256": "4a7c9e0ad685f7e3d9f5c1abf40dea2f62f76bf3682285eefecb1083b133e515"
     },
     {
       "path": "src/wifi8/chunks.py",
@@ -1478,6 +1482,10 @@
     {
       "path": "src/wifi8/package.py",
       "sha256": "b5f4a6dbd7d5910c2d6b6539e9cc8d21e0141d3fde6c054ba85a2bd5f353b909"
+    },
+    {
+      "path": "src/wifi8/search.py",
+      "sha256": "c3285c4056c7ac57853d322b174734986d5248de4c76e58861637df698931680"
     },
     {
       "path": "src/wifi8/store.py",
@@ -1836,8 +1844,16 @@
       "sha256": "23159f5ee568214b6c7a7271da7f770caafc7cc81166bf1f1bb7967c5567e160"
     },
     {
+      "path": "tests/test_wifi8_agent.py",
+      "sha256": "8706c91b8e4a4e48d91d62235493073347083aa8cb66d97f79f893840347d829"
+    },
+    {
       "path": "tests/test_wifi8_import.py",
       "sha256": "b95f58c6274877b898ee2979cfe4bf52a51bf1d95c23daf4ef557182bc3996a8"
+    },
+    {
+      "path": "tests/test_wifi8_search.py",
+      "sha256": "f9cab8c9d5ab32aa5521fae262805bc96b6259b15b1369fc59ab01f0f32170d0"
     },
     {
       "path": "tests/test_wp0_api_contract.py",

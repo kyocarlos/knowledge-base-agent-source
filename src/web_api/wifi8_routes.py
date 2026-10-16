@@ -12,6 +12,7 @@ import tempfile
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Request, UploadFile
+from pydantic import BaseModel, Field
 
 from ..wifi8 import store
 from ..wifi8.importer import ImportConflict, Wifi8Importer, Wifi8Settings
@@ -20,6 +21,7 @@ from ..wifi8.package import PackageError
 router = APIRouter(prefix="/api/wifi8", tags=["Wi-Fi8 import"])
 IMPORT_HEADER = "x-km-wifi8-import"
 IMPORT_TASK = "tasks.wifi8_import_task"
+AGENT_TASK = "tasks.wifi8_agent_task"
 
 
 def _importer() -> Wifi8Importer:
@@ -113,3 +115,41 @@ def _enqueue(job_id: str) -> None:
     # By task name: the web image's tasks module may predate the worker's.
     from .tasks import celery_app
     celery_app.send_task(IMPORT_TASK, args=[job_id], queue="ingest")
+
+
+class AgentTurn(BaseModel):
+    role: str = Field(pattern="^(user|assistant)$")
+    content: str = Field(max_length=4000)
+
+
+class AgentRequest(BaseModel):
+    question: str = Field(min_length=1, max_length=2000)
+    history: list[AgentTurn] = Field(default_factory=list, max_length=12)
+
+
+def _owner(identity: dict) -> dict:
+    return {"user_id": identity["sub"], "instance_id": identity.get("instance_id")}
+
+
+@router.post("/agent", status_code=202)
+async def ask_wifi8_agent(body: AgentRequest, request: Request):
+    owner = _owner(_identity(request))
+    from .tasks import celery_app
+    task = celery_app.send_task(AGENT_TASK, args=[body.question.strip(), [t.model_dump() for t in body.history], owner],
+                                queue="search")
+    return {"task_id": task.id, "status": "submitted"}
+
+
+@router.get("/agent/{task_id}")
+async def wifi8_agent_result(task_id: str, request: Request):
+    owner = _owner(_identity(request))
+    from celery.result import AsyncResult
+    from .tasks import celery_app
+    result = AsyncResult(task_id, app=celery_app)
+    if not result.ready():
+        return {"task_id": task_id, "status": "pending"}
+    value = result.result if isinstance(result.result, dict) else None
+    # Results belong to the asker; another user's task id reveals nothing.
+    if not value or value.get("owner") != owner:
+        raise HTTPException(status_code=404, detail="task not found")
+    return {"task_id": task_id, **{k: v for k, v in value.items() if k != "owner"}}
