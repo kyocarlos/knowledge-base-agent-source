@@ -8,7 +8,7 @@ from fastapi import FastAPI, Request
 from fastapi.testclient import TestClient
 from qdrant_client import QdrantClient
 
-from src.wifi8 import store
+from src.wifi8 import lexical, store
 from src.wifi8.chunks import build_chunks
 from src.wifi8.importer import ImportConflict, Wifi8Importer, Wifi8Settings
 from src.wifi8.package import PackageError, read_package
@@ -149,7 +149,55 @@ def test_full_import_and_incremental_reuse(env):
     ids = {p.payload["revision_id"] for p in client.scroll("wifi8_test", limit=100, with_payload=True)[0]}
     assert ids == {"new", "extra"}
     assert all(second_id in p.payload["packages"] for p in client.scroll("wifi8_test", limit=100, with_payload=True)[0])
-    assert store.counts(importer.current_store())["documents"] == 2
+    assert importer.current_store().counts()["documents"] == 2
+    # Documents of the previous package are gone; only the serving package record remains.
+    kinds = [p.payload["package_id"] for p in client.scroll("wifi8_documents", limit=100, with_payload=True)[0]]
+    assert set(kinds) == {second_id}
+
+
+def test_no_local_database_is_written(env):
+    tmp_path, client, settings = env
+    importer = Wifi8Importer(settings, qdrant=client, encoder=FakeEncoder(), embedding_model="fake")
+    path = tmp_path / "p.zip"
+    make_package(path, BASE_DOCS, BASE_SEGS)
+    assert run(importer, importer.submit(path, submitted_by="t"))["status"] == "completed"
+    written = [p for p in settings.root.rglob("*") if p.is_file()]
+    assert not [p for p in written if p.suffix in {".sqlite", ".db", ".sqlite3"}]
+    assert {p.parent.name for p in written} <= {"wifi8", "jobs"}  # only current.json and job records
+    package = importer.current_store()
+    assert package.manifest()["package_id"] == importer.current()["package_id"]
+    assert package.counts() == {"documents": 2, "documents_analysis_eligible": 1, "segments": 3,
+                                "chunks": client.count("wifi8_test", exact=True).count, "chunks_pending": 0,
+                                "chunks_ready": client.count("wifi8_test", exact=True).count}
+    total, page = package.chunk_page("new", 1, 10)
+    assert total == len(page) and [p["chunk_index"] for _, p in page] == sorted(p["chunk_index"] for _, p in page)
+
+
+def test_vectors_are_reused_from_the_previous_collection(env):
+    from qdrant_client.models import Distance, PointStruct, VectorParams
+    tmp_path, client, settings = env
+    chunks = build_chunks(BASE_DOCS, BASE_SEGS, max_chars=settings.chunk_max_chars)
+    client.create_collection("wifi8_kb", vectors_config=VectorParams(size=8, distance=Distance.COSINE))
+    client.upsert("wifi8_kb", points=[PointStruct(id=c["point_id"], vector=[0.5] * 8, payload={"embedding_model": "fake"})
+                                      for c in chunks[:-1]])
+    encoder = FakeEncoder()
+    importer = Wifi8Importer(settings, qdrant=client, encoder=encoder, embedding_model="fake")
+    path = tmp_path / "p.zip"
+    make_package(path, BASE_DOCS, BASE_SEGS)
+    job = run(importer, importer.submit(path, submitted_by="t"))
+    assert job["status"] == "completed" and job["progress"]["vectors_reused"] == len(chunks) - 1
+    assert encoder.texts == 1  # only the chunk missing from the old collection was embedded
+    other = Wifi8Importer(settings, qdrant=QdrantClient(":memory:"), encoder=FakeEncoder(), embedding_model="fake")
+    assert other._reusable_vectors([chunks[0]["point_id"]]) == {}  # no old collection: nothing reused
+
+
+def test_bm25_tokens_cover_cjk_and_technical_terms():
+    assert lexical.query_terms("漫遊門檻是什麼？") == ["漫遊", "遊門", "門檻", "檻是"]
+    assert {"wi-fi", "wi", "fi", "wifi"} <= set(lexical.tokens("Wi-Fi 8"))
+    assert "802.11bn" in lexical.tokens("IEEE 802.11bn.")
+    i1, v1 = lexical.document_vector("ELR ELR uplink", avg_tokens=256)
+    i2, v2 = lexical.document_vector("ELR ELR uplink", avg_tokens=256)
+    assert (i1, v1) == (i2, v2) and len(i1) == 2  # deterministic, independent of the package
 
 
 def test_failed_import_keeps_current_package(env):
@@ -204,6 +252,7 @@ def api(tmp_path, monkeypatch):
     from src.web_api import wifi8_routes
 
     monkeypatch.setenv("KM_WIFI8_ROOT", str(tmp_path / "wifi8"))
+    monkeypatch.setattr(wifi8_routes, "_qdrant", lambda: None)  # upload and job status need no Qdrant
     app = FastAPI()
     state = {"identity": {"sub": "u1", "instance_id": "test", "role": "user", "epoch": 1}}
 

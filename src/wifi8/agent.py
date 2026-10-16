@@ -10,11 +10,9 @@ import json
 import re
 import time
 from collections import Counter
-from contextlib import closing
 from dataclasses import dataclass
 from typing import Any, Callable
 
-from . import store
 from .search import SearchOptions, Wifi8Search
 
 SYSTEM_PROMPT = """你是 KM「WiFi 知識專區」的研究助理，可查詢已匯入的 Wi-Fi 文件（WFA 規格與 MRD、測試計畫與測項、晶片廠商資料、研究論文、產業報告等）。
@@ -106,11 +104,10 @@ class WifiTools:
         self.search_engine = search
         self.settings = settings
         self.citations = citations
-        self.path = search.store_path
+        self.store = search.store
 
-    def _doc_rows(self, where: str = "", args: tuple = ()) -> list[dict[str, Any]]:
-        with closing(store.connect(self.path, readonly=True)) as db:
-            return [json.loads(r[0]) for r in db.execute(f"SELECT data FROM documents {where}", args)]
+    def _doc_rows(self, **equals: str) -> list[dict[str, Any]]:
+        return [d for d in self.store.documents() if all(str(d.get(k) or "") == v for k, v in equals.items())]
 
     @staticmethod
     def _summary(doc: dict[str, Any]) -> dict[str, Any]:
@@ -133,16 +130,16 @@ class WifiTools:
 
     def get_document(self, revision_id: str = "", wfa_document_id: str = ""):
         if revision_id:
-            rows = self._doc_rows("WHERE revision_id = ?", (revision_id,))
+            rows = self._doc_rows(revision_id=revision_id)
         elif wfa_document_id:
-            rows = self._doc_rows("WHERE wfa_document_id = ?", (str(wfa_document_id),))
+            rows = self._doc_rows(wfa_document_id=str(wfa_document_id))
         else:
             return {"error": "請提供 revision_id 或 wfa_document_id"}
         return {"documents": [{**self._summary(d), "source_urls": d.get("source_urls"), "adoption_reason": d.get("adoption_reason")}
                               for d in rows[:5]]} if rows else {"error": "找不到文件"}
 
     def list_versions(self, revision_id: str):
-        rows = self._doc_rows("WHERE revision_id = ?", (revision_id,))
+        rows = self._doc_rows(revision_id=revision_id)
         if not rows:
             return {"error": "找不到文件"}
         doc = rows[0]
@@ -164,20 +161,18 @@ class WifiTools:
 
     def read_document(self, revision_id: str, start: int = 1, count: int = 4):
         start, count = max(1, int(start or 1)), max(1, min(int(count or 4), 8))
-        with closing(store.connect(self.path, readonly=True)) as db:
-            doc = db.execute("SELECT data FROM documents WHERE revision_id = ?", (revision_id,)).fetchone()
-            if not doc:
-                return {"error": "找不到文件"}
-            total = db.execute("SELECT count(*) FROM chunks WHERE revision_id = ?", (revision_id,)).fetchone()[0]
-            ids = [r[0] for r in db.execute("SELECT point_id FROM chunks WHERE revision_id = ? AND ordinal >= ? ORDER BY ordinal LIMIT ?",
-                                            (revision_id, start, count))]
+        doc = self.store.document(revision_id)
+        if not doc:
+            return {"error": "找不到文件"}
+        total, page = self.store.chunk_page(revision_id, start, count)
+        ids = [point_id for point_id, _ in page]
         chunks = self.search_engine.chunks(ids)
         parts = []
         for pid in ids:
             item = chunks[pid]
             parts.append({"ref": self.citations.add(item), "chunk_index": item["chunk_index"], "location": item["location_label"],
                           "text": item["content"][: self.settings.read_chars]})
-        return {"title": json.loads(doc[0]).get("title"), "total_chunks": total, "parts": parts,
+        return {"title": doc.get("title"), "total_chunks": total, "parts": parts,
                 "next_start": start + len(ids) if start + len(ids) <= total else None}
 
     def list_documents(self, keyword: str = "", publisher: str = "", document_role: str = "", include_history: bool = False, limit: int = 20):
@@ -195,7 +190,7 @@ class WifiTools:
         rows = self._doc_rows()
         current = [d for d in rows if d.get("analysis_eligible")]
         topics = Counter(t for d in current for t in d.get("topics") or [])
-        manifest = store.manifest(self.path)
+        manifest = self.store.manifest()
         # Complete counts (not top-N) so totals always add up to current_documents.
         return {"package_id": manifest.get("package_id"), "exported_at": manifest.get("created_utc"),
                 "documents": len(rows), "current_documents": len(current),

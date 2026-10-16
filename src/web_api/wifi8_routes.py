@@ -7,7 +7,6 @@ Reading the import status only requires a KM session for this data zone.
 """
 from __future__ import annotations
 
-import json
 import os
 import tempfile
 from collections import Counter
@@ -18,10 +17,10 @@ from typing import Any
 from fastapi import APIRouter, HTTPException, Query, Request, UploadFile
 from pydantic import BaseModel, Field
 
-from ..wifi8 import store
 from ..wifi8.importer import ImportConflict, Wifi8Importer, Wifi8Settings
 from ..wifi8.package import PackageError
 from ..wifi8.search import SearchOptions, SearchUnavailable, Wifi8Search
+from ..wifi8.store import Wifi8Store
 
 router = APIRouter(prefix="/api/wifi8", tags=["Wi-Fi8 import"])
 IMPORT_HEADER = "x-km-wifi8-import"
@@ -29,14 +28,26 @@ IMPORT_TASK = "tasks.wifi8_import_task"
 AGENT_TASK = "tasks.wifi8_agent_task"
 
 
-def _importer() -> Wifi8Importer:
-    return Wifi8Importer(Wifi8Settings.from_environment())
-
-
 @lru_cache(maxsize=1)
 def _vector_store():
     from ..vector_store import VectorStore
     return VectorStore()
+
+
+@lru_cache(maxsize=1)
+def _qdrant():
+    """Plain Qdrant client for metadata reads; avoids loading the embedding model."""
+    url = os.getenv("QDRANT_URL")
+    if not url:
+        vector_store = _vector_store()  # config.yaml based resolution
+        return vector_store.client if vector_store.available else None
+    from qdrant_client import QdrantClient
+    from ..runtime_config import resolve_qdrant_url
+    return QdrantClient(url=resolve_qdrant_url(url), timeout=30)
+
+
+def _importer() -> Wifi8Importer:
+    return Wifi8Importer(Wifi8Settings.from_environment(), qdrant=_qdrant())
 
 
 def _search_engine(importer: Wifi8Importer | None = None) -> Wifi8Search:
@@ -51,15 +62,17 @@ def _search_engine(importer: Wifi8Importer | None = None) -> Wifi8Search:
     )
 
 
-def _store_path(importer: Wifi8Importer) -> Path:
-    path = importer.current_store()
-    if not path:
+def _package_store(importer: Wifi8Importer) -> Wifi8Store:
+    if importer.qdrant is None:
+        raise HTTPException(status_code=503, detail="WiFi 專區的 Qdrant 目前無法使用")
+    package = importer.current_store()
+    if package is None:
         raise HTTPException(status_code=503, detail="WiFi 專區尚未匯入資料")
-    return path
+    return package
 
 
 def _documents(importer: Wifi8Importer) -> list[dict[str, Any]]:
-    return store.documents(_store_path(importer))
+    return _package_store(importer).documents()
 
 
 PUBLIC_DOCUMENT_FIELDS = (
@@ -116,11 +129,11 @@ async def wifi8_status(request: Request):
     _identity(request)
     importer = _importer()
     current = importer.current()
-    path = importer.current_store()
+    package = importer.current_store() if importer.qdrant is not None else None
     return {
         "current": current,
-        "counts": store.counts(path) if path else None,
-        "source": (store.manifest(path).get("source") if path else None),
+        "counts": package.counts() if package else None,
+        "source": (package.manifest().get("source") if package else None),
         "active_job": importer.active_job(),
         "upload_enabled": _can_import(request),
     }
@@ -130,15 +143,15 @@ async def wifi8_status(request: Request):
 async def wifi8_overview(request: Request):
     _identity(request)
     importer = _importer()
-    path = _store_path(importer)
-    documents = store.documents(path)
+    package = _package_store(importer)
+    documents = package.documents()
     current_documents = [doc for doc in documents if doc.get("analysis_eligible")]
-    manifest = store.manifest(path)
+    manifest = package.manifest()
     manifest_counts = manifest.get("counts") or {}
     return {
         "current": importer.current(),
         "counts": {
-            **store.counts(path),
+            **package.counts(),
             "current_documents": len(current_documents),
             "superseded_documents": len(documents) - len(current_documents),
             "excluded": manifest_counts.get("excluded") or {},
@@ -255,21 +268,13 @@ async def wifi8_document_chunks(
     _identity(request)
     importer = _importer()
     _document_or_404(revision_id, importer)
-    with store.connect(_store_path(importer), readonly=True) as database:
-        total = database.execute(
-            "SELECT count(*) FROM chunks WHERE revision_id = ?", (revision_id,)
-        ).fetchone()[0]
-        rows = database.execute(
-            "SELECT ordinal, location, location_label, text FROM chunks "
-            "WHERE revision_id = ? AND ordinal >= ? ORDER BY ordinal LIMIT ?",
-            (revision_id, start, count),
-        ).fetchall()
+    total, page = _package_store(importer).chunk_page(revision_id, start, count)
     chunks = [{
-        "chunk_index": row["ordinal"],
-        "location": json.loads(row["location"]),
-        "location_label": row["location_label"],
-        "content": row["text"],
-    } for row in rows]
+        "chunk_index": payload["chunk_index"],
+        "location": payload.get("location") or {},
+        "location_label": payload.get("location_label") or "",
+        "content": payload["content"],
+    } for _, payload in page]
     return {
         "revision_id": revision_id,
         "total": total,
