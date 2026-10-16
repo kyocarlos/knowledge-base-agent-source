@@ -83,7 +83,7 @@ permissions:
 
 - 權限名稱、角色名稱都只出現在設定檔與共用模組，端點只宣告「需要哪個 permission」。
 - 設定檔缺失或格式錯誤時 **fail closed**（啟動失敗或所有受保護端點 503），不可默默放行。
-- Manager 是否能同時上傳、Engineer 能否看待審清單等細節，見第 5 節「待決策」。
+- 細部權限已於第 5 節決策（Engineer 只看自己的報告；Skill 寫入只限 Admin）。
 
 ### 3.2 資料庫遷移（Control DB）
 
@@ -118,13 +118,30 @@ permissions:
 7. 部署到 DEV（3030）前需使用者核准；Production 不在範圍。
 8. 不順手重構無關程式；登出撤銷問題另案處理。
 
-## 5. 待決策（開工前請向使用者確認）
+## 5. 已決策（使用者 2026-10-16 確認，照此實作）
 
-1. 角色名稱是否就用 `engineer / manager / admin`？舊 `user` 是否全部對應 `engineer`？
-2. 規劃寫「CSIT 權限來源」：Phase 1 角色是由 KM 管理員在 Control 管理頁手動指派，還是要從 CSIT／Shared Identity claim 對應？（建議 Phase 1 先手動指派，保留 claim mapping 擴充點。）
-3. 角色是「每個資料區各自一個」（現有 grant 結構，da40 可以是 manager、test 是 engineer），還是全域一個？（建議沿用每區一個。）
-4. 既有 reviewer Bearer token 要保留、改為只給系統帳號，還是移除？
-5. Engineer 能否看到「待審報告」清單？Manager 能否編輯 Skill？
+1. **角色名稱**：`engineer / manager / admin`；既有 `user` grant 全部遷移為 `engineer`，`admin` 不變。
+2. **角色來源**：Phase 1 由 KM 管理員在 Control 管理頁手動指派。程式保留「由 CSIT／Shared Identity claim 對應角色」的擴充點（例如 policy 中預留 `claim_role_map`，預設停用），本次不實作對應邏輯。
+3. **角色範圍**：沿用現有 grant 結構，**每個資料區各自一個角色**（同一人可在 da40 是 manager、在 test 是 engineer）。
+4. **reviewer Bearer token**：保留，但**只供系統帳號／自動化**（例如 CSIT、E2E runner）使用；人工審核一律走 Manager/Admin 使用者 session。
+   - 稽核與 registry 需標示來源：`reviewer_kind=user|token`，`user` 時 `reviewer_id` 為 KM `user_id`。
+   - token 路徑要能由設定停用（例如 `KM_REVIEWER_TOKEN_ENABLED`，預設維持啟用以免中斷既有流程）。
+5. **細部權限**：
+   - Engineer **不能**看全部的待審報告清單，只能看自己送出的報告與其狀態。
+   - Manager **不能**編輯 Skill；Skill 寫入只限 Admin。
+
+第 3.1 節的 policy 依此補上：
+
+```yaml
+permissions:
+  report.review_list:  [manager, admin]   # 全部待審清單
+  report.view_own:     [engineer, manager, admin]
+  skills.write:        [admin]
+claim_role_map:
+  enabled: false                          # Phase 1 不啟用，保留擴充點
+```
+
+若實作時發現上述決策與既有程式衝突，先停下並回報使用者，不要自行折衷。
 
 ## 6. 驗收
 
