@@ -82,6 +82,8 @@ def test_document_tools(tools):
     assert tools.list_documents(publisher="WFA", include_history=True)["total"] == 2
     overview = tools.zone_overview()
     assert overview["documents"] == 5 and overview["current_documents"] == 4
+    assert sum(n for _, n in overview["by_document_role"]) == overview["current_documents"]
+    assert sum(n for _, n in overview["by_publisher"]) == overview["current_documents"]
 
 
 def test_agent_api_binds_results_to_the_asker(monkeypatch, tmp_path):

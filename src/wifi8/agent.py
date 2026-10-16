@@ -196,10 +196,12 @@ class WifiTools:
         current = [d for d in rows if d.get("analysis_eligible")]
         topics = Counter(t for d in current for t in d.get("topics") or [])
         manifest = store.manifest(self.path)
+        # Complete counts (not top-N) so totals always add up to current_documents.
         return {"package_id": manifest.get("package_id"), "exported_at": manifest.get("created_utc"),
                 "documents": len(rows), "current_documents": len(current),
-                "by_publisher": Counter(d.get("publisher") or "未標示" for d in current).most_common(15),
-                "by_document_role": Counter(d.get("document_role") or "未標示" for d in current).most_common(15),
+                "superseded_documents": len(rows) - len(current), "counts_scope": "current_documents",
+                "by_publisher": Counter(d.get("publisher") or "未標示" for d in current).most_common(),
+                "by_document_role": Counter(d.get("document_role") or "未標示" for d in current).most_common(),
                 "top_topics": topics.most_common(20)}
 
     def call(self, name: str, arguments: dict[str, Any]) -> dict[str, Any]:
