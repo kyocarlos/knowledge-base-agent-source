@@ -98,7 +98,7 @@ permissions:
 
 - 新增共用模組（例如 `src/web_api/rbac.py`）：`require_permission("report.review")` 這種 FastAPI dependency，從 `request.state.km_identity["role"]` 取角色並查 policy。
 - `InstanceAuthMiddleware` 維持只做驗證；授權交給 dependency，避免在 middleware 寫路徑判斷。
-- 報告審核：approve/reject 改成接受「Manager/Admin 的使用者 session」，`reviewer_id` 記為 KM `user_id`。既有 reviewer token 是否保留（給 CSIT/自動化用）屬於待決策，保留時必須另外標示來源（`reviewer_kind=token|user`）。
+- 報告審核：approve/reject 改成接受「Manager/Admin 的使用者 session」，`reviewer_id` 記為 KM `user_id`。既有 reviewer token 保留給系統帳號／自動化，並標示來源（`reviewer_kind=user|token`），見第 5 節第 4 項。
 - 不得把權限判斷交給 LLM 或 prompt（規劃原則）。
 
 ### 3.4 管理介面與稽核
