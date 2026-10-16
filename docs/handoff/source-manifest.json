@@ -341,7 +341,7 @@
     },
     {
       "path": "deploy/dev-3030/compose/kb-test-workers.image.override.yml",
-      "sha256": "c29912668b77c13ae9521e5a1d018eec4db392f12c8d2e8ac19bc6ff600f3a63"
+      "sha256": "aff5b35809b5140508558ca6980b3b4b4c5e30ffd93e2cfb7b3d639876873cf9"
     },
     {
       "path": "deploy/dev-3030/compose/kb-test.llm-primary.override.yml",
@@ -357,7 +357,7 @@
     },
     {
       "path": "deploy/dev-3030/compose/kb-web.chat-runtime.override.yml",
-      "sha256": "1239be032859b4c26e67c1a73fa79492164bb593e8e2aea21bfb5c606bcc03e3"
+      "sha256": "b50505642d5b14a60247edb56e796a610bd3b68bc3275632e80d9aa0e8a0dbd6"
     },
     {
       "path": "deploy/dev-3030/compose/km-da40.llm-primary.override.yml",
@@ -534,6 +534,14 @@
     {
       "path": "five_modes_arch.html",
       "sha256": "a3abb32ed44c20a177a42fad13750179c42795b75d0b9c5b8ee0c3053c1631d8"
+    },
+    {
+      "path": "frontend/CHAT_V2_RUNTIME.md",
+      "sha256": "4fcb5333e2f52ad6371afcb0555993fddc62d5dcee3f53676951b585f41e89e2"
+    },
+    {
+      "path": "frontend/chat-v2.html",
+      "sha256": "d0f974228d8b9bcc06dd581b35451e51925cd7cedd119cda5e27d1e1cb294d79"
     },
     {
       "path": "frontend/chat.html",
