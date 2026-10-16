@@ -452,6 +452,10 @@
       "sha256": "761e353eabdef162143f572f4914e73770f7fbfb2d6dfee76bf66fce32af409a"
     },
     {
+      "path": "docs/handoff/RBAC_ROLES_CODEX_HANDOFF.md",
+      "sha256": "f183b92a7cb8476078723c1cac9b69fce1a69c9d951d1971f40265c541246155"
+    },
+    {
       "path": "docs/handoff/source-origins.json",
       "sha256": "e56396cf7ef63740a46edd5033b487ad31d7330633c13c7a15ced0e2231f465f"
     },
