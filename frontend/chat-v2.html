@@ -819,6 +819,10 @@
       document.querySelectorAll('[data-knowledge-zone]').forEach((item) => {
         item.addEventListener('click', (event) => {
           event.preventDefault();
+          if (item.dataset.knowledgeZone === 'wifi') {
+            window.location.assign('/wifi8/#/overview');
+            return;
+          }
           selectKnowledgeZone(item.dataset.knowledgeZone);
           document.getElementById('chatInput')?.focus();
         });
