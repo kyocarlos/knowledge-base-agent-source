@@ -9,6 +9,19 @@ Existing live same-v3 job is Completed; preserve historical callback failures an
 This branch contains no live credentials, runtime data or model cache. Build/development readiness is not Production release or whole Phase 1 acceptance. Read validation.json for exact build/test coverage.
 The original DGX working tree/runtime was not changed by this isolated handoff. Credentials are supplied through external protected files, never committed.
 
+## 2026-10-16：WiFi 知識專區版面移植與 TEST／DA40 完成驗收
+
+使用者最後確認 WiFi 專區應沿用 `https://61.216.9.52:3030/chat-v2.html` 的深色網格、薄荷綠／青色與半透明卡片風格，而不是 localhost 8766 的淺色參考風格。在 branch `codex/cross-search-source-credentials-20261015` 完成 `/wifi8/` SPA；`chat-v2.html` 只將原 WiFi 入口改為同頁導向 `#/overview`，其畫面、WebSocket、搜尋與其他專區行為不變。
+
+LLM 說明與結論：
+
+- SPA 用單一設定表產生導覽，完成 overview、documents、AI Agent、jobs，串接文件分頁／篩選、目前／歷史版本、metadata、chunks、版本關係、BM25＋向量 RRF、Agent 引用／tool trace／stop reason 與具權限匯入。其他六頁明確標示「功能待移植」，無假資料或誤觸動作；舊 `/wifi8-import.html` 導向 `#/jobs`。
+- 新增 session-protected overview、documents/detail/chunks、search、jobs API，保留 status、agent、packages 與 job detail；有長度／分頁／回傳量限制，不接受任意 SQL／path／collection，上傳 UI 以目前帳號權限判定。真實瀏覽器發現的 stale hash render 競態已用 render token 修正。
+- Tests：WiFi import/search/agent/routes `24 passed`；JS syntax 與 diff check PASS。TEST Webwright 全綠：503／368／135／31,395、ELR 文件、detail/chunks/versions、NPCA 混合搜尋、Agent 與 5 引用、jobs、佔位頁、其他專區回歸、390/760/1024/1440 無溢位，console error/failed request 皆 0。DA40 job `wifi8-import-20261016T062515Z-282e90db` 已完成並切換 current：503 documents、368 current、94,528 segments、31,395/31,395 ready，active job none；DA40 獨立 Webwright overview 與 ELR Agent PASS。
+- Source commits：`b67c223`、`98a01fc`、`2eee1ef`。TEST image ID `sha256:43efcaa708f...`，DA40 `sha256:01b62b8adfdb...`；runtime route SHA `c2ba0c5fc067...`。靜態使用 hash CSS/JS 並與 source SHA 一致。原 workers/Nginx 保持 running，Production 未修改。詳細 source/runtime/備份/回復記錄見 `docs/handoff/WIFI8_WORKSPACE_20261016.md`；evidence 位於 `/home/da40_ai_gb10/.km-control/wifi8-deploy-20261016/`。
+
+最終狀態：**WiFi 知識專區已在 KM DEV TEST 與 DA40 完成版面、功能、部署與驗收；Production 未觸及。**
+
 ## 2026-10-14 canonical contract adoption source checkpoint
 
 User authorized the exact CSIT-System commit 3a9ae52f04625aeee5fd01e7a3565f5972fc9122 as the only current Integration v1 wire authority, requested all listed drift fixes, KM DEV deployment, deployed-runtime deterministic offline verification, integration disabled, and no new Live E2E. Remote identity spark-7546/da40_ai_gb10 and clean branch baseline b3aa002556c7905e3d91691420dbcdc7b7f19ba1 were confirmed. No password is retained.
