@@ -1,7 +1,8 @@
 """Manual upload of Wi-Fi8 export packages into the KM WiFi zone.
 
 Uploading is limited to the accounts listed in ``KM_WIFI8_IMPORT_USERS``
-(comma-separated usernames). An empty list disables uploads (fail closed).
+(comma-separated usernames); ``*`` allows every logged-in account of this data
+zone. An empty list disables uploads (fail closed).
 Reading the import status only requires a KM session for this data zone.
 """
 from __future__ import annotations
@@ -43,7 +44,7 @@ def _importer_username(request: Request) -> str:
         raise HTTPException(status_code=403, detail="Wi-Fi8 package import is not enabled")
     from ..km_control import ControlRegistry
     user = ControlRegistry.from_environment().get_user(identity["sub"])
-    if not user or user.username not in allowed:
+    if not user or ("*" not in allowed and user.username not in allowed):
         raise HTTPException(status_code=403, detail="This account cannot import Wi-Fi8 packages")
     return user.username
 

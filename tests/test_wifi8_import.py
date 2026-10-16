@@ -238,7 +238,7 @@ def test_upload_permissions_and_status(api, monkeypatch):
     assert client.post("/api/wifi8/packages", files=files, headers=headers).status_code == 403  # disabled by default
     monkeypatch.setenv("KM_WIFI8_IMPORT_USERS", "someone-else")
     assert client.post("/api/wifi8/packages", files=files, headers=headers).status_code == 403
-    monkeypatch.setenv("KM_WIFI8_IMPORT_USERS", "km-clude1")
+    monkeypatch.setenv("KM_WIFI8_IMPORT_USERS", "*")  # every logged-in account
     assert client.post("/api/wifi8/packages", files=files).status_code == 403  # missing same-origin header
     bad = {"file": ("wifi8.zip", b"not a zip", "application/zip")}
     assert client.post("/api/wifi8/packages", files=bad, headers=headers).status_code == 422
