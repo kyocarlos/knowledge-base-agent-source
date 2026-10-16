@@ -1,0 +1,22 @@
+# TEST plane = WiFi 知識專區（2026-10-16 使用者決策：清空後只放 Wi-Fi8 文件）。
+# 1) /app/data 改掛主機目錄：映像內建的舊範例檔與 processed/*.source.json 不再於重建時復原，
+#    Wi-Fi8 匯入資料（/app/data/wifi8）也能保存。uploads 仍由 base compose 另行掛載。
+# 2) 嵌入模型快取持久化，worker 重建時不必再連 HuggingFace 下載。
+# 3) KM_WIFI8_IMPORT_USERS：可上傳 Wi-Fi8 匯出包的帳號（逗號分隔）；空值＝關閉上傳。
+# 不含任何 secret。
+x-km-test-app-data: &app_data ${KM_TEST_APP_DATA_DIR:-/home/da40_ai_gb10/.km-control/test-zone-data/app-data}:/app/data
+x-km-test-hf-cache: &hf_cache ${KM_TEST_HF_CACHE_DIR:-/home/da40_ai_gb10/.km-control/test-zone-data/hf-cache}:/root/.cache/huggingface
+services:
+  web:
+    environment:
+      KM_WIFI8_IMPORT_USERS: ${KM_WIFI8_IMPORT_USERS:-}
+    volumes:
+      - *app_data
+  celery_ingest_worker:
+    volumes:
+      - *app_data
+      - *hf_cache
+  celery_search_worker:
+    volumes:
+      - *app_data
+      - *hf_cache

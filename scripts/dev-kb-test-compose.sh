@@ -18,12 +18,13 @@ files=(
   "$overlays/kb-test-workers.image.override.yml"
   "$overlays/kb-web.chat-runtime.override.yml"
   "$overlays/kb-test.llm-primary.override.yml"
+  "$overlays/kb-test.wifi8.override.yml"
 )
 for f in "${files[@]}" "$env_file"; do
   [ -r "$f" ] || { echo "缺少檔案：$f" >&2; exit 2; }
 done
 # runtime overlay 必須與版本控制內容一致
-for name in kb-test-workers.image.override.yml kb-web.chat-runtime.override.yml kb-test.llm-primary.override.yml; do
+for name in kb-test-workers.image.override.yml kb-web.chat-runtime.override.yml kb-test.llm-primary.override.yml kb-test.wifi8.override.yml; do
   cmp -s "$overlays/$name" "$repo/deploy/dev-3030/compose/$name" || { echo "MISMATCH：$overlays/$name 與 git 版本不同" >&2; exit 3; }
 done
 
