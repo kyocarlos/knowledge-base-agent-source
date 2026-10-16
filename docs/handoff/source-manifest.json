@@ -673,15 +673,15 @@
     },
     {
       "path": "frontend/wifi8/index.html",
-      "sha256": "1fb39f385d0b0a9ff73262a656f16292770cc47f00244efb2064c75041de7ff4"
+      "sha256": "7da89ae959e412514ffb72c89e9adfc2e18cbd6e3c5ba43d557d261c23b4820b"
     },
     {
-      "path": "frontend/wifi8/wifi8.696f24f8d05c.js",
-      "sha256": "696f24f8d05c458a23766c19673e41c8533e196bb4282b4b01a4c2b258682ef5"
+      "path": "frontend/wifi8/wifi8.af6be92b6b74.css",
+      "sha256": "af6be92b6b7468ba141b3b86e7f90f10e43acb728527f5ea4616f43696b2092d"
     },
     {
-      "path": "frontend/wifi8/wifi8.7e49d7b7ba70.css",
-      "sha256": "7e49d7b7ba704dd6141a3d34997415802f8a0ed89a9772ef38bbf2b17e0e049e"
+      "path": "frontend/wifi8/wifi8.e8c58db24282.js",
+      "sha256": "e8c58db24282f636cb253b184c8163b0002ba65ba727097a5636f3695a4a61fd"
     },
     {
       "path": "frontend/ws-chat-probe.cjs",

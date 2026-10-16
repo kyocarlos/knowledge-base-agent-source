@@ -95,6 +95,17 @@
     const pages = Math.max(1, Math.ceil(data.total / data.page_size));
     $('#document-results').innerHTML = `<p class="results-meta">共 ${number(data.total)} 份，第 ${page} / ${pages} 頁</p><div class="table-wrap"><table><thead><tr><th style="width:42%">文件</th><th>發布者</th><th>角色</th><th>版本</th><th></th></tr></thead><tbody>${data.documents.map((doc) => `<tr><td><span class="document-title" title="${escapeHtml(doc.title)}">${escapeHtml(doc.title)}</span><span class="document-sub">${escapeHtml(doc.wfa_document_id || doc.revision_id)}</span></td><td>${escapeHtml(doc.publisher || '—')}</td><td>${escapeHtml(doc.document_role || '—')}</td><td><span class="tag ${doc.analysis_eligible ? '' : 'history'}">${doc.analysis_eligible ? '目前' : '歷史'}</span></td><td><button class="table-button" data-document="${escapeHtml(doc.revision_id)}">詳情</button></td></tr>`).join('') || '<tr><td colspan="5" class="empty">找不到符合條件的文件</td></tr>'}</tbody></table></div><div class="pagination"><button class="secondary-button" data-page="${page-1}" ${page <= 1 ? 'disabled' : ''}>上一頁</button><button class="secondary-button" data-page="${page+1}" ${page >= pages ? 'disabled' : ''}>下一頁</button></div>`;
   }
+  // Search hits and agent citations carry the document title in `source`.
+  const hitTitle = (hit) => hit.source || hit.title || hit.document_title || hit.revision_id || '未命名文件';
+  const matchedLabels = { fulltext: '全文', vector: '語意' };
+  function hitMeta(hit) {
+    return [
+      hit.location_label, hit.publisher, hit.wfa_document_id ? `WFA ${hit.wfa_document_id}` : '',
+      hit.analysis_eligible === false ? '歷史版本' : '',
+      (hit.matched_by || []).map((name) => matchedLabels[name] || name).join('＋'),
+      hit.score != null ? Number(hit.score).toFixed(4) : '',
+    ].filter(Boolean).join(' · ');
+  }
   async function runHybridSearch() {
     const input = $('#hybrid-query');
     const target = $('#hybrid-results');
@@ -103,7 +114,7 @@
     try {
       const data = await api('/api/wifi8/search', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ query:input.value.trim(), top_k:10, include_history:$('#hybrid-history').checked }) });
       const hits = data.results || data.hits || [];
-      target.innerHTML = `<p class="results-meta">${escapeHtml(data.policy || '混合檢索')} · ${hits.length} 筆</p><div class="search-results">${hits.map((hit) => `<article class="search-hit"><h3>${escapeHtml(hit.title || hit.document_title || hit.revision_id)}</h3><p>${escapeHtml(hit.content || hit.text || hit.snippet || '')}</p><small>${escapeHtml(hit.location_label || hit.publisher || '')}${hit.score != null ? ` · ${Number(hit.score).toFixed(4)}` : ''}</small></article>`).join('') || '<div class="empty">沒有檢索結果</div>'}</div>`;
+      target.innerHTML = `<p class="results-meta">${escapeHtml(data.policy || '混合檢索')} · ${hits.length} 筆</p><div class="search-results">${hits.map((hit) => `<article class="search-hit"><h3 title="${escapeHtml(hit.revision_id)}">${escapeHtml(hitTitle(hit))}</h3><p>${escapeHtml(hit.content || hit.text || hit.snippet || '')}</p><small>${escapeHtml(hitMeta(hit))}</small></article>`).join('') || '<div class="empty">沒有檢索結果</div>'}</div>`;
     } catch (error) { target.innerHTML = `<div class="error-card">${escapeHtml(error.message)}</div>`; }
   }
   async function renderDocuments(token) {
@@ -125,11 +136,75 @@
     } catch (error) { $('#document-dialog-body').innerHTML = `<div class="error-card">${escapeHtml(error.message)}</div>`; }
   }
 
+  // Minimal Markdown for agent answers. The text is HTML-escaped before any rule runs,
+  // so only the tags generated here reach the page (no raw HTML, no links).
+  function inlineMarkdown(text) {
+    return text.split(/(`[^`\n]+`)/).map((part, index) => index % 2
+      ? `<code>${part.slice(1, -1)}</code>`
+      : part.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+        .replace(/(^|[^*\w])\*(?!\s)([^*\n]+?)\*(?!\w)/g, '$1<em>$2</em>')
+        .replace(/\[(S\d+)\]/g, '<span class="cite-ref">[$1]</span>')).join('');
+  }
+  const markdownList = /^\s*([-*+]|\d+[.)])\s+(.*)$/;
+  const markdownBlock = /^\s*(```|#{1,6}\s|[-*+]\s|\d+[.)]\s|&gt;|\|)/;
+  const tableRow = (line) => /^\s*\|.*\|\s*$/.test(line);
+  const tableCells = (line) => line.trim().replace(/^\||\|$/g, '').split('|').map((cell) => inlineMarkdown(cell.trim()));
+  function renderMarkdown(source) {
+    const lines = escapeHtml(source).replace(/\r\n?/g, '\n').split('\n');
+    const html = [];
+    let i = 0;
+    while (i < lines.length) {
+      const line = lines[i];
+      let match;
+      if (!line.trim()) { i += 1; continue; }
+      if (/^\s*```/.test(line)) {
+        const code = [];
+        for (i += 1; i < lines.length && !/^\s*```/.test(lines[i]); i += 1) code.push(lines[i]);
+        i += 1; html.push(`<pre><code>${code.join('\n')}</code></pre>`); continue;
+      }
+      if ((match = line.match(/^\s*(#{1,6})\s+(.*)$/))) {
+        const level = Math.min(match[1].length + 2, 6);
+        html.push(`<h${level}>${inlineMarkdown(match[2])}</h${level}>`); i += 1; continue;
+      }
+      if (/^\s*([-*_])(\s*\1){2,}\s*$/.test(line)) { html.push('<hr>'); i += 1; continue; }
+      if (tableRow(line) && /^\s*\|?\s*:?-{3,}/.test(lines[i + 1] || '')) {
+        const head = tableCells(line); const rows = [];
+        for (i += 2; i < lines.length && tableRow(lines[i]); i += 1) rows.push(tableCells(lines[i]));
+        html.push(`<div class="md-table"><table><thead><tr>${head.map((cell) => `<th>${cell}</th>`).join('')}</tr></thead><tbody>${rows.map((row) => `<tr>${row.map((cell) => `<td>${cell}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`);
+        continue;
+      }
+      if ((match = line.match(markdownList))) {
+        const ordered = /\d/.test(match[1]); const items = [];
+        const start = ordered ? parseInt(match[1], 10) : 1;
+        while (i < lines.length && (match = lines[i].match(markdownList)) && /\d/.test(match[1]) === ordered) {
+          items.push(inlineMarkdown(match[2])); i += 1;
+          let next = i; while (next < lines.length && !lines[next].trim()) next += 1;  // loose list: blank lines between items
+          if (next < lines.length && (match = lines[next].match(markdownList)) && /\d/.test(match[1]) === ordered) i = next;
+        }
+        const tag = ordered ? 'ol' : 'ul';
+        html.push(`<${tag}${ordered && start !== 1 ? ` start="${start}"` : ''}>${items.map((item) => `<li>${item}</li>`).join('')}</${tag}>`); continue;
+      }
+      if (/^\s*&gt;/.test(line)) {
+        const quote = [];
+        for (; i < lines.length && /^\s*&gt;/.test(lines[i]); i += 1) quote.push(lines[i].replace(/^\s*&gt;\s?/, ''));
+        html.push(`<blockquote>${inlineMarkdown(quote.join('<br>'))}</blockquote>`); continue;
+      }
+      const paragraph = [];
+      do { paragraph.push(lines[i]); i += 1; } while (i < lines.length && lines[i].trim() && !markdownBlock.test(lines[i]));
+      html.push(`<p>${inlineMarkdown(paragraph.join('<br>'))}</p>`);
+    }
+    return html.join('');
+  }
+  function citationItem(item, index) {
+    if (typeof item !== 'object' || item === null) return `<li><strong>[${index + 1}]</strong> ${escapeHtml(item)}</li>`;
+    const meta = [item.location_label, item.publisher, item.wfa_document_id ? `WFA ${item.wfa_document_id}` : '', item.analysis_eligible === false ? '歷史版本' : ''].filter(Boolean).join(' · ');
+    return `<li><strong>[${escapeHtml(item.ref || index + 1)}]</strong> <span title="${escapeHtml(item.revision_id)}">${escapeHtml(hitTitle(item))}</span>${meta ? `<small>${escapeHtml(meta)}</small>` : ''}</li>`;
+  }
   function agentOutput(value) {
     const answer = value.answer || value.result || value.message || '未回傳回答';
     const citations = value.citations || value.sources || [];
     const trace = value.steps || value.tool_steps || value.trace || [];
-    return `<div class="message assistant">${escapeHtml(answer)}</div><ul class="citation-list">${citations.map((item,index) => `<li><strong>[${index+1}]</strong> ${escapeHtml(item.title || item.document_title || item.revision_id || item)}</li>`).join('')}</ul><details><summary>Agent 工具步驟與停止原因</summary><ul class="trace-list">${trace.map((item) => `<li>${escapeHtml(typeof item === 'string' ? item : item.tool || item.name || JSON.stringify(item))}</li>`).join('') || '<li>無工具步驟</li>'}</ul><p class="results-meta">${escapeHtml(value.stop_reason || value.status || '')}</p></details>`;
+    return `<div class="message assistant markdown">${renderMarkdown(answer)}</div><ul class="citation-list">${citations.map(citationItem).join('')}</ul><details><summary>Agent 工具步驟與停止原因</summary><ul class="trace-list">${trace.map((item) => `<li>${escapeHtml(typeof item === 'string' ? item : item.tool || item.name || JSON.stringify(item))}</li>`).join('') || '<li>無工具步驟</li>'}</ul><p class="results-meta">${escapeHtml(value.stop_reason || value.status || '')}</p></details>`;
   }
   async function pollAgent(taskId) {
     for (let attempt = 0; attempt < 120; attempt += 1) {

@@ -155,6 +155,26 @@ tbody tr:hover { background: rgba(127,255,227,.05); }
 .citation-list, .trace-list, .job-list { display: grid; gap: 9px; margin: 8px 0 0; padding: 0; list-style: none; }
 .citation-list li, .trace-list li, .job-item { padding: 10px; border: 1px solid var(--line-soft); border-radius: 10px; color: var(--ink-soft); background: rgba(0,0,0,.16); font-size: .73rem; line-height: 1.5; }
 .citation-list strong { color: var(--blue); }
+.citation-list small { display: block; margin-top: 3px; color: var(--muted); }
+.message.markdown { white-space: normal; overflow-wrap: anywhere; }
+.message.markdown > :first-child { margin-top: 0; }
+.message.markdown > :last-child { margin-bottom: 0; }
+.message.markdown p, .message.markdown ul, .message.markdown ol, .message.markdown blockquote, .message.markdown pre, .message.markdown .md-table { margin: 0 0 10px; }
+.message.markdown h3, .message.markdown h4, .message.markdown h5, .message.markdown h6 { margin: 14px 0 6px; color: #dffaff; font-size: .9rem; line-height: 1.4; }
+.message.markdown h3 { font-size: .98rem; }
+.message.markdown ul, .message.markdown ol { padding-left: 1.4em; }
+.message.markdown li + li { margin-top: 3px; }
+.message.markdown strong { color: #dffaff; }
+.message.markdown code { padding: 1px 5px; border-radius: 5px; background: rgba(0,0,0,.28); font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .92em; }
+.message.markdown pre { overflow-x: auto; padding: 10px; border-radius: 8px; background: rgba(0,0,0,.28); }
+.message.markdown pre code { padding: 0; background: none; }
+.message.markdown blockquote { padding-left: 10px; border-left: 3px solid var(--line); color: var(--ink-soft); }
+.message.markdown hr { margin: 12px 0; border: 0; border-top: 1px solid var(--line); }
+.message.markdown .md-table { overflow-x: auto; }
+.message.markdown table { border-collapse: collapse; font-size: .95em; }
+.message.markdown th, .message.markdown td { padding: 5px 8px; border: 1px solid var(--line); text-align: left; vertical-align: top; }
+.message.markdown th { color: #dffaff; background: rgba(0,0,0,.2); }
+.cite-ref { color: var(--blue); font-weight: 700; white-space: nowrap; }
 .job-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .job-head strong { color: #dffaff; }
 .job-meta { margin-top: 6px; color: var(--muted); }
