@@ -341,7 +341,7 @@
     },
     {
       "path": "deploy/dev-3030/compose/kb-test-workers.image.override.yml",
-      "sha256": "870889d138a15edc5389a4ba2e24e7fbac1beb53ca7d21918431ded34cca49cc"
+      "sha256": "c29912668b77c13ae9521e5a1d018eec4db392f12c8d2e8ac19bc6ff600f3a63"
     },
     {
       "path": "deploy/dev-3030/compose/kb-test.llm-primary.override.yml",
@@ -349,7 +349,7 @@
     },
     {
       "path": "deploy/dev-3030/compose/kb-test.wifi8.override.yml",
-      "sha256": "5f54eebb9bc5e4f8293878eaab59161af89f4a81a83648dbb79689b7ee07da32"
+      "sha256": "b595b08b5eb01ec4b9b3d7df4b725b1a43ad55b31281be887f2e57e79cb9f088"
     },
     {
       "path": "deploy/dev-3030/compose/kb-timescaledb.compose.yml",
@@ -357,7 +357,7 @@
     },
     {
       "path": "deploy/dev-3030/compose/kb-web.chat-runtime.override.yml",
-      "sha256": "60f62730971c59cc9fe5de248ff1ddbd5ef04f3b45ce2d7d44f80cb84c10c707"
+      "sha256": "1239be032859b4c26e67c1a73fa79492164bb593e8e2aea21bfb5c606bcc03e3"
     },
     {
       "path": "deploy/dev-3030/compose/km-da40.llm-primary.override.yml",
@@ -1461,7 +1461,7 @@
     },
     {
       "path": "src/web_api/wifi8_routes.py",
-      "sha256": "1f808dbc64939aeda737b554b8004091119de1c5d40d934d665c2635188400b2"
+      "sha256": "00e7661ab63b9aad61f89be34f29db5c525fb86c00b75a923bea7d43794859c9"
     },
     {
       "path": "src/wifi8/__init__.py",
@@ -1837,7 +1837,7 @@
     },
     {
       "path": "tests/test_wifi8_import.py",
-      "sha256": "07ba5bf2f1e662712106ffdc0e0f01162596144396a5469958538137dc9f14ba"
+      "sha256": "b95f58c6274877b898ee2979cfe4bf52a51bf1d95c23daf4ef557182bc3996a8"
     },
     {
       "path": "tests/test_wp0_api_contract.py",
