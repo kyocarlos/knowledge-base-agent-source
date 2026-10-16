@@ -317,6 +317,7 @@ celery_app.conf.update(
         "tasks.search_task": {"queue": "search"},
         "tasks.watch_folder_scan": {"queue": "search"},
         "tasks.ingest_task": {"queue": "ingest"},
+        "tasks.wifi8_import_task": {"queue": "ingest"},
     },
     # 結果過期時間
     result_expires=JOB_CONFIG.result_ttl_seconds,
@@ -920,6 +921,40 @@ def _build_search_citation_distribution(sources: list[dict]) -> dict:
         "unmatched_count": unmatched_count,
         "total_sources": len(sources or []),
     }
+
+WIFI8_ACTIVE_STATUSES = frozenset({"queued", "staging", "embedding", "publishing"})
+
+
+def build_wifi8_importer():
+    """Wi-Fi8 importer bound to this worker's embedding model, Qdrant and Neo4j."""
+    from ..wifi8.importer import Wifi8Importer, Wifi8Settings
+    from ..vector_store import VectorStore
+    from ..ingest import load_config, _get_neo4j_connection_info
+    from neo4j import GraphDatabase
+
+    vector_store = _preloaded_vector_store or VectorStore()
+    if not vector_store.available or vector_store.client is None:
+        raise RuntimeError("Qdrant is unavailable")
+    neo4j_uri, neo4j_user, neo4j_password = _get_neo4j_connection_info(load_config())
+    return Wifi8Importer(
+        Wifi8Settings.from_environment(), qdrant=vector_store.client, encoder=vector_store.encode,
+        embedding_model=vector_store.model_name,
+        neo4j_driver=GraphDatabase.driver(neo4j_uri, auth=(neo4j_user, neo4j_password)),
+    )
+
+
+@celery_app.task(name="tasks.wifi8_import_task", bind=True)
+def wifi8_import_task(self, job_id: str):
+    """Run one bounded Wi-Fi8 import step, then re-enqueue until the job finishes."""
+    importer = build_wifi8_importer()
+    try:
+        job = importer.step(job_id)
+    finally:
+        importer.neo4j.close()
+    if job.get("status") in WIFI8_ACTIVE_STATUSES:
+        wifi8_import_task.apply_async(args=[job_id])
+    return {"job_id": job_id, "status": job.get("status"), "phase": job.get("phase")}
+
 
 @celery_app.task(name="tasks.search_task", bind=True, max_retries=JOB_CONFIG.max_retries)
 def search_task(self, query: str, mode: str, top_k: int | None = None, sources_only: bool = False, **kwargs):

@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>WiFi 知識匯入</title><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+:root{--ink:#06161d;--mint:#7fffe3;--cyan:#17d9ff;--muted:#8da8ae;--border:rgba(127,255,227,.2)}*{box-sizing:border-box}html,body{min-height:100%;margin:0}body.km-auth{display:grid;place-items:center;overflow-x:hidden;color:#e7ffff;background:linear-gradient(rgba(127,255,227,.035) 1px,transparent 1px),linear-gradient(90deg,rgba(127,255,227,.035) 1px,transparent 1px),radial-gradient(circle at 50% 0%,rgba(0,228,255,.18),transparent 42%),var(--ink);background-size:48px 48px,48px 48px,auto,auto;font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif}.auth-shell{width:min(500px,calc(100vw - 32px));padding:24px}.auth-card{padding:32px;border:1px solid var(--border);border-radius:22px;background:linear-gradient(145deg,rgba(24,78,88,.76),rgba(7,35,43,.9));box-shadow:0 24px 70px rgba(0,0,0,.3)}.brand{display:flex;align-items:center;gap:12px}.brand-mark{display:grid;place-items:center;width:42px;height:42px;border-radius:12px;color:var(--ink);background:linear-gradient(135deg,var(--mint),var(--cyan));font-size:18px;font-weight:900}.brand-name{font-size:14px;font-weight:900;letter-spacing:.24em}.brand-sub,.kicker{color:#617f87;font-size:9px;letter-spacing:.18em;text-transform:uppercase}.kicker{margin-top:34px;color:var(--mint);font-weight:800}.auth-card h1{margin:12px 0 0;color:#f2ffff;font-size:clamp(28px,7vw,40px);letter-spacing:-.05em}.intro{margin:10px 0 24px;color:#9ab2b7;font-size:14px;line-height:1.7}#status{min-height:32px;margin:0 0 14px;padding:8px 10px;border:1px solid rgba(127,255,227,.16);border-radius:10px;color:#b9d6da;background:rgba(0,0,0,.16);font-size:12px;line-height:1.5}.hidden{display:none!important}label{display:block;margin:14px 0 7px;color:#cfe8ea;font-size:11px;font-weight:800;letter-spacing:.08em}input,select{display:block;width:100%;padding:12px 13px;border:1px solid rgba(127,255,227,.2);border-radius:11px;outline:0;color:#f2ffff;background:rgba(0,0,0,.22);font:inherit}input:focus,select:focus{border-color:var(--mint);box-shadow:0 0 0 3px rgba(127,255,227,.12)}button,.outline-link{display:block;width:100%;margin-top:12px;padding:12px 14px;border:1px solid transparent;border-radius:11px;color:var(--ink);background:linear-gradient(90deg,var(--mint),var(--cyan));font:inherit;font-size:12px;font-weight:900;text-align:center;text-decoration:none;cursor:pointer;transition:transform .2s,box-shadow .2s}button:hover,.outline-link:hover{transform:translateY(-1px);box-shadow:0 10px 24px rgba(23,217,255,.16)}#register{color:var(--mint);border-color:rgba(127,255,227,.28);background:transparent}#oidc-login{margin:16px 0 0}#oidc-login a{display:block;padding:11px;border:1px solid rgba(127,255,227,.28);border-radius:11px;color:var(--mint);font-size:12px;font-weight:800;text-align:center;text-decoration:none}#instances{margin-top:8px}#instances h2{margin:0 0 14px;color:#f2ffff;font-size:18px}.instance-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}#instance-buttons button{min-height:74px;margin:0;border:1px solid var(--border);color:var(--mint);background:rgba(127,255,227,.08);font-size:14px}#instance-buttons button:hover{color:var(--ink);background:linear-gradient(90deg,var(--mint),var(--cyan))}.admin-link{margin-top:18px}.logout{color:var(--muted);border-color:rgba(255,255,255,.14);background:transparent}@media(max-width:520px){.auth-shell{padding:12px}.auth-card{padding:24px 20px}.instance-grid{grid-template-columns:1fr}}
+.source-list{display:grid;gap:12px;margin:0;padding:0;list-style:none}
+.source-item{padding:14px;border:1px solid var(--border);border-radius:14px;background:rgba(0,0,0,.14)}
+.source-head{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.source-name{color:#f2ffff;font-size:14px;font-weight:800}
+.badge{padding:3px 9px;border-radius:999px;font-size:11px;font-weight:800;border:1px solid rgba(255,255,255,.18);color:var(--muted)}
+.badge.active{color:var(--ink);background:var(--mint);border-color:transparent}
+.badge.needs_relink{color:#ffd9a8;border-color:rgba(255,190,110,.45)}
+.source-meta{margin:6px 0 0;color:#9ab2b7;font-size:12px}
+.source-item form button{margin-top:10px}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.secondary{color:var(--mint);border-color:rgba(127,255,227,.28);background:transparent}
+.danger{color:#ffb4b4;border-color:rgba(255,140,140,.3);background:transparent}
+.note{color:#7f9ca2;font-size:11px;line-height:1.6;margin:16px 0 0}
+@media(max-width:520px){.row{grid-template-columns:1fr}}
+
+.stats{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:0 0 14px}
+.stat{padding:12px;border:1px solid var(--border);border-radius:12px;background:rgba(0,0,0,.14)}
+.stat b{display:block;color:#f2ffff;font-size:20px}.stat span{color:#8da8ae;font-size:11px}
+progress{width:100%;height:10px;margin-top:8px;accent-color:#7fffe3}
+.mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px;color:#9ab2b7;word-break:break-all}
+</style></head><body class="km-auth"><main class="auth-shell"><section class="auth-card"><div class="brand"><div class="brand-mark">K</div><div><div class="brand-name">KM</div><div class="brand-sub">research intelligence platform</div></div></div><div class="kicker">KM / WIFI ZONE</div><h1>WiFi 知識匯入</h1><p class="intro">上傳由 Wi-Fi8 KM System 匯出的 <code>wifi8-km-package.zip</code>。系統會先驗證整包，完成全部處理後才切換為新版本；處理期間與失敗時，WiFi 專區仍使用目前版本。</p>
+<p id="status" role="status">正在讀取匯入狀態…</p>
+<div id="stats" class="stats hidden"></div>
+<p id="current" class="mono"></p>
+<div id="job" class="hidden"><label>處理進度</label><p id="job-text" class="source-meta"></p><progress id="job-bar" max="1" value="0"></progress></div>
+<form id="upload" class="hidden"><label for="file">匯出包（.zip）</label><input id="file" name="file" type="file" accept=".zip,application/zip" required><button type="submit">上傳並匯入</button></form>
+<p id="disabled" class="note hidden">此帳號未開放上傳匯出包；如需匯入請洽 KM 管理員。</p>
+<a class="outline-link secondary" href="/chat-v2.html">返回 KM 研發知識中樞</a>
+<p class="note">同一份匯出包重複上傳不會重複匯入。內容沒有變動的段落會沿用既有向量，只處理新增或修改的部分。</p></section></main>
+<script>
+const $=s=>document.querySelector(s);
+const PHASE={queued:'排隊中',staging:'驗證與整理段落',embedding:'建立向量索引',publishing:'切換為新版本',completed:'已完成',failed:'失敗'};
+let timer=null;
+function stat(label,value){const d=document.createElement('div');d.className='stat';const b=document.createElement('b');b.textContent=value;const s=document.createElement('span');s.textContent=label;d.append(b,s);return d}
+function showJob(job){
+  if(!job){$('#job').classList.add('hidden');return}
+  $('#job').classList.remove('hidden');
+  const p=job.progress||{};const total=p.chunks||0,done=p.chunks_ready||0;
+  $('#job-bar').max=total||1;$('#job-bar').value=job.status==='completed'?(total||1):done;
+  let text=(PHASE[job.status]||job.status)+(total?'：'+done+' / '+total+' 段':'');
+  if(p.vectors_reused)text+='（沿用 '+p.vectors_reused+' 段）';
+  if(job.status==='failed')text+='。原因：'+(job.error||'未知')+'；目前版本不受影響。';
+  if(job.message)text+='。'+job.message;
+  $('#job-text').textContent=text;
+}
+async function load(){
+  const r=await fetch('/api/wifi8/status',{credentials:'same-origin',cache:'no-store'});
+  if(r.status===401){$('#status').textContent='請先登入 KM 並選擇資料區。';location.assign('/login.html');return}
+  if(!r.ok){$('#status').textContent='WiFi 知識匯入目前無法使用。';return}
+  const d=await r.json();
+  const c=d.counts;
+  if(c){$('#stats').classList.remove('hidden');$('#stats').replaceChildren(stat('文件',c.documents),stat('目前採用版本',c.documents_analysis_eligible),stat('段落',c.segments),stat('檢索單位',c.chunks));
+    $('#current').textContent='目前版本 '+d.current.package_id+'，切換時間 '+d.current.switched_at;$('#status').textContent='WiFi 專區已有匯入資料。'}
+  else $('#status').textContent='WiFi 專區尚未匯入資料。';
+  $('#upload').classList.toggle('hidden',!d.upload_enabled||!!d.active_job);
+  $('#disabled').classList.toggle('hidden',d.upload_enabled);
+  showJob(d.active_job);
+  clearTimeout(timer);if(d.active_job)timer=setTimeout(()=>load().catch(()=>{}),3000);
+}
+async function watch(jobId){
+  const r=await fetch('/api/wifi8/jobs/'+encodeURIComponent(jobId),{credentials:'same-origin',cache:'no-store'});
+  if(!r.ok)return;const job=await r.json();showJob(job);
+  if(['completed','failed'].includes(job.status)){$('#status').textContent=job.status==='completed'?'匯入完成。':'匯入失敗，目前版本不受影響。';load();return}
+  setTimeout(()=>watch(jobId),3000);
+}
+$('#upload').onsubmit=async e=>{
+  e.preventDefault();const file=$('#file').files[0];if(!file)return;
+  const form=new FormData();form.append('file',file);
+  $('#status').textContent='上傳並驗證中…';$('#upload').classList.add('hidden');
+  const r=await fetch('/api/wifi8/packages',{method:'POST',body:form,credentials:'same-origin',headers:{'x-km-wifi8-import':'1'}});
+  const body=await r.json().catch(()=>({}));
+  if(!r.ok){$('#status').textContent='上傳失敗：'+(body.detail||r.status);$('#upload').classList.remove('hidden');return}
+  $('#status').textContent=body.status==='completed'?'這份匯出包已是目前版本，不需重新匯入。':'已開始匯入，可以離開此頁，稍後再回來查看。';
+  showJob(body);if(body.status!=='completed')watch(body.job_id);
+};
+load().catch(()=>{$('#status').textContent='目前無法連線，請重新整理。'});
+</script></body></html>

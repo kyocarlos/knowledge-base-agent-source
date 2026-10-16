@@ -1192,6 +1192,8 @@ app.include_router(report_router)
 app.include_router(csit_router)
 from .e2e_cleanup_routes import router as e2e_cleanup_router
 app.include_router(e2e_cleanup_router)
+from .wifi8_routes import router as wifi8_router
+app.include_router(wifi8_router)
 
 # CORS 允許前端跨域
 app.add_middleware(

@@ -516,6 +516,10 @@
       "sha256": "f8c974b508edfbe3a6ef21f255bd934b2eebe9bfc578a15e56f285f554ec1948"
     },
     {
+      "path": "docs/wifi8-km-package-v1.md",
+      "sha256": "9a8d65f77d1fbc3832aeb60767ee5343bb9477eeaac9ce77e31e2b842128600f"
+    },
+    {
       "path": "docs/wp01-lifecycle-runbook.md",
       "sha256": "fb5ce8b917673136a1b68e81502a98aeec5571e14c057bc2ba32019881b27155"
     },
@@ -634,6 +638,10 @@
     {
       "path": "frontend/vite.config.js",
       "sha256": "68aa8016f0bcf3410ad133f408b8b5bfd6f458136381aed1a58319978a16bbf9"
+    },
+    {
+      "path": "frontend/wifi8-import.html",
+      "sha256": "2fd9adb693344effd36bf53a1e5283fae21f1621f3a0fadf318f22fe549b74ba"
     },
     {
       "path": "frontend/ws-chat-probe.cjs",
@@ -1401,7 +1409,7 @@
     },
     {
       "path": "src/web_api/__init__.py",
-      "sha256": "7ed4ab2b33b11714bb3efa9b7b453888655c6fda339a977b4337bb1c2c0f3ffe"
+      "sha256": "e7e5012087a1c5b4f7026d600530f2045cb6bde0f2ae2e38ee952d264e705e9d"
     },
     {
       "path": "src/web_api/cache.py",
@@ -1445,7 +1453,31 @@
     },
     {
       "path": "src/web_api/tasks.py",
-      "sha256": "cb1f5488b66d5656a306f8df0c3dff6543ac478b556c33fa368ac3f45f91367b"
+      "sha256": "7e513c50bb2fa40eaf99986717c72d1265ca37811697b006d6d4c383de66257a"
+    },
+    {
+      "path": "src/web_api/wifi8_routes.py",
+      "sha256": "1f808dbc64939aeda737b554b8004091119de1c5d40d934d665c2635188400b2"
+    },
+    {
+      "path": "src/wifi8/__init__.py",
+      "sha256": "8536d2f94f4c4b6f934e8928471b2da1cc34714d53a789000e84320541e010cc"
+    },
+    {
+      "path": "src/wifi8/chunks.py",
+      "sha256": "34726e6115501e23a5ce17035674724b0437601581aee81aee30a7b57bdd5f50"
+    },
+    {
+      "path": "src/wifi8/importer.py",
+      "sha256": "b63ebc3213011b09f1fdda0f163e6e2b9b2ced29435519114a54608efb3d25bd"
+    },
+    {
+      "path": "src/wifi8/package.py",
+      "sha256": "b5f4a6dbd7d5910c2d6b6539e9cc8d21e0141d3fde6c054ba85a2bd5f353b909"
+    },
+    {
+      "path": "src/wifi8/store.py",
+      "sha256": "5e4e0e334e6304700e325139af7c8dc9eba9ccf162f84ee3ac3169763ca3ca79"
     },
     {
       "path": "start.sh",
@@ -1798,6 +1830,10 @@
     {
       "path": "tests/test_web_ui_upload_tracking.py",
       "sha256": "23159f5ee568214b6c7a7271da7f770caafc7cc81166bf1f1bb7967c5567e160"
+    },
+    {
+      "path": "tests/test_wifi8_import.py",
+      "sha256": "07ba5bf2f1e662712106ffdc0e0f01162596144396a5469958538137dc9f14ba"
     },
     {
       "path": "tests/test_wp0_api_contract.py",
