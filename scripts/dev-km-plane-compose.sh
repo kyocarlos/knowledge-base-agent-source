@@ -22,8 +22,9 @@ case "$target" in
     pinned "$csit_pkg/km-ui-ddl-free-images.override.yml" f878e1840f78c3267fa475153355948bd5d09ce696152af29f4883ef5e74f200
     files=("$project_dir/docker-compose.instance.yml" "$control/planes/da40.override.yml"
            "$csit_pkg/km-da40-runtime-supplement.yml" "$csit_pkg/km-ui-ddl-free-images.override.yml"
-           "$overlays/km-da40.llm-primary.override.yml")
+           "$overlays/km-da40.llm-primary.override.yml" "$overlays/km-da40.wifi8.override.yml")
     same_as_git "$overlays/km-da40.llm-primary.override.yml" deploy/dev-3030/compose/km-da40.llm-primary.override.yml
+    same_as_git "$overlays/km-da40.wifi8.override.yml" deploy/dev-3030/compose/km-da40.wifi8.override.yml
     allowed=("${zone_services[@]}")
     ;;
   control-db)

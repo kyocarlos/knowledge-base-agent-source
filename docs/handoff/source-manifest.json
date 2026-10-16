@@ -361,7 +361,11 @@
     },
     {
       "path": "deploy/dev-3030/compose/km-da40.llm-primary.override.yml",
-      "sha256": "f983b4ded7cf64caba7b4d8afebee6e9636f93a55d91c8eaef3d6540f7894e84"
+      "sha256": "0413c7546078afe9719325935605e5fa8b681e293b62a6c3311633a57c5da009"
+    },
+    {
+      "path": "deploy/dev-3030/compose/km-da40.wifi8.override.yml",
+      "sha256": "b61e73c1a62f49f2de2da9b902f37208aed178c25b70bbb812293221d33a3aec"
     },
     {
       "path": "deploy/dev-3030/nginx.runtime.conf",
@@ -1037,7 +1041,7 @@
     },
     {
       "path": "scripts/dev-km-plane-compose.sh",
-      "sha256": "505e42240a060234ff8bfab57c998a6f396e9be26b8267697b8002c196de0cde"
+      "sha256": "905d744d38e422546f1cbe48936a323b9f3824091fe768d9ba218c1e4b80aebf"
     },
     {
       "path": "scripts/drill_pre_wp01_rollback.py",

@@ -1,0 +1,7 @@
+# DA40 資料區的 WiFi 知識專區（2026-10-16 使用者決策：DA40 也需要 Wi-Fi8 資料）。
+# KM_WIFI8_IMPORT_USERS：可上傳 Wi-Fi8 匯出包的帳號（逗號分隔）；*＝所有已登入帳號；空值＝關閉上傳。
+# Wi-Fi8 匯入資料存於既有 km-da40_instance_data volume 的 /app/data/wifi8。不含任何 secret。
+services:
+  web:
+    environment:
+      KM_WIFI8_IMPORT_USERS: ${KM_WIFI8_IMPORT_USERS:-}
