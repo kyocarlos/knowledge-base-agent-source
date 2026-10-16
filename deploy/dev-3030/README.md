@@ -222,3 +222,12 @@ volume 已在停機狀態下冷備份，檔案數與位元組數逐一核對一�
 ## 其他仍依賴已遺失 /tmp 檔的容器（2026-10-15 掃描，尚未處理）
 
 - `km-ts-report-ci-*`：CI 測試殘留，來自 `/tmp/km-ts-report-v1-20260921-Jv6Zxt`
+
+## WiFi 專區 SPA 靜態檔（`/wifi8/`）
+
+`scripts/deploy-wifi8-static.sh [--verify] [COMMIT]` 將 `frontend/wifi8` 部署到上述靜態頁目錄的 `wifi8/`（TEST、DA40 共用）。
+
+- 部署：只新增 `index.html` 引用的 hash 檔名 JS/CSS，再原子替換 `index.html`。舊檔保留。部署前若線上 `index.html` 不在 git 歷史中，輸出 `MISMATCH` 並停止；否則先備份到 `~/.km-control/wifi8-static-backups/`。
+- `--verify`：唯讀比對 git(COMMIT)、主機目錄與容器三方的 SHA-256，並確認未登入請求 302 轉向 `login.html`。全部一致輸出 `VERIFY PASS`。
+- 回復：用備份檔替回 `index.html`，或對舊 commit 重新執行本腳本。
+- 路徑、容器與網址可用環境變數覆寫。登入後的畫面仍須以 Webwright 驗收。
