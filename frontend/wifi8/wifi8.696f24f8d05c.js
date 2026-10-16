@@ -23,7 +23,7 @@
     'ai-usage': ['AI 用量', '查看 Agent 用量與執行狀態'],
     settings: ['設定', '調整 WiFi 知識專區設定'],
   };
-  const state = { route: 'overview', overview: null, documentPage: 1, conversation: [], agentTask: null };
+  const state = { route: 'overview', overview: null, documentPage: 1, conversation: [], agentTask: null, renderToken: 0 };
   const $ = (selector) => document.querySelector(selector);
   const content = $('#page-content');
   const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (char) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
@@ -66,8 +66,9 @@
     return `<div class="category-list">${items.slice(0, 12).map(([name, count]) => `<div class="category-row"><span class="category-name" title="${escapeHtml(name)}">${escapeHtml(name)}</span><progress class="category-bar" max="${max}" value="${Number(count || 0)}"></progress><span class="category-value">${number(count)}</span></div>`).join('') || '<div class="empty">尚無分類資料</div>'}</div>`;
   }
 
-  async function renderOverview() {
+  async function renderOverview(token) {
     const data = state.overview = await api('/api/wifi8/overview');
+    if (token !== state.renderToken) return;
     const counts = data.counts || {};
     const current = data.current || {};
     const job = data.active_job;
@@ -82,11 +83,12 @@
   function documentFilters() {
     return `<form id="document-filters" class="filters"><label>關鍵字<input name="query" maxlength="200" placeholder="ELR、NPCA、WFA ID…"></label><label>發布者<select name="publisher"><option value="">全部</option></select></label><label>文件角色<select name="document_role"><option value="">全部</option></select></label><button class="primary-button" type="submit">查詢</button><label class="checkbox-label"><input name="include_history" type="checkbox">包含歷史版本</label></form>`;
   }
-  async function loadDocuments(page = 1) {
+  async function loadDocuments(page = 1, token = state.renderToken) {
     const form = $('#document-filters');
     const params = new URLSearchParams(new FormData(form));
     params.set('page', page); params.set('page_size', '20');
     const data = await api(`/api/wifi8/documents?${params}`);
+    if (token !== state.renderToken || state.route !== 'documents') return;
     state.documentPage = page;
     if (form.publisher.options.length === 1) (data.facets?.publishers || []).forEach(([value,count]) => form.publisher.add(new Option(`${value} (${count})`, value)));
     if (form.document_role.options.length === 1) (data.facets?.document_roles || []).forEach(([value,count]) => form.document_role.add(new Option(`${value} (${count})`, value)));
@@ -104,12 +106,12 @@
       target.innerHTML = `<p class="results-meta">${escapeHtml(data.policy || '混合檢索')} · ${hits.length} 筆</p><div class="search-results">${hits.map((hit) => `<article class="search-hit"><h3>${escapeHtml(hit.title || hit.document_title || hit.revision_id)}</h3><p>${escapeHtml(hit.content || hit.text || hit.snippet || '')}</p><small>${escapeHtml(hit.location_label || hit.publisher || '')}${hit.score != null ? ` · ${Number(hit.score).toFixed(4)}` : ''}</small></article>`).join('') || '<div class="empty">沒有檢索結果</div>'}</div>`;
     } catch (error) { target.innerHTML = `<div class="error-card">${escapeHtml(error.message)}</div>`; }
   }
-  async function renderDocuments() {
+  async function renderDocuments(token) {
     content.innerHTML = `${panel('文件篩選', documentFilters(), '預設只顯示目前版本')}<section id="document-results" class="panel" style="margin-top:16px"><div class="loading-card">正在載入文件…</div></section>${panel('混合檢索', `<div class="filters"><label>查詢<input id="hybrid-query" maxlength="500" placeholder="輸入中文短詞、縮寫或 WFA ID"></label><label class="checkbox-label"><input id="hybrid-history" type="checkbox">包含歷史版本</label><button id="hybrid-submit" class="primary-button" type="button">開始檢索</button></div><div id="hybrid-results"></div>`, 'BM25 + vector RRF')}`;
     $('#document-filters').addEventListener('submit', (event) => { event.preventDefault(); loadDocuments(1).catch(fail); });
     $('#document-results').addEventListener('click', (event) => { const id = event.target.dataset.document; const page = Number(event.target.dataset.page); if (id) showDocument(id); if (page > 0) loadDocuments(page).catch(fail); });
     $('#hybrid-submit').addEventListener('click', runHybridSearch);
-    await loadDocuments();
+    await loadDocuments(1, token);
   }
 
   async function showDocument(revisionId) {
@@ -158,8 +160,9 @@
     const total = Number(job.total || job.total_chunks || job.progress?.total || 0); const done = Number(job.completed || job.ready || job.progress?.completed || 0); const value = total ? Math.round(done / total * 100) : (/complete|success/.test(job.status || '') ? 100 : 0);
     return `<li class="job-item"><div class="job-head"><strong>${escapeHtml(job.job_id || '匯入工作')}</strong><span class="status-badge ${statusClass(job.status)}">${escapeHtml(job.status || '未知')}</span></div><div class="job-meta">${escapeHtml(job.stage || '')} ${done || total ? `· ${number(done)} / ${number(total)}` : ''} · ${formatTime(job.updated_at || job.created_at)}</div>${job.error ? `<p class="error-card">${escapeHtml(job.error)}</p>` : ''}<progress max="100" value="${value}"></progress></li>`;
   }
-  async function renderJobs() {
+  async function renderJobs(token) {
     const data = await api('/api/wifi8/jobs');
+    if (token !== state.renderToken) return;
     let upload = '';
     try { const status = await api('/api/wifi8/status'); if (status.upload_enabled) upload = `<div class="upload-box"><form id="upload-form" class="upload-row"><label>Wi-Fi8 匯出包 (.zip)<input name="file" type="file" accept=".zip" required></label><button class="primary-button" type="submit">上傳並匯入</button></form><p id="upload-status" class="results-meta">匯入完成前不會切換目前版本。</p></div>`; } catch (_) { /* jobs remain readable */ }
     content.innerHTML = panel('匯入工作', `${upload}<ul class="job-list">${(data.jobs || []).map(jobRow).join('') || '<li class="empty">尚無匯入工作</li>'}</ul>`, `${(data.jobs || []).length} 筆近期工作`);
@@ -171,10 +174,11 @@
     content.innerHTML = `<section class="placeholder-card"><div><span class="placeholder-icon">⌘</span><h2>${title}</h2><p>${description}</p><p>這個頁面已保留完整導覽與版型，功能尚未從參考站移植。</p><span class="mode-badge">功能待移植</span></div></section>`;
   }
   async function renderRoute() {
+    const token = ++state.renderToken;
     const candidate = (location.hash.replace(/^#\//, '').split('/')[0] || 'overview');
     state.route = routeInfo[candidate] ? candidate : 'overview'; renderNav(); setHeader(state.route); content.innerHTML = '<div class="loading-card">正在載入…</div>'; $('#app').setAttribute('aria-busy','true');
     try {
-      if (state.route === 'overview') await renderOverview(); else if (state.route === 'documents') await renderDocuments(); else if (state.route === 'ai') await renderAgent(); else if (state.route === 'jobs') await renderJobs(); else renderPlaceholder(state.route);
+      if (state.route === 'overview') await renderOverview(token); else if (state.route === 'documents') await renderDocuments(token); else if (state.route === 'ai') await renderAgent(); else if (state.route === 'jobs') await renderJobs(token); else renderPlaceholder(state.route);
     } catch (error) { fail(error); }
     finally { $('#app').setAttribute('aria-busy','false'); content.focus({preventScroll:true}); $('#primary-nav').classList.remove('open'); $('#nav-toggle').setAttribute('aria-expanded','false'); }
   }
