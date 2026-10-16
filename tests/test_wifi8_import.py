@@ -131,6 +131,13 @@ def test_full_import_and_incremental_reuse(env):
     again = importer.submit(first, submitted_by="tester")
     assert again["status"] == "completed"
 
+    # The same package over a pre-Qdrant current.json (SQLite era) is imported again, not skipped.
+    current = importer.current()
+    (settings.root / "current.json").write_text(json.dumps({k: v for k, v in current.items() if k != "documents_collection"}))
+    assert importer.current_store() is None
+    assert run(importer, importer.submit(first, submitted_by="tester"))["status"] == "completed"
+    assert importer.current_store() is not None and importer.current_store().counts()["documents"] == 2
+
     # Changed package: one document removed, one new; unchanged vectors are reused.
     texts_before = encoder.texts
     second = tmp_path / "second.zip"

@@ -137,7 +137,8 @@ class Wifi8Importer:
         incoming = self.root / "incoming" / f"{package.package_id}.zip"
         incoming.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(upload_path, incoming)
-        same = current.get("package_id") == package.package_id
+        # A current package from before the Qdrant store (no documents collection) is imported again.
+        same = current.get("package_id") == package.package_id and bool(current.get("documents_collection"))
         job = {
             "job_id": job_id, "package_id": package.package_id, "status": "completed" if same else "queued",
             "phase": "done" if same else "stage", "submitted_by": submitted_by, "created_at": _now(),
