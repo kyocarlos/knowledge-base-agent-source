@@ -6,6 +6,7 @@
 
 - 2026-10-16 10:55（+08）他人在執行檔加入「知識專區」切換（CSIT／WiFi／4G-5G／技術）。
 - 2026-10-16 WiFi 專區改走 `/api/wifi8/agent`（WiFi 知識 Agent），其他專區流程不變。
+- 2026-10-16 WiFi 專區不需 OpenClaw 聊天連線即可提問（`canSendWithoutGateway`）；聊天顯示「未連線」時其他專區仍停用。改前備份：`.km-control/wifi8-deploy-20261016/chat-v2.html.pre-offline-fix-20261016`。
   改前備份：`.km-control/wifi8-deploy-20261016/chat-v2.html.pre-wifi-agent-20261016`。
 
 修改執行檔後請同步更新此副本，否則標示為 STALE。

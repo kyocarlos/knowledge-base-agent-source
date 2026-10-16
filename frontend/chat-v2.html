@@ -812,6 +812,7 @@
       if (status) status.innerHTML = `目前查詢範圍：<strong>${zone.label}</strong>`;
       const input = document.getElementById('chatInput');
       if (input) input.placeholder = `在${zone.label}中提問，例如：${zoneId === 'wifi' ? 'WiFi 6 測試結果？' : zoneId === 'mobile' ? 'NR Handover 測試結果？' : zoneId === 'technical' ? '如何排查系統問題？' : 'CSIT Project 測試結果？'}`;
+      if (typeof updateInputState === 'function') updateInputState();
     }
 
     document.addEventListener('DOMContentLoaded', () => {
@@ -1632,8 +1633,8 @@
         badge.className = 'connection-badge offline';
         text.textContent = '未連線';
         statusEl.textContent = disconnectedMessage;
-        input.disabled = true;
-        sendBtn.disabled = true;
+        input.disabled = !canSendWithoutGateway();
+        sendBtn.disabled = !canSendWithoutGateway();
       }
     }
     
@@ -1650,7 +1651,7 @@
         sendBtn.disabled = true;
         sendBtn.classList.add('thinking');
         chatWindow.classList.add('thinking');
-      } else if (isConnected) {
+      } else if (isConnected || canSendWithoutGateway()) {
         input.disabled = false;
         sendBtn.disabled = false;
         sendBtn.classList.remove('thinking');
@@ -2384,6 +2385,11 @@
     // ===== WiFi 知識專區 Agent（2026-10-16）=====
     // WiFi 專區提問改由後端 agent 以固定唯讀工具查詢 Wi-Fi8 匯入資料；其他專區流程不變。
     const wifiAgentHistory = [];
+
+    // WiFi 專區走 /api/wifi8/agent（一般 HTTPS API），不需要 OpenClaw 聊天連線。
+    function canSendWithoutGateway() {
+      return activeKnowledgeZone === 'wifi';
+    }
     const WIFI_AGENT_POLL_MS = 1500;
     const WIFI_AGENT_TIMEOUT_MS = 180000;
 
@@ -2457,7 +2463,7 @@
     async function sendMessage() {
       const input = document.getElementById('chatInput');
       const text = input.value.trim();
-      if (!text || isLoading || !isConnected) return;
+      if (!text || isLoading || (!isConnected && !canSendWithoutGateway())) return;
       const zone = knowledgeZones[activeKnowledgeZone] || knowledgeZones.csit;
       const knowledgeSearchQuery = `${zone.label} ${text}`;
 

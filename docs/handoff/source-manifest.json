@@ -541,11 +541,11 @@
     },
     {
       "path": "frontend/CHAT_V2_RUNTIME.md",
-      "sha256": "4fcb5333e2f52ad6371afcb0555993fddc62d5dcee3f53676951b585f41e89e2"
+      "sha256": "9ecb7c1b0eef9ef9907b08cf41a5acf1533ed0633c2fc72e3ea90e1dd9736ffb"
     },
     {
       "path": "frontend/chat-v2.html",
-      "sha256": "d0f974228d8b9bcc06dd581b35451e51925cd7cedd119cda5e27d1e1cb294d79"
+      "sha256": "0d1f5c63a92347832c5b35c37ab1397b1daf1ee2dd53f7406c6b29e399be3a45"
     },
     {
       "path": "frontend/chat.html",
