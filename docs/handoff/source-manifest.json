@@ -560,6 +560,10 @@
       "sha256": "e58324a1b4ddbde1f895cb57ef0c22f3fe9e253eba6267d379c0261cefe8b018"
     },
     {
+      "path": "eval/wifi8/quality-config.json",
+      "sha256": "14e51c60dd55d87cf667e3591d2e77a0f01f284d5062537c79575af5b02addd5"
+    },
+    {
       "path": "five_modes_arch.html",
       "sha256": "a3abb32ed44c20a177a42fad13750179c42795b75d0b9c5b8ee0c3053c1631d8"
     },
@@ -1192,6 +1196,14 @@
       "sha256": "1fd4fa57d38d91c33536af121dddb50930baab040c7d0f463c8c6ec0daf89cb5"
     },
     {
+      "path": "scripts/wifi8_quality_check.py",
+      "sha256": "32f85c775c3b8cf2d68560e8dff7a1d21be92074d0cb169179d40b1e8d2bb0bb"
+    },
+    {
+      "path": "scripts/wifi8_quality_cron.sh",
+      "sha256": "71be62a798087701c28832d2f0b71cbad144e585a85be415f626c867d8cfb7f7"
+    },
+    {
       "path": "src/__init__.py",
       "sha256": "82faef2d75c363c75e357b121b9b3e30fe924a16ae4afdf2d922cb3ce795cdcf"
     },
@@ -1549,7 +1561,7 @@
     },
     {
       "path": "src/wifi8/agent.py",
-      "sha256": "6a4d386e12b20fb430e7b73fe59de31c269acc610ab1c86abb697c22365567e8"
+      "sha256": "23995f9b7910808489d063a43eb9164ae8873871dd36acd25687ea5caff102b3"
     },
     {
       "path": "src/wifi8/chunks.py",
@@ -1578,6 +1590,10 @@
     {
       "path": "src/wifi8/package.py",
       "sha256": "b5f4a6dbd7d5910c2d6b6539e9cc8d21e0141d3fde6c054ba85a2bd5f353b909"
+    },
+    {
+      "path": "src/wifi8/quality.py",
+      "sha256": "0b6dc47a471030e2d0f88a1000c03f90e00644440e5bb3069179172038182329"
     },
     {
       "path": "src/wifi8/rerank.py",
@@ -1958,6 +1974,10 @@
     {
       "path": "tests/test_wifi8_import.py",
       "sha256": "2ebbd57f14cc451a81fca8b876de831139f7ca731fe1f1ce34ae5691c3914a99"
+    },
+    {
+      "path": "tests/test_wifi8_quality.py",
+      "sha256": "e03bc39b8a25bfac9ee40fe750310dc970f6723df8cc4ee50cdd1a3fb3740167"
     },
     {
       "path": "tests/test_wifi8_routes.py",

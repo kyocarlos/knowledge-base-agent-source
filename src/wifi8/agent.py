@@ -7,6 +7,8 @@ free-form queries or file paths -- only the fixed tools below.
 from __future__ import annotations
 
 import json
+import logging
+import os
 import re
 import time
 from collections import Counter
@@ -14,6 +16,7 @@ from dataclasses import dataclass
 from typing import Any, Callable
 
 from .excerpt import excerpt
+from .quality import QUALITY_LOG_PREFIX
 from .search import SearchOptions, Wifi8Search
 
 SYSTEM_PROMPT = """你是 KM「WiFi 知識專區」的研究助理，可查詢已匯入的 Wi-Fi 文件（WFA 規格與 MRD、測試計畫與測項、晶片廠商資料、研究論文、產業報告等）。
@@ -275,7 +278,36 @@ def run_agent(question: str, *, llm: Llm, tools: WifiTools, settings: AgentSetti
     if settings.grounding and answer:
         result["grounding"] = ground(result, tools, getattr(tools.search_engine, "encoder", None), question)
     result["elapsed_ms"] = round((clock() - started) * 1000)
+    log_quality(result, tools)
     return result
+
+
+_quality_logger = logging.getLogger("km.wifi8.quality")
+
+
+def quality_record(result: dict[str, Any], package_id: str | None = None) -> dict[str, Any]:
+    """Per-answer statistics for monitoring. Counts only: never the question, answer or source text."""
+    grounding = result.get("grounding") or {}
+    summary = grounding.get("summary") or {}
+    keys = ("claims", "claims_cited", "claims_tool_data", "values", "values_verified", "values_other_source",
+            "values_tool_data", "values_not_found")
+    return {"ts": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), "package_id": package_id,
+            "stop_reason": result.get("stop_reason"), "steps": len(result.get("trace") or []),
+            "elapsed_ms": result.get("elapsed_ms"), "citations": len(result.get("citations") or []),
+            "answer_chars": len(result.get("answer") or ""), "grounding_error": bool(grounding.get("error")),
+            "grounding": {k: int(summary.get(k) or 0) for k in keys} if summary else None,
+            "sources": summary.get("sources")}
+
+
+def log_quality(result: dict[str, Any], tools: "WifiTools") -> None:
+    """One structured log line per answer (worker stdout), read by scripts/wifi8_quality_check.py."""
+    if os.getenv("KM_WIFI8_QUALITY_LOG", "1").strip().lower() in {"0", "false", "no", "off"}:
+        return
+    try:
+        record = quality_record(result, getattr(tools.search_engine, "package_id", None))
+        _quality_logger.info(QUALITY_LOG_PREFIX + json.dumps(record, ensure_ascii=False, separators=(",", ":")))
+    except Exception:  # noqa: BLE001 - monitoring must never affect the answer
+        pass
 
 
 def _summarize(result: dict[str, Any]) -> str:
