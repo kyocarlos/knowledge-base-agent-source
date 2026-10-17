@@ -35,7 +35,8 @@ _DASHES = str.maketrans({**{c: "-" for c in "\u2010\u2011\u2012\u2013\u2014\u221
 
 def _norm(text: str) -> str:
     """Case-, whitespace-, dash- and multiplication-sign-insensitive form (models often write Wi‑Fi, 4×4)."""
-    return re.sub(r"\s+", "", str(text or "").translate(_DASHES)).casefold()
+    text = re.sub(r"\*\*|__|`", "", str(text or ""))  # markdown emphasis: "6 台 **AP**" ~ "6 台 AP"
+    return re.sub(r"\s+", "", text.translate(_DASHES)).casefold()
 
 
 def fact_hits(answer: str, facts: Iterable[Iterable[str]]) -> list[bool]:

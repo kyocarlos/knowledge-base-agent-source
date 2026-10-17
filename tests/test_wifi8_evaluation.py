@@ -118,3 +118,7 @@ def test_fact_matching_ignores_unicode_dash_variants():
 
 def test_fact_matching_treats_multiplication_sign_as_x():
     assert fact_hits("BCM43840 是 4×4，BCM43820 是 2×2", [["4x4"], ["2x2"]]) == [True, True]
+
+
+def test_fact_matching_ignores_markdown_emphasis():
+    assert fact_hits("參加設備：6 台 **AP**、7 台 **STA**", [["6 台 AP"], ["7 台 STA"]]) == [True, True]
