@@ -132,3 +132,16 @@ docker cp $C:/tmp/km-eval/out ./wifi8-eval-out
 - 輸出在 `~/.km-control/wifi8-quality/`（可用 `KM_WIFI8_QUALITY_ROOT` 修改）：每次一個目錄（report.md／report.json／原始結果）、`latest.md`、`history.jsonl`。
 - 排程入口：`scripts/wifi8_quality_cron.sh daily`（①③）、`weekly`（①②③），用 flock 避免重複執行，紀錄在 `cron_logs/`。
 - 首次執行（2026-10-17）兩區皆 PASS：①命中 93.3%／MRR 0.794；② TEST 97.1%、DA40 90.9%。DA40 的 D10、V03 是標準來源列得太窄，已補上，重新評分後為 97.0%。③ 數值找不到 TEST 0%、DA40 1.4%。
+
+### WARN／FAIL 通知（Telegram／LINE）
+
+- 通知時機：
+  - `wifi8_quality_check.py` 判定總結為 `quality-config.json` 的 `notify.on`（預設 WARN、FAIL）時通知；
+  - 排程執行本身失敗（結束碼不是 0／1／3）時，`wifi8_quality_cron.sh` 另外送一則「執行失敗」通知。
+- 設定：`~/.km-control/notify/wifi8-quality.env`（權限必須 0600，不進 git；可用 `KM_WIFI8_NOTIFY_ENV` 指定位置）。
+  - `KM_NOTIFY_CHANNEL=telegram|line`；
+  - Telegram：`TELEGRAM_BOT_TOKEN`、`TELEGRAM_CHAT_ID`；
+  - LINE Messaging API：`LINE_CHANNEL_ACCESS_TOKEN`、`LINE_TO`（LINE Notify 已停止服務）。
+- 填好後用 `python3 scripts/wifi8_quality_notify.py --test` 確認。
+- 訊息只含總結、區、層、未通過指標與數值、報告路徑，不含題目、回答或文件內容；錯誤訊息只列管道與 HTTP 狀態碼，不含 token。
+- 通知失敗不影響驗證：報告照常寫入，並在報告末尾註明通知結果；`--no-notify` 可關閉通知。

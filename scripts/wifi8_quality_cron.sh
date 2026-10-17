@@ -24,4 +24,9 @@ LOG="$QUALITY_ROOT/cron_logs/$(date -u +%Y%m%dT%H%M%SZ)-$MODE.log"
 "$PYTHON" "$ROOT_DIR/scripts/wifi8_quality_check.py" --levels "$LEVELS" ${KM_WIFI8_QUALITY_ZONES:+--zones "$KM_WIFI8_QUALITY_ZONES"} > "$LOG" 2>&1
 status=$?
 echo "$(date -Is) $MODE exit=$status log=$LOG" >> "$QUALITY_ROOT/cron_logs/runs.log"
+# WARN/FAIL are notified by wifi8_quality_check.py itself; anything else (crash, exit 2) must not fail silently.
+if [[ $status -ne 0 && $status -ne 1 && $status -ne 3 ]]; then
+  "$PYTHON" "$ROOT_DIR/scripts/wifi8_quality_notify.py" --text "[KM WiFi 品質驗證] $MODE 執行失敗（exit=$status），請查看 $LOG" \
+    >> "$QUALITY_ROOT/cron_logs/runs.log" 2>&1 || true
+fi
 exit $status

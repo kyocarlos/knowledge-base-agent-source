@@ -32,6 +32,9 @@ _quality = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(_quality)
 agent_metrics, judge, overall_status = _quality.agent_metrics, _quality.judge, _quality.overall_status
 parse_quality_lines, retrieval_metrics, summarize_trust = _quality.parse_quality_lines, _quality.retrieval_metrics, _quality.summarize_trust
+_spec = importlib.util.spec_from_file_location("wifi8_quality_notify", REPO / "scripts/wifi8_quality_notify.py")
+_notify = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(_notify)
 
 ROOT = Path(os.getenv("KM_WIFI8_QUALITY_ROOT", str(Path.home() / ".km-control/wifi8-quality")))
 CONFIG = REPO / "eval/wifi8/quality-config.json"
@@ -126,6 +129,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--zones", default=",".join(config["zones"]))
     parser.add_argument("--levels", default=",".join(LEVELS))
+    parser.add_argument("--no-notify", action="store_true", help="do not send WARN/FAIL notifications")
     args = parser.parse_args()
     zones = [z for z in args.zones.split(",") if z]
     levels = [l for l in args.levels.split(",") if l]
@@ -177,7 +181,10 @@ def main() -> int:
         report["zones"][zone]["_status"] = overall_status([c for lv in levels for c in report["zones"][zone][lv]["checks"]])
     report["status"] = overall_status([c for z in report["zones"].values() for lv in levels for c in z[lv]["checks"]])
 
-    text = render(report)
+    notify_on = (config.get("notify") or {}).get("on") or []
+    report["notification"] = ("未通知（--no-notify）" if args.no_notify
+                              else _notify.notify_report(report, str(run_dir / "report.md"), notify_on))
+    text = render(report) + f"\n- 通知：{report['notification']}\n"
     (run_dir / "report.json").write_text(json.dumps(report, ensure_ascii=False, indent=1), encoding="utf-8")
     (run_dir / "report.md").write_text(text, encoding="utf-8")
     for name, content in (("latest.json", json.dumps(report, ensure_ascii=False, indent=1)), ("latest.md", text)):

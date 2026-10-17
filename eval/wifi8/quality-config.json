@@ -1,24 +1,92 @@
 {
   "_comment": "WiFi 專區自動品質驗證設定（scripts/wifi8_quality_check.py）。門檻依 2026-10-17 DA40 基準訂定：檢索命中 93.3%／MRR 0.794、回答通過 97.0%、數值找不到 1.7%、未有依據句子約 15%。regression＝與上次相比允許的退步幅度；題庫只有 30～34 題，1 題約 3%，所以容許 2 題。",
   "zones": {
-    "test": {"search_worker": "kb-celery-search"},
-    "da40": {"search_worker": "km-da40-celery_search_worker-1"}
+    "test": {
+      "search_worker": "kb-celery-search"
+    },
+    "da40": {
+      "search_worker": "km-da40-celery_search_worker-1"
+    }
   },
   "trust_window_hours": 24,
   "trust_min_answers": 5,
   "thresholds": {
-    "retrieval.hit_at_10":                {"direction": "higher", "warn": 0.90, "fail": 0.80, "regression": 0.07},
-    "retrieval.mrr":                      {"direction": "higher", "warn": 0.70, "fail": 0.60, "regression": 0.07},
-    "retrieval.ms_p50":                   {"direction": "lower",  "warn": 1000, "fail": 3000},
-    "agent.answer_pass":                  {"direction": "higher", "warn": 0.90, "fail": 0.80, "regression": 0.07},
-    "agent.fact_coverage":                {"direction": "higher", "warn": 0.92, "fail": 0.85, "regression": 0.05},
-    "agent.cited_gold":                   {"direction": "higher", "warn": 0.90, "fail": 0.80, "regression": 0.07},
-    "agent.latency_ms_p50":               {"direction": "lower",  "warn": 20000, "fail": 40000},
-    "agent.errors":                       {"direction": "lower",  "warn": 2, "fail": 4},
-    "trust.values_not_found_rate":        {"direction": "lower",  "warn": 0.05, "fail": 0.10},
-    "trust.unsupported_claim_rate":       {"direction": "lower",  "warn": 0.30, "fail": 0.45},
-    "trust.grounding_error_rate":         {"direction": "lower",  "warn": 0.01, "fail": 0.05},
-    "trust.not_answered_rate":            {"direction": "lower",  "warn": 0.10, "fail": 0.25},
-    "trust.latency_ms_p95":               {"direction": "lower",  "warn": 45000, "fail": 90000}
+    "retrieval.hit_at_10": {
+      "direction": "higher",
+      "warn": 0.9,
+      "fail": 0.8,
+      "regression": 0.07
+    },
+    "retrieval.mrr": {
+      "direction": "higher",
+      "warn": 0.7,
+      "fail": 0.6,
+      "regression": 0.07
+    },
+    "retrieval.ms_p50": {
+      "direction": "lower",
+      "warn": 1000,
+      "fail": 3000
+    },
+    "agent.answer_pass": {
+      "direction": "higher",
+      "warn": 0.9,
+      "fail": 0.8,
+      "regression": 0.07
+    },
+    "agent.fact_coverage": {
+      "direction": "higher",
+      "warn": 0.92,
+      "fail": 0.85,
+      "regression": 0.05
+    },
+    "agent.cited_gold": {
+      "direction": "higher",
+      "warn": 0.9,
+      "fail": 0.8,
+      "regression": 0.07
+    },
+    "agent.latency_ms_p50": {
+      "direction": "lower",
+      "warn": 20000,
+      "fail": 40000
+    },
+    "agent.errors": {
+      "direction": "lower",
+      "warn": 2,
+      "fail": 4
+    },
+    "trust.values_not_found_rate": {
+      "direction": "lower",
+      "warn": 0.05,
+      "fail": 0.1
+    },
+    "trust.unsupported_claim_rate": {
+      "direction": "lower",
+      "warn": 0.3,
+      "fail": 0.45
+    },
+    "trust.grounding_error_rate": {
+      "direction": "lower",
+      "warn": 0.01,
+      "fail": 0.05
+    },
+    "trust.not_answered_rate": {
+      "direction": "lower",
+      "warn": 0.1,
+      "fail": 0.25
+    },
+    "trust.latency_ms_p95": {
+      "direction": "lower",
+      "warn": 45000,
+      "fail": 90000
+    }
+  },
+  "notify": {
+    "on": [
+      "WARN",
+      "FAIL"
+    ],
+    "_comment": "通知管道與 token 在 ~/.km-control/notify/wifi8-quality.env（0600，不進 git），見 scripts/wifi8_quality_notify.py"
   }
 }
