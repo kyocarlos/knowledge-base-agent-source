@@ -130,3 +130,45 @@ def test_agent_api_binds_results_to_the_asker(monkeypatch, tmp_path):
     assert client.get("/api/wifi8/agent/t-1").status_code == 404
     assert client.post("/api/wifi8/agent", json={"question": "x" * 2001}).status_code == 422
     assert client.post("/api/wifi8/agent", json={"question": "q", "history": [{"role": "system", "content": "x"}]}).status_code == 422
+
+
+DBE_CHUNK = (
+    "Dynamic Bandwidth Expansion (DBE) mode allows a UHR AP to dynamically operate with an expanded bandwidth "
+    "(referred to as DBE bandwidth) greater than the BSS bandwidth, for UHR STAs that support DBE. The AP performs "
+    "enablement, disablement and parameters update for DBE mode using the enhanced critical update mechanism and "
+    "supports indicating any punctured sub-channels within the DBE bandwidth using a DBE Disabled Subchannel Bitmap. "
+    "A UHR STA enables or disables DBE mode with the AP using the operating mode and parameters (OMP) update mechanism. "
+    "While DBE mode is enabled in the BSS, the AP and the STAs that have enabled DBE mode can use up to the DBE "
+    "bandwidth for PPDU exchanges between them.\nFeature\nDBE is optional for APs, and only applicable to 5 GHz and "
+    "6 GHz band APs. If WPA3-Enterprise is implemented, the AP shall implement DBE.\nAn AP shall indicate support for "
+    "DBE mode and include DBE capability parameters in its UHR capabilities as defined in subclause 37.27 of [2]."
+)
+
+
+@pytest.mark.parametrize("query", ["DBE（Dynamic Bandwidth Expansion）是什麼？什麼情況下 AP 必須實作？",
+                                   "DBE AP must implement mandatory implementation conditions", "WPA3-Enterprise"])
+def test_excerpt_keeps_query_relevant_sentences_beyond_the_head(query):
+    from src.wifi8.agent import excerpt
+    text, cut = excerpt(DBE_CHUNK, query, 700)
+    assert cut and len(text) <= 700
+    assert "If WPA3-Enterprise is implemented, the AP shall implement DBE." in text
+    assert DBE_CHUNK[:700] not in text  # not a plain head cut
+
+
+def test_excerpt_short_text_and_no_match_fallbacks():
+    from src.wifi8.agent import excerpt
+    assert excerpt("short", "anything", 100) == ("short", False)
+    text, cut = excerpt("alpha beta. " * 50, "zzz-unrelated", 50)
+    assert cut and text.startswith("alpha beta.") and text.endswith("…") and len(text) <= 50
+    long_sentence = "NPCA " + "x" * 300
+    text, cut = excerpt(long_sentence + ". other sentence here.", "NPCA", 100)
+    assert cut and text.startswith("NPCA") and len(text) <= 100
+
+
+def test_tools_mark_excerpts_and_read_document_accepts_focus(tools):
+    from src.wifi8.agent import AgentSettings
+    tools.settings = AgentSettings(snippet_chars=60, read_chars=60)
+    hit = tools.search_wifi("ELR uplink range")["hits"][0]
+    assert len(hit["text"]) <= 60 and (hit.get("excerpt") is True) == (hit.get("chars", 0) > 60)
+    part = tools.read_document("big", start=1, count=1, query="segment")["parts"][0]
+    assert len(part["text"]) <= 60

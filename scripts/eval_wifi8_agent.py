@@ -58,9 +58,13 @@ def main() -> int:
     parser.add_argument("--ids", default="", help="comma separated case ids")
     parser.add_argument("--retrieval-only", action="store_true")
     parser.add_argument("--source-commit", default="")
+    parser.add_argument("--candidate-wifi8", default="", help="directory with a candidate src/wifi8 package to evaluate before deploying")
     parser.add_argument("--rescore", default="", help="previous results.json: re-score its saved answers (no LLM calls); retrieval is re-run")
     args = parser.parse_args()
 
+    if args.candidate_wifi8:
+        import src.wifi8
+        src.wifi8.__path__.insert(0, str(Path(args.candidate_wifi8).resolve()))  # candidate modules shadow the deployed ones
     from src.wifi8.search import SearchOptions
     cases = load_cases(args.cases)
     if args.ids:
@@ -106,6 +110,7 @@ def main() -> int:
     scored = [r for r in rows if not r.get("skipped")]
     result = {"created_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"), "source_commit": args.source_commit,
               "package_id": search.package_id, "cases_file": Path(args.cases).name, "agent": agent_info,
+              "candidate_wifi8": bool(args.candidate_wifi8),
               "summary": summarize(scored), "cases": rows}
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)

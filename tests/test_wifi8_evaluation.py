@@ -109,3 +109,8 @@ def test_rescore_reuses_saved_answers_without_llm(tmp_path, monkeypatch):
     rows = {r["id"]: r for r in result["cases"]}
     assert rows["A"]["answer"]["passed"] and rows["A"]["retrieval"]["hit"] and rows["A"]["elapsed_ms"] == 5
     assert rows["B"]["skipped"].startswith("case is bound to package")
+
+
+def test_fact_matching_ignores_unicode_dash_variants():
+    assert fact_hits("最高調變為 4K\u2011QAM，Wi\u2011Fi 8", [["4K-QAM"], ["Wi-Fi 8"]]) == [True, True]
+    assert fact_hits("Co\u2013BF", [["Co-BF"]]) == [True]

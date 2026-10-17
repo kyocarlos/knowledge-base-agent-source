@@ -7,12 +7,14 @@ free-form queries or file paths -- only the fixed tools below.
 from __future__ import annotations
 
 import json
+import math
 import re
 import time
 from collections import Counter
 from dataclasses import dataclass
 from typing import Any, Callable
 
+from .lexical import query_terms, tokens
 from .search import SearchOptions, Wifi8Search
 
 SYSTEM_PROMPT = """你是 KM「WiFi 知識專區」的研究助理，可查詢已匯入的 Wi-Fi 文件（WFA 規格與 MRD、測試計畫與測項、晶片廠商資料、研究論文、產業報告等）。
@@ -26,7 +28,7 @@ SYSTEM_PROMPT = """你是 KM「WiFi 知識專區」的研究助理，可查詢�
 TOOLS = [
     {"type": "function", "function": {
         "name": "search_wifi",
-        "description": "混合檢索 WiFi 專區（全文＋語意）。回傳段落與來源編號。預設只查目前有效版本。",
+        "description": "混合檢索 WiFi 專區（全文＋語意）。回傳段落與來源編號；段落過長時只回傳與查詢最相關的句子（excerpt=true，略過處以「…」標示），需要完整內容時用 read_document。預設只查目前有效版本。",
         "parameters": {"type": "object", "properties": {
             "query": {"type": "string", "description": "檢索字詞；技術名詞建議用英文原文，例如 ELR、NPCA、MLO"},
             "top_k": {"type": "integer", "minimum": 1, "maximum": 12},
@@ -45,10 +47,11 @@ TOOLS = [
         "parameters": {"type": "object", "properties": {"revision_id": {"type": "string"}}, "required": ["revision_id"]}}},
     {"type": "function", "function": {
         "name": "read_document",
-        "description": "依序讀取某文件的段落內容（可指定從第幾個段落開始），用於查看搜尋結果的前後文或完整章節。",
+        "description": "依序讀取某文件的段落內容（可指定從第幾個段落開始），用於查看搜尋結果的前後文或完整章節。段落過長時會截取（excerpt=true）；提供 query 可優先保留含這些關鍵詞的句子。",
         "parameters": {"type": "object", "properties": {
             "revision_id": {"type": "string"}, "start": {"type": "integer", "minimum": 1},
-            "count": {"type": "integer", "minimum": 1, "maximum": 8}}, "required": ["revision_id"]}}},
+            "count": {"type": "integer", "minimum": 1, "maximum": 8},
+            "query": {"type": "string", "description": "可選：要聚焦的關鍵詞，例如 WPA3-Enterprise、mandatory"}}, "required": ["revision_id"]}}},
     {"type": "function", "function": {
         "name": "list_documents",
         "description": "依條件列出文件清單（不含內文）：關鍵字（比對標題與主題）、發布者、文件角色。",
@@ -62,20 +65,67 @@ TOOLS = [
 ]
 
 
+_SENTENCE = re.compile(r".+?(?:[。！？!?；;]|\.(?=\s)|\n|$)", re.S)
+
+
+def excerpt(text: str, query: str, limit: int) -> tuple[str, bool]:
+    """At most `limit` characters of `text`; when it is longer, keep the sentences that best
+    match the query terms (rarer terms in this text weigh more), in their original order,
+    marking skipped parts with "…". Without matching terms the head of the text is kept."""
+    text = text or ""
+    if len(text) <= limit:
+        return text, False
+    sentences = [m.group(0) for m in _SENTENCE.finditer(text) if m.group(0).strip()]
+    terms = set(query_terms(query or ""))
+    present = [terms & set(tokens(sentence)) for sentence in sentences]
+    df = Counter(term for found in present for term in found)
+    scores = [sum(1 + math.log(len(sentences) / df[t]) for t in found) for found in present]
+    if not any(scores):
+        return text[: max(0, limit - 1)] + "…", True
+    chosen, used = set(), 0
+    for i in sorted(range(len(sentences)), key=lambda i: (-scores[i], i)):
+        if scores[i] <= 0:
+            break
+        if used + len(sentences[i]) + 1 <= limit:
+            chosen.add(i)
+            used += len(sentences[i]) + 1
+    if not chosen:  # the best sentence alone is longer than the budget
+        best = max(range(len(sentences)), key=lambda i: (scores[i], -i))
+        return sentences[best].strip()[: max(0, limit - 2)] + "…", True
+    for i in range(len(sentences)):  # fill the remaining budget with neighbouring context
+        if i not in chosen and (i - 1 in chosen or i + 1 in chosen) and used + len(sentences[i]) + 1 <= limit:
+            chosen.add(i)
+            used += len(sentences[i]) + 1
+    parts, previous = [], -1
+    for i in sorted(chosen):
+        if i != previous + 1:
+            parts.append("…")
+        parts.append(sentences[i].strip())
+        previous = i
+    if previous != len(sentences) - 1:
+        parts.append("…")
+    return "\n".join(parts), True
+
+
+def _text_fields(text: str, query: str, limit: int) -> dict[str, Any]:
+    body, cut = excerpt(text, query, limit)
+    return {"text": body, "excerpt": True, "chars": len(text or "")} if cut else {"text": body}
+
+
 @dataclass(frozen=True)
 class AgentSettings:
     max_steps: int = 6
     time_budget_seconds: float = 90.0
-    snippet_chars: int = 700
-    read_chars: int = 1500
+    snippet_chars: int = 1000
+    read_chars: int = 3000
 
     @classmethod
     def from_environment(cls) -> "AgentSettings":
         import os
         return cls(max_steps=int(os.getenv("KM_WIFI8_AGENT_MAX_STEPS", "6")),
                    time_budget_seconds=float(os.getenv("KM_WIFI8_AGENT_TIME_BUDGET_SECONDS", "90")),
-                   snippet_chars=int(os.getenv("KM_WIFI8_AGENT_SNIPPET_CHARS", "700")),
-                   read_chars=int(os.getenv("KM_WIFI8_AGENT_READ_CHARS", "1500")))
+                   snippet_chars=int(os.getenv("KM_WIFI8_AGENT_SNIPPET_CHARS", "1000")),
+                   read_chars=int(os.getenv("KM_WIFI8_AGENT_READ_CHARS", "3000")))
 
 
 class CitationRegistry:
@@ -125,7 +175,7 @@ class WifiTools:
             hits.append({"ref": ref, "title": item["source"], "revision_id": item["revision_id"], "location": item["location_label"],
                          "chunk_index": item["chunk_index"], "current_version": item["analysis_eligible"],
                          "wfa_document_id": item.get("wfa_document_id"), "publisher": item.get("publisher"),
-                         "text": item["content"][: self.settings.snippet_chars]})
+                         **_text_fields(item["content"], query, self.settings.snippet_chars)})
         return {"filters": result["filters"], "hits": hits, "count": len(hits)}
 
     def get_document(self, revision_id: str = "", wfa_document_id: str = ""):
@@ -159,7 +209,7 @@ class WifiTools:
         versions.sort(key=lambda d: (str(d.get("document_date") or ""), str(d.get("wfa_revision") or "")))
         return {"series": series, "versions": versions}
 
-    def read_document(self, revision_id: str, start: int = 1, count: int = 4):
+    def read_document(self, revision_id: str, start: int = 1, count: int = 4, query: str = ""):
         start, count = max(1, int(start or 1)), max(1, min(int(count or 4), 8))
         doc = self.store.document(revision_id)
         if not doc:
@@ -171,7 +221,7 @@ class WifiTools:
         for pid in ids:
             item = chunks[pid]
             parts.append({"ref": self.citations.add(item), "chunk_index": item["chunk_index"], "location": item["location_label"],
-                          "text": item["content"][: self.settings.read_chars]})
+                          **_text_fields(item["content"], query, self.settings.read_chars)})
         return {"title": doc.get("title"), "total_chunks": total, "parts": parts,
                 "next_start": start + len(ids) if start + len(ids) <= total else None}
 

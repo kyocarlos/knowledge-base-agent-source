@@ -29,8 +29,12 @@ def load_cases(path: str | Path) -> list[dict[str, Any]]:
     return cases
 
 
+_DASHES = str.maketrans({c: "-" for c in "\u2010\u2011\u2012\u2013\u2014\u2212\ufe63\uff0d"})
+
+
 def _norm(text: str) -> str:
-    return re.sub(r"\s+", "", str(text or "")).casefold()
+    """Case-, whitespace- and dash-insensitive form (models often write Wi‑Fi with U+2011)."""
+    return re.sub(r"\s+", "", str(text or "").translate(_DASHES)).casefold()
 
 
 def fact_hits(answer: str, facts: Iterable[Iterable[str]]) -> list[bool]:

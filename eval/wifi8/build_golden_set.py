@@ -111,7 +111,8 @@ def having(*terms, title=""):
 MRD = T("WFA - Wi-Fi 8 MRD v1.0")
 EXTRA = {
     "D01": [MRD, T(SPR), T(SAM), T(next(d["title"] for d in docs if d["title"].startswith("MediaTek - Pioneering the Future with Wi-Fi 8 - Part Three")))],
-    "D02": [MRD, T("WFA - Wi-Fi 8 MRD - NPCA Contribution v0.6")],
+    "D02": [MRD, T("WFA - Wi-Fi 8 MRD - NPCA Contribution v0.6"), T("Wi-Fi NOW - Wi-Fi 8 Guide Part Seven - Non-Primary Channel Access(NPCA)"),
+            T("RFWirelessWorld - What is Non-Primary Channel Access (NPCA) in Wi-Fi 8")],
     "D03": [MRD, T("WFA - Wi-Fi 8 MRD - DSO feature description v7")],
     "D04": [MRD, T("WFA - Wi-Fi 8 MRD - DPS assisting STA v5"), T("WFA - Wi-Fi 8 MRD - DPS feature description v6 - Apple-Intel"),
             T("arXiv - A Primer on AP Power Save in Wi-Fi 8 - Overview, Analysis, and Open Challenges"), T(SPR)],
