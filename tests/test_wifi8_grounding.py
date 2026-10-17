@@ -148,3 +148,17 @@ def test_colon_lines_with_values_stay_claims():
     answer = "目前最新的是 **v1.5**：\n- 取代 v1.4 的測試範圍文件內容 [S2]\n\n- **Certification Development**：\n  - TTG 正審查 test case contributions [S1]"
     texts = [c["text"] for c in split_claims(answer)]
     assert "目前最新的是 v1.5" in texts and "Certification Development" not in texts
+
+
+def test_fenced_code_blocks_are_not_claims():
+    answer = ("DRU 把 tone 分散到較寬的 distribution bandwidth。[S1]\n\n```text\n一般 RU：\n[ tone tone tone tone tone ] .................\n"
+              "DRU：\n[ tone ]...[ tone ]...[ tone ]...[ tone ]...\n└──tone 分散於較寬 DBW──┘ 320 MHz\n```\n\n"
+              "~~~\n另一種 fence 內的內容 640 MHz 也不是句子\n~~~\n- 一般 RU 的 tone 是連續排列的資源單位")
+    texts = [c["text"] for c in split_claims(answer)]
+    assert texts == ["DRU 把 tone 分散到較寬的 distribution bandwidth。", "一般 RU 的 tone 是連續排列的資源單位"]
+    assert check_answer(answer, SOURCES)["summary"]["values"] == 0  # 320/640 MHz inside the diagrams are not checked
+
+
+def test_unclosed_fence_hides_the_rest_but_does_not_fail():
+    texts = [c["text"] for c in split_claims("第一句說明 DBE 的頻寬擴展用途。[S1]\n```\n未關閉的程式碼區塊內容")]
+    assert texts == ["第一句說明 DBE 的頻寬擴展用途。"]

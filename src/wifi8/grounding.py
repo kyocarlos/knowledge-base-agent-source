@@ -91,7 +91,8 @@ def split_claims(answer: str, min_chars: int = 12) -> list[dict[str, Any]]:
 
     A sentence without its own [S#] takes its line's refs; list items and table rows also
     take the refs of the introducing line ("支援下列功能：[S2]"). Headings, labels, table
-    header rows and statements that something could not be verified are not claims.
+    header rows, fenced code blocks (ASCII diagrams) and statements that something could
+    not be verified are not claims.
     """
     claims, intro_refs, block, block_refs, block_kind = [], [], [], [], [""]
 
@@ -105,7 +106,17 @@ def split_claims(answer: str, min_chars: int = 12) -> list[dict[str, Any]]:
         block_kind[0] = ""
 
     lines = (answer or "").splitlines()
+    fence = ""
     for index, line in enumerate(lines):
+        marker = re.match(r"^\s*(```|~~~)", line)
+        if fence:  # inside a fenced code block: diagrams and code, not statements
+            if marker and marker.group(1) == fence:
+                fence = ""
+            continue
+        if marker:
+            fence = marker.group(1)
+            close_block()
+            continue
         if not line.strip():
             continue
         if re.match(r"^\s*#{1,6}\s", line):
