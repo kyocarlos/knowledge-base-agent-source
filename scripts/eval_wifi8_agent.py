@@ -61,9 +61,16 @@ def main() -> int:
     parser.add_argument("--retrieval-only", action="store_true")
     parser.add_argument("--source-commit", default="")
     parser.add_argument("--candidate-wifi8", default="", help="directory with a candidate src/wifi8 package to evaluate before deploying")
+    parser.add_argument("--rerank-model", default=None, help="override KM_WIFI8_RERANK_MODEL for this run ('' disables)")
+    parser.add_argument("--rerank-candidates", type=int, default=None, help="override KM_WIFI8_RERANK_CANDIDATES")
     parser.add_argument("--rescore", default="", help="previous results.json: re-score its saved answers (no LLM calls); retrieval is re-run")
     args = parser.parse_args()
 
+    import os
+    if args.rerank_model is not None:
+        os.environ["KM_WIFI8_RERANK_MODEL"] = args.rerank_model
+    if args.rerank_candidates is not None:
+        os.environ["KM_WIFI8_RERANK_CANDIDATES"] = str(args.rerank_candidates)
     if args.candidate_wifi8:
         import src.wifi8
         src.wifi8.__path__.insert(0, str(Path(args.candidate_wifi8).resolve()))  # candidate modules shadow the deployed ones
@@ -87,7 +94,10 @@ def main() -> int:
             rows.append(row)
             continue
         try:
-            row["retrieval"] = score_retrieval(case, search.search(case["question"], SearchOptions(top_k=10))["results"])
+            started = time.monotonic()
+            found = search.search(case["question"], SearchOptions(top_k=10))["results"]
+            row["retrieval_ms"] = round((time.monotonic() - started) * 1000)
+            row["retrieval"] = score_retrieval(case, found)
             if case["id"] in previous:
                 old = previous[case["id"]]
                 row["elapsed_ms"], row["output"] = old.get("elapsed_ms"), old["output"]
@@ -113,6 +123,7 @@ def main() -> int:
     result = {"created_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"), "source_commit": args.source_commit,
               "package_id": search.package_id, "cases_file": Path(args.cases).name, "agent": agent_info,
               "candidate_wifi8": bool(args.candidate_wifi8),
+              "rerank": (search.reranker.settings.__dict__ if getattr(search, "reranker", None) else None),
               "summary": summarize(scored), "cases": rows}
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
@@ -129,12 +140,13 @@ def _pct(value) -> str:
 def render_report(result: dict) -> str:
     lines = [f"# WiFi 專區評測報告", "",
              f"- 時間：{result['created_utc']}；匯入版本：`{result['package_id']}`；題庫：`{result['cases_file']}`",
+             f"- Rerank：{json.dumps(result.get('rerank'), ensure_ascii=False) if result.get('rerank') else '無'}",
              f"- 程式版本：`{result['source_commit'] or '未提供'}`；Agent：{json.dumps(result['agent'], ensure_ascii=False) if result['agent'] else '只評檢索'}",
-             "", "| 類別 | 題數 | 檢索命中@10 | MRR | 回答通過 | 事實覆蓋 | 引用標準來源 | 延遲 p50 (ms) | 錯誤 |", "|---|---|---|---|---|---|---|---|---|"]
+             "", "| 類別 | 題數 | 檢索命中@10 | MRR | 回答通過 | 事實覆蓋 | 引用標準來源 | 延遲 p50 (ms) | 錯誤 | 檢索 p50 (ms) |", "|---|---|---|---|---|---|---|---|---|---|"]
     blocks = {**result["summary"]["by_category"], "整體": result["summary"]["overall"]}
     for name, b in blocks.items():
         lines.append(f"| {name} | {b['cases']} | {_pct(b['retrieval_hit_at_k'])} | {b['retrieval_mrr'] if b['retrieval_mrr'] is not None else '—'} | "
-                     f"{_pct(b['answer_pass'])} | {_pct(b['fact_coverage'])} | {_pct(b['cited_gold'])} | {b['latency_ms_p50'] or '—'} | {b['errors']} |")
+                     f"{_pct(b['answer_pass'])} | {_pct(b['fact_coverage'])} | {_pct(b['cited_gold'])} | {b['latency_ms_p50'] or '—'} | {b['errors']} | {b.get('retrieval_ms_p50') or '—'} |")
     lines += ["", "## 未通過的題目", ""]
     for row in result["cases"]:
         answer, retrieval = row.get("answer") or {}, row.get("retrieval") or {}

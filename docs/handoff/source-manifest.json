@@ -549,7 +549,7 @@
     },
     {
       "path": "eval/wifi8/README.md",
-      "sha256": "614698f0844a8956547d620ae428a4176771a29c9ed3518e0bc2b7b3de8beae5"
+      "sha256": "c5efc3ea46cd0dc62353b3a5bcff1a15a9650e59ea62ca9868d145c2df3bb349"
     },
     {
       "path": "eval/wifi8/build_golden_set.py",
@@ -1093,7 +1093,7 @@
     },
     {
       "path": "scripts/eval_wifi8_agent.py",
-      "sha256": "de0686c47763bf1cbbb18e75a5af13ffecf93d28e6f2b23bed447b5323055293"
+      "sha256": "2565a842ae2d4b56692ae8daaeba6085edd762b09343f9376c30a28bbdba6e35"
     },
     {
       "path": "scripts/generate_km_oidc_client_key.py",
@@ -1525,7 +1525,7 @@
     },
     {
       "path": "src/wifi8/agent.py",
-      "sha256": "349b965d672f6ec8719574afeb3a3aa41fa990ed06fe6f162351d89609ef6c1a"
+      "sha256": "7a53c4f68df6e0cb61450249ec68bc4c076db024da728a357e3766b8d49a4abe"
     },
     {
       "path": "src/wifi8/chunks.py",
@@ -1533,7 +1533,11 @@
     },
     {
       "path": "src/wifi8/evaluation.py",
-      "sha256": "9931553e4384e844a5b33c39558c667112744bc9f12362adc4b6180a84d03e27"
+      "sha256": "cd41a88808a00859ff585bc792c7d7ea4b358d98f5f55fa1f8e84336e2746d06"
+    },
+    {
+      "path": "src/wifi8/excerpt.py",
+      "sha256": "a5901e0dc4e76402cc7a8fef83cdff4cafcdef6ce39d305aac9d5757f34cb901"
     },
     {
       "path": "src/wifi8/importer.py",
@@ -1548,8 +1552,12 @@
       "sha256": "b5f4a6dbd7d5910c2d6b6539e9cc8d21e0141d3fde6c054ba85a2bd5f353b909"
     },
     {
+      "path": "src/wifi8/rerank.py",
+      "sha256": "eba42d46115b8219ec2603846893de85110cfcf5effea6a828b418692499954e"
+    },
+    {
       "path": "src/wifi8/search.py",
-      "sha256": "f1ecb9e99e163f0f5881334bad35a2fcafe2af411a903e68ceea4361bfd951a9"
+      "sha256": "a0e6e3e1ed7d8960a51242c77523140c89eaa59c9e147ca0586fa1f4e455a4ba"
     },
     {
       "path": "src/wifi8/store.py",
@@ -1925,7 +1933,7 @@
     },
     {
       "path": "tests/test_wifi8_search.py",
-      "sha256": "f9cab8c9d5ab32aa5521fae262805bc96b6259b15b1369fc59ab01f0f32170d0"
+      "sha256": "b565779cd55794788adf348b5b6b9bb79209cdc5d7b8edb7422c40194f83a968"
     },
     {
       "path": "tests/test_wp0_api_contract.py",

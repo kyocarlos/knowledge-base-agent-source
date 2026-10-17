@@ -7,14 +7,13 @@ free-form queries or file paths -- only the fixed tools below.
 from __future__ import annotations
 
 import json
-import math
 import re
 import time
 from collections import Counter
 from dataclasses import dataclass
 from typing import Any, Callable
 
-from .lexical import query_terms, tokens
+from .excerpt import excerpt
 from .search import SearchOptions, Wifi8Search
 
 SYSTEM_PROMPT = """你是 KM「WiFi 知識專區」的研究助理，可查詢已匯入的 Wi-Fi 文件（WFA 規格與 MRD、測試計畫與測項、晶片廠商資料、研究論文、產業報告等）。
@@ -63,48 +62,6 @@ TOOLS = [
         "description": "WiFi 專區總覽：文件數、各發布者與文件角色的數量、主要主題、匯入版本。",
         "parameters": {"type": "object", "properties": {}}}},
 ]
-
-
-_SENTENCE = re.compile(r".+?(?:[。！？!?；;]|\.(?=\s)|\n|$)", re.S)
-
-
-def excerpt(text: str, query: str, limit: int) -> tuple[str, bool]:
-    """At most `limit` characters of `text`; when it is longer, keep the sentences that best
-    match the query terms (rarer terms in this text weigh more), in their original order,
-    marking skipped parts with "…". Without matching terms the head of the text is kept."""
-    text = text or ""
-    if len(text) <= limit:
-        return text, False
-    sentences = [m.group(0) for m in _SENTENCE.finditer(text) if m.group(0).strip()]
-    terms = set(query_terms(query or ""))
-    present = [terms & set(tokens(sentence)) for sentence in sentences]
-    df = Counter(term for found in present for term in found)
-    scores = [sum(1 + math.log(len(sentences) / df[t]) for t in found) for found in present]
-    if not any(scores):
-        return text[: max(0, limit - 1)] + "…", True
-    chosen, used = set(), 0
-    for i in sorted(range(len(sentences)), key=lambda i: (-scores[i], i)):
-        if scores[i] <= 0:
-            break
-        if used + len(sentences[i]) + 1 <= limit:
-            chosen.add(i)
-            used += len(sentences[i]) + 1
-    if not chosen:  # the best sentence alone is longer than the budget
-        best = max(range(len(sentences)), key=lambda i: (scores[i], -i))
-        return sentences[best].strip()[: max(0, limit - 2)] + "…", True
-    for i in range(len(sentences)):  # fill the remaining budget with neighbouring context
-        if i not in chosen and (i - 1 in chosen or i + 1 in chosen) and used + len(sentences[i]) + 1 <= limit:
-            chosen.add(i)
-            used += len(sentences[i]) + 1
-    parts, previous = [], -1
-    for i in sorted(chosen):
-        if i != previous + 1:
-            parts.append("…")
-        parts.append(sentences[i].strip())
-        previous = i
-    if previous != len(sentences) - 1:
-        parts.append("…")
-    return "\n".join(parts), True
 
 
 def _text_fields(text: str, query: str, limit: int) -> dict[str, Any]:

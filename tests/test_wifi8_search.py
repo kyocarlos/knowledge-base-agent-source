@@ -82,3 +82,48 @@ def test_unavailable_without_import_or_on_model_mismatch(tmp_path, engine):
     _, importer, client = engine
     with pytest.raises(SearchUnavailable, match="mismatch"):
         Wifi8Search.for_current(importer, qdrant=client, encoder=FakeEncoder(), embedding_model="other")
+
+
+def test_reranker_reorders_fused_candidates_and_keeps_per_document_limit(engine):
+    from src.wifi8.rerank import Reranker, RerankSettings
+    search, importer, client = engine
+    baseline = search.search("ELR uplink range", SearchOptions(top_k=5))["results"]
+    seen = []
+
+    def score(query, passages):
+        seen.append((query, passages))
+        # Prefer the Broadcom brief over everything else, otherwise keep the fused order.
+        return [10.0 if "BCM43840" in p else -float(i) for i, p in enumerate(passages)]
+
+    reranked = Wifi8Search(search.store, encoder=search.encoder,
+                           reranker=Reranker(RerankSettings(model="fake", candidates=50, chars=200), score))
+    results = reranked.search("ELR uplink range", SearchOptions(top_k=5))["results"]
+    assert seen and seen[0][0] == "ELR uplink range" and all(len(p) <= 200 + 80 for p in seen[0][1])
+    assert all("rerank_score" in r for r in results)
+    scores = [r["rerank_score"] for r in results]
+    assert scores == sorted(scores, reverse=True)  # results follow the reranker, not the fused order
+    assert len(results) == len(baseline)
+    per_doc = {}
+    for r in results:
+        per_doc[r["revision_id"]] = per_doc.get(r["revision_id"], 0) + 1
+    assert max(per_doc.values()) <= SearchOptions().per_document
+
+
+def test_reranker_only_scores_the_configured_number_of_candidates(engine):
+    from src.wifi8.rerank import Reranker, RerankSettings
+    search, *_ = engine
+    sizes = []
+    reranked = Wifi8Search(search.store, encoder=search.encoder,
+                           reranker=Reranker(RerankSettings(model="fake", candidates=3), lambda q, p: sizes.append(len(p)) or [0.0] * len(p)))
+    results = reranked.search("NR RAN architecture", SearchOptions(top_k=8))["results"]
+    assert sizes == [3]
+    assert sum("rerank_score" in r for r in results) <= 3
+
+
+def test_reranker_is_off_without_configuration(engine, monkeypatch):
+    from src.wifi8 import rerank
+    monkeypatch.delenv("KM_WIFI8_RERANK_MODEL", raising=False)
+    assert rerank.from_environment() is None
+    search, *_ = engine
+    assert search.reranker is None
+    assert all("rerank_score" not in r for r in search.search("ELR", SearchOptions())["results"])

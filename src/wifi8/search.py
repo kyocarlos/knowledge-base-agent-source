@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from typing import Any, Callable
 
 from . import store as store_module
+from .excerpt import excerpt
 from .lexical import query_terms, query_vector
 
 RRF_K = 60
@@ -35,15 +36,17 @@ class SearchUnavailable(RuntimeError):
 
 class Wifi8Search:
     def __init__(self, store: store_module.Wifi8Store, *, qdrant=None,
-                 encoder: Callable[[list[str]], list[list[float]]] | None = None):
+                 encoder: Callable[[list[str]], list[list[float]]] | None = None, reranker=None):
         self.store = store
+        self.reranker = reranker  # rerank.Reranker or None
         self.package_id = store.package_id
         self.collection = store.chunks_collection
         self.qdrant = qdrant or store.qdrant
         self.encoder = encoder
 
     @classmethod
-    def for_current(cls, importer, *, qdrant=None, encoder=None, embedding_model: str = "") -> "Wifi8Search":
+    def for_current(cls, importer, *, qdrant=None, encoder=None, embedding_model: str = "",
+                    reranker="environment") -> "Wifi8Search":
         current = importer.current()
         package = importer.current_store(qdrant)
         if not current or package is None or package.qdrant is None:
@@ -51,7 +54,10 @@ class Wifi8Search:
         if current.get("embedding_model") and embedding_model and current["embedding_model"] != embedding_model:
             # Query vectors from another model would silently return unrelated chunks.
             raise SearchUnavailable(f"embedding model mismatch: {embedding_model} != {current['embedding_model']}")
-        return cls(package, encoder=encoder)
+        if reranker == "environment":
+            from .rerank import from_environment
+            reranker = from_environment()
+        return cls(package, encoder=encoder, reranker=reranker)
 
     # ---- filters ------------------------------------------------------
     def _documents(self) -> dict[str, dict[str, Any]]:
@@ -107,14 +113,19 @@ class Wifi8Search:
             for rank, point_id in enumerate(ranking, 1):
                 scores[point_id] = scores.get(point_id, 0.0) + 1.0 / (RRF_K + rank)
         chunks = self.chunks(list(scores))
+        ordered = sorted(scores, key=lambda pid: (-scores[pid], pid))
+        rerank_scores = self._rerank(query, [pid for pid in ordered if pid in chunks], chunks)
+        if rerank_scores:
+            ordered = sorted(rerank_scores, key=lambda pid: -rerank_scores[pid]) + [pid for pid in ordered if pid not in rerank_scores]
         per_doc: dict[str, int] = {}
         results = []
-        for point_id in sorted(scores, key=lambda pid: (-scores[pid], pid)):
+        for point_id in ordered:
             chunk = chunks.get(point_id)
             if not chunk or per_doc.get(chunk["revision_id"], 0) >= options.per_document:
                 continue
             per_doc[chunk["revision_id"]] = per_doc.get(chunk["revision_id"], 0) + 1
             results.append({**chunk, "score": round(scores[point_id], 6),
+                            **({"rerank_score": round(rerank_scores[point_id], 4)} if point_id in rerank_scores else {}),
                             "matched_by": [name for name, r in (("fulltext", lexical), ("vector", vector)) if point_id in r]})
             if len(results) >= options.top_k:
                 break
@@ -122,6 +133,15 @@ class Wifi8Search:
                 "filters": {"publishers": list(options.publishers), "document_roles": list(options.document_roles),
                             "revision_ids": list(options.revision_ids)[:20], "include_history": options.include_history},
                 "results": results}
+
+    def _rerank(self, query: str, ordered: list[str], chunks: dict[str, dict[str, Any]]) -> dict[str, float]:
+        """Cross-encoder scores for the top fused candidates (title + query-focused excerpt)."""
+        if self.reranker is None or not ordered:
+            return {}
+        settings = self.reranker.settings
+        head = ordered[: settings.candidates]
+        passages = [f"{chunks[pid].get('source') or ''}\n{excerpt(chunks[pid]['content'], query, settings.chars)[0]}" for pid in head]
+        return dict(zip(head, self.reranker.score(query, passages)))
 
     def chunks(self, point_ids: list[str]) -> dict[str, dict[str, Any]]:
         documents = self._documents()

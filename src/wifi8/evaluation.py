@@ -74,6 +74,7 @@ def summarize(rows: list[dict[str, Any]]) -> dict[str, Any]:
         coverage = [a["fact_coverage"] for a in answers if a.get("fact_coverage") is not None]
         cited = [a["cited_gold"] for a in answers if a.get("cited_gold") is not None]
         latency = sorted(r["elapsed_ms"] for r in items if r.get("elapsed_ms") is not None)
+        retrieval_ms = sorted(r["retrieval_ms"] for r in items if r.get("retrieval_ms") is not None)
         return {
             "cases": len(items),
             "retrieval_hit_at_k": _ratio(sum(r["hit"] for r in retrieval), len(retrieval)),
@@ -83,6 +84,8 @@ def summarize(rows: list[dict[str, Any]]) -> dict[str, Any]:
             "cited_gold": _ratio(sum(cited), len(cited)),
             "latency_ms_p50": latency[len(latency) // 2] if latency else None,
             "latency_ms_max": latency[-1] if latency else None,
+            "retrieval_ms_p50": retrieval_ms[len(retrieval_ms) // 2] if retrieval_ms else None,
+            "retrieval_ms_max": retrieval_ms[-1] if retrieval_ms else None,
             "errors": sum(1 for r in items if r.get("error")),
         }
     by_category: dict[str, list[dict[str, Any]]] = defaultdict(list)
