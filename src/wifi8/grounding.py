@@ -90,8 +90,8 @@ def split_claims(answer: str, min_chars: int = 12) -> list[dict[str, Any]]:
     """Technical sentences of a markdown answer with the refs that support them.
 
     A sentence without its own [S#] takes its line's refs; list items and table rows also
-    take the refs of the introducing line ("支援下列功能：[S2]"). Headings, labels and
-    statements that something could not be verified are not claims.
+    take the refs of the introducing line ("支援下列功能：[S2]"). Headings, labels, table
+    header rows and statements that something could not be verified are not claims.
     """
     claims, intro_refs, block, block_refs, block_kind = [], [], [], [], [""]
 
@@ -104,7 +104,8 @@ def split_claims(answer: str, min_chars: int = 12) -> list[dict[str, Any]]:
         block_refs.clear()
         block_kind[0] = ""
 
-    for line in (answer or "").splitlines():
+    lines = (answer or "").splitlines()
+    for index, line in enumerate(lines):
         if not line.strip():
             continue
         if re.match(r"^\s*#{1,6}\s", line):
@@ -125,6 +126,9 @@ def split_claims(answer: str, min_chars: int = 12) -> list[dict[str, Any]]:
         own_line_refs = list(dict.fromkeys(_REF.findall(body)))
         if listed:
             block_refs.extend(own_line_refs)  # counts even when the line itself is too short to be a claim
+        following = next((l for l in lines[index + 1:] if l.strip()), "")
+        if kind == "table" and _TABLE_RULE.match(following):
+            continue  # header row ("| 條件 | AP 是否必須實作 DBE |"): column names, not a statement
         line_refs = own_line_refs or (intro_refs if listed else [])
         if _REF.sub("", body).rstrip(" *_`").endswith(("：", ":")):
             intro_refs = line_refs
@@ -133,7 +137,8 @@ def split_claims(answer: str, min_chars: int = 12) -> list[dict[str, Any]]:
         for part in _CLAIM_SPLIT.split(body):
             text = _plain(part)  # note: _plain strips a trailing colon, so labels are detected on the raw part
             short = len(re.sub(r"[\W_]+", "", text)) < min_chars and not extract_values(text)  # short rows with values still count
-            label = _REF.sub("", part).rstrip(" *_`").endswith(("：", ":")) and len(text) < 40  # "AP 還必須：" introduces a list
+            # "AP 還必須：" introduces a list; "目前最新的是 v1.5：" still states a value and stays a claim
+            label = _REF.sub("", part).rstrip(" *_`").endswith(("：", ":")) and len(text) < 40 and not extract_values(text)
             if short or label or _REFUSAL.search(text):
                 continue
             refs = list(dict.fromkeys(_REF.findall(part))) or line_refs

@@ -133,3 +133,18 @@ def test_lines_introducing_a_list_are_labels_not_claims():
     answer = "AP 不只是宣告能力，還必須：\n- 接受 STA 的 DBE 啟用請求 [S1]\n\n依目前有效的 Wi-Fi 8 MRD：\n- DBE 對 AP 是選用功能，只適用於部分頻段 [S1]"
     texts = [c["text"] for c in split_claims(answer)]
     assert texts == ["接受 STA 的 DBE 啟用請求", "DBE 對 AP 是選用功能，只適用於部分頻段"]
+
+
+def test_table_header_rows_are_not_claims_but_their_refs_are_shared():
+    answer = "| 條件 | AP 是否必須實作 DBE [S1] |\n|---|---|\n| 實作 WPA3-Enterprise | 必須實作 DBE |\n| 一般 5/6 GHz AP | 選用 |"
+    claims = split_claims(answer)
+    assert [c["text"] for c in claims] == ["實作 WPA3-Enterprise：必須實作 DBE", "一般 5/6 GHz AP：選用"]
+    assert all(c["refs"] == ["S1"] for c in claims)
+    plain = "| 版本 | WFA ID |\n|---|---|\n| v14 | 103720 |"
+    assert [c["text"] for c in split_claims(plain)] == ["v14：103720"]
+
+
+def test_colon_lines_with_values_stay_claims():
+    answer = "目前最新的是 **v1.5**：\n- 取代 v1.4 的測試範圍文件內容 [S2]\n\n- **Certification Development**：\n  - TTG 正審查 test case contributions [S1]"
+    texts = [c["text"] for c in split_claims(answer)]
+    assert "目前最新的是 v1.5" in texts and "Certification Development" not in texts
