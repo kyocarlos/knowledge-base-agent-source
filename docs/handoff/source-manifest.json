@@ -549,7 +549,7 @@
     },
     {
       "path": "eval/wifi8/README.md",
-      "sha256": "853e17594759e83242e885c4b7c07dc691a5297566e623053e9c765687a420be"
+      "sha256": "7c1e1a9174febd26987aaf2b20acad1c2ae0e9b92a15eb2d2d79c78afcf927c6"
     },
     {
       "path": "eval/wifi8/build_golden_set.py",
@@ -1173,7 +1173,23 @@
     },
     {
       "path": "scripts/webwright_wifi8_accept.py",
-      "sha256": "1639454d037711c7dfef6e308a407c7685e0c57d54bb6a7b34ac741ef56e9c02"
+      "sha256": "ed4d92a04a9576ee3e4829cd17cede4b56a1aab402013f746ff52a085abc9528"
+    },
+    {
+      "path": "scripts/webwright_wifi8_common.py",
+      "sha256": "c739f96dc55b6ff066bf68191bc6a4e18db2c13fe39753dffeafa878738234a4"
+    },
+    {
+      "path": "scripts/webwright_wifi8_grounding.py",
+      "sha256": "5c76b6115cf6e832c8c0eb725e640a8111fb5b8e3d7f6e74f6f44793a57df7f1"
+    },
+    {
+      "path": "scripts/webwright_wifi8_render.py",
+      "sha256": "660a07483c53e80a6296eeefc62373ee1f41ed730291c9c33e5b7c19c63350da"
+    },
+    {
+      "path": "scripts/webwright_wifi8_upload.py",
+      "sha256": "1fd4fa57d38d91c33536af121dddb50930baab040c7d0f463c8c6ec0daf89cb5"
     },
     {
       "path": "src/__init__.py",

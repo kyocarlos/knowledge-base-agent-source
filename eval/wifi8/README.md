@@ -104,9 +104,15 @@ docker cp $C:/tmp/km-eval/out ./wifi8-eval-out
 
 ## 使用者流程驗收（Webwright）
 
-`scripts/webwright_wifi8_accept.py RUN_DIR ZONE USER PASS_KEY`：用真實帳號登入，依序驗收 8 項（總覽、文件瀏覽、文件段落、3 組混合檢索、AI Agent 回答、WiFi API 皆無錯誤），輸出截圖、`final_script_log.txt` 與 `summary.json`。
+四支腳本共用 `scripts/webwright_wifi8_common.py`，負責登入、進入 WiFi 專區、提問 Agent、記錄截圖、console／失敗請求，以及產生 `summary.json`。每支都以 `RUN_DIR ZONE USER PASS_KEY` 開頭，全部通過時 exit 0、有失敗 exit 1、參數錯誤 exit 2。密碼從 `KM_TEST_ACCOUNTS_FILE`（預設 `~/.km-control/test-accounts.env`）讀取，不會輸出；結束時登出。入口網址可用 `KM_BASE_URL` 修改。
 
-- 例：`python scripts/webwright_wifi8_accept.py /tmp/run-da40 da40 km-clude3 KM_TEST_PASS1`。密碼從 `KM_TEST_ACCOUNTS_FILE`（預設 `~/.km-control/test-accounts.env`）讀取，不會輸出。
-- 預期數量不寫死：在同一登入狀態下讀取 `/api/wifi8/overview`，檢查畫面數字與 API 一致；匯入新資料後不需要修改腳本。
-- Agent 項目判定：不是錯誤訊息、答案含 [S#]、引用清單 ≥1 筆、長度 ≥ `KM_ACCEPT_AGENT_MIN_CHARS`（預設 40）。不要求長篇回答，因為驗收題目本身要求「簡短說明」。
-- 網址、題目與檢索詞可用 `KM_BASE_URL`、`KM_ACCEPT_AGENT_QUESTION`、`KM_ACCEPT_SEARCH_QUERIES` 調整。
+| 腳本 | 驗收內容 |
+|---|---|
+| `webwright_wifi8_accept.py` | 8 項回歸：總覽、文件瀏覽、文件段落、3 組混合檢索、AI Agent（含 [S#] 與引用清單）、WiFi API 無錯誤。預期數量讀自 `/api/wifi8/overview`，不寫死 |
+| `webwright_wifi8_render.py [--static DIR]` | 顯示：檢索標題是文件名稱、AI 回答以 Markdown 呈現、引用清單與內文 [S#] 一致。`--static frontend/wifi8` 可在部署前改用本機前端 |
+| `webwright_wifi8_grounding.py [--scenario all\|panel\|table\|code_block]` | 依據檢核：區塊與標籤、D07 的 WPA3-Enterprise 條件、表格標題列與程式碼區塊不被當成句子 |
+| `webwright_wifi8_upload.py --package ZIP [--dry-run]` | 從「匯入與進度」頁上傳匯出包（202／queued／submitted_by）；`--dry-run` 只驗證到選好檔案，不送出 |
+
+- 例：`python scripts/webwright_wifi8_accept.py /tmp/run-da40 da40 km-clude3 KM_TEST_PASS1`
+- accept 的 Agent 判定：不是錯誤訊息、答案含 [S#]、引用清單 ≥1 筆、長度 ≥ `KM_ACCEPT_AGENT_MIN_CHARS`（預設 40）。題目與檢索詞可用 `KM_ACCEPT_AGENT_QUESTION`、`KM_ACCEPT_SEARCH_QUERIES` 修改。
+- grounding 的程式碼區塊判定是單向的：檢核句子是區塊內某一行的一部分，才算誤判。只是包含區塊中短標籤（例如「一般 RU」）的正常句子不算。
