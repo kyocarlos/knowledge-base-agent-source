@@ -200,11 +200,32 @@
     const meta = [item.location_label, item.publisher, item.wfa_document_id ? `WFA ${item.wfa_document_id}` : '', item.analysis_eligible === false ? '歷史版本' : ''].filter(Boolean).join(' · ');
     return `<li><strong>[${escapeHtml(item.ref || index + 1)}]</strong> <span title="${escapeHtml(item.revision_id)}">${escapeHtml(hitTitle(item))}</span>${meta ? `<small>${escapeHtml(meta)}</small>` : ''}</li>`;
   }
+  // Grounding check computed by the worker against the full text of the cited chunks (absent on older answers).
+  const groundingReasons = { no_source: '未附來源', value_not_found: '數值在資料中找不到', value_other_source: '數值出現在其他引用', low_similarity: '與原文相似度低' };
+  function groundingChip(label, text, tone) { return `<span class="g-chip ${tone}"><small>${label}</small>${escapeHtml(text)}</span>`; }
+  function groundingPanel(grounding) {
+    if (!grounding) return '';
+    if (grounding.error) return '<p class="grounding-note">依據檢核未完成，請以引用原文為準。</p>';
+    const s = grounding.summary || {};
+    if (!s.claims) return '';
+    const sim = s.similarity || {};
+    const flagged = grounding.flagged || [];
+    const supported = (s.claims_cited || 0) + (s.claims_tool_data || 0);
+    const found = (s.values_verified || 0) + (s.values_other_source || 0) + (s.values_tool_data || 0);
+    const chips = [
+      groundingChip('有依據的句子', `${supported}/${s.claims}${s.claims_tool_data ? `（${s.claims_tool_data} 句依工具資料）` : ''}`, supported === s.claims ? 'ok' : supported / s.claims >= 0.8 ? 'warn' : 'bad'),
+      s.values ? groundingChip('數值核對', `${found}/${s.values} 可在資料中找到${s.values_not_found ? `，${s.values_not_found} 找不到` : ''}`, s.values_not_found ? 'bad' : 'ok') : groundingChip('數值核對', '無數值', 'ok'),
+      s.similarity_enabled && (sim.high || sim.medium || sim.low) ? groundingChip('原文相似度', `高 ${sim.high || 0}・中 ${sim.medium || 0}・低 ${sim.low || 0}`, sim.low ? 'warn' : 'ok') : '',
+      s.sources && s.sources.total ? groundingChip('引用來源', `${s.sources.wfa} 份 WFA・${s.sources.current}/${s.sources.total} 份目前版本`, s.sources.current === s.sources.total ? 'ok' : 'warn') : '',
+    ].join('');
+    const items = flagged.map((f) => `<li><p>${escapeHtml(f.text)}${(f.refs || []).length ? ` <span class="cite-ref">[${escapeHtml(f.refs.join('][')) }]</span>` : ''}</p><div>${(f.reasons || []).map((r) => `<span class="g-reason ${r}">${escapeHtml(groundingReasons[r] || r)}</span>`).join('')}${(f.values || []).map((v) => `<code class="${v.status}" title="${v.status === 'not_found' ? '在 Agent 取得的資料中找不到' : '出現在其他引用，不在本句引用的段落'}">${escapeHtml(v.value)}</code>`).join('')}${f.similarity != null && (f.reasons || []).includes('low_similarity') ? `<small>相似度 ${Number(f.similarity).toFixed(2)}</small>` : ''}</div></li>`).join('');
+    return `<section class="grounding" aria-label="依據檢核"><div class="grounding-head"><strong>依據檢核</strong><div class="g-chips">${chips}</div></div><p class="grounding-note">由程式比對 Agent 取得的原文段落與文件資料：檢查每句是否有引用，以及數字、版本、型號是否真的出現在資料中${s.similarity_enabled ? '；相似度只代表用詞接近程度，不代表內容正確' : ''}。這是輔助檢核，不保證內容正確。</p>${flagged.length ? `<details><summary>需留意的句子（${flagged.length}）</summary><ul class="g-flags">${items}</ul></details>` : '<p class="grounding-note ok">所有句子都有依據，數值皆可在資料中找到。</p>'}</section>`;
+  }
   function agentOutput(value) {
     const answer = value.answer || value.result || value.message || '未回傳回答';
     const citations = value.citations || value.sources || [];
     const trace = value.steps || value.tool_steps || value.trace || [];
-    return `<div class="message assistant markdown">${renderMarkdown(answer)}</div><ul class="citation-list">${citations.map(citationItem).join('')}</ul><details><summary>Agent 工具步驟與停止原因</summary><ul class="trace-list">${trace.map((item) => `<li>${escapeHtml(typeof item === 'string' ? item : item.tool || item.name || JSON.stringify(item))}</li>`).join('') || '<li>無工具步驟</li>'}</ul><p class="results-meta">${escapeHtml(value.stop_reason || value.status || '')}</p></details>`;
+    return `<div class="message assistant markdown">${renderMarkdown(answer)}</div>${groundingPanel(value.grounding)}<ul class="citation-list">${citations.map(citationItem).join('')}</ul><details><summary>Agent 工具步驟與停止原因</summary><ul class="trace-list">${trace.map((item) => `<li>${escapeHtml(typeof item === 'string' ? item : item.tool || item.name || JSON.stringify(item))}</li>`).join('') || '<li>無工具步驟</li>'}</ul><p class="results-meta">${escapeHtml(value.stop_reason || value.status || '')}</p></details>`;
   }
   async function pollAgent(taskId) {
     for (let attempt = 0; attempt < 120; attempt += 1) {

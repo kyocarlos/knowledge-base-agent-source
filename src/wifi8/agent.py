@@ -75,6 +75,7 @@ class AgentSettings:
     time_budget_seconds: float = 90.0
     snippet_chars: int = 1000
     read_chars: int = 3000
+    grounding: bool = True
 
     @classmethod
     def from_environment(cls) -> "AgentSettings":
@@ -82,12 +83,14 @@ class AgentSettings:
         return cls(max_steps=int(os.getenv("KM_WIFI8_AGENT_MAX_STEPS", "6")),
                    time_budget_seconds=float(os.getenv("KM_WIFI8_AGENT_TIME_BUDGET_SECONDS", "90")),
                    snippet_chars=int(os.getenv("KM_WIFI8_AGENT_SNIPPET_CHARS", "1000")),
-                   read_chars=int(os.getenv("KM_WIFI8_AGENT_READ_CHARS", "3000")))
+                   read_chars=int(os.getenv("KM_WIFI8_AGENT_READ_CHARS", "3000")),
+                   grounding=os.getenv("KM_WIFI8_AGENT_GROUNDING", "1").strip().lower() not in {"0", "false", "no", "off"})
 
 
 class CitationRegistry:
     def __init__(self) -> None:
         self.items: dict[str, dict[str, Any]] = {}
+        self.texts: dict[str, str] = {}  # full chunk text per ref, for the grounding check only
         self._by_key: dict[str, str] = {}
 
     def add(self, item: dict[str, Any]) -> str:
@@ -96,14 +99,18 @@ class CitationRegistry:
             ref = f"S{len(self._by_key) + 1}"
             self._by_key[key] = ref
             self.items[ref] = {
-                "ref": ref, "source": item.get("source"), "revision_id": item.get("revision_id"),
+                "ref": ref, "source": item.get("source"), "revision_id": item.get("revision_id"), "point_id": item.get("point_id"),
                 "location_label": item.get("location_label"), "wfa_document_id": item.get("wfa_document_id"),
                 "wfa_revision": item.get("wfa_revision"), "document_role": item.get("document_role"),
                 "publisher": item.get("publisher"), "document_date": item.get("document_date"),
                 "analysis_eligible": item.get("analysis_eligible"), "content": (item.get("content") or "")[:1200],
                 "storage_category": "WiFi", "source_system": "WIFI8",
             }
+            self.texts[ref] = item.get("content") or ""
         return self._by_key[key]
+
+    def grounding_sources(self) -> dict[str, dict[str, Any]]:
+        return {ref: {**item, "text": self.texts.get(ref, "")} for ref, item in self.items.items()}
 
 
 class WifiTools:
@@ -112,6 +119,7 @@ class WifiTools:
         self.settings = settings
         self.citations = citations
         self.store = search.store
+        self.evidence: list[str] = []  # every tool result of the run, for the grounding check
 
     def _doc_rows(self, **equals: str) -> list[dict[str, Any]]:
         return [d for d in self.store.documents() if all(str(d.get(k) or "") == v for k, v in equals.items())]
@@ -213,9 +221,11 @@ class WifiTools:
         if handler is None:
             return {"error": f"未知的工具：{name}"}
         try:
-            return handler(**arguments)
+            result = handler(**arguments)
         except TypeError as exc:
             return {"error": f"參數錯誤：{exc}"}
+        self.evidence.append(json.dumps(result, ensure_ascii=False))
+        return result
 
 
 Llm = Callable[..., Any]  # (messages=..., tools=..., tool_choice=...) -> message with .content / .tool_calls
@@ -260,8 +270,12 @@ def run_agent(question: str, *, llm: Llm, tools: WifiTools, settings: AgentSetti
             messages.append({"role": "tool", "tool_call_id": call.get("id", ""), "content": json.dumps(result, ensure_ascii=False)[:12000]})
     cited = sorted(set(re.findall(r"\[(S\d+)\]", answer)), key=lambda r: int(r[1:]))
     citations = [tools.citations.items[r] for r in cited if r in tools.citations.items]
-    return {"answer": answer, "citations": citations, "trace": trace, "stop_reason": stop_reason,
-            "evidence_count": len(tools.citations.items), "elapsed_ms": round((clock() - started) * 1000)}
+    result = {"answer": answer, "citations": citations, "trace": trace, "stop_reason": stop_reason,
+              "evidence_count": len(tools.citations.items)}
+    if settings.grounding and answer:
+        result["grounding"] = ground(result, tools, getattr(tools.search_engine, "encoder", None), question)
+    result["elapsed_ms"] = round((clock() - started) * 1000)
+    return result
 
 
 def _summarize(result: dict[str, Any]) -> str:
@@ -278,3 +292,14 @@ def _summarize(result: dict[str, Any]) -> str:
     if "versions" in result:
         return f"{len(result['versions'])} 個版本"
     return "總覽"
+
+
+def ground(result: dict[str, Any], tools: WifiTools, encoder=None, question: str = "") -> dict[str, Any]:
+    """Grounding check of a finished answer; a failure is reported, never raised (the answer stands)."""
+    from .grounding import GroundingSettings, check_answer
+    try:
+        return check_answer(result.get("answer") or "", tools.citations.grounding_sources(),
+                            context="\n".join([question, *tools.evidence]), encoder=encoder,
+                            settings=GroundingSettings.from_environment())
+    except Exception as exc:  # noqa: BLE001 - the check must not hide the answer
+        return {"error": f"{type(exc).__name__}: {exc}"[:300]}

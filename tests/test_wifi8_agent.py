@@ -172,3 +172,19 @@ def test_tools_mark_excerpts_and_read_document_accepts_focus(tools):
     assert len(hit["text"]) <= 60 and (hit.get("excerpt") is True) == (hit.get("chars", 0) > 60)
     part = tools.read_document("big", start=1, count=1, query="segment")["parts"][0]
     assert len(part["text"]) <= 60
+
+
+def test_agent_result_carries_grounding_and_failures_do_not_hide_the_answer(tools, monkeypatch):
+    llm = ScriptedLlm(reply(calls=[call("search_wifi", {"query": "ELR uplink range"})]),
+                      lambda messages: reply("ELR 改善上行距離，速率 9.99 Mbps。[S1]"))
+    out = run_agent("ELR?", llm=llm, tools=tools, settings=AgentSettings())
+    g = out["grounding"]["summary"]
+    assert g["claims"] == 1 and g["claims_cited"] == 1 and g["values_not_found"] == 1  # 9.99 Mbps is not in the source
+
+    llm = ScriptedLlm(reply("沒有引用的回答。"))
+    assert "grounding" not in run_agent("q", llm=llm, tools=tools, settings=AgentSettings(grounding=False))
+
+    import src.wifi8.grounding as grounding
+    monkeypatch.setattr(grounding, "check_answer", lambda *a, **k: (_ for _ in ()).throw(ValueError("boom")))
+    out = run_agent("q", llm=ScriptedLlm(reply("答案仍然顯示。")), tools=tools, settings=AgentSettings())
+    assert out["answer"] == "答案仍然顯示。" and out["grounding"]["error"].startswith("ValueError")

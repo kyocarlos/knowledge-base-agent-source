@@ -175,6 +175,28 @@ tbody tr:hover { background: rgba(127,255,227,.05); }
 .message.markdown th, .message.markdown td { padding: 5px 8px; border: 1px solid var(--line); text-align: left; vertical-align: top; }
 .message.markdown th { color: #dffaff; background: rgba(0,0,0,.2); }
 .cite-ref { color: var(--blue); font-weight: 700; white-space: nowrap; }
+.grounding { margin-top: 10px; padding: 11px 12px; border: 1px solid var(--line-soft); border-radius: 12px; background: rgba(0,0,0,.18); font-size: .74rem; }
+.grounding-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.grounding-head strong { color: #dffaff; font-size: .8rem; }
+.g-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.g-chip { display: inline-flex; align-items: baseline; gap: 6px; padding: 3px 9px; border: 1px solid var(--line-soft); border-radius: 999px; color: var(--ink-soft); }
+.g-chip small { color: var(--muted); }
+.g-chip.ok { border-color: rgba(127,255,227,.45); }
+.g-chip.warn { border-color: rgba(255,200,87,.6); color: #ffd98a; }
+.g-chip.bad { border-color: rgba(255,120,120,.65); color: #ffb3b3; }
+.grounding-note { margin: 7px 0 0; color: var(--muted); line-height: 1.5; }
+.grounding-note.ok { color: var(--green); }
+.grounding details { margin-top: 6px; }
+.grounding summary { cursor: pointer; color: var(--ink-soft); }
+.g-flags { display: grid; gap: 7px; margin: 7px 0 0; padding: 0; list-style: none; }
+.g-flags li { padding: 8px 10px; border-left: 3px solid rgba(255,200,87,.6); background: rgba(0,0,0,.16); }
+.g-flags p { margin: 0 0 5px; color: var(--ink-soft); line-height: 1.55; }
+.g-flags div { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; }
+.g-flags code { padding: 1px 6px; border-radius: 5px; background: rgba(255,120,120,.14); color: #ffb3b3; }
+.g-flags code.other_source { background: rgba(255,200,87,.14); color: #ffd98a; }
+.g-flags small { color: var(--muted); }
+.g-reason { padding: 1px 7px; border-radius: 999px; background: rgba(255,200,87,.14); color: #ffd98a; }
+.g-reason.no_source, .g-reason.value_not_found { background: rgba(255,120,120,.14); color: #ffb3b3; }
 .job-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .job-head strong { color: #dffaff; }
 .job-meta { margin-top: 6px; color: var(--muted); }

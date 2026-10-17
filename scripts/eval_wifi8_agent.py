@@ -111,8 +111,9 @@ def main() -> int:
                 row["output"] = {"answer": output.get("answer"), "stop_reason": output.get("stop_reason"),
                                  "steps": len(output.get("trace") or []),
                                  "tools": [t.get("tool") for t in output.get("trace") or []],
-                                 "citations": [{"ref": c.get("ref"), "revision_id": c.get("revision_id"), "source": c.get("source")}
-                                               for c in output.get("citations") or []]}
+                                 "citations": [{"ref": c.get("ref"), "revision_id": c.get("revision_id"), "source": c.get("source"),
+                                                "point_id": c.get("point_id")} for c in output.get("citations") or []],
+                                 "grounding": output.get("grounding")}
         except Exception as exc:  # one failing case must not hide the rest
             row["error"] = f"{type(exc).__name__}: {exc}"
         rows.append(row)
