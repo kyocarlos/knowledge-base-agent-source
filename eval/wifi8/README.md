@@ -101,3 +101,12 @@ docker cp $C:/tmp/km-eval/out ./wifi8-eval-out
 - **數值核對：** 抽出數字、版本、型號與代碼，依序比對：該句引用的完整原文（verified）→ 其他引用（other_source）→ Agent 這次拿到的所有工具結果，包括文件資料、版本清單、總覽（tool_data）→ 都找不到（not_found）。
 - **相似度：** 預設關閉（`KM_WIFI8_GROUNDING_SIMILARITY`）。用 `scripts/calibrate_wifi8_grounding.py` 在 DA40 校準：答案與自身引用原文的相似度 p50 為 0.665，與不相干原文的 p90 為 0.635，兩者大量重疊，照門檻會把 36% 正確引用的句子標成「低」，所以不顯示給使用者。
 - **校正誤判（DA40，34 題）：** 第一版有 19.5% 的數值被判找不到，原因是沒比對文件資料（版本、文件 ID、總覽數字）、Markdown 底線被刪、序數被當成數值、數字和單位之間有連字號。修正後降到 4.2%。剩下的抽查結果：原文錯字（MS19）、Agent 自行推論的否定句（不適用 2.4 GHz），以及單位寫法差異（已再修正）。
+
+## 使用者流程驗收（Webwright）
+
+`scripts/webwright_wifi8_accept.py RUN_DIR ZONE USER PASS_KEY`：用真實帳號登入，依序驗收 8 項（總覽、文件瀏覽、文件段落、3 組混合檢索、AI Agent 回答、WiFi API 皆無錯誤），輸出截圖、`final_script_log.txt` 與 `summary.json`。
+
+- 例：`python scripts/webwright_wifi8_accept.py /tmp/run-da40 da40 km-clude3 KM_TEST_PASS1`。密碼從 `KM_TEST_ACCOUNTS_FILE`（預設 `~/.km-control/test-accounts.env`）讀取，不會輸出。
+- 預期數量不寫死：在同一登入狀態下讀取 `/api/wifi8/overview`，檢查畫面數字與 API 一致；匯入新資料後不需要修改腳本。
+- Agent 項目判定：不是錯誤訊息、答案含 [S#]、引用清單 ≥1 筆、長度 ≥ `KM_ACCEPT_AGENT_MIN_CHARS`（預設 40）。不要求長篇回答，因為驗收題目本身要求「簡短說明」。
+- 網址、題目與檢索詞可用 `KM_BASE_URL`、`KM_ACCEPT_AGENT_QUESTION`、`KM_ACCEPT_SEARCH_QUERIES` 調整。

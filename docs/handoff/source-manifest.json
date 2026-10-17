@@ -549,7 +549,7 @@
     },
     {
       "path": "eval/wifi8/README.md",
-      "sha256": "f92d7b17614b54843fd2fc33e538a4c34b95ba3bf5a838751c880bc497112cbe"
+      "sha256": "853e17594759e83242e885c4b7c07dc691a5297566e623053e9c765687a420be"
     },
     {
       "path": "eval/wifi8/build_golden_set.py",
@@ -1170,6 +1170,10 @@
     {
       "path": "scripts/verify_tenant_isolation.py",
       "sha256": "86a098aeda4f55bfeede1bee989895b6102947925a2f65c6bd8a037464a6644b"
+    },
+    {
+      "path": "scripts/webwright_wifi8_accept.py",
+      "sha256": "1639454d037711c7dfef6e308a407c7685e0c57d54bb6a7b34ac741ef56e9c02"
     },
     {
       "path": "src/__init__.py",
