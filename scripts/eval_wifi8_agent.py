@@ -20,11 +20,13 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path.cwd()))
 
-try:
-    from src.wifi8.evaluation import load_cases, score_answer, score_retrieval, summarize
-except ModuleNotFoundError:  # deployed image predates the module: use a copy placed next to this script
+# Scoring rules follow the runner and the case file, not the deployed image: a copy of
+# evaluation.py placed next to this script wins over the one inside the image.
+if (Path(__file__).resolve().parent / "evaluation.py").is_file():
     sys.path.insert(0, str(Path(__file__).resolve().parent))
     from evaluation import load_cases, score_answer, score_retrieval, summarize  # type: ignore[no-redef]
+else:
+    from src.wifi8.evaluation import load_cases, score_answer, score_retrieval, summarize
 
 
 def build(retrieval_only: bool):

@@ -28,7 +28,7 @@ cases = [
  dict(id="D05", category="功能定義", question="Co-TDMA 在 Wi-Fi 8 MRD 中如何定義？對 AP 是必要還是選用？",
       gold=[rid(COTDMA)], facts=[["TXOP"], ["optional", "選用", "可選", "非必要"], ["MAPC"]]),
  dict(id="D06", category="功能定義", question="Co-BF 是什麼？適用哪些頻段？",
-      gold=[rid("WFA - Wi-Fi 8 MRD - CoBF Contribution v9")], facts=[["5 GHz", "5GHz"], ["6 GHz", "6GHz"], ["interference", "干擾"], ["optional", "選用", "可選"]]),
+      gold=[rid("WFA - Wi-Fi 8 MRD - CoBF Contribution v9")], facts=[["5 GHz", "5GHz"], ["6 GHz", "6GHz"], ["interference", "干擾"]]),
  dict(id="D07", category="功能定義", question="DBE（Dynamic Bandwidth Expansion）是什麼？什麼情況下 AP 必須實作？",
       gold=[rid("WFA - Wi-Fi 8 MRD - DBE Contribution v5")], facts=[["BSS bandwidth", "BSS 頻寬", "頻寬"], ["WPA3-Enterprise", "WPA3 Enterprise"]]),
  dict(id="D08", category="功能定義", question="Bounded ESS 對 AP 的要求是什麼？哪些 AP 必須支援？",
@@ -110,7 +110,7 @@ def having(*terms, title=""):
             and all(_n(x) in _n(_text[d["revision_id"]]) for x in terms)]
 MRD = T("WFA - Wi-Fi 8 MRD v1.0")
 EXTRA = {
-    "D01": [MRD, T(SPR), T(SAM), T(next(d["title"] for d in docs if d["title"].startswith("MediaTek - Pioneering the Future with Wi-Fi 8 - Part Three")))],
+    "D01": [MRD, T("WFA - Wi-Fi CERTIFIED 8 Test Case - ELR v1"), T(SPR), T(SAM), T(next(d["title"] for d in docs if d["title"].startswith("MediaTek - Pioneering the Future with Wi-Fi 8 - Part Three")))],
     "D02": [MRD, T("WFA - Wi-Fi 8 MRD - NPCA Contribution v0.6"), T("Wi-Fi NOW - Wi-Fi 8 Guide Part Seven - Non-Primary Channel Access(NPCA)"),
             T("RFWirelessWorld - What is Non-Primary Channel Access (NPCA) in Wi-Fi 8")],
     "D03": [MRD, T("WFA - Wi-Fi 8 MRD - DSO feature description v7")],

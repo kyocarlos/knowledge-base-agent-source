@@ -114,3 +114,7 @@ def test_rescore_reuses_saved_answers_without_llm(tmp_path, monkeypatch):
 def test_fact_matching_ignores_unicode_dash_variants():
     assert fact_hits("最高調變為 4K\u2011QAM，Wi\u2011Fi 8", [["4K-QAM"], ["Wi-Fi 8"]]) == [True, True]
     assert fact_hits("Co\u2013BF", [["Co-BF"]]) == [True]
+
+
+def test_fact_matching_treats_multiplication_sign_as_x():
+    assert fact_hits("BCM43840 是 4×4，BCM43820 是 2×2", [["4x4"], ["2x2"]]) == [True, True]

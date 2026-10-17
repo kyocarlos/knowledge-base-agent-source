@@ -41,7 +41,8 @@ docker exec -w /app $C python /tmp/km-eval/eval_wifi8_agent.py --cases /tmp/km-e
 docker cp $C:/tmp/km-eval/out ./wifi8-eval-out
 ```
 
-- `--retrieval-only` 不呼叫 LLM。
+- `--retrieval-only` 不呼叫 LLM；`--rescore <results.json>` 沿用已保存的回答重新評分；`--candidate-wifi8 <dir>` 在部署前評估候選版的 `src/wifi8`。
+- 評分規則以和執行程式放在一起的 `evaluation.py` 為準（請一起複製），不使用映像內的版本，避免評分規則隨部署版本改變。
 - 完整評測每題會呼叫主要 LLM 數次（依工具步數而定），34 題約 15～30 分鐘。
 - DA40 的 search worker 是 `km-da40-celery_search_worker-1`。
 
@@ -63,3 +64,16 @@ docker cp $C:/tmp/km-eval/out ./wifi8-eval-out
   - T05 補上 2xLDPC Test Case v14 作為標準來源。
 
   修正後用 `--rescore` 沿用原本的回答重新評分，沒有再呼叫 LLM。
+
+## 2026-10-17 摘錄修正（commit 7d28c7d，部署為 *-excerpt-7d28c7d）
+
+- 根因：Agent 工具只把段落開頭 700 字（search）／1500 字（read）交給模型。73.8% 的段落超過 700 字，D07 的關鍵句位在第 785～868 字。改成依查詢詞挑選句子的摘錄後，D07 從修正前的 3/5 提升到 4/4（TEST），已部署版本再問 3/3。
+- DA40 已部署版本（34 題）：檢索命中@10 93.3%、回答通過 94.1%（32/34）、引用標準來源 100%、p50 7.2 秒。
+  - D09：舊版 0/3、新版 1/4，常漏答「只能用 LDPC」。
+  - T03：舊版 3/3、新版 3/4，有一次把 Test Plan 答成 v0.1.2。
+  - 兩題都不是這次修正造成的退步。
+- 評分與題庫修正：
+  - 比對時統一 Unicode 連字號與乘號（4×4、Wi‑Fi）。
+  - D01 補上 ELR Test Case v1、D02 補上兩份 NPCA 專文作為標準來源。
+  - D06 移除題目沒問的「選用」事實組。
+  - 評分規則改為以執行程式旁邊的 `evaluation.py` 為準。

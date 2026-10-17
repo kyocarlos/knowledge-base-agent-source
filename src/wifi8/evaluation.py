@@ -29,11 +29,12 @@ def load_cases(path: str | Path) -> list[dict[str, Any]]:
     return cases
 
 
-_DASHES = str.maketrans({c: "-" for c in "\u2010\u2011\u2012\u2013\u2014\u2212\ufe63\uff0d"})
+_DASHES = str.maketrans({**{c: "-" for c in "\u2010\u2011\u2012\u2013\u2014\u2212\ufe63\uff0d"},
+                          "\u00d7": "x", "\uff58": "x"})  # 4×4 → 4x4
 
 
 def _norm(text: str) -> str:
-    """Case-, whitespace- and dash-insensitive form (models often write Wi‑Fi with U+2011)."""
+    """Case-, whitespace-, dash- and multiplication-sign-insensitive form (models often write Wi‑Fi, 4×4)."""
     return re.sub(r"\s+", "", str(text or "").translate(_DASHES)).casefold()
 
 

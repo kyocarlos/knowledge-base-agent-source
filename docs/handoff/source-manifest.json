@@ -549,15 +549,15 @@
     },
     {
       "path": "eval/wifi8/README.md",
-      "sha256": "1298e83773938cdc8624ac9a0b1e49acdb4ac308305b57a731e5321dedc736bd"
+      "sha256": "614698f0844a8956547d620ae428a4176771a29c9ed3518e0bc2b7b3de8beae5"
     },
     {
       "path": "eval/wifi8/build_golden_set.py",
-      "sha256": "4e4679d60ef2954954b2a6e005155820387470842280d791a3cbdd2c5de3c4fb"
+      "sha256": "8cba931fa3588902c1bf73204e48742a2f87595c3ba4805c34d8e018adb4ccbf"
     },
     {
       "path": "eval/wifi8/golden-set.v1.jsonl",
-      "sha256": "0df3cf634eca68fbc9f876b99ac23559f77da5426773d47c509bf552dc08208b"
+      "sha256": "e58324a1b4ddbde1f895cb57ef0c22f3fe9e253eba6267d379c0261cefe8b018"
     },
     {
       "path": "five_modes_arch.html",
@@ -1093,7 +1093,7 @@
     },
     {
       "path": "scripts/eval_wifi8_agent.py",
-      "sha256": "52605de012d6c714f51d8c5d49b06af9246887016979142cce1c02ac165c4a58"
+      "sha256": "de0686c47763bf1cbbb18e75a5af13ffecf93d28e6f2b23bed447b5323055293"
     },
     {
       "path": "scripts/generate_km_oidc_client_key.py",
@@ -1533,7 +1533,7 @@
     },
     {
       "path": "src/wifi8/evaluation.py",
-      "sha256": "1bd2df7b87087ef9f57150b2c23eb5ec1d9f0f649904ad67beb1b511ac23e07a"
+      "sha256": "9931553e4384e844a5b33c39558c667112744bc9f12362adc4b6180a84d03e27"
     },
     {
       "path": "src/wifi8/importer.py",
@@ -1913,7 +1913,7 @@
     },
     {
       "path": "tests/test_wifi8_evaluation.py",
-      "sha256": "db03256d1a502f4d0df8f814d1fbb4406ac7d5c54c5d5c758d94f5afc6455d48"
+      "sha256": "9df7bcaf15017e8951619fd42bc92c860e7b0fb5dd674d76811c4c778370c3f9"
     },
     {
       "path": "tests/test_wifi8_import.py",
