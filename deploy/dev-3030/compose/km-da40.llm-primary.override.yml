@@ -17,7 +17,7 @@ services:
       KM_LLM_PRIMARY_API_KEY_ENV: KM_SUB2API_API_KEY
       KM_LLM_PRIMARY_TIMEOUT_SECONDS: ${KM_LLM_PRIMARY_TIMEOUT_SECONDS:-60}
   celery_search_worker:
-    image: km-test-web:c8884f72-llm-ba82d79-docid-2d6a062-wifi8-c01693c-qstore-3a85eab-grounding-d661d3d
+    image: km-test-web:c8884f72-llm-ba82d79-docid-2d6a062-wifi8-c01693c-qstore-3a85eab-grounding-21869d6
     env_file: [/home/da40_ai_gb10/.km-control/llm/sub2api-km.env]
     environment:
       KM_LLM_PRIMARY_PROVIDER: ${KM_LLM_PRIMARY_PROVIDER:-sub2api}
