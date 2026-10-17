@@ -131,9 +131,10 @@ def split_claims(answer: str, min_chars: int = 12) -> list[dict[str, Any]]:
         elif not listed:
             intro_refs = []
         for part in _CLAIM_SPLIT.split(body):
-            text = _plain(part)
+            text = _plain(part)  # note: _plain strips a trailing colon, so labels are detected on the raw part
             short = len(re.sub(r"[\W_]+", "", text)) < min_chars and not extract_values(text)  # short rows with values still count
-            if short or (text.endswith(("：", ":")) and len(text) < 30) or _REFUSAL.search(text):
+            label = _REF.sub("", part).rstrip(" *_`").endswith(("：", ":")) and len(text) < 40  # "AP 還必須：" introduces a list
+            if short or label or _REFUSAL.search(text):
                 continue
             refs = list(dict.fromkeys(_REF.findall(part))) or line_refs
             claims.append({"text": text, "refs": refs, "own_refs": bool(_REF.search(part))})

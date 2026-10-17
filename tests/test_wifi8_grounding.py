@@ -127,3 +127,9 @@ def test_values_tolerate_hyphenated_units_without_gluing_numbers():
     text = _norm("Radio Configuration 2x2 2.4-GHz + 2x2 5-GHz 2x2 2.4-GHz + 4x4 5-GHz")
     assert all(_value_in(v, text) for v in ("2x2", "4x4", "5 GHz", "2.4 GHz"))
     assert not _value_in("6 GHz", text) and not _value_in("MCS1", _norm("MCS17"))
+
+
+def test_lines_introducing_a_list_are_labels_not_claims():
+    answer = "AP 不只是宣告能力，還必須：\n- 接受 STA 的 DBE 啟用請求 [S1]\n\n依目前有效的 Wi-Fi 8 MRD：\n- DBE 對 AP 是選用功能，只適用於部分頻段 [S1]"
+    texts = [c["text"] for c in split_claims(answer)]
+    assert texts == ["接受 STA 的 DBE 啟用請求", "DBE 對 AP 是選用功能，只適用於部分頻段"]
