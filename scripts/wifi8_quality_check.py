@@ -83,11 +83,17 @@ def trust_level(worker: str, hours: float, out: Path) -> tuple[dict, list[dict]]
     return summarize_trust(records), records
 
 
-def fmt(value) -> str:
+RATE_SUFFIXES = ("hit_at_10", "answer_pass", "fact_coverage", "cited_gold", "_rate", "_share")
+
+
+def fmt(value, metric: str = "") -> str:
+    """Rates as percentages, scores such as MRR as decimals, counts and milliseconds as integers."""
     if value is None:
         return "—"
-    if isinstance(value, float) and value <= 1:
+    if metric.endswith(RATE_SUFFIXES):
         return f"{value * 100:.1f}%"
+    if isinstance(value, float):
+        return f"{value:.3f}" if value < 10 else f"{value:,.0f}"
     return f"{value:,}" if isinstance(value, int) else str(value)
 
 
@@ -105,10 +111,12 @@ def render(report: dict) -> str:
             lines += [f"### {LEVEL_NAMES[level]}：{data['status']}{extra}", "", "| 指標 | 數值 | 上次 | 門檻（警示／失敗） | 結果 |", "|---|---|---|---|---|"]
             for c in data["checks"]:
                 arrow = "≥" if c["direction"] == "higher" else "≤"
-                lines.append(f"| {c['metric']} | {fmt(c['value'])} | {fmt(c['previous'])} | {arrow} {fmt(c['warn'])}／{fmt(c['fail'])} | "
+                m = c["metric"]
+                lines.append(f"| {m} | {fmt(c['value'], m)} | {fmt(c['previous'], m)} | {arrow} {fmt(c['warn'], m)}／{fmt(c['fail'], m)} | "
                              f"{c['status']}{('：' + c['reason']) if c.get('reason') else ''} |")
             if data.get("failed_cases"):
-                lines += ["", "未通過的題目：" + "、".join(data["failed_cases"])]
+                label = "檢索前 10 筆沒有標準來源的題目" if level == "retrieval" else "回答未通過或出錯的題目"
+                lines += ["", f"{label}：" + "、".join(data["failed_cases"])]
             lines.append("")
     return "\n".join(lines) + "\n"
 
@@ -152,9 +160,11 @@ def main() -> int:
                     metrics = (retrieval_metrics if level == "retrieval" else agent_metrics)(result["summary"])
                     checks = judge(level, metrics, config["thresholds"], previous_metrics(zone, level))
                     entry["package_id"] = result.get("package_id")
-                    failed = [c["id"] for c in result["cases"]
-                              if c.get("error") or (level == "agent" and (c.get("answer") or {}).get("passed") is False)
-                              or (c.get("retrieval") or {}).get("hit") is False]
+                    # Each level lists its own failures: retrieval misses for ①, wrong or failed answers for ②.
+                    if level == "retrieval":
+                        failed = [c["id"] for c in result["cases"] if c.get("error") or (c.get("retrieval") or {}).get("hit") is False]
+                    else:
+                        failed = [c["id"] for c in result["cases"] if c.get("error") or (c.get("answer") or {}).get("passed") is False]
                     entry["failed_cases"] = failed
             except (subprocess.SubprocessError, OSError, KeyError, json.JSONDecodeError) as exc:
                 metrics, checks = {}, [{"metric": f"{level}.run", "value": None, "direction": "higher", "warn": None, "fail": None,

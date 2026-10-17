@@ -116,3 +116,19 @@ docker cp $C:/tmp/km-eval/out ./wifi8-eval-out
 - 例：`python scripts/webwright_wifi8_accept.py /tmp/run-da40 da40 km-clude3 KM_TEST_PASS1`
 - accept 的 Agent 判定：不是錯誤訊息、答案含 [S#]、引用清單 ≥1 筆、長度 ≥ `KM_ACCEPT_AGENT_MIN_CHARS`（預設 40）。題目與檢索詞可用 `KM_ACCEPT_AGENT_QUESTION`、`KM_ACCEPT_SEARCH_QUERIES` 修改。
 - grounding 的程式碼區塊判定是單向的：檢核句子是區塊內某一行的一部分，才算誤判。只是包含區塊中短標籤（例如「一般 RU」）的正常句子不算。
+
+## 自動品質驗證（三層）
+
+`scripts/wifi8_quality_check.py [--zones test,da40] [--levels retrieval,agent,trust]` 在主機上執行；題庫評測在各區 search worker 內跑。
+
+| 層級 | 回答的問題 | 指標 | 成本 |
+|---|---|---|---|
+| ① retrieval | 檢索找文件的能力 | 命中@10、MRR、檢索耗時 | 不呼叫 LLM |
+| ② agent | Agent 整體答得準不準 | 回答通過、事實覆蓋、引用標準來源、耗時、錯誤數 | 每區約 34～100 次 LLM 呼叫 |
+| ③ trust | 真實回答可不可信 | 數值找不到比例、沒有依據的句子比例、檢核錯誤、未完成回答、延遲 p95 | 不呼叫 LLM |
+
+- ③ 的資料來自 search worker 的 `WIFI8_ANSWER_QUALITY` 紀錄。Agent 每則回答寫一行，只有統計數字，不含問題、回答或原文。題庫評測執行時設定 `KM_WIFI8_QUALITY_LOG=0`，不計入。Webwright 驗收用測試帳號實際提問，會計入。回答數少於 `trust_min_answers` 時判為資料不足，不判定。
+- 門檻與退步容許值在 `quality-config.json`。每項判為 PASS、WARN 或 FAIL；比上次退步超過容許值時至少為 WARN。結束碼：0 PASS、3 WARN、1 FAIL、2 錯誤。
+- 輸出在 `~/.km-control/wifi8-quality/`（可用 `KM_WIFI8_QUALITY_ROOT` 修改）：每次一個目錄（report.md／report.json／原始結果）、`latest.md`、`history.jsonl`。
+- 排程入口：`scripts/wifi8_quality_cron.sh daily`（①③）、`weekly`（①②③），用 flock 避免重複執行，紀錄在 `cron_logs/`。
+- 首次執行（2026-10-17）兩區皆 PASS：①命中 93.3%／MRR 0.794；② TEST 97.1%、DA40 90.9%。DA40 的 D10、V03 是標準來源列得太窄，已補上，重新評分後為 97.0%。③ 數值找不到 TEST 0%、DA40 1.4%。

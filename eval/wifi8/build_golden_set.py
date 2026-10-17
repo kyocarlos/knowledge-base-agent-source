@@ -122,7 +122,11 @@ EXTRA = {
     "D08": [MRD, T("WFA - Bounded ESS for SMD BSS transition"), T("WFA - Wi-Fi CERTIFIED 8 Test Case - Bounded ESS v0")],
     "D09": [MRD, T("WFA - Wi-Fi 8 MRD - UEQM v2"), T(SAM)],
     "D10": [MRD, T("WFA - Wi-Fi 8 MRD - DRU v6"), T(SAM), T("RFWirelessWorld - RRU vs. DRU in Wi-Fi 8_ Key Differences & Benefits"),
-            T("Rohde & Schwarz - Understanding Wi-Fi 8 - Unmatched reliability, efficiency and speed"), T("eefocue-與非網 - Wi-Fi 8新特性 - DRU")],
+            T("Rohde & Schwarz - Understanding Wi-Fi 8 - Unmatched reliability, efficiency and speed"), T("eefocue-與非網 - Wi-Fi 8新特性 - DRU"),
+            T("Rohde & Schwarz - Setting New Performance Standards with IEEE 802.11bn - V01"),
+            T("Rohde & Schwarz - Setting New Performance Standards with IEEE 802.11bn - V02")],
+    # The question asks which versions exist: every 2xLDPC Test Case revision (current or not) is a valid source.
+    "V03": [d["revision_id"] for d in docs if d["title"].startswith("WFA - Wi-Fi CERTIFIED 8 Test Case - 2xLDPC")],
     "D11": [MRD, T("WFA - Wi-Fi 8 MRD - SMD Roaming Contribution v10"), T("WFA - SMD Roaming - testing - scope - and - TCVs - v1.5"),
             T(next(d["title"] for d in docs if d["title"].startswith("arXiv - Towards Ultra-High Reliability in Wi-Fi 8")))],
     "T02": having("PF#1", "23 out of 23", title="TTG Agenda"),

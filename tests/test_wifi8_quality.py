@@ -86,4 +86,13 @@ def test_report_rendering():
                           "zones": {"da40": {"_status": "PASS", "retrieval": {"status": "PASS", "metrics": {}, "checks": checks,
                                                                              "package_id": "pkg", "failed_cases": ["T01"]}}}})
     assert "## DA40（PASS）" in text and "① 檢索找文件的能力：PASS" in text and "| retrieval.hit_at_10 | 95.0% |" in text
-    assert "未通過的題目：T01" in text
+    assert "檢索前 10 筆沒有標準來源的題目：T01" in text
+
+
+def test_report_formats_rates_scores_and_counts():
+    spec = importlib.util.spec_from_file_location("wifi8_quality_check", Path(__file__).resolve().parent.parent / "scripts" / "wifi8_quality_check.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    assert module.fmt(0.7944, "retrieval.mrr") == "0.794"
+    assert module.fmt(0.933, "retrieval.hit_at_10") == "93.3%" and module.fmt(0.014, "trust.values_not_found_rate") == "1.4%"
+    assert module.fmt(7070, "agent.latency_ms_p50") == "7,070" and module.fmt(1, "agent.errors") == "1" and module.fmt(None) == "—"
