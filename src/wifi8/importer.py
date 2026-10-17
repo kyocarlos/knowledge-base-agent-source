@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 from . import lexical, store
-from .chunks import build_chunks
+from .chunks import DISPLAY_VERSION, build_chunks
 from .package import PackageError, read_package
 
 SOURCE_SYSTEM = "WIFI8"
@@ -137,8 +137,10 @@ class Wifi8Importer:
         incoming = self.root / "incoming" / f"{package.package_id}.zip"
         incoming.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(upload_path, incoming)
-        # A current package from before the Qdrant store (no documents collection) is imported again.
-        same = current.get("package_id") == package.package_id and bool(current.get("documents_collection"))
+        # The same package is imported again when the current one predates the Qdrant store (no documents
+        # collection) or an older display format (e.g. no table display text): vectors are reused, nothing re-embedded.
+        same = (current.get("package_id") == package.package_id and bool(current.get("documents_collection"))
+                and int(current.get("display_version") or 0) >= DISPLAY_VERSION)
         job = {
             "job_id": job_id, "package_id": package.package_id, "status": "completed" if same else "queued",
             "phase": "done" if same else "stage", "submitted_by": submitted_by, "created_at": _now(),
@@ -269,6 +271,7 @@ class Wifi8Importer:
             groups.setdefault(tuple(sorted(set(packages) | {package_id})), []).append(point_id)
         for packages, point_ids in groups.items():
             self.qdrant.set_payload(collection, payload={"packages": list(packages)}, points=point_ids, wait=True)
+        self._refresh_display(collection, [c for c in batch if c["point_id"] in existing])
         fresh = [c for c in batch if c["point_id"] not in existing]
         reusable = self._reusable_vectors([c["point_id"] for c in fresh]) if fresh else {}
         points = []
@@ -283,12 +286,21 @@ class Wifi8Importer:
                 "content": chunk["text"], "revision_id": chunk["revision_id"], "chunk_index": chunk["ordinal"],
                 "segment_ids": chunk["segment_ids"], "location": chunk["location"], "location_label": chunk["location_label"],
                 "content_hash": chunk["content_hash"], "embed_text": chunk["embed_text"], "packages": [package_id],
+                **({"display_text": chunk["display_text"]} if chunk.get("display_text") else {}),
                 "embedding_model": self.embedding_model,
                 "vector_state": "ready" if chunk["point_id"] in reusable else "pending",
             }))
         for i in range(0, len(points), 256):
             self.qdrant.upsert(collection, points=points[i:i + 256], wait=True)
         return len(existing) + len(reusable)
+
+    def _refresh_display(self, collection: str, chunks: list[dict[str, Any]]) -> None:
+        """Existing chunks get the current display text; their identity and vectors stay as they are."""
+        from qdrant_client.models import SetPayload, SetPayloadOperation
+        operations = [SetPayloadOperation(set_payload=SetPayload(payload={"display_text": c["display_text"]}, points=[c["point_id"]]))
+                      for c in chunks if c.get("display_text")]
+        for i in range(0, len(operations), 256):
+            self.qdrant.batch_update_points(collection, update_operations=operations[i:i + 256], wait=True)
 
     def _progress(self, job: dict[str, Any], reused: int = 0) -> dict[str, Any]:
         progress = self.package_store(job["package_id"]).counts()
@@ -325,7 +337,7 @@ class Wifi8Importer:
                                                  "previous_package_id": previous, "job_id": job["job_id"],
                                                  "store": "qdrant", "collection": self.settings.collection,
                                                  "documents_collection": self.settings.documents_collection,
-                                                 "embedding_model": self.embedding_model})
+                                                 "embedding_model": self.embedding_model, "display_version": DISPLAY_VERSION})
         collection = self.settings.collection
         # Only after the switch: chunks shared with the previous package take this package's document metadata,
         # then everything the new package no longer uses is removed.

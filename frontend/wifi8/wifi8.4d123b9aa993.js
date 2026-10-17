@@ -106,6 +106,10 @@
       hit.score != null ? Number(hit.score).toFixed(4) : '',
     ].filter(Boolean).join(' · ');
   }
+  // Tables extracted as rows come with a Markdown display text (display_text); other chunks stay plain text.
+  function chunkBody(item, text) {
+    return item && item.display_text ? `<div class="markdown chunk-table">${renderMarkdown(item.display_text)}</div>` : `<p>${escapeHtml(text)}</p>`;
+  }
   async function runHybridSearch() {
     const input = $('#hybrid-query');
     const target = $('#hybrid-results');
@@ -114,7 +118,7 @@
     try {
       const data = await api('/api/wifi8/search', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ query:input.value.trim(), top_k:10, include_history:$('#hybrid-history').checked }) });
       const hits = data.results || data.hits || [];
-      target.innerHTML = `<p class="results-meta">${escapeHtml(data.policy || '混合檢索')} · ${hits.length} 筆</p><div class="search-results">${hits.map((hit) => `<article class="search-hit"><h3 title="${escapeHtml(hit.revision_id)}">${escapeHtml(hitTitle(hit))}</h3><p>${escapeHtml(hit.content || hit.text || hit.snippet || '')}</p><small>${escapeHtml(hitMeta(hit))}</small></article>`).join('') || '<div class="empty">沒有檢索結果</div>'}</div>`;
+      target.innerHTML = `<p class="results-meta">${escapeHtml(data.policy || '混合檢索')} · ${hits.length} 筆</p><div class="search-results">${hits.map((hit) => `<article class="search-hit"><h3 title="${escapeHtml(hit.revision_id)}">${escapeHtml(hitTitle(hit))}</h3>${chunkBody(hit, hit.content || hit.text || hit.snippet || '')}<small>${escapeHtml(hitMeta(hit))}</small></article>`).join('') || '<div class="empty">沒有檢索結果</div>'}</div>`;
     } catch (error) { target.innerHTML = `<div class="error-card">${escapeHtml(error.message)}</div>`; }
   }
   async function renderDocuments(token) {
@@ -132,7 +136,7 @@
       const [detail, chunks] = await Promise.all([api(`/api/wifi8/documents/${encodeURIComponent(revisionId)}`), api(`/api/wifi8/documents/${encodeURIComponent(revisionId)}/chunks?count=8`)]);
       const doc = detail.document || {};
       $('#document-dialog-title').textContent = doc.title || '文件詳情';
-      $('#document-dialog-body').innerHTML = `<div class="detail-grid">${[['Revision ID',doc.revision_id],['WFA ID',doc.wfa_document_id],['發布者',doc.publisher],['文件角色',doc.document_role],['日期',doc.document_date],['狀態',doc.analysis_eligible ? '目前版本' : '歷史版本']].map(([label,value]) => `<div class="detail-field"><small>${label}</small><strong>${escapeHtml(value || '—')}</strong></div>`).join('')}</div><h3>版本關係</h3><div class="topic-list">${(detail.versions || []).map((version) => `<span class="topic">${escapeHtml(version.version_label || version.wfa_revision || version.revision_id)}${version.analysis_eligible ? ' · 目前' : ''}</span>`).join('') || '<span class="empty">無其他版本</span>'}</div><h3>來源段落</h3>${(chunks.chunks || []).map((chunk) => `<article class="chunk"><small>#${chunk.chunk_index} · ${escapeHtml(chunk.location_label || '')}</small><p>${escapeHtml(chunk.content)}</p></article>`).join('') || '<div class="empty">無可顯示段落</div>'}`;
+      $('#document-dialog-body').innerHTML = `<div class="detail-grid">${[['Revision ID',doc.revision_id],['WFA ID',doc.wfa_document_id],['發布者',doc.publisher],['文件角色',doc.document_role],['日期',doc.document_date],['狀態',doc.analysis_eligible ? '目前版本' : '歷史版本']].map(([label,value]) => `<div class="detail-field"><small>${label}</small><strong>${escapeHtml(value || '—')}</strong></div>`).join('')}</div><h3>版本關係</h3><div class="topic-list">${(detail.versions || []).map((version) => `<span class="topic">${escapeHtml(version.version_label || version.wfa_revision || version.revision_id)}${version.analysis_eligible ? ' · 目前' : ''}</span>`).join('') || '<span class="empty">無其他版本</span>'}</div><h3>來源段落</h3>${(chunks.chunks || []).map((chunk) => `<article class="chunk"><small>#${chunk.chunk_index} · ${escapeHtml(chunk.location_label || '')}</small>${chunkBody(chunk, chunk.content)}</article>`).join('') || '<div class="empty">無可顯示段落</div>'}`;
     } catch (error) { $('#document-dialog-body').innerHTML = `<div class="error-card">${escapeHtml(error.message)}</div>`; }
   }
 

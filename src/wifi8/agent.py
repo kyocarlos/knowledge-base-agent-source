@@ -15,7 +15,7 @@ from collections import Counter
 from dataclasses import dataclass
 from typing import Any, Callable
 
-from .excerpt import excerpt
+from .excerpt import excerpt, table_excerpt
 from .quality import QUALITY_LOG_PREFIX
 from .search import SearchOptions, Wifi8Search
 
@@ -67,9 +67,14 @@ TOOLS = [
 ]
 
 
-def _text_fields(text: str, query: str, limit: int) -> dict[str, Any]:
-    body, cut = excerpt(text, query, limit)
-    return {"text": body, "excerpt": True, "chars": len(text or "")} if cut else {"text": body}
+def _text_fields(item: dict[str, Any], query: str, limit: int) -> dict[str, Any]:
+    """Text shown to the model: tables as Markdown (header always kept), other chunks as query-focused excerpts."""
+    text = item.get("content") or ""
+    if item.get("display_text"):
+        body, cut = table_excerpt(item["display_text"], query, limit)
+    else:
+        body, cut = excerpt(text, query, limit)
+    return {"text": body, "excerpt": True, "chars": len(text)} if cut else {"text": body}
 
 
 @dataclass(frozen=True)
@@ -143,7 +148,7 @@ class WifiTools:
             hits.append({"ref": ref, "title": item["source"], "revision_id": item["revision_id"], "location": item["location_label"],
                          "chunk_index": item["chunk_index"], "current_version": item["analysis_eligible"],
                          "wfa_document_id": item.get("wfa_document_id"), "publisher": item.get("publisher"),
-                         **_text_fields(item["content"], query, self.settings.snippet_chars)})
+                         **_text_fields(item, query, self.settings.snippet_chars)})
         return {"filters": result["filters"], "hits": hits, "count": len(hits)}
 
     def get_document(self, revision_id: str = "", wfa_document_id: str = ""):
@@ -189,7 +194,7 @@ class WifiTools:
         for pid in ids:
             item = chunks[pid]
             parts.append({"ref": self.citations.add(item), "chunk_index": item["chunk_index"], "location": item["location_label"],
-                          **_text_fields(item["content"], query, self.settings.read_chars)})
+                          **_text_fields(item, query, self.settings.read_chars)})
         return {"title": doc.get("title"), "total_chunks": total, "parts": parts,
                 "next_start": start + len(ids) if start + len(ids) <= total else None}
 

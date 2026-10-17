@@ -311,3 +311,57 @@ def test_upload_permissions_and_status(api, monkeypatch):
 
     state["identity"] = None
     assert client.get("/api/wifi8/status").status_code == 401
+
+
+def _table_seg(rid, n, row, text, table=1, kind="table_row", loc_type="table"):
+    return {"segment_id": f"{rid}:{n}", "revision_id": rid, "ordinal": n, "kind": kind,
+            "location": {"type": loc_type, "table": table, "row": row}, "text": text}
+
+
+def test_table_chunks_get_markdown_display_without_changing_identity():
+    docs = [doc("tbl", "Co-BF vs Co-SR")]
+    segs = [seg("tbl", 1, "Intro paragraph.", {"type": "paragraph", "paragraph": 1})]
+    segs += [_table_seg("tbl", 1 + r, r, "Feature | Co-BF | Co-SR" if r == 1 else f"Row {r} | a{r} | b{r}") for r in range(1, 41)]
+    chunks = build_chunks(docs, segs, max_chars=300)
+    tables = [c for c in chunks if c["display_text"]]
+    assert len(tables) >= 2 and all(c["display_text"] for c in chunks if c["location"].get("type") == "table")
+    first, later = tables[0]["display_text"].split("\n"), tables[1]["display_text"].split("\n")
+    assert first[0] == "| Feature | Co-BF | Co-SR |" and first[1] == "|---|---|---|" and first[2] == "| Row 2 | a2 | b2 |"
+    assert later[0] == "（續上表）" and later[1] == "| Feature | Co-BF | Co-SR |"  # the header is repeated
+    assert not [c for c in chunks if c["location"].get("type") == "paragraph"][0]["display_text"]
+    # Identity, BM25 and embedding input do not depend on the display text.
+    stripped = build_chunks(docs, segs, max_chars=300)
+    assert [(c["point_id"], c["text"], c["embed_text"]) for c in chunks] == [(c["point_id"], c["text"], c["embed_text"]) for c in stripped]
+    assert "Feature | Co-BF | Co-SR" in tables[0]["text"]  # the plain rows stay searchable
+
+
+def test_markdown_table_pads_ragged_rows_and_escapes_pipes():
+    from src.wifi8.chunks import markdown_table
+    text = markdown_table("A | B", ["1", "2 | 3 | 4", "x|y | z"])
+    assert text.split("\n") == ["| A | B |  |", "|---|---|---|", "| 1 |  |  |", "| 2 | 3 | 4 |", "| x／y | z |  |"]
+
+
+def test_same_package_is_reimported_for_a_newer_display_version(env):
+    tmp_path, client, settings = env
+    encoder = FakeEncoder()
+    importer = Wifi8Importer(settings, qdrant=client, encoder=encoder, embedding_model="fake")
+    path = tmp_path / "t.zip"
+    segs = [_table_seg("new", r, r, "H1 | H2" if r == 1 else f"v{r} | w{r}") for r in range(1, 4)] + BASE_SEGS[2:]
+    make_package(path, BASE_DOCS, segs)
+    assert run(importer, importer.submit(path, submitted_by="t"))["status"] == "completed"
+    assert importer.current()["display_version"] >= 1
+    assert importer.submit(path, submitted_by="t")["status"] == "completed"  # nothing to do
+
+    # Simulate a package imported before display texts existed.
+    points = client.scroll("wifi8_test", limit=100, with_payload=True)[0]
+    client.delete_payload("wifi8_test", keys=["display_text"], points=[p.id for p in points])
+    current = importer.current()
+    (settings.root / "current.json").write_text(json.dumps({k: v for k, v in current.items() if k != "display_version"}))
+    embedded = encoder.texts
+    job = importer.submit(path, submitted_by="t")
+    assert job["status"] == "queued"
+    assert run(importer, job)["status"] == "completed"
+    assert encoder.texts == embedded  # identities unchanged: nothing re-embedded
+    table = [p.payload for p in client.scroll("wifi8_test", limit=100, with_payload=True)[0] if p.payload["revision_id"] == "new"]
+    assert table and table[0]["display_text"].startswith("| H1 | H2 |")
+    assert importer.current()["display_version"] >= 1

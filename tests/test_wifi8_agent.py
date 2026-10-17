@@ -188,3 +188,19 @@ def test_agent_result_carries_grounding_and_failures_do_not_hide_the_answer(tool
     monkeypatch.setattr(grounding, "check_answer", lambda *a, **k: (_ for _ in ()).throw(ValueError("boom")))
     out = run_agent("q", llm=ScriptedLlm(reply("答案仍然顯示。")), tools=tools, settings=AgentSettings())
     assert out["answer"] == "答案仍然顯示。" and out["grounding"]["error"].startswith("ValueError")
+
+
+def test_table_excerpt_keeps_the_header_and_matching_rows():
+    from src.wifi8.excerpt import table_excerpt
+    rows = [f"| Row {i} | value {i} |" for i in range(1, 80)] + ["| WPA3-Enterprise | DBE required |"]
+    table = "（續上表）\n| Item | Value |\n|---|---|\n" + "\n".join(rows)
+    text, cut = table_excerpt(table, "WPA3-Enterprise", 200)
+    assert cut and text.startswith("（續上表）\n| Item | Value |\n|---|---|") and "WPA3-Enterprise" in text and len(text) <= 200 + 40
+    assert table_excerpt("| a |\n|---|\n| 1 |", "x", 100) == ("| a |\n|---|\n| 1 |", False)
+
+
+def test_agent_tools_show_tables_as_markdown():
+    from src.wifi8.agent import _text_fields
+    item = {"content": "H | V\nx | 1", "display_text": "| H | V |\n|---|---|\n| x | 1 |"}
+    assert _text_fields(item, "x", 500) == {"text": "| H | V |\n|---|---|\n| x | 1 |"}
+    assert _text_fields({"content": "plain text"}, "x", 500) == {"text": "plain text"}

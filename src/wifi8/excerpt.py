@@ -48,3 +48,15 @@ def excerpt(text: str, query: str, limit: int) -> tuple[str, bool]:
     if previous != len(sentences) - 1:
         parts.append("…")
     return "\n".join(parts), True
+
+
+def table_excerpt(markdown: str, query: str, limit: int) -> tuple[str, bool]:
+    """Excerpt of a Markdown table that always keeps its header (and a "（續上表）" note) and picks
+    the rows that best match the query."""
+    if len(markdown) <= limit:
+        return markdown, False
+    lines = markdown.split("\n")
+    head_size = 3 if lines and lines[0].startswith("（續上表）") else 2
+    head = "\n".join(lines[:head_size])
+    rows, cut = excerpt("\n".join(lines[head_size:]), query, max(0, limit - len(head) - 1))
+    return head + "\n" + rows, cut

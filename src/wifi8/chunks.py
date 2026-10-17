@@ -10,6 +10,30 @@ import uuid
 from typing import Any, Iterable
 
 POINT_NAMESPACE = uuid.uuid5(uuid.NAMESPACE_URL, "km/wifi8/chunk")
+# Bump when display_text changes: a package imported with an older version is imported again so the
+# existing chunks get the new display text (identities and vectors are untouched).
+DISPLAY_VERSION = 1
+TABULAR = {"table", "slide_table", "worksheet"}
+
+
+def _table_key(segment: dict[str, Any]) -> tuple:
+    location = segment.get("location") or {}
+    return (segment["revision_id"], location.get("type"), location.get("slide"), location.get("table"), location.get("sheet"))
+
+
+def _cells(row: str) -> list[str]:
+    return [cell.strip().replace("\n", " / ").replace("|", "／") for cell in row.split(" | ")]
+
+
+def markdown_table(header: str, rows: list[str], *, continued: bool = False) -> str:
+    """Rows extracted as "a | b | c" back into a Markdown table (the first row of the table is its header)."""
+    head = _cells(header)
+    body = [_cells(r) for r in rows]
+    width = max([len(head)] + [len(r) for r in body])
+    pad = lambda cells: cells + [""] * (width - len(cells))  # noqa: E731
+    lines = ["| " + " | ".join(pad(head)) + " |", "|" + "---|" * width]
+    lines += ["| " + " | ".join(pad(r)) + " |" for r in body]
+    return ("（續上表）\n" if continued else "") + "\n".join(lines)
 
 
 def _group_key(segment: dict[str, Any]) -> tuple:
@@ -38,6 +62,13 @@ def location_label(location: dict[str, Any]) -> str:
 
 def build_chunks(documents: Iterable[dict[str, Any]], segments: Iterable[dict[str, Any]], *, max_chars: int) -> list[dict[str, Any]]:
     titles = {d["revision_id"]: d.get("title") or d["revision_id"] for d in documents}
+    segments = list(segments)
+    # First row of every table / worksheet: the header shown again on chunks that continue a long table.
+    headers: dict[tuple, str] = {}
+    for segment in sorted(segments, key=lambda s: (s["revision_id"], int(s["ordinal"]))):
+        location = segment.get("location") or {}
+        if location.get("type") in TABULAR and str(segment.get("text") or "").strip():
+            headers.setdefault(_table_key(segment), str(segment["text"]).strip())
     chunks: list[dict[str, Any]] = []
     current: dict[str, Any] | None = None
     key = None
@@ -57,7 +88,8 @@ def build_chunks(documents: Iterable[dict[str, Any]], segments: Iterable[dict[st
         if current is None or segment_key != key or size + len(text) > max_chars:
             close()
             key = segment_key
-            current = {"revision_id": segment["revision_id"], "parts": [], "segment_ids": [], "locations": []}
+            current = {"revision_id": segment["revision_id"], "parts": [], "segment_ids": [], "locations": [],
+                       "table_key": _table_key(segment)}
         # Oversized single segments are kept whole in one chunk; they are never truncated away.
         current["parts"].append(text)
         current["segment_ids"].append(segment["segment_id"])
@@ -78,6 +110,13 @@ def build_chunks(documents: Iterable[dict[str, Any]], segments: Iterable[dict[st
         if last != first and location_label(last) != label:
             label = f"{label}～{location_label(last)}"
         title = titles.get(rid, rid)
+        display = None
+        if first.get("type") in TABULAR and any(" | " in part for part in chunk["parts"]):
+            header = headers.get(chunk["table_key"])
+            starts_table = header is not None and chunk["parts"][0] == header
+            rows = chunk["parts"][1:] if starts_table else chunk["parts"]
+            display = markdown_table(header or chunk["parts"][0], rows if header else chunk["parts"][1:],
+                                     continued=bool(header) and not starts_table)
         result.append({
             # Content-addressed identity lets a later package reuse unchanged vectors.
             "point_id": str(uuid.uuid5(POINT_NAMESPACE, f"{rid}/{content_hash}/{occurrence}")),
@@ -89,5 +128,7 @@ def build_chunks(documents: Iterable[dict[str, Any]], segments: Iterable[dict[st
             "content_hash": content_hash,
             "text": chunk["text"],
             "embed_text": f"{title}\n{label}\n{chunk['text']}",
+            # Display only: identity, BM25 and the dense vector keep using `text`.
+            "display_text": display,
         })
     return result

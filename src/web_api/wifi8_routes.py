@@ -274,6 +274,7 @@ async def wifi8_document_chunks(
         "location": payload.get("location") or {},
         "location_label": payload.get("location_label") or "",
         "content": payload["content"],
+        "display_text": payload.get("display_text"),
     } for _, payload in page]
     return {
         "revision_id": revision_id,
