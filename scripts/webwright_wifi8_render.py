@@ -6,6 +6,7 @@
 
 檢查項目：
   overview／documents   畫面數字與 /api/wifi8/overview 一致（回歸）
+  document_table        含表格的文件（KM_RENDER_TABLE_DOC，預設 Co-BF vs. Co-SR）在文件段落中以表格呈現（表頭＋資料列）
   search_title_*        混合檢索結果標題是文件名稱、不是 revision 檔名代碼，且附註標出全文／語意命中
   agent_markdown        AI 回答以 Markdown 呈現（粗體、條列、[S#] 標示），沒有殘留 ** 或 ## 符號
   agent_citations       引用清單用 [S#] 與文件名稱，內文出現的 [S#] 都列在清單中
@@ -23,6 +24,7 @@ from webwright_wifi8_common import BASE, Run, ask_agent, hybrid_search, login_to
 SLUG = re.compile(r"--(unversioned|v\d)|-clean-[0-9a-f]{6,}")  # revision ids look like "...--v4-clean-46472673"
 SEARCH_QUERIES = [q for q in os.getenv("KM_RENDER_SEARCH_QUERIES", "漫遊|ELR uplink").split("|") if q.strip()]
 AGENT_QUESTION = os.getenv("KM_RENDER_AGENT_QUESTION", "請用條列整理 ELR 的三個重點，重要名詞用粗體，並附來源。")
+TABLE_DOC = os.getenv("KM_RENDER_TABLE_DOC", "Co-BF vs. Co-SR")
 
 
 def main() -> int:
@@ -44,6 +46,22 @@ def main() -> int:
         pg.goto(BASE + "/wifi8/#/documents")
         pg.wait_for_timeout(3000)
         run.act(pg, "documents", "文件瀏覽回歸", f"共 {current} 份" in pg.locator("#document-results .results-meta").inner_text())
+
+        # Tables extracted as rows are shown as tables (display_text), not as "a | b | c" text.
+        pg.fill('#document-filters input[name="query"]', TABLE_DOC)
+        pg.locator('#document-filters button[type="submit"]').click()
+        pg.wait_for_timeout(2500)
+        pg.locator("#document-results [data-document]").first.click()
+        pg.wait_for_timeout(3000)
+        dialog = pg.locator("#document-dialog-body")
+        tables = dialog.locator(".chunk-table table")
+        heads = tables.first.locator("th").count() if tables.count() else 0
+        rows = tables.first.locator("tbody tr").count() if tables.count() else 0
+        raw = [t for t in dialog.locator(".chunk p").all_inner_texts() if t.count(" | ") >= 2]
+        run.act(pg, "document_table", f"「{pg.locator('#document-dialog-title').inner_text()[:50]}」：表格 {tables.count()} 個，第一個表頭 {heads} 欄、{rows} 列；未轉成表格的列 {len(raw)} 段",
+                tables.count() > 0 and heads >= 2 and rows >= 1 and not raw, target=dialog)
+        pg.keyboard.press("Escape")
+        pg.wait_for_timeout(500)
 
         for index, query in enumerate(SEARCH_QUERIES, 1):
             hybrid_search(pg, query)
