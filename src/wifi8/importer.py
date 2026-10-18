@@ -44,6 +44,11 @@ class Wifi8Settings:
     # Figure descriptions and image files; None keeps them under ``root``. Data zones importing the same
     # Wi-Fi8 packages may share one directory so the (non-deterministic) model describes each figure once.
     image_cache_root: Path | None = None
+    # Deleted points must not linger: Qdrant computes the BM25 IDF over every stored sparse vector, deleted ones
+    # included, so leftovers of an earlier import shift full-text scores and two zones holding identical chunks rank
+    # them differently. Vacuum as soon as a segment has any noticeable share of deleted points (100 is Qdrant's minimum).
+    vacuum_deleted_threshold: float = 0.001
+    vacuum_min_vectors: int = 100
 
     @classmethod
     def from_environment(cls) -> "Wifi8Settings":
@@ -61,6 +66,8 @@ class Wifi8Settings:
             max_package_bytes=int(os.getenv("KM_WIFI8_MAX_PACKAGE_MB", "200")) * mb,
             max_uncompressed_bytes=int(os.getenv("KM_WIFI8_MAX_UNCOMPRESSED_MB", "1024")) * mb,
             image_cache_root=Path(os.environ["KM_WIFI8_IMAGE_CACHE_ROOT"]) if os.getenv("KM_WIFI8_IMAGE_CACHE_ROOT") else None,
+            vacuum_deleted_threshold=float(os.getenv("KM_WIFI8_QDRANT_DELETED_THRESHOLD", "0.001")),
+            vacuum_min_vectors=int(os.getenv("KM_WIFI8_QDRANT_VACUUM_MIN_VECTORS", "100")),
         )
 
 
@@ -289,7 +296,8 @@ class Wifi8Importer:
         return self._save(job)
 
     def _ensure_collections(self) -> None:
-        from qdrant_client.models import (Distance, Modifier, PayloadSchemaType, SparseVectorParams, VectorParams)
+        from qdrant_client.models import (Distance, Modifier, OptimizersConfigDiff, PayloadSchemaType, SparseVectorParams,
+                                          VectorParams)
         names = {c.name for c in self.qdrant.get_collections().collections}
         dim = len(self.encoder(["dimension probe"])[0])
         sparse = {store.SPARSE: SparseVectorParams(modifier=Modifier.IDF)}
@@ -304,6 +312,9 @@ class Wifi8Importer:
                                    f"embedding model {self.embedding_model} produces {dim}")
         if self.settings.documents_collection not in names:
             self.qdrant.create_collection(self.settings.documents_collection, vectors_config={}, sparse_vectors_config=sparse)
+        for name in (self.settings.collection, self.settings.documents_collection):
+            self.qdrant.update_collection(name, optimizers_config=OptimizersConfigDiff(
+                deleted_threshold=self.settings.vacuum_deleted_threshold, vacuum_min_vector_number=self.settings.vacuum_min_vectors))
         current = self.current() or {}
         if current.get("embedding_model") and current["embedding_model"] != self.embedding_model:
             # Reused vectors would silently mix two models; a model change needs a fresh collection.

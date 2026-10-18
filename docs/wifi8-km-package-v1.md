@@ -115,3 +115,8 @@ python src\Export-Wifi8KmPackage.py --output D:\exports\wifi8-km-package.zip
 - **語意檢索改用精確搜尋**（`KM_WIFI8_VECTOR_EXACT`，預設開啟）。
   - 原因：DA40 重新匯入後，HNSW 近似查詢的 recall@50 只有 0.78，例如「Sensing 時間軸」查詢回傳了無關的出席紀錄；精確搜尋為 1.00。
   - 3.2 萬段的精確搜尋約 32ms（HNSW 約 10ms），而且兩區的排序不受各自索引狀態影響。
+- **Qdrant 整理設定**（2026-10-18 使用者要求兩區排序完全一致）。
+  - 原因：Qdrant 計算 BM25 IDF 時，會把尚未清除的已刪除稀疏向量也算進去。TEST 有 566 個已刪除向量留在一個空 segment，因為未達預設門檻 `vacuum_min_vector_number=1000` 而一直沒有清除，所以兩區同一段落的全文分數不同（20.07 對 20.46）。
+  - 做法：匯入時把 `wifi8_chunks`／`wifi8_documents` 設為 `deleted_threshold=0.001`、`vacuum_min_vector_number=100`（Qdrant 允許的最小值）。可用 `KM_WIFI8_QDRANT_DELETED_THRESHOLD`、`KM_WIFI8_QDRANT_VACUUM_MIN_VECTORS` 調整；原值為 0.2／1000。
+  - 套用後兩區已刪除向量都是 0，全文分數相同，題庫 36 題 355 筆結果完全一致。
+  - 殘餘風險：已刪除點少於門檻時（少於 100 個，或少於 segment 的 0.1%）不會整理。兩區的 Qdrant 版本也不同（TEST 是 latest＝1.17.1，DA40 是 1.16.2）。

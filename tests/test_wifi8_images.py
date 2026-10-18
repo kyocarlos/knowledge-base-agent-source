@@ -328,3 +328,19 @@ def test_equal_scores_are_ordered_by_id():
     from src.wifi8.search import _ranked
     points = [SimpleNamespace(id="b", score=1.0), SimpleNamespace(id="c", score=2.0), SimpleNamespace(id="a", score=1.0)]
     assert _ranked(points) == ["c", "a", "b"] == _ranked(list(reversed(points)))
+
+
+def test_import_keeps_qdrant_vacuuming_deleted_points(env, monkeypatch):
+    tmp_path, client, _ = env
+    path = tmp_path / "p.zip"
+    make_v2(path, BASE_DOCS, BASE_SEGS, IMAGES, [FIGURE, LOGO])
+    importer = importer_for(env, FakeDescriber())
+    updates = []
+    original = client.update_collection
+    monkeypatch.setattr(client, "update_collection", lambda name, **k: updates.append((name, k["optimizers_config"])) or original(name, **k))
+    assert run(importer, importer.submit(path, submitted_by="t"))["status"] == "completed"
+    assert {name for name, _ in updates} == {"wifi8_test", "wifi8_documents"}
+    assert all((c.deleted_threshold, c.vacuum_min_vector_number) == (0.001, 100) for _, c in updates)
+    if not str(type(client._client)).endswith("QdrantLocal'>"):  # real server: the setting is stored
+        config = client.get_collection("wifi8_test").config.optimizer_config
+        assert (config.deleted_threshold, config.vacuum_min_vector_number) == (0.001, 100)
