@@ -120,3 +120,9 @@ python src\Export-Wifi8KmPackage.py --output D:\exports\wifi8-km-package.zip
   - 做法：匯入時把 `wifi8_chunks`／`wifi8_documents` 設為 `deleted_threshold=0.001`、`vacuum_min_vector_number=100`（Qdrant 允許的最小值）。可用 `KM_WIFI8_QDRANT_DELETED_THRESHOLD`、`KM_WIFI8_QDRANT_VACUUM_MIN_VECTORS` 調整；原值為 0.2／1000。
   - 套用後兩區已刪除向量都是 0，全文分數相同，題庫 36 題 355 筆結果完全一致。
   - 殘餘風險：已刪除點少於門檻時（少於 100 個，或少於 segment 的 0.1%）不會整理。兩區的 Qdrant 版本也不同（TEST 是 latest＝1.17.1，DA40 是 1.16.2）。
+- **TEST Qdrant 固定為 v1.16.2，與 DA40 相同**（2026-10-18 使用者決策）。
+  - 做法：1.17.1 的 5 個 collection 以 API 完整匯出（設定、payload 索引、全部點的稠密與稀疏向量和 payload），匯入新 volume `km-test_qdrant_storage_v1162`，逐筆比對完全相同後才切換。
+  - 舊 volume `km-test_qdrant_storage` 保留供回復；compose 在 `~/.km-control/planes/test-qdrant.compose.yml`，備份在 `~/.km-control/test-qdrant-v1162-20261018/`。
+- **排序再加兩條規則**，讓兩區結果一致：
+  - 分數比較到小數第 4 位（`SCORE_DECIMALS`）。原因：不同 segment 配置的浮點加總會讓同一段落差在小數第 6 位，例如 24.407490 對 24.407488。
+  - 向 Qdrant 多取 `CANDIDATE_MARGIN`=25 個候選，在程式中排序後再截斷，讓候選名單邊界上的同分段落取捨固定。

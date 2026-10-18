@@ -27,10 +27,19 @@ DEFAULT_VECTOR_EXACT = True
 _WFA_ID = re.compile(r"(?<!\d)\d{5,6}(?!\d)")
 
 
-def _ranked(points) -> list[str]:
+# Scores are compared at this precision: the same chunk scores 24.407490 in one Qdrant and 24.407488 in another
+# (float sums in a different segment order), which would otherwise decide the order of equally relevant chunks.
+SCORE_DECIMALS = 4
+# Extra candidates fetched beyond ``options.candidates`` so that chunks tied at the cut-off are chosen by id here
+# rather than by whichever the server happened to return first.
+CANDIDATE_MARGIN = 25
+
+
+def _ranked(points, limit: int | None = None) -> list[str]:
     """Point ids by score; equal scores (frequent in BM25) are ordered by id, so every call and every data zone
     returns them in the same order instead of whatever order the segments happened to yield."""
-    return [str(p.id) for p in sorted(points, key=lambda p: (-p.score, str(p.id)))]
+    ordered = [str(p.id) for p in sorted(points, key=lambda p: (-round(p.score, SCORE_DECIMALS), str(p.id)))]
+    return ordered if limit is None else ordered[:limit]
 
 
 @dataclass(frozen=True)
@@ -112,17 +121,17 @@ class Wifi8Search:
             return []
         result = self.qdrant.query_points(self.collection, query=SparseVector(indices=indices, values=values),
                                           using=store_module.SPARSE, query_filter=self._filter(options),
-                                          limit=options.candidates, with_payload=False)
-        return _ranked(result.points)
+                                          limit=options.candidates + CANDIDATE_MARGIN, with_payload=False)
+        return _ranked(result.points, options.candidates)
 
     def vector(self, query: str, options: SearchOptions) -> list[str]:
         if self.encoder is None:
             return []
         from qdrant_client.models import SearchParams
         result = self.qdrant.query_points(self.collection, query=list(self.encoder([query])[0]), using=store_module.DENSE,
-                                          query_filter=self._filter(options), limit=options.candidates, with_payload=False,
+                                          query_filter=self._filter(options), limit=options.candidates + CANDIDATE_MARGIN, with_payload=False,
                                           search_params=SearchParams(exact=self.exact))
-        return _ranked(result.points)
+        return _ranked(result.points, options.candidates)
 
     # ---- fusion -------------------------------------------------------
     def search(self, query: str, options: SearchOptions | None = None) -> dict[str, Any]:

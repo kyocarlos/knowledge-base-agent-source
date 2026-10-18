@@ -328,6 +328,8 @@ def test_equal_scores_are_ordered_by_id():
     from src.wifi8.search import _ranked
     points = [SimpleNamespace(id="b", score=1.0), SimpleNamespace(id="c", score=2.0), SimpleNamespace(id="a", score=1.0)]
     assert _ranked(points) == ["c", "a", "b"] == _ranked(list(reversed(points)))
+    noisy = [SimpleNamespace(id="b", score=24.407490), SimpleNamespace(id="a", score=24.407488), SimpleNamespace(id="c", score=30.0)]
+    assert _ranked(noisy, 2) == ["c", "a"]  # float noise between servers does not decide the order or the cut-off
 
 
 def test_import_keeps_qdrant_vacuuming_deleted_points(env, monkeypatch):

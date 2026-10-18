@@ -541,7 +541,7 @@
     },
     {
       "path": "docs/wifi8-km-package-v1.md",
-      "sha256": "a4b0db7f1afb8b1108bd78751c125a84deb1a6695e4d15fde98f51cfb677e8da"
+      "sha256": "af7aaad14043050b211936d644b6d645dc93efb3961ee84a50b057069d42f792"
     },
     {
       "path": "docs/wp01-lifecycle-runbook.md",
@@ -1613,7 +1613,7 @@
     },
     {
       "path": "src/wifi8/search.py",
-      "sha256": "5ce75f853e47f4d9f62ddf8723acd3debe84cb937111274075896cabb9423f86"
+      "sha256": "ea50ecebea1c31f822e9a63842068e4192b16d3e98181ac1cdfab12444f2f2f5"
     },
     {
       "path": "src/wifi8/store.py",
@@ -1985,7 +1985,7 @@
     },
     {
       "path": "tests/test_wifi8_images.py",
-      "sha256": "1860f4208b377b7530b328381bbf6c5ffd3b963f0247569dd5331e100e55533a"
+      "sha256": "b662f9a9e6cf7d1201ba09dbd80690628ca2d879e990b2f495df2af4cd9cee5a"
     },
     {
       "path": "tests/test_wifi8_import.py",
