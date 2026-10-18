@@ -341,7 +341,7 @@
     },
     {
       "path": "deploy/dev-3030/compose/kb-test-workers.image.override.yml",
-      "sha256": "8bf18a3dfc9d33536ee4629f9215ff3136640fd4bccf8a301206aa4602065cc7"
+      "sha256": "58b264e44060a912c4913e91623b13114216269620d95eb5726772cf7f52c4aa"
     },
     {
       "path": "deploy/dev-3030/compose/kb-test.llm-primary.override.yml",
@@ -357,11 +357,11 @@
     },
     {
       "path": "deploy/dev-3030/compose/kb-web.chat-runtime.override.yml",
-      "sha256": "251c7a5dd50ffe64dc9acd806ba4fa1eb3c62c15b8eba7e32000405965e6664f"
+      "sha256": "37ebda6a3329f2448e466aa750e1551841085d3b9d8140819ce188e581968691"
     },
     {
       "path": "deploy/dev-3030/compose/km-da40.llm-primary.override.yml",
-      "sha256": "c599103298f8880fbf58d863cec9c23bfbfee86c66f3359ad8aaef2be4f34e75"
+      "sha256": "c1f6776239036cb594856b74fd1c075c580d5f69230b12b1a6b02ba08f705bcf"
     },
     {
       "path": "deploy/dev-3030/compose/km-da40.wifi8.override.yml",

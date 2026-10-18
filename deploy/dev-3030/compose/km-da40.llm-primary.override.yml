@@ -8,7 +8,7 @@
 # deploy/dev-3030/backports/ingest-doc-name-stem.patch to src/ingest.py. No secrets in this file.
 services:
   web:
-    image: km-da40-web:ddl-free-fd8dd34-llm-ba82d79-wifi8-c01693c-workspace-b67c223-qstore-3a85eab-table-a29835b-img-20f468b
+    image: km-da40-web:ddl-free-fd8dd34-llm-ba82d79-wifi8-c01693c-workspace-b67c223-qstore-3a85eab-table-a29835b-img-ae9522c
     env_file: [/home/da40_ai_gb10/.km-control/llm/sub2api-km.env]
     environment:
       KM_LLM_PRIMARY_PROVIDER: ${KM_LLM_PRIMARY_PROVIDER:-sub2api}
@@ -17,7 +17,7 @@ services:
       KM_LLM_PRIMARY_API_KEY_ENV: KM_SUB2API_API_KEY
       KM_LLM_PRIMARY_TIMEOUT_SECONDS: ${KM_LLM_PRIMARY_TIMEOUT_SECONDS:-60}
   celery_search_worker:
-    image: km-test-web:c8884f72-llm-ba82d79-docid-2d6a062-wifi8-c01693c-qstore-3a85eab-table-a29835b-img-20f468b
+    image: km-test-web:c8884f72-llm-ba82d79-docid-2d6a062-wifi8-c01693c-qstore-3a85eab-table-a29835b-img-ae9522c
     env_file: [/home/da40_ai_gb10/.km-control/llm/sub2api-km.env]
     environment:
       KM_LLM_PRIMARY_PROVIDER: ${KM_LLM_PRIMARY_PROVIDER:-sub2api}
@@ -26,7 +26,7 @@ services:
       KM_LLM_PRIMARY_API_KEY_ENV: KM_SUB2API_API_KEY
       KM_LLM_PRIMARY_TIMEOUT_SECONDS: ${KM_LLM_PRIMARY_TIMEOUT_SECONDS:-60}
   celery_ingest_worker:
-    image: km-da40-ingest:ddl-free-fd8dd34-llm-ba82d79-docid-2d6a062-wifi8-c01693c-qstore-3a85eab-table-a29835b-img-20f468b
+    image: km-da40-ingest:ddl-free-fd8dd34-llm-ba82d79-docid-2d6a062-wifi8-c01693c-qstore-3a85eab-table-a29835b-img-ae9522c
     env_file: [/home/da40_ai_gb10/.km-control/llm/sub2api-km.env]
     environment:
       KM_LLM_PRIMARY_PROVIDER: ${KM_LLM_PRIMARY_PROVIDER:-sub2api}
