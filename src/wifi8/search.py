@@ -7,6 +7,7 @@ cannot crowd out the rest.
 """
 from __future__ import annotations
 
+import os
 import re
 from dataclasses import dataclass
 from typing import Any, Callable
@@ -16,6 +17,10 @@ from .excerpt import excerpt
 from .lexical import query_terms, query_vector
 
 RRF_K = 60
+# Figure chunks (text made from images) compete with the document text; their fused score is scaled so a related
+# diagram does not crowd the passage that answers the question out of the top results (golden set: 1.0 -> hit@10
+# 90.0%, 0.7 -> 93.3%). 1.0 disables the scaling.
+DEFAULT_IMAGE_WEIGHT = 0.7
 _WFA_ID = re.compile(r"(?<!\d)\d{5,6}(?!\d)")
 
 
@@ -36,8 +41,10 @@ class SearchUnavailable(RuntimeError):
 
 class Wifi8Search:
     def __init__(self, store: store_module.Wifi8Store, *, qdrant=None,
-                 encoder: Callable[[list[str]], list[list[float]]] | None = None, reranker=None):
+                 encoder: Callable[[list[str]], list[list[float]]] | None = None, reranker=None,
+                 image_weight: float = 1.0):
         self.store = store
+        self.image_weight = image_weight
         self.reranker = reranker  # rerank.Reranker or None
         self.package_id = store.package_id
         self.collection = store.chunks_collection
@@ -57,7 +64,8 @@ class Wifi8Search:
         if reranker == "environment":
             from .rerank import from_environment
             reranker = from_environment()
-        return cls(package, encoder=encoder, reranker=reranker)
+        image_weight = float(os.getenv("KM_WIFI8_IMAGE_SCORE_WEIGHT", str(DEFAULT_IMAGE_WEIGHT)))
+        return cls(package, encoder=encoder, reranker=reranker, image_weight=image_weight)
 
     # ---- filters ------------------------------------------------------
     def _documents(self) -> dict[str, dict[str, Any]]:
@@ -113,6 +121,10 @@ class Wifi8Search:
             for rank, point_id in enumerate(ranking, 1):
                 scores[point_id] = scores.get(point_id, 0.0) + 1.0 / (RRF_K + rank)
         chunks = self.chunks(list(scores))
+        if self.image_weight != 1.0:
+            for point_id, chunk in chunks.items():
+                if chunk.get("image"):
+                    scores[point_id] *= self.image_weight
         ordered = sorted(scores, key=lambda pid: (-scores[pid], pid))
         rerank_scores = self._rerank(query, [pid for pid in ordered if pid in chunks], chunks)
         if rerank_scores:

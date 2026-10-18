@@ -3,14 +3,22 @@
 # Wi-Fi8 匯入資料存於既有 km-da40_instance_data volume 的 /app/data/wifi8。不含任何 secret。
 # 圖片轉文字（2026-10-18 使用者決策：匯出包附上圖片，由 KM 以 Sub2API 的看圖模型轉成文字）：web 收件時決定是否先轉圖，
 # ingest worker 實際執行，兩者設定必須相同。模型、端點與金鑰變數名稱沿用 KM_LLM_PRIMARY_*；off＝只匯入文字。
+# 圖片說明快取由兩區共用（2026-10-18 使用者決策）：兩區匯入同一份 Wi-Fi8 匯出包，模型對同一張圖的回答不完全穩定，
+# 共用後先完成的說明為準，兩區內容一致，且每張圖只描述一次。只存圖片與其轉出的文字，不含其他區資料。
 x-km-wifi8-images: &wifi8_images
   KM_WIFI8_IMAGE_DESCRIBER: ${KM_WIFI8_IMAGE_DESCRIBER:-openai}
   KM_WIFI8_IMAGE_REASONING_EFFORT: ${KM_WIFI8_IMAGE_REASONING_EFFORT:-low}
+  KM_WIFI8_IMAGE_CACHE_ROOT: /app/wifi8-image-cache
+x-km-wifi8-image-cache: &wifi8_image_cache ${KM_WIFI8_IMAGE_CACHE_DIR:-/home/da40_ai_gb10/.km-control/wifi8-image-cache}:/app/wifi8-image-cache
 services:
   web:
     environment:
       KM_WIFI8_IMPORT_USERS: ${KM_WIFI8_IMPORT_USERS:-}
       <<: *wifi8_images
+    volumes:
+      - *wifi8_image_cache
   celery_ingest_worker:
     environment:
       <<: *wifi8_images
+    volumes:
+      - *wifi8_image_cache

@@ -349,7 +349,7 @@
     },
     {
       "path": "deploy/dev-3030/compose/kb-test.wifi8.override.yml",
-      "sha256": "ce3bb473aa0ba9f15b984a63b537629223e10e67b5ba9a732bf8c7dd31787b7e"
+      "sha256": "7fb9b67ed4dfc53fc47500433b2ff0adaf45dfe2cf79fca45cf55a4cf053a273"
     },
     {
       "path": "deploy/dev-3030/compose/kb-timescaledb.compose.yml",
@@ -365,7 +365,7 @@
     },
     {
       "path": "deploy/dev-3030/compose/km-da40.wifi8.override.yml",
-      "sha256": "fae37b09c8f641fbeb848930c1c08f2141795f9ebf1a1c48d408bd75e95eba5b"
+      "sha256": "a3cd2c3e38561d56828ab36e509f9eec21ab39b065f0907163d5009f2800e554"
     },
     {
       "path": "deploy/dev-3030/docker/Dockerfile.wifi8-qdrant-store",
@@ -541,7 +541,7 @@
     },
     {
       "path": "docs/wifi8-km-package-v1.md",
-      "sha256": "9802f49b7c4016419c2f6d733a6898df8e8c653330ad4c6063f55fced010f936"
+      "sha256": "8f5febb326eddbe31f3a8d9586b94fa35cf7b8b77c2c51361a15f1dec597ac91"
     },
     {
       "path": "docs/wp01-lifecycle-runbook.md",
@@ -1589,11 +1589,11 @@
     },
     {
       "path": "src/wifi8/images.py",
-      "sha256": "b99ba6d8898bbda6ec610c8788ac67a32070959ee96fde51bf97139713defea8"
+      "sha256": "95cc14a6eb35346f437a56e975adefd93b6cfe0aa26d4c026dd6bddccc9d4cc2"
     },
     {
       "path": "src/wifi8/importer.py",
-      "sha256": "746f402e3311c3f3715fbc3bb36a7f3c5179ef2e275ab73e4b2540aad4ecd77d"
+      "sha256": "5a06358f9bf1f619e9e5a249b1e366f5668b3704562a27c9184bbd8ee85be3f8"
     },
     {
       "path": "src/wifi8/lexical.py",
@@ -1613,7 +1613,7 @@
     },
     {
       "path": "src/wifi8/search.py",
-      "sha256": "caabf4608ff815ec68dddc72b7894daffcd46081d87ff3119096e8bb0542e432"
+      "sha256": "9f38e37c895d62d99d8bbdd632a1b0ab734b44cbc39ce213d2725903be95afa5"
     },
     {
       "path": "src/wifi8/store.py",
@@ -1985,7 +1985,7 @@
     },
     {
       "path": "tests/test_wifi8_images.py",
-      "sha256": "02d237755b5ebfb55d7b04d831e52ba26c665f87db4f944bbe43dd834f77bf7d"
+      "sha256": "758f987d6cbd80d5b4666514ffe34e5377c5f9974bfac8c38d1cf4ab3a8cca26"
     },
     {
       "path": "tests/test_wifi8_import.py",

@@ -1,9 +1,14 @@
 """Turn the figures of a Wi-Fi8 package into searchable text with a vision-capable chat model.
 
 Results are cached per image content hash under ``<root>/image-text`` and the
-image files under ``<root>/images``, so a figure is described once per zone and
-a later package only pays for new figures. The cache key also carries the model
-and prompt version: changing either describes the figures again.
+image files under ``<root>/images``, so a figure is described once and a later
+package only pays for new figures. The cache key also carries the model and
+prompt version: changing either describes the figures again.
+
+The root may be shared by several data zones (``KM_WIFI8_IMAGE_CACHE_ROOT``): the
+first finished description of a figure wins and is never overwritten, so every
+zone importing the same package serves the same text even though the model is
+not deterministic.
 """
 from __future__ import annotations
 
@@ -11,6 +16,7 @@ import base64
 import json
 import os
 import time
+import uuid
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -122,18 +128,38 @@ class ImageTextCache:
         except (FileNotFoundError, json.JSONDecodeError):
             return None
 
-    def put(self, image_id: str, record: dict[str, Any]) -> None:
+    @staticmethod
+    def _temp(path: Path) -> Path:
+        # Unique per writer: two zones (or workers) writing the same entry never share a temp file.
+        return path.with_name(f".{path.name}.{os.getpid()}.{uuid.uuid4().hex[:8]}.tmp")
+
+    def put(self, image_id: str, record: dict[str, Any]) -> dict[str, Any]:
+        """Store ``record`` unless a finished description with the same signature exists; returns the stored one."""
         path = self._text_path(image_id)
         path.parent.mkdir(parents=True, exist_ok=True)
-        temp = path.with_suffix(".tmp")
+        existing = self.usable(image_id, record.get("signature", ""))
+        if existing:
+            return existing
+        temp = self._temp(path)
         temp.write_text(json.dumps({"image_id": image_id, **record, "updated_at": _now()}, ensure_ascii=False), encoding="utf-8")
-        temp.replace(path)
+        if record.get("status") in ("described", "empty"):
+            try:
+                os.link(temp, path)  # atomic create: loses (and keeps the winner) if another writer got there first
+                temp.unlink()
+                return self.get(image_id)
+            except FileExistsError:
+                winner = self.usable(image_id, record.get("signature", ""))
+                if winner:
+                    temp.unlink()
+                    return winner
+        temp.replace(path)  # replaces a failed attempt or a description made with another setting
+        return self.get(image_id)
 
     def store_image(self, image_id: str, extension: str, data: bytes) -> None:
         path = self.image_path(image_id, extension)
         if not path.is_file():
             path.parent.mkdir(parents=True, exist_ok=True)
-            temp = path.with_suffix(".tmp")
+            temp = self._temp(path)
             temp.write_bytes(data)
             temp.replace(path)
 
@@ -156,8 +182,8 @@ def describe_batch(images: list[dict[str, Any]], read: Callable[[str, str], byte
         for attempt in range(settings.retries + 1):
             try:
                 text = clean(describe(data, extension))
-                cache.put(image_id, {"signature": settings.signature, "status": "described" if text else "empty", "text": text})
-                return "described" if text else "empty"
+                stored = cache.put(image_id, {"signature": settings.signature, "status": "described" if text else "empty", "text": text})
+                return stored["status"]
             except Exception as exc:  # noqa: BLE001 - recorded per image; the batch goes on
                 error = type(exc).__name__
                 if attempt < settings.retries:

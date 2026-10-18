@@ -6,6 +6,7 @@ until a new one has fully finished; only then is ``current.json`` switched.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import shutil
@@ -40,6 +41,9 @@ class Wifi8Settings:
     bm25_avg_tokens: float = 256.0
     max_package_bytes: int = 200 * 1024 * 1024
     max_uncompressed_bytes: int = 1024 * 1024 * 1024
+    # Figure descriptions and image files; None keeps them under ``root``. Data zones importing the same
+    # Wi-Fi8 packages may share one directory so the (non-deterministic) model describes each figure once.
+    image_cache_root: Path | None = None
 
     @classmethod
     def from_environment(cls) -> "Wifi8Settings":
@@ -56,6 +60,7 @@ class Wifi8Settings:
             bm25_avg_tokens=float(os.getenv("KM_WIFI8_BM25_AVG_TOKENS", "256")),
             max_package_bytes=int(os.getenv("KM_WIFI8_MAX_PACKAGE_MB", "200")) * mb,
             max_uncompressed_bytes=int(os.getenv("KM_WIFI8_MAX_UNCOMPRESSED_MB", "1024")) * mb,
+            image_cache_root=Path(os.environ["KM_WIFI8_IMAGE_CACHE_ROOT"]) if os.getenv("KM_WIFI8_IMAGE_CACHE_ROOT") else None,
         )
 
 
@@ -130,7 +135,7 @@ class Wifi8Importer:
 
     @property
     def image_cache(self) -> ImageTextCache:
-        return ImageTextCache(self.root)
+        return ImageTextCache(self.settings.image_cache_root or self.root)
 
     def _image_signature(self, package) -> str | None:
         return self.describer_settings.signature if package.images and self.describer_settings.enabled else None
@@ -151,9 +156,11 @@ class Wifi8Importer:
         # The same package is imported again when the current one predates the Qdrant store (no documents
         # collection) or an older display format (e.g. no table display text): vectors are reused, nothing re-embedded.
         # A different image description setting (model, prompt version) also imports the same package again.
+        # So do figure texts that differ from the served ones (e.g. a description another zone wrote first).
         same = (current.get("package_id") == package.package_id and bool(current.get("documents_collection"))
                 and int(current.get("display_version") or 0) >= DISPLAY_VERSION
-                and current.get("image_text_signature") == self._image_signature(package))
+                and current.get("image_text_signature") == self._image_signature(package)
+                and current.get("image_texts_sha256") == self._image_texts_digest(package))
         describe = bool(package.images) and self.describer_settings.enabled
         message = "同一份匯出包已是目前版本，不重複匯入" if same else ""
         if package.images and not self.describer_settings.enabled and not same:
@@ -231,22 +238,36 @@ class Wifi8Importer:
             job.update(phase="stage", status="staging")
         return self._save(job)
 
-    def _image_texts(self, package) -> dict[str, str]:
+    def _image_texts(self, package, job_id: str | None = None) -> dict[str, str]:
+        """Figure texts from the cache; with ``job_id`` the snapshot taken when that job started staging, so every
+        stage batch and the publish step see the same texts even if another zone adds a description meanwhile."""
         if not self._image_signature(package):
             return {}
+        snapshot = self.root / "image-snapshots" / f"{job_id}.json" if job_id else None
+        if snapshot and snapshot.is_file():
+            return json.loads(snapshot.read_text(encoding="utf-8"))
         texts = {}
         for image in self._distinct_images(package):
             record = self.image_cache.usable(image["image_id"], self.describer_settings.signature)
             if record and record.get("text"):
                 texts[image["image_id"]] = record["text"]
+        if snapshot:
+            _write_json(snapshot, texts)
         return texts
 
-    def _chunks(self, package) -> list[dict[str, Any]]:
+    def _image_texts_digest(self, package, job_id: str | None = None) -> str | None:
+        """Fingerprint of the figure texts this package would be served with (None without figure texts)."""
+        texts = self._image_texts(package, job_id)
+        if not texts:
+            return None
+        return hashlib.sha256(json.dumps(sorted(texts.items()), ensure_ascii=False).encode("utf-8")).hexdigest()
+
+    def _chunks(self, package, job_id: str | None = None) -> list[dict[str, Any]]:
         chunks = build_chunks(package.documents, package.segments, max_chars=self.settings.chunk_max_chars)
         last: dict[str, int] = {}
         for chunk in chunks:
             last[chunk["revision_id"]] = max(last.get(chunk["revision_id"], 0), chunk["ordinal"])
-        return chunks + image_chunks(package.documents, package.images, self._image_texts(package), last)
+        return chunks + image_chunks(package.documents, package.images, self._image_texts(package, job_id), last)
 
     def _stage(self, job: dict[str, Any]) -> dict[str, Any]:
         """Write documents and chunk points (BM25 sparse vector, payload) in bounded batches."""
@@ -254,7 +275,7 @@ class Wifi8Importer:
         self._save(job)
         package = self._package(job["package_id"])
         documents = {d["revision_id"]: d for d in package.documents}
-        chunks = self._chunks(package)
+        chunks = self._chunks(package, job["job_id"])
         offset = int(job.get("stage_offset") or 0)
         if offset == 0:
             self._ensure_collections()
@@ -399,7 +420,7 @@ class Wifi8Importer:
         return self._save(job)
 
     def _publish(self, job: dict[str, Any]) -> dict[str, Any]:
-        from qdrant_client.models import Filter, FilterSelector
+        from qdrant_client.models import Filter, FilterSelector, PointIdsList
         package_id = job["package_id"]
         package = self.package_store(package_id)
         if package.counts()["chunks_pending"]:
@@ -408,12 +429,14 @@ class Wifi8Importer:
         if self.neo4j is not None:
             self._sync_graph(package_id, documents)
         previous = (self.current() or {}).get("package_id")
+        served = self._package(package_id)
         _write_json(self.root / "current.json", {"package_id": package_id, "switched_at": _now(),
                                                  "previous_package_id": previous, "job_id": job["job_id"],
                                                  "store": "qdrant", "collection": self.settings.collection,
                                                  "documents_collection": self.settings.documents_collection,
                                                  "embedding_model": self.embedding_model, "display_version": DISPLAY_VERSION,
-                                                 "image_text_signature": self._image_signature(self._package(package_id))})
+                                                 "image_text_signature": self._image_signature(served),
+                                                 "image_texts_sha256": self._image_texts_digest(served, job["job_id"])})
         collection = self.settings.collection
         # Only after the switch: chunks shared with the previous package take this package's document metadata,
         # then everything the new package no longer uses is removed.
@@ -422,6 +445,13 @@ class Wifi8Importer:
                                     points=FilterSelector(filter=package.chunk_filter(store.match("revision_id", doc["revision_id"]))))
         self.qdrant.delete(collection, points_selector=FilterSelector(filter=Filter(
             must_not=[store.match("packages", package_id)])), wait=True)
+        # Importing the same package again (newer display, other figure texts) may leave chunks of the earlier
+        # import under the same package id; keep exactly the chunks this job staged.
+        expected = {c["point_id"] for c in self._chunks(served, job["job_id"])}
+        stale = [p.id for p in store.scroll_all(self.qdrant, collection, package.chunk_filter(), payload=False)
+                 if str(p.id) not in expected]
+        for i in range(0, len(stale), 1000):
+            self.qdrant.delete(collection, points_selector=PointIdsList(points=stale[i:i + 1000]), wait=True)
         self.qdrant.set_payload(collection, payload={"packages": [package_id]}, points=FilterSelector(filter=package.chunk_filter()), wait=True)
         self.qdrant.delete(self.settings.documents_collection, points_selector=FilterSelector(filter=Filter(
             must_not=[store.match("package_id", package_id)])), wait=True)
@@ -498,5 +528,5 @@ class _JobTaggedCache:
     def store_image(self, image_id: str, extension: str, data: bytes) -> None:
         self._cache.store_image(image_id, extension, data)
 
-    def put(self, image_id: str, record: dict[str, Any]) -> None:
-        self._cache.put(image_id, {**record, "job_id": self._job_id})
+    def put(self, image_id: str, record: dict[str, Any]) -> dict[str, Any]:
+        return self._cache.put(image_id, {**record, "job_id": self._job_id})

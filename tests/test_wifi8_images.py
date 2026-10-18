@@ -221,3 +221,81 @@ def test_image_route_serves_only_figures_of_the_current_package(image_api):
     assert client.get("/api/wifi8/documents/new/chunks", params={"figures": "true"}).json()["chunks"][0]["image"]["id"] == FIG_ID
     state["identity"] = None
     assert client.get(f"/api/wifi8/images/{FIG_ID}").status_code == 401
+
+
+def test_first_finished_description_wins_and_failures_are_replaced(tmp_path):
+    cache = ImageTextCache(tmp_path)
+    sig = SETTINGS.signature
+    cache.put(FIG_ID, {"signature": sig, "status": "failed", "text": "", "error": "TimeoutError"})
+    assert cache.put(FIG_ID, {"signature": sig, "status": "described", "text": "first"})["text"] == "first"
+    assert cache.put(FIG_ID, {"signature": sig, "status": "described", "text": "second"})["text"] == "first"
+    assert cache.put(FIG_ID, {"signature": sig, "status": "failed", "text": ""})["status"] == "described"
+    assert cache.put(FIG_ID, {"signature": "openai:other:low:p1", "status": "described", "text": "new model"})["text"] == "new model"
+    assert not list(tmp_path.rglob("*.tmp"))
+
+
+def _zone(tmp_path, name, describer, shared=None):
+    settings = Wifi8Settings(root=tmp_path / name, collection="wifi8_test", embed_batch_size=4, image_cache_root=shared)
+    return Wifi8Importer(settings, qdrant=QdrantClient(":memory:"), encoder=FakeEncoder(), embedding_model="fake",
+                         describer_settings=SETTINGS, describer=describer)
+
+
+def _figure_texts(importer):
+    return sorted(p.payload["content"] for p in importer.qdrant.scroll("wifi8_test", limit=200, with_payload=True)[0]
+                  if p.payload.get("image"))
+
+
+def test_zones_sharing_the_cache_serve_identical_figure_texts(tmp_path):
+    path = tmp_path / "p.zip"
+    make_v2(path, BASE_DOCS, BASE_SEGS, IMAGES, [FIGURE, LOGO])
+    shared = tmp_path / "shared-cache"
+    test_zone = _zone(tmp_path, "test", FakeDescriber(), shared)
+    assert run(test_zone, test_zone.submit(path, submitted_by="t"))["status"] == "completed"
+
+    class OtherWording(FakeDescriber):  # the same model answers a little differently on another call
+        def __call__(self, data, extension):
+            self.calls.append(data)
+            return "另一種說法"
+    da40 = _zone(tmp_path, "da40", OtherWording(), shared)
+    assert run(da40, da40.submit(path, submitted_by="t"))["status"] == "completed"
+    assert da40._describer.calls == []  # nothing described again
+    assert _figure_texts(da40) == _figure_texts(test_zone) and len(_figure_texts(da40)) == 2
+
+
+def test_served_texts_that_differ_from_the_cache_are_imported_again(tmp_path):
+    path = tmp_path / "p.zip"
+    make_v2(path, BASE_DOCS, BASE_SEGS, IMAGES, [FIGURE, LOGO])
+
+    class OwnWording(FakeDescriber):
+        def __call__(self, data, extension):
+            self.calls.append(data)
+            return "DA40 自己的說法" if data == FIGURE else "無內容"
+    alone = _zone(tmp_path, "da40", OwnWording())  # imported before the zones shared a cache
+    assert run(alone, alone.submit(path, submitted_by="t"))["status"] == "completed"
+    reference = _zone(tmp_path, "test", FakeDescriber(), tmp_path / "shared-cache")
+    assert run(reference, reference.submit(path, submitted_by="t"))["status"] == "completed"
+
+    joined = Wifi8Importer(Wifi8Settings(root=tmp_path / "da40", collection="wifi8_test", embed_batch_size=4,
+                                         image_cache_root=tmp_path / "shared-cache"),
+                           qdrant=alone.qdrant, encoder=alone.encoder, embedding_model="fake",
+                           describer_settings=SETTINGS, describer=FakeDescriber())
+    job = joined.submit(path, submitted_by="t")
+    assert job["status"] == "queued"  # same package and setting, but different served figure texts
+    assert run(joined, job)["status"] == "completed" and joined._describer.calls == []
+    assert _figure_texts(joined) == _figure_texts(reference)
+    assert joined.submit(path, submitted_by="t")["status"] == "completed"  # now nothing to do
+
+
+def test_figure_chunks_are_weighted_in_the_fused_ranking(env):
+    from src.wifi8.search import SearchOptions, Wifi8Search
+    tmp_path, client, _ = env
+    path = tmp_path / "p.zip"
+    make_v2(path, BASE_DOCS, BASE_SEGS, IMAGES, [FIGURE, LOGO])
+    importer = importer_for(env, FakeDescriber())
+    assert run(importer, importer.submit(path, submitted_by="t"))["status"] == "completed"
+
+    def ranking(weight):
+        search = Wifi8Search(importer.current_store(), encoder=importer.encoder, image_weight=weight)
+        return [bool(r.get("image")) for r in search.search("ELR uplink 20 MHz 流程", SearchOptions(top_k=5, include_history=True))["results"]]
+    assert ranking(1.0)[0] is True
+    assert ranking(0.01)[0] is False and True in ranking(0.01)  # still found, just after the text
