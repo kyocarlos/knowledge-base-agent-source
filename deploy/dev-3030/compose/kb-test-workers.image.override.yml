@@ -5,6 +5,6 @@
 # deploy/dev-3030/backports/ingest-doc-name-stem.patch. No secrets in this file.
 services:
   celery_ingest_worker:
-    image: km-test-web:c8884f72-llm-ba82d79-docid-2d6a062-wifi8-c01693c-qstore-3a85eab-table-a29835b-img-ae9522c
+    image: km-test-web:c8884f72-llm-ba82d79-docid-2d6a062-wifi8-c01693c-qstore-3a85eab-table-a29835b-img-38de9c7
   celery_search_worker:
-    image: km-test-web:c8884f72-llm-ba82d79-docid-2d6a062-wifi8-c01693c-qstore-3a85eab-table-a29835b-img-ae9522c
+    image: km-test-web:c8884f72-llm-ba82d79-docid-2d6a062-wifi8-c01693c-qstore-3a85eab-table-a29835b-img-38de9c7
