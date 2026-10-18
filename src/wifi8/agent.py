@@ -17,7 +17,8 @@ from typing import Any, Callable
 
 from .excerpt import excerpt, table_excerpt
 from .quality import QUALITY_LOG_PREFIX
-from .search import SearchOptions, Wifi8Search
+from .search import SearchOptions, Wifi8Search, figure_intent
+from .store import match, scroll_all
 
 SYSTEM_PROMPT = """你是 KM「WiFi 知識專區」的研究助理，可查詢已匯入的 Wi-Fi 文件（WFA 規格與 MRD、測試計畫與測項、晶片廠商資料、研究論文、產業報告等）。
 規則：
@@ -25,7 +26,8 @@ SYSTEM_PROMPT = """你是 KM「WiFi 知識專區」的研究助理，可查詢�
 2. 引用時在句末標註來源編號，例如 [S3]；只能使用工具回傳過的編號。
 3. 預設只採用目前有效版本；使用者問歷史、版本差異或指定舊版時，才用 include_history 或 list_versions。
 4. WFA proprietary 文件只摘要必要結論，不要大量逐字引用。
-5. 以繁體中文回答；技術名詞、文件名稱、識別碼保持原文。回答先給結論，再列重點與依據。"""
+5. 以繁體中文回答；技術名詞、文件名稱、識別碼保持原文。回答先給結論，再列重點與依據。
+6. 工具結果中 figure=true 的段落，是從文件圖片（比較表、時程圖、架構圖、流程圖等）轉出的文字；問題問到圖或表的內容時，優先依據並引用這些段落。"""
 
 TOOLS = [
     {"type": "function", "function": {
@@ -130,6 +132,23 @@ class WifiTools:
         self.citations = citations
         self.store = search.store
         self.evidence: list[str] = []  # every tool result of the run, for the grounding check
+        self.question = ""  # the user's question (set by run_agent): asks it about a figure or table?
+        self._parts: dict[tuple[str, str], list[int]] = {}
+
+    def _cite(self, item: dict[str, Any]) -> str:
+        """Register a citation; when its place (page, slide …) holds several chunks, record which one it is."""
+        ref = self.citations.add(item)
+        entry = self.citations.items[ref]
+        if "part" not in entry and item.get("location_label") and item.get("revision_id"):
+            key = (item["revision_id"], item["location_label"])
+            if key not in self._parts:
+                flt = self.store.chunk_filter(match("revision_id", key[0]), match("location_label", key[1]))
+                self._parts[key] = sorted(int(p.payload["chunk_index"]) for p in scroll_all(
+                    self.store.qdrant, self.store.chunks_collection, flt, payload=["chunk_index"]))
+            indexes = self._parts[key]
+            index = int(item.get("chunk_index") or 0)
+            entry["part"] = {"index": indexes.index(index) + 1, "total": len(indexes)} if len(indexes) > 1 and index in indexes else None
+        return ref
 
     def _doc_rows(self, **equals: str) -> list[dict[str, Any]]:
         return [d for d in self.store.documents() if all(str(d.get(k) or "") == v for k, v in equals.items())]
@@ -141,13 +160,17 @@ class WifiTools:
         return {k: doc.get(k) for k in keys if doc.get(k) not in (None, "", [])}
 
     def search_wifi(self, query: str, top_k: int = 6, include_history: bool = False, publisher: str = "", document_role: str = ""):
+        # A question about a figure or table keeps favouring figure chunks even when the model's own query drops those words.
+        focus = True if figure_intent(self.question, self.search_engine.figure_terms) else None
         options = SearchOptions(top_k=max(1, min(int(top_k or 6), 12)), include_history=bool(include_history),
-                                publishers=(publisher,) if publisher else (), document_roles=(document_role,) if document_role else ())
+                                publishers=(publisher,) if publisher else (), document_roles=(document_role,) if document_role else (),
+                                figure_focus=focus)
         result = self.search_engine.search(query, options)
         hits = []
         for item in result["results"]:
-            ref = self.citations.add(item)
+            ref = self._cite(item)
             hits.append({"ref": ref, "title": item["source"], "revision_id": item["revision_id"], "location": item["location_label"],
+                         **({"figure": True} if item.get("image") else {}),
                          "chunk_index": item["chunk_index"], "current_version": item["analysis_eligible"],
                          "wfa_document_id": item.get("wfa_document_id"), "publisher": item.get("publisher"),
                          **_text_fields(item, query, self.settings.snippet_chars)})
@@ -195,7 +218,8 @@ class WifiTools:
         parts = []
         for pid in ids:
             item = chunks[pid]
-            parts.append({"ref": self.citations.add(item), "chunk_index": item["chunk_index"], "location": item["location_label"],
+            parts.append({"ref": self._cite(item), "chunk_index": item["chunk_index"], "location": item["location_label"],
+                          **({"figure": True} if item.get("image") else {}),
                           **_text_fields(item, query, self.settings.read_chars)})
         return {"title": doc.get("title"), "total_chunks": total, "parts": parts,
                 "next_start": start + len(ids) if start + len(ids) <= total else None}
@@ -248,6 +272,7 @@ def _message(response: Any) -> Any:
 def run_agent(question: str, *, llm: Llm, tools: WifiTools, settings: AgentSettings,
               history: list[dict[str, str]] | None = None, clock: Callable[[], float] = time.monotonic) -> dict[str, Any]:
     started = clock()
+    tools.question = question
     messages: list[dict[str, Any]] = [{"role": "system", "content": SYSTEM_PROMPT}]
     for turn in (history or [])[-6:]:
         if turn.get("role") in {"user", "assistant"} and isinstance(turn.get("content"), str):

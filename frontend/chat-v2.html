@@ -2420,7 +2420,8 @@
         // Same as the WiFi workspace: the place in the document stands out, and a citation read from a figure shows
         // a badge plus a thumbnail that opens the image.
         const image = c.image && /^[0-9a-f]{64}$/.test(c.image.id || '') ? c.image : null;
-        const place = c.location_label ? ` <span class="place">${escapeHtml(c.location_label)}</span>` : '';
+        const part = c.part && c.part.total > 1 ? `・第 ${Number(c.part.index)}/${Number(c.part.total)} 段` : '';
+        const place = c.location_label ? ` <span class="place">${escapeHtml(c.location_label)}${part}</span>` : '';
         const badge = image ? ' <span class="badge">圖片</span>' : '';
         const thumb = image ? `<a class="thumb" href="/api/wifi8/images/${image.id}" target="_blank" rel="noopener" title="開啟原圖"><img src="/api/wifi8/images/${image.id}" alt="${escapeHtml(c.location_label || '引用圖片')}" loading="lazy"></a>` : '';
         return `<li${image ? ' class="figure"' : ''}><span class="ref">[${escapeHtml(c.ref)}]</span> ${escapeHtml(c.source || '')}${old}${badge}${place}${ids ? ' — ' + ids : ''}${thumb}</li>`;

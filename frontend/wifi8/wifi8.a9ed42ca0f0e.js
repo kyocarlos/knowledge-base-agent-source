@@ -222,7 +222,9 @@
     const image = item.image && /^[0-9a-f]{64}$/.test(item.image.id || '') ? item.image : null;
     // Where in the document the cited text is (page / slide / figure): shown prominently, figures get a badge and
     // a thumbnail that opens the image, so an answer read from a figure can be checked against it.
-    const place = item.location_label ? `<span class="citation-place">${escapeHtml(item.location_label)}</span>` : '';
+    // Several chunks of one page / slide are told apart by their position there ("第 3 頁・第 1/2 段").
+    const part = item.part && item.part.total > 1 ? `・第 ${Number(item.part.index)}/${Number(item.part.total)} 段` : '';
+    const place = item.location_label ? `<span class="citation-place">${escapeHtml(item.location_label)}${part}</span>` : '';
     const badge = image ? '<span class="citation-badge">圖片</span>' : '';
     const thumb = image ? `<a class="citation-thumb" href="/api/wifi8/images/${image.id}" target="_blank" rel="noopener" title="開啟原圖"><img src="/api/wifi8/images/${image.id}" alt="${escapeHtml(item.location_label || '引用圖片')}" loading="lazy"></a>` : '';
     return `<li class="${image ? 'citation-figure' : ''}">${thumb}<div><strong>[${escapeHtml(item.ref || index + 1)}]</strong> <span title="${escapeHtml(item.revision_id)}">${escapeHtml(hitTitle(item))}</span><div class="citation-meta">${badge}${place}${meta ? `<small>${escapeHtml(meta)}</small>` : ''}</div></div></li>`;

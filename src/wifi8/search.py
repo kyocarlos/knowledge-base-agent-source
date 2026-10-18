@@ -21,6 +21,20 @@ RRF_K = 60
 # diagram does not crowd the passage that answers the question out of the top results (golden set: 1.0 -> hit@10
 # 90.0%, 0.7 -> 93.3%). 1.0 disables the scaling.
 DEFAULT_IMAGE_WEIGHT = 0.7
+# When the question itself asks for a figure (comparison table, timeline, architecture diagram …) the figure chunks are
+# what answers it, so they get this weight instead. Terms are matched case-insensitively; KM_WIFI8_FIGURE_TERMS
+# (comma-separated) replaces the list. Bare 圖／表 are left out on purpose: 意圖、代表、發表 … are not about figures.
+DEFAULT_FIGURE_FOCUS_WEIGHT = 1.3
+DEFAULT_FIGURE_TERMS = (
+    "比較表", "對照表", "表格", "圖表", "圖片", "圖中", "圖示", "示意圖", "架構圖", "流程圖", "時程圖", "時序圖", "時間軸",
+    "截圖", "投影片中的圖", "figure", "diagram", "chart", "timeline", "table",
+)
+
+
+def figure_intent(text: str, terms: tuple[str, ...] = DEFAULT_FIGURE_TERMS) -> bool:
+    """Whether a question or query asks for content shown in a figure or table."""
+    lowered = str(text or "").lower()
+    return any(term.lower() in lowered for term in terms)
 # Dense retrieval scans every vector instead of walking the HNSW graph: with ~32k chunks it costs ~30 ms, and the
 # result no longer depends on the state of a zone's index (DA40 after re-imports: HNSW recall@50 0.78, exact 1.00).
 DEFAULT_VECTOR_EXACT = True
@@ -51,6 +65,7 @@ class SearchOptions:
     publishers: tuple[str, ...] = ()
     document_roles: tuple[str, ...] = ()
     revision_ids: tuple[str, ...] = ()
+    figure_focus: bool | None = None  # None: decided from the query text (figure_intent)
 
 
 class SearchUnavailable(RuntimeError):
@@ -60,9 +75,12 @@ class SearchUnavailable(RuntimeError):
 class Wifi8Search:
     def __init__(self, store: store_module.Wifi8Store, *, qdrant=None,
                  encoder: Callable[[list[str]], list[list[float]]] | None = None, reranker=None,
-                 image_weight: float = 1.0, exact: bool = False):
+                 image_weight: float = 1.0, exact: bool = False, figure_weight: float | None = None,
+                 figure_terms: tuple[str, ...] = DEFAULT_FIGURE_TERMS):
         self.store = store
         self.image_weight = image_weight
+        self.figure_weight = image_weight if figure_weight is None else figure_weight
+        self.figure_terms = figure_terms
         self.exact = exact
         self.reranker = reranker  # rerank.Reranker or None
         self.package_id = store.package_id
@@ -85,7 +103,10 @@ class Wifi8Search:
             reranker = from_environment()
         image_weight = float(os.getenv("KM_WIFI8_IMAGE_SCORE_WEIGHT", str(DEFAULT_IMAGE_WEIGHT)))
         exact = os.getenv("KM_WIFI8_VECTOR_EXACT", str(DEFAULT_VECTOR_EXACT)).strip().lower() in ("1", "true", "yes", "on")
-        return cls(package, encoder=encoder, reranker=reranker, image_weight=image_weight, exact=exact)
+        figure_weight = float(os.getenv("KM_WIFI8_IMAGE_FOCUS_WEIGHT", str(DEFAULT_FIGURE_FOCUS_WEIGHT)))
+        terms = tuple(t.strip() for t in os.getenv("KM_WIFI8_FIGURE_TERMS", "").split(",") if t.strip()) or DEFAULT_FIGURE_TERMS
+        return cls(package, encoder=encoder, reranker=reranker, image_weight=image_weight, exact=exact,
+                   figure_weight=figure_weight, figure_terms=terms)
 
     # ---- filters ------------------------------------------------------
     def _documents(self) -> dict[str, dict[str, Any]]:
@@ -143,10 +164,12 @@ class Wifi8Search:
             for rank, point_id in enumerate(ranking, 1):
                 scores[point_id] = scores.get(point_id, 0.0) + 1.0 / (RRF_K + rank)
         chunks = self.chunks(list(scores))
-        if self.image_weight != 1.0:
+        focus = options.figure_focus if options.figure_focus is not None else figure_intent(query, self.figure_terms)
+        weight = self.figure_weight if focus else self.image_weight
+        if weight != 1.0:
             for point_id, chunk in chunks.items():
                 if chunk.get("image"):
-                    scores[point_id] *= self.image_weight
+                    scores[point_id] *= weight
         ordered = sorted(scores, key=lambda pid: (-scores[pid], pid))
         rerank_scores = self._rerank(query, [pid for pid in ordered if pid in chunks], chunks)
         if rerank_scores:
@@ -163,7 +186,7 @@ class Wifi8Search:
                             "matched_by": [name for name, r in (("fulltext", lexical), ("vector", vector)) if point_id in r]})
             if len(results) >= options.top_k:
                 break
-        return {"query": query, "package_id": self.package_id, "terms": query_terms(query),
+        return {"query": query, "package_id": self.package_id, "terms": query_terms(query), "figure_focus": focus,
                 "filters": {"publishers": list(options.publishers), "document_roles": list(options.document_roles),
                             "revision_ids": list(options.revision_ids)[:20], "include_history": options.include_history},
                 "results": results}

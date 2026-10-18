@@ -12,7 +12,7 @@ from src.wifi8.chunks import build_chunks, image_chunks
 from src.wifi8.images import DescriberSettings, ImageTextCache, clean, describe_batch
 from src.wifi8.importer import Wifi8Importer, Wifi8Settings
 from src.wifi8.package import PackageError, read_package
-from tests.test_wifi8_import import BASE_DOCS, BASE_SEGS, FakeEncoder, doc, run
+from tests.test_wifi8_import import BASE_DOCS, BASE_SEGS, FakeEncoder, doc, run, seg
 
 FIGURE = b"\x89PNG fake figure bytes"
 LOGO = b"\x89PNG fake logo"
@@ -363,3 +363,38 @@ def test_agent_citations_of_figure_chunks_carry_the_image(env):
     figures = [c for c in citations.items.values() if c.get("image")]
     assert figures and all(c["image"]["id"] == FIG_ID and c["location_label"].endswith("圖 1") for c in figures)
     assert all("image" not in c for c in citations.items.values() if "圖" not in (c["location_label"] or ""))
+
+
+def test_figure_intent_terms():
+    from src.wifi8.search import figure_intent
+    assert figure_intent("DSO 和 Preamble Puncturing 比較表中 Purpose 各是什麼？")
+    assert figure_intent("Show the Wi-Fi 8 timeline") and figure_intent("Sensing 架構圖")
+    assert not figure_intent("這代表什麼意思？誰發表的？") and not figure_intent("NPCA 是什麼？")
+
+
+def test_figure_questions_raise_figure_chunks_and_citations_are_numbered(env):
+    from src.wifi8.agent import AgentSettings, CitationRegistry, WifiTools
+    from src.wifi8.search import SearchOptions, Wifi8Search
+    tmp_path, client, _ = env
+    path = tmp_path / "p.zip"
+    segs = [seg("new", 1, "ELR uplink overview " + "x" * 1300, {"type": "page", "page": 2}),
+            seg("new", 2, "ELR uplink details on the same page.", {"type": "page", "page": 2})] + BASE_SEGS[1:]
+    make_v2(path, BASE_DOCS, segs, IMAGES, [FIGURE, LOGO])
+    importer = importer_for(env, FakeDescriber())
+    assert run(importer, importer.submit(path, submitted_by="t"))["status"] == "completed"
+    search = Wifi8Search(importer.current_store(), encoder=importer.encoder, image_weight=0.01, figure_weight=100.0)
+
+    def first_is_figure(query, **options):
+        return bool(search.search(query, SearchOptions(top_k=5, include_history=True, **options))["results"][0].get("image"))
+    assert not first_is_figure("ELR uplink 20 MHz 流程")
+    assert first_is_figure("ELR uplink 20 MHz 流程圖")  # the query itself asks for a figure
+    assert first_is_figure("ELR uplink 20 MHz 流程", figure_focus=True)
+
+    tools = WifiTools(search, AgentSettings(), CitationRegistry())
+    tools.question = "ELR uplink 的流程圖畫了什麼？"  # set by run_agent; the model's own query may drop 流程圖
+    hits = tools.search_wifi("ELR uplink 20 MHz", include_history=True)["hits"]
+    assert hits[0].get("figure") is True
+    tools.read_document("new", start=1, count=8)  # cite every chunk of the document
+    page_two = sorted((c["part"]["index"], c["part"]["total"]) for c in tools.citations.items.values() if c["location_label"] == "第 2 頁")
+    assert page_two == [(1, 2), (2, 2)]
+    assert all(c.get("part") is None for c in tools.citations.items.values() if c["location_label"] != "第 2 頁")

@@ -8,6 +8,8 @@
   update_banner          伺服器上的 /wifi8/ 換成另一個版本時（以攔截模擬），切回分頁會出現「請重新整理」橫幅；
                          重新整理後載入目前版本、不再顯示
   chatv2_figure_citation chat-v2 的 WiFi 回答（KM_RENDER_FIGURE_QUESTION）中，來自圖片的引用有「圖片」標籤、位置與已載入縮圖
+  figure_question        WiFi 專區問提到「比較表」的題目（KM_SESSION_TABLE_QUESTION）：引用中有圖片；同一位置有多筆引用時，
+                         每筆都標出「第 n/m 段」
 環境變數見 webwright_wifi8_common.py。
 """
 import argparse
@@ -17,8 +19,9 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from webwright_wifi8_common import BASE, Run, secret, wifi_page  # noqa: E402
+from webwright_wifi8_common import BASE, Run, ask_agent, secret, wifi_page  # noqa: E402
 
+TABLE_QUESTION = os.getenv("KM_SESSION_TABLE_QUESTION", "Wi-Fi 8 的 DSO 和 Wi-Fi 7 的 Preamble Puncturing 比較表中，Purpose 各是什麼？")
 FIGURE_QUESTION = os.getenv("KM_RENDER_FIGURE_QUESTION", "Wi-Fi Sensing 的居家監控用例中，感測結果如何用來控制 HVAC？")
 
 
@@ -92,7 +95,19 @@ def main() -> int:
         run.act(pg, "update_banner", f"目前 {loaded.rsplit('/', 1)[-1]}；模擬新版後橫幅 {bool(shown)}：{text!r}；重新整理後橫幅 {pg.locator('#update-banner').count()}",
                 bool(shown) and "重新整理" in text and pg.locator("#update-banner").count() == 0)
 
-        # 4. chat-v2 WiFi answers (inline agent rendering).
+        # 4. A question about a comparison table: the figure is cited, same-place citations are numbered.
+        pg.goto(BASE + "/wifi8/#/ai")
+        pg.wait_for_timeout(2000)
+        reply = ask_agent(pg, run, TABLE_QUESTION)
+        items = pg.locator(".citation-list").last.locator("li")
+        places = [items.nth(i).locator(".citation-place").inner_text() for i in range(items.count()) if items.nth(i).locator(".citation-place").count()]
+        figure_count = pg.locator(".citation-list").last.locator("li.citation-figure").count()
+        bare = [p for p in places if "段" not in p]
+        repeated = sorted({p for p in bare if bare.count(p) > 1})
+        run.act(pg, "figure_question", f"「{TABLE_QUESTION}」→ 引用位置 {places}；圖片引用 {figure_count} 筆；未編號且重複的位置 {repeated}",
+                figure_count > 0 and not repeated, target=pg.locator(".citation-list").last)
+
+        # 5. chat-v2 WiFi answers (inline agent rendering).
         pg.goto(BASE + "/chat-v2.html")
         pg.wait_for_timeout(3000)
         pg.evaluate("selectKnowledgeZone('wifi')")
