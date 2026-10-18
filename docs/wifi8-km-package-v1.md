@@ -112,3 +112,6 @@ python src\Export-Wifi8KmPackage.py --output D:\exports\wifi8-km-package.zip
   - 切段開始時，該工作會把要用的圖片說明存成快照（`image-snapshots/<job>.json`）。切段各批次與發布都只用這份快照。
   - `current.json` 記錄 `image_texts_sha256`；如果快取內容和服務中的不同，同一份匯出包也會重新匯入。
   - 發布時會刪除同一匯出包裡、這次沒有產生的舊段落（例如舊的圖片說明）。
+- **語意檢索改用精確搜尋**（`KM_WIFI8_VECTOR_EXACT`，預設開啟）。
+  - 原因：DA40 重新匯入後，HNSW 近似查詢的 recall@50 只有 0.78，例如「Sensing 時間軸」查詢回傳了無關的出席紀錄；精確搜尋為 1.00。
+  - 3.2 萬段的精確搜尋約 32ms（HNSW 約 10ms），而且兩區的排序不受各自索引狀態影響。

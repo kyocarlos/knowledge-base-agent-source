@@ -21,6 +21,9 @@ RRF_K = 60
 # diagram does not crowd the passage that answers the question out of the top results (golden set: 1.0 -> hit@10
 # 90.0%, 0.7 -> 93.3%). 1.0 disables the scaling.
 DEFAULT_IMAGE_WEIGHT = 0.7
+# Dense retrieval scans every vector instead of walking the HNSW graph: with ~32k chunks it costs ~30 ms, and the
+# result no longer depends on the state of a zone's index (DA40 after re-imports: HNSW recall@50 0.78, exact 1.00).
+DEFAULT_VECTOR_EXACT = True
 _WFA_ID = re.compile(r"(?<!\d)\d{5,6}(?!\d)")
 
 
@@ -42,9 +45,10 @@ class SearchUnavailable(RuntimeError):
 class Wifi8Search:
     def __init__(self, store: store_module.Wifi8Store, *, qdrant=None,
                  encoder: Callable[[list[str]], list[list[float]]] | None = None, reranker=None,
-                 image_weight: float = 1.0):
+                 image_weight: float = 1.0, exact: bool = False):
         self.store = store
         self.image_weight = image_weight
+        self.exact = exact
         self.reranker = reranker  # rerank.Reranker or None
         self.package_id = store.package_id
         self.collection = store.chunks_collection
@@ -65,7 +69,8 @@ class Wifi8Search:
             from .rerank import from_environment
             reranker = from_environment()
         image_weight = float(os.getenv("KM_WIFI8_IMAGE_SCORE_WEIGHT", str(DEFAULT_IMAGE_WEIGHT)))
-        return cls(package, encoder=encoder, reranker=reranker, image_weight=image_weight)
+        exact = os.getenv("KM_WIFI8_VECTOR_EXACT", str(DEFAULT_VECTOR_EXACT)).strip().lower() in ("1", "true", "yes", "on")
+        return cls(package, encoder=encoder, reranker=reranker, image_weight=image_weight, exact=exact)
 
     # ---- filters ------------------------------------------------------
     def _documents(self) -> dict[str, dict[str, Any]]:
@@ -107,8 +112,10 @@ class Wifi8Search:
     def vector(self, query: str, options: SearchOptions) -> list[str]:
         if self.encoder is None:
             return []
+        from qdrant_client.models import SearchParams
         result = self.qdrant.query_points(self.collection, query=list(self.encoder([query])[0]), using=store_module.DENSE,
-                                          query_filter=self._filter(options), limit=options.candidates, with_payload=False)
+                                          query_filter=self._filter(options), limit=options.candidates, with_payload=False,
+                                          search_params=SearchParams(exact=self.exact))
         return [str(point.id) for point in result.points]
 
     # ---- fusion -------------------------------------------------------

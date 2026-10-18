@@ -299,3 +299,25 @@ def test_figure_chunks_are_weighted_in_the_fused_ranking(env):
         return [bool(r.get("image")) for r in search.search("ELR uplink 20 MHz 流程", SearchOptions(top_k=5, include_history=True))["results"]]
     assert ranking(1.0)[0] is True
     assert ranking(0.01)[0] is False and True in ranking(0.01)  # still found, just after the text
+
+
+def test_dense_retrieval_is_exact_unless_configured(env, monkeypatch):
+    from src.wifi8.search import Wifi8Search
+    tmp_path, client, _ = env
+    path = tmp_path / "p.zip"
+    make_v2(path, BASE_DOCS, BASE_SEGS, IMAGES, [FIGURE, LOGO])
+    importer = importer_for(env, FakeDescriber())
+    assert run(importer, importer.submit(path, submitted_by="t"))["status"] == "completed"
+    monkeypatch.delenv("KM_WIFI8_VECTOR_EXACT", raising=False)
+    monkeypatch.delenv("KM_WIFI8_IMAGE_SCORE_WEIGHT", raising=False)
+    search = Wifi8Search.for_current(importer, encoder=importer.encoder, reranker=None)
+    assert (search.exact, search.image_weight) == (True, 0.7)
+    calls = []
+    original = client.query_points
+    monkeypatch.setattr(client, "query_points", lambda *a, **k: calls.append(k["search_params"].exact) or original(*a, **k))
+    assert search.vector("ELR uplink", search._resolve("ELR uplink", __import__("src.wifi8.search", fromlist=["SearchOptions"]).SearchOptions(), search._documents()))
+    assert calls == [True]
+    monkeypatch.setenv("KM_WIFI8_VECTOR_EXACT", "false")
+    monkeypatch.setenv("KM_WIFI8_IMAGE_SCORE_WEIGHT", "1")
+    search = Wifi8Search.for_current(importer, encoder=importer.encoder, reranker=None)
+    assert (search.exact, search.image_weight) == (False, 1.0)
