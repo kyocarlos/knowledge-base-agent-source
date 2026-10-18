@@ -216,5 +216,8 @@ def test_image_route_serves_only_figures_of_the_current_package(image_api):
         assert client.get(f"/api/wifi8/images/{bad}").status_code == 404
     chunks = client.get("/api/wifi8/documents/new/chunks", params={"start": 1, "count": 20}).json()["chunks"]
     assert [c["image"]["id"] for c in chunks if c.get("image")] == [FIG_ID]
+    figures = client.get("/api/wifi8/documents/new/chunks", params={"figures": "true", "count": 1}).json()
+    assert figures["total"] == 1 and [c["location_label"] for c in figures["chunks"]] == ["第 2 頁・圖 1"]
+    assert client.get("/api/wifi8/documents/new/chunks", params={"figures": "true"}).json()["chunks"][0]["image"]["id"] == FIG_ID
     state["identity"] = None
     assert client.get(f"/api/wifi8/images/{FIG_ID}").status_code == 401

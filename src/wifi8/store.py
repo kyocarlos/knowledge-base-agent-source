@@ -102,12 +102,14 @@ class Wifi8Store:
         points = self.qdrant.retrieve(self.chunks_collection, ids=list(point_ids), with_payload=True)
         return {str(p.id): p.payload for p in points if self.package_id in ((p.payload or {}).get("packages") or [])}
 
-    def chunk_page(self, revision_id: str, start: int, count: int) -> tuple[int, list[tuple[str, dict[str, Any]]]]:
-        """(total chunks of the document, [(point_id, payload)] ordered by chunk_index from ``start``)."""
-        from qdrant_client.models import FieldCondition, OrderBy, Range
-        total = self.qdrant.count(self.chunks_collection, count_filter=self.chunk_filter(match("revision_id", revision_id)),
-                                  exact=True).count
-        page = self.chunk_filter(match("revision_id", revision_id), FieldCondition(key="chunk_index", range=Range(gte=start)))
+    def chunk_page(self, revision_id: str, start: int, count: int, *, figures: bool = False) -> tuple[int, list[tuple[str, dict[str, Any]]]]:
+        """(total chunks of the document, [(point_id, payload)] ordered by chunk_index from ``start``);
+        ``figures`` limits both to the chunks made from the document's figures."""
+        from qdrant_client.models import FieldCondition, Filter, IsEmptyCondition, OrderBy, PayloadField, Range
+        must = [match("packages", self.package_id), match("revision_id", revision_id)]
+        must_not = [IsEmptyCondition(is_empty=PayloadField(key="image_id"))] if figures else None
+        total = self.qdrant.count(self.chunks_collection, count_filter=Filter(must=must, must_not=must_not), exact=True).count
+        page = Filter(must=[*must, FieldCondition(key="chunk_index", range=Range(gte=start))], must_not=must_not)
         points, _ = self.qdrant.scroll(self.chunks_collection, scroll_filter=page, limit=count, with_payload=True,
                                        with_vectors=False, order_by=OrderBy(key="chunk_index"))
         return total, [(str(p.id), p.payload) for p in points]

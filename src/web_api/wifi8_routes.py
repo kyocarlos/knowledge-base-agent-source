@@ -265,11 +265,12 @@ async def wifi8_document_chunks(
     request: Request,
     start: int = Query(default=1, ge=1, le=1000000),
     count: int = Query(default=8, ge=1, le=20),
+    figures: bool = Query(default=False),
 ):
     _identity(request)
     importer = _importer()
     _document_or_404(revision_id, importer)
-    total, page = _package_store(importer).chunk_page(revision_id, start, count)
+    total, page = _package_store(importer).chunk_page(revision_id, start, count, figures=figures)
     chunks = [{
         "chunk_index": payload["chunk_index"],
         "location": payload.get("location") or {},

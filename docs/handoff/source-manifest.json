@@ -693,11 +693,11 @@
     },
     {
       "path": "frontend/wifi8/index.html",
-      "sha256": "9de21dc4bd0aad63303fa698682f147d8c4e15f5e948e7aee4d2c1f95b619e28"
+      "sha256": "293aaec58c0c752180b69b6062e41befc6489f7c2bb9b04ac0006c96a2967981"
     },
     {
-      "path": "frontend/wifi8/wifi8.09b26283504a.js",
-      "sha256": "09b26283504a3cb79cb546bf36c31ef2aa21dbdaef10d3db189d22d51ee3b50a"
+      "path": "frontend/wifi8/wifi8.9901a59c6e58.js",
+      "sha256": "9901a59c6e58cef10411e29ed71f8ceb5f91acd289a337c9cc405a1ecab56ed9"
     },
     {
       "path": "frontend/wifi8/wifi8.b98761d945c8.css",
@@ -1561,7 +1561,7 @@
     },
     {
       "path": "src/web_api/wifi8_routes.py",
-      "sha256": "fc0a1b55b8d7f35a109800cad881fad112b200584ce2a3b80d00bfc968686ca6"
+      "sha256": "0883d3c5bf768d0fdcbaacc9833a4c18f93f5d7e1bd38881c7cd0bd5727b31a5"
     },
     {
       "path": "src/wifi8/__init__.py",
@@ -1617,7 +1617,7 @@
     },
     {
       "path": "src/wifi8/store.py",
-      "sha256": "31773d023b1d093e3907b4b6fc82a22f486505d0cd4a02ecafcdd8fe967e47db"
+      "sha256": "f285c9b646aba30e97b5db2853098b51a20dd23bb89e714ee77389108ca91ab3"
     },
     {
       "path": "start.sh",
@@ -1985,7 +1985,7 @@
     },
     {
       "path": "tests/test_wifi8_images.py",
-      "sha256": "37e6a127fb19bd52ffc80ac39a429eb2f9fcfdbe93943f7bf65987b3048a6dcb"
+      "sha256": "02d237755b5ebfb55d7b04d831e52ba26c665f87db4f944bbe43dd834f77bf7d"
     },
     {
       "path": "tests/test_wifi8_import.py",
