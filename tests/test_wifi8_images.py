@@ -346,3 +346,20 @@ def test_import_keeps_qdrant_vacuuming_deleted_points(env, monkeypatch):
     if not str(type(client._client)).endswith("QdrantLocal'>"):  # real server: the setting is stored
         config = client.get_collection("wifi8_test").config.optimizer_config
         assert (config.deleted_threshold, config.vacuum_min_vector_number) == (0.001, 100)
+
+
+def test_agent_citations_of_figure_chunks_carry_the_image(env):
+    from src.wifi8.agent import AgentSettings, CitationRegistry, WifiTools
+    from src.wifi8.search import Wifi8Search
+    tmp_path, client, _ = env
+    path = tmp_path / "p.zip"
+    make_v2(path, BASE_DOCS, BASE_SEGS, IMAGES, [FIGURE, LOGO])
+    importer = importer_for(env, FakeDescriber())
+    assert run(importer, importer.submit(path, submitted_by="t"))["status"] == "completed"
+    citations = CitationRegistry()
+    tools = WifiTools(Wifi8Search(importer.current_store(), encoder=importer.encoder), AgentSettings(), citations)
+    tools.search_wifi("ELR uplink 20 MHz 流程", include_history=True)
+    tools.read_document("new", start=1, count=8)
+    figures = [c for c in citations.items.values() if c.get("image")]
+    assert figures and all(c["image"]["id"] == FIG_ID and c["location_label"].endswith("圖 1") for c in figures)
+    assert all("image" not in c for c in citations.items.values() if "圖" not in (c["location_label"] or ""))

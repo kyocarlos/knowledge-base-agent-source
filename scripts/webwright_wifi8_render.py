@@ -9,6 +9,8 @@
   document_table        含表格的文件（KM_RENDER_TABLE_DOC，預設 Co-BF vs. Co-SR）在文件段落中以表格呈現（表頭＋資料列）
   document_figures      含圖片的文件（KM_RENDER_FIGURE_DOC）的「文件圖片」區塊：圖片確實載入，且附有轉出的文字
   search_figure         混合檢索只出現在圖片中的內容（KM_RENDER_FIGURE_QUERY），結果含圖片段落並顯示縮圖
+  agent_figure_citation 問只有圖片才有答案的題目（KM_RENDER_FIGURE_QUESTION），引用清單中來自圖片的引用有「圖片」標籤、
+                        位置（投影片／頁・圖號）與已載入的縮圖
   search_title_*        混合檢索結果標題是文件名稱、不是 revision 檔名代碼，且附註標出全文／語意命中
   agent_markdown        AI 回答以 Markdown 呈現（粗體、條列、[S#] 標示），沒有殘留 ** 或 ## 符號
   agent_citations       引用清單用 [S#] 與文件名稱，內文出現的 [S#] 都列在清單中
@@ -28,6 +30,7 @@ SEARCH_QUERIES = [q for q in os.getenv("KM_RENDER_SEARCH_QUERIES", "漫遊|ELR u
 AGENT_QUESTION = os.getenv("KM_RENDER_AGENT_QUESTION", "請用條列整理 ELR 的三個重點，重要名詞用粗體，並附來源。")
 TABLE_DOC = os.getenv("KM_RENDER_TABLE_DOC", "Co-BF vs. Co-SR")
 FIGURE_DOC = os.getenv("KM_RENDER_FIGURE_DOC", "Sensing TG Overview")
+FIGURE_QUESTION = os.getenv("KM_RENDER_FIGURE_QUESTION", "Wi-Fi Sensing 的居家監控用例中，感測結果如何用來控制 HVAC？")
 FIGURE_QUERY = os.getenv("KM_RENDER_FIGURE_QUERY", "Sensing 時間軸 SoW approved MRD approved Certification launch")
 
 
@@ -115,6 +118,14 @@ def main() -> int:
 
         pg.goto(BASE + "/wifi8/#/ai")
         pg.wait_for_timeout(2000)
+        reply = ask_agent(pg, run, FIGURE_QUESTION)
+        figure_citations = pg.locator(".citation-list").last.locator("li.citation-figure")
+        count = figure_citations.count()
+        widths = loaded_images(figure_citations.first) if count else []
+        first = figure_citations.first.inner_text().replace("\n", " ") if count else ""
+        run.act(pg, "agent_figure_citation", f"「{FIGURE_QUESTION}」→ 引用 {len(reply['citations'])} 筆，其中圖片引用 {count} 筆；第一筆「{first[:90]}」縮圖寬度 {widths}",
+                count > 0 and widths and all(w > 0 for w in widths) and "圖片" in first and "圖 " in first,
+                target=pg.locator(".citation-list").last)
         reply = ask_agent(pg, run, AGENT_QUESTION)
         message, answer = reply["message"], reply["answer"]
         tags = {t: message.locator(t).count() for t in ("strong", "ul", "ol", "li", "h3", "h4", "table", "code", ".cite-ref")}

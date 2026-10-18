@@ -112,6 +112,8 @@ class CitationRegistry:
                 "wfa_revision": item.get("wfa_revision"), "document_role": item.get("document_role"),
                 "publisher": item.get("publisher"), "document_date": item.get("document_date"),
                 "analysis_eligible": item.get("analysis_eligible"), "content": (item.get("content") or "")[:1200],
+                # A chunk made from a figure: the answer page shows the image next to the citation.
+                **({"image": item["image"]} if item.get("image") else {}),
                 "storage_category": "WiFi", "source_system": "WIFI8",
             }
             self.texts[ref] = item.get("content") or ""

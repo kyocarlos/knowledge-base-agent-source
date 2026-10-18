@@ -156,6 +156,14 @@ tbody tr:hover { background: rgba(127,255,227,.05); }
 .citation-list li, .trace-list li, .job-item { padding: 10px; border: 1px solid var(--line-soft); border-radius: 10px; color: var(--ink-soft); background: rgba(0,0,0,.16); font-size: .73rem; line-height: 1.5; }
 .citation-list strong { color: var(--blue); }
 .citation-list small { display: block; margin-top: 3px; color: var(--muted); }
+.citation-list li.citation-figure { display: flex; gap: 10px; align-items: flex-start; }
+.citation-thumb { flex: 0 0 auto; }
+.citation-thumb img { display: block; width: 120px; max-height: 90px; object-fit: contain; border: 1px solid var(--line); border-radius: 6px; background: #fff; }
+.citation-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; margin-top: 4px; }
+.citation-meta small { display: inline; margin: 0; }
+.citation-place { color: var(--ink); font-size: .78rem; font-weight: 600; }
+.citation-badge { padding: 0 7px; border: 1px solid var(--blue); border-radius: 999px; color: var(--blue); font-size: .68rem; line-height: 1.6; }
+@media (max-width: 520px) { .citation-thumb img { width: 84px; max-height: 70px; } }
 .message.markdown { white-space: normal; overflow-wrap: anywhere; }
 .message.markdown > :first-child { margin-top: 0; }
 .message.markdown > :last-child { margin-bottom: 0; }

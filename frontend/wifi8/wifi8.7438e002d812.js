@@ -213,8 +213,14 @@
   }
   function citationItem(item, index) {
     if (typeof item !== 'object' || item === null) return `<li><strong>[${index + 1}]</strong> ${escapeHtml(item)}</li>`;
-    const meta = [item.location_label, item.publisher, item.wfa_document_id ? `WFA ${item.wfa_document_id}` : '', item.analysis_eligible === false ? '歷史版本' : ''].filter(Boolean).join(' · ');
-    return `<li><strong>[${escapeHtml(item.ref || index + 1)}]</strong> <span title="${escapeHtml(item.revision_id)}">${escapeHtml(hitTitle(item))}</span>${meta ? `<small>${escapeHtml(meta)}</small>` : ''}</li>`;
+    const meta = [item.publisher, item.wfa_document_id ? `WFA ${item.wfa_document_id}` : '', item.analysis_eligible === false ? '歷史版本' : ''].filter(Boolean).join(' · ');
+    const image = item.image && /^[0-9a-f]{64}$/.test(item.image.id || '') ? item.image : null;
+    // Where in the document the cited text is (page / slide / figure): shown prominently, figures get a badge and
+    // a thumbnail that opens the image, so an answer read from a figure can be checked against it.
+    const place = item.location_label ? `<span class="citation-place">${escapeHtml(item.location_label)}</span>` : '';
+    const badge = image ? '<span class="citation-badge">圖片</span>' : '';
+    const thumb = image ? `<a class="citation-thumb" href="/api/wifi8/images/${image.id}" target="_blank" rel="noopener" title="開啟原圖"><img src="/api/wifi8/images/${image.id}" alt="${escapeHtml(item.location_label || '引用圖片')}" loading="lazy"></a>` : '';
+    return `<li class="${image ? 'citation-figure' : ''}">${thumb}<div><strong>[${escapeHtml(item.ref || index + 1)}]</strong> <span title="${escapeHtml(item.revision_id)}">${escapeHtml(hitTitle(item))}</span><div class="citation-meta">${badge}${place}${meta ? `<small>${escapeHtml(meta)}</small>` : ''}</div></div></li>`;
   }
   // Grounding check computed by the worker against the full text of the cited chunks (absent on older answers).
   const groundingReasons = { no_source: '未附來源', value_not_found: '數值在資料中找不到', value_other_source: '數值出現在其他引用', low_similarity: '與原文相似度低' };
