@@ -4,9 +4,12 @@
 
 ## 檔案
 
-- `golden-set.v1.jsonl`：34 題，一行一題，分為 8 類：功能定義、測試驗證、版本判斷、會議紀錄、廠商產品、研究與內部、總覽統計、應拒答。
+- `golden-set.v1.jsonl`：43 題，一行一題，分為 9 類：功能定義、測試驗證、版本判斷、會議紀錄、廠商產品、研究與內部、總覽統計、應拒答、圖片圖表（2026-10-19 新增 F01～F09）。
 - `build_golden_set.py`：從匯出包的 `documents.jsonl`／`segments.jsonl` 產生題庫，把標準來源的標題解析成 `revision_id`，每個標題必須唯一對應一份文件。
-  - 用法：`python build_golden_set.py <documents.jsonl> <輸出.jsonl>`，`segments.jsonl` 須和 `documents.jsonl` 放在同一目錄。
+  - 用法：`python build_golden_set.py <documents.jsonl> <輸出.jsonl>`，`segments.jsonl` 須和 `documents.jsonl` 放在同一目錄；旁邊有 `images.jsonl`（匯出包 v2）時一併產生圖片圖表題。
+- `figure_cases.py`：圖片圖表題的定義與產生器。標準圖片以「文件標題開頭＋位置（投影片／頁／段）＋第幾張圖」指定，從 `images.jsonl` 解析成 `image_id`，必須唯一；同一張圖表也出現在其他文件時一併列入。
+  - 只更新圖片圖表題（其他題目原樣保留）：`python figure_cases.py <匯出包解開的目錄> golden-set.v1.jsonl`。
+  - 選題原則：答案只在圖片中、文件本文沒有，這樣才能看出圖片轉文字與檢索圖片的效果。
 - `../../src/wifi8/evaluation.py`：評分規則（純程式，不用模型評分）。
 - `../../scripts/eval_wifi8_agent.py`：在資料區的 search worker 內執行評測，輸出 `results.json` 與 `report.md`。
 
@@ -17,6 +20,7 @@
 | `gold` | 標準來源 `revision_id`，命中任一份即算命中。 |
 | `facts` | 事實組。每組列出可接受的寫法，答案出現任一寫法就算該組命中；比對時忽略大小寫與空白。 |
 | `expect_refusal`、`refusal_markers`、`must_not_regex` | 資料庫沒有答案的題目：答案須出現拒答用語，且不得出現捏造的具體數值。 |
+| `gold_figures`、`gold_figure_places` | 圖片圖表題的標準圖片 `image_id`（任一張即可）與其位置說明。 |
 | `package_id` | 答案會隨匯入資料改變的題目（如總覽統計）。匯入版本不同時，評測會略過這題並在報告中註明。 |
 
 ## 出題與標準來源原則
@@ -29,7 +33,10 @@
 
 - **檢索**：用問題原文做混合檢索，前 10 筆（以文件計）是否含標準來源（命中@10），以及第一個命中名次的倒數（MRR）。
 - **回答通過**：所有事實組都命中，而且引用中至少一筆是標準來源；應拒答的題目則看是否拒答、有沒有捏造數值。
+- **圖片**（圖片圖表題）：檢索前 10 筆（以段落計）是否有標準圖片（`figure_hit_at_10`）；回答引用中是否有標準圖片（`cited_figure`）。只引用同文件文字段落時回答仍可通過，但會列為「引用未包含標準圖片」。
+- **引用編號**（所有題目）：同一份文件、同一位置有多筆引用時，每筆都要標出第幾段；沒標的回答數記為 `unnumbered_repeat_answers`，應為 0。
 - 另外記錄事實覆蓋率、延遲、工具步驟與停止原因。
+- 自動品質驗證（`scripts/wifi8_quality_check.py`）只在題庫內容相同時與上次比較是否退步；題庫改變後的第一次執行不比較。
 
 ## 執行（以 TEST 為例）
 
@@ -145,3 +152,12 @@ docker cp $C:/tmp/km-eval/out ./wifi8-eval-out
 - 填好後用 `python3 scripts/wifi8_quality_notify.py --test` 確認。
 - 訊息只含總結、區、層、未通過指標與數值、報告路徑，不含題目、回答或文件內容；錯誤訊息只列管道與 HTTP 狀態碼，不含 token。
 - 通知失敗不影響驗證：報告照常寫入，並在報告末尾註明通知結果；`--no-notify` 可關閉通知。
+
+## 圖片圖表題基準（2026-10-19，TEST 與 DA40，commit `6e1f5ec`）
+
+- 匯入版本 `wifi8-4524d8071d6e37f3`（含 985 個圖片段落）；全部 43 題：兩區檢索命中@10 94.9%、MRR 0.804；回答通過 TEST 95.1%、DA40 97.6%。
+- 圖片圖表 9 題：檢索前 10 筆有標準圖片 88.9%（兩區相同）；回答引用標準圖片 TEST 87.5%（F03 該次 LLM 請求失敗，重跑通過）、DA40 88.9%。
+- 同一位置多筆引用卻沒標出第幾段的回答：兩區都是 0。
+- 有效發現：
+  - **F05（回答錯誤，兩區相同）**：PF1 Report 的 UHR-4.5.2 應為 25／30／30，Agent 答成 6／9／9，這是 EE1 Report 同一測試項目的數值；引用的是 PF1 的文字投影片而不是結果圖。兩份報告的結果表版面幾乎相同，Agent 把兩份報告混在一起。
+  - **F04（檢索）**：「Wi-Fi NOW - Co-SR - Image」沒進前 10 筆，但 Agent 從 Part Five 文章中的同一張表找到並引用，回答正確。

@@ -557,7 +557,7 @@
     },
     {
       "path": "eval/wifi8/README.md",
-      "sha256": "947be9d76f7b05262d84ef7bc997ec468edc8d0363df33848a56e99aeaca6484"
+      "sha256": "e76ea6b45ff1d5b8a79d1ea9ec2971d6cc0e0d06fba0d3370a7f6ab9d146ff63"
     },
     {
       "path": "eval/wifi8/build_golden_set.py",
@@ -573,7 +573,7 @@
     },
     {
       "path": "eval/wifi8/quality-config.json",
-      "sha256": "903b6217235f373464424f680f1034a942f064eae145643f70634192917dc4e3"
+      "sha256": "368f6defb6171bd3c1ff2219447ee397214e318d9856194d22caaf2d77cd2e80"
     },
     {
       "path": "five_modes_arch.html",
