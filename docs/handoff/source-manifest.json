@@ -341,7 +341,7 @@
     },
     {
       "path": "deploy/dev-3030/compose/kb-test-workers.image.override.yml",
-      "sha256": "a212a9cbbca57c697e48ab751e4f6cd537314808c112cfcbd6b52957fd75fc30"
+      "sha256": "d058428a549dfca78ece5f0ce014c7a61a5ea1b7d4e54d3aeb8d9682cacf368e"
     },
     {
       "path": "deploy/dev-3030/compose/kb-test.llm-primary.override.yml",
@@ -357,11 +357,11 @@
     },
     {
       "path": "deploy/dev-3030/compose/kb-web.chat-runtime.override.yml",
-      "sha256": "846bf1e53284299eea2f835a36185353b32eff5b288b90e2f16021909520b36e"
+      "sha256": "c23eed4db2cdb6cbc51ca3e25411c046ff2a82072710ff38b59bcc302f17f567"
     },
     {
       "path": "deploy/dev-3030/compose/km-da40.llm-primary.override.yml",
-      "sha256": "0a85ee29cf3e9ba1004b347f1ed50beffa35fd33f24d42b194b5d0a3638be350"
+      "sha256": "cdb2669e672c165e2b5a24f675da45150d5a9162bec3685e1ee71b201020ebe4"
     },
     {
       "path": "deploy/dev-3030/compose/km-da40.wifi8.override.yml",
@@ -1193,7 +1193,7 @@
     },
     {
       "path": "scripts/webwright_wifi8_render.py",
-      "sha256": "bcb6870f4931aeba8de15a4c32d2ffcefbc441dc068f925904d95408488f0fe5"
+      "sha256": "51f5c15262699473951264c318d98f3147e3cace16002932b07c37cbaff01ba1"
     },
     {
       "path": "scripts/webwright_wifi8_upload.py",
