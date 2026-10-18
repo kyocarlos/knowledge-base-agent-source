@@ -57,7 +57,48 @@ def location_label(location: dict[str, Any]) -> str:
         return f"表格 {location.get('table')}" + (f" 第 {location['row']} 列" if location.get("row") else "")
     if kind == "paragraph":
         return f"第 {location.get('paragraph')} 段"
+    if kind == "image":
+        return "圖片檔"
     return ""
+
+
+IMAGE_MARK = "【圖片】"
+
+
+def image_chunks(documents: Iterable[dict[str, Any]], images: Iterable[dict[str, Any]], texts: dict[str, str],
+                 after: dict[str, int]) -> list[dict[str, Any]]:
+    """One chunk per described figure, numbered after the text chunks of its document (``after``: revision_id -> last
+    text ordinal) so text chunk identities and order never change. Figures without text (none, failed, decorative)
+    are left out."""
+    titles = {d["revision_id"]: d.get("title") or d["revision_id"] for d in documents}
+    ordinals = dict(after)
+    result = []
+    for image in sorted(images, key=lambda i: (i["revision_id"], int(i["ordinal"]))):
+        described = texts.get(image["image_id"], "")
+        if not described:
+            continue
+        rid = image["revision_id"]
+        place = location_label(image.get("location") or {})
+        label = f"{place}・圖 {image['ordinal']}" if place and place != "圖片檔" else f"圖 {image['ordinal']}"
+        caption = str(image.get("caption") or "").strip()
+        text = "\n".join(part for part in (IMAGE_MARK + (caption or ""), described) if part).strip()
+        content_hash = hashlib.sha256(text.encode("utf-8")).hexdigest()
+        ordinals[rid] = ordinals.get(rid, 0) + 1
+        result.append({
+            "point_id": str(uuid.uuid5(POINT_NAMESPACE, f"{rid}/image/{image['image_id']}/{content_hash}")),
+            "revision_id": rid,
+            "ordinal": ordinals[rid],
+            "segment_ids": [],
+            "location": {**(image.get("location") or {}), "figure": image["ordinal"]},
+            "location_label": label,
+            "content_hash": content_hash,
+            "text": text,
+            "embed_text": f"{titles.get(rid, rid)}\n{label}\n{text}",
+            "display_text": None,
+            "image": {"id": image["image_id"], "extension": image["extension"],
+                      "width": image.get("width"), "height": image.get("height")},
+        })
+    return result
 
 
 def build_chunks(documents: Iterable[dict[str, Any]], segments: Iterable[dict[str, Any]], *, max_chars: int) -> list[dict[str, Any]]:

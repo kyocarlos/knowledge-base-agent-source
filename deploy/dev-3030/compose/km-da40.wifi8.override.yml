@@ -1,7 +1,16 @@
 # DA40 資料區的 WiFi 知識專區（2026-10-16 使用者決策：DA40 也需要 Wi-Fi8 資料）。
 # KM_WIFI8_IMPORT_USERS：可上傳 Wi-Fi8 匯出包的帳號（逗號分隔）；*＝所有已登入帳號；空值＝關閉上傳。
 # Wi-Fi8 匯入資料存於既有 km-da40_instance_data volume 的 /app/data/wifi8。不含任何 secret。
+# 圖片轉文字（2026-10-18 使用者決策：匯出包附上圖片，由 KM 以 Sub2API 的看圖模型轉成文字）：web 收件時決定是否先轉圖，
+# ingest worker 實際執行，兩者設定必須相同。模型、端點與金鑰變數名稱沿用 KM_LLM_PRIMARY_*；off＝只匯入文字。
+x-km-wifi8-images: &wifi8_images
+  KM_WIFI8_IMAGE_DESCRIBER: ${KM_WIFI8_IMAGE_DESCRIBER:-openai}
+  KM_WIFI8_IMAGE_REASONING_EFFORT: ${KM_WIFI8_IMAGE_REASONING_EFFORT:-low}
 services:
   web:
     environment:
       KM_WIFI8_IMPORT_USERS: ${KM_WIFI8_IMPORT_USERS:-}
+      <<: *wifi8_images
+  celery_ingest_worker:
+    environment:
+      <<: *wifi8_images

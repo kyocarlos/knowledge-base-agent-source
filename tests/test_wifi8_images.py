@@ -1,0 +1,220 @@
+import hashlib
+import json
+import zipfile
+from pathlib import Path
+
+import pytest
+from fastapi import FastAPI, Request
+from fastapi.testclient import TestClient
+from qdrant_client import QdrantClient
+
+from src.wifi8.chunks import build_chunks, image_chunks
+from src.wifi8.images import DescriberSettings, ImageTextCache, clean, describe_batch
+from src.wifi8.importer import Wifi8Importer, Wifi8Settings
+from src.wifi8.package import PackageError, read_package
+from tests.test_wifi8_import import BASE_DOCS, BASE_SEGS, FakeEncoder, doc, run
+
+FIGURE = b"\x89PNG fake figure bytes"
+LOGO = b"\x89PNG fake logo"
+FIG_ID, LOGO_ID = hashlib.sha256(FIGURE).hexdigest(), hashlib.sha256(LOGO).hexdigest()
+IMAGES = [
+    {"image_id": FIG_ID, "revision_id": "new", "ordinal": 1, "location": {"type": "page", "page": 2},
+     "caption": "Figure 3: ELR uplink", "extension": "png", "width": 400, "height": 300},
+    {"image_id": LOGO_ID, "revision_id": "new", "ordinal": 2, "location": {"type": "page", "page": 1},
+     "caption": "", "extension": "png", "width": 300, "height": 200},
+    {"image_id": FIG_ID, "revision_id": "old", "ordinal": 1, "location": {"type": "image"},
+     "caption": "", "extension": "png", "width": 400, "height": 300},
+]
+DESCRIPTIONS = {FIGURE: "【圖中文字】\nELR uplink 20 MHz\n【圖片說明】\n此圖說明 **ELR** 上行流程。", LOGO: "無內容。"}
+
+
+def make_v2(path: Path, documents, segments, images, files, *, tamper=None, extra=None):
+    members = {
+        "documents.jsonl": "".join(json.dumps(d, ensure_ascii=False) + "\n" for d in documents).encode(),
+        "segments.jsonl": "".join(json.dumps(s, ensure_ascii=False) + "\n" for s in segments).encode(),
+        "images.jsonl": "".join(json.dumps(i, ensure_ascii=False) + "\n" for i in images).encode(),
+    }
+    listed = {n: {"sha256": hashlib.sha256(b).hexdigest(), "bytes": len(b)} for n, b in members.items()}
+    content = hashlib.sha256(b"".join(listed[n]["sha256"].encode() for n in sorted(listed))).hexdigest()
+    manifest = {"schema": "km.wifi8-package.v2", "package_id": f"wifi8-{content[:16]}", "content_sha256": content,
+                "files": listed, "counts": {"documents": len(documents), "images": len(images)}}
+    with zipfile.ZipFile(path, "w") as archive:
+        archive.writestr("manifest.json", json.dumps(manifest))
+        for name, data in members.items():
+            archive.writestr(name, data)
+        for data in files:
+            name = f"images/{hashlib.sha256(data).hexdigest()}.png"
+            archive.writestr(name, data + b"x" if name == tamper else data)
+        if extra:
+            archive.writestr(extra, b"x")
+    return manifest["package_id"]
+
+
+class FakeDescriber:
+    def __init__(self, fail=()):
+        self.calls, self.fail = [], set(fail)
+
+    def __call__(self, data, extension):
+        self.calls.append(data)
+        if data in self.fail:
+            raise TimeoutError("gateway timeout")
+        return DESCRIPTIONS[data]
+
+
+SETTINGS = DescriberSettings(provider="openai", model="vision-x", base_url="http://gw/v1", api_key_env="K",
+                             batch_size=2, concurrency=2, retries=1, max_failed_ratio=0.0)
+
+
+@pytest.fixture
+def env(tmp_path):
+    return tmp_path, QdrantClient(":memory:"), Wifi8Settings(root=tmp_path / "wifi8", collection="wifi8_test", embed_batch_size=4)
+
+
+def importer_for(env, describer, settings=SETTINGS, encoder=None):
+    tmp_path, client, wifi8 = env
+    return Wifi8Importer(wifi8, qdrant=client, encoder=encoder or FakeEncoder(), embedding_model="fake",
+                         describer_settings=settings, describer=describer)
+
+
+def chunk_payloads(client):
+    return [p.payload for p in client.scroll("wifi8_test", limit=200, with_payload=True)[0]]
+
+
+def test_v2_package_is_verified_and_v1_still_accepted(tmp_path):
+    path = tmp_path / "p.zip"
+    make_v2(path, BASE_DOCS, BASE_SEGS, IMAGES, [FIGURE, LOGO])
+    package = read_package(path, max_uncompressed_bytes=10**7)
+    assert len(package.images) == 3 and package.image_bytes(FIG_ID, "png") == FIGURE
+    for kwargs in ({"tamper": f"images/{FIG_ID}.png"}, {"extra": "images/" + "a" * 64 + ".png"}, {"extra": "images/../x.png"}):
+        bad = tmp_path / "bad.zip"
+        make_v2(bad, BASE_DOCS, BASE_SEGS, IMAGES, [FIGURE, LOGO], **kwargs)
+        with pytest.raises(PackageError):
+            read_package(bad, max_uncompressed_bytes=10**7)
+    missing = tmp_path / "missing.zip"
+    make_v2(missing, BASE_DOCS, BASE_SEGS, IMAGES, [FIGURE])  # LOGO listed but not shipped
+    with pytest.raises(PackageError):
+        read_package(missing, max_uncompressed_bytes=10**7)
+
+
+def test_clean_drops_empty_marker_and_emphasis():
+    assert clean("無內容。") == "" and clean("  ") == ""
+    assert clean("【圖片說明】\n**ELR** 流程  \n") == "【圖片說明】\nELR 流程"
+
+
+def test_describe_batch_caches_results_and_records_failures(tmp_path):
+    cache = ImageTextCache(tmp_path)
+    describer = FakeDescriber(fail={LOGO})
+    images = [{"image_id": FIG_ID, "extension": "png"}, {"image_id": LOGO_ID, "extension": "png"}]
+    counts = describe_batch(images, lambda i, e: {FIG_ID: FIGURE, LOGO_ID: LOGO}[i], cache, SETTINGS, describer, sleep=lambda s: None)
+    assert counts == {"described": 1, "empty": 0, "failed": 1}
+    assert describer.calls.count(LOGO) == 2  # one retry
+    assert cache.usable(FIG_ID, SETTINGS.signature)["text"].endswith("此圖說明 ELR 上行流程。")
+    assert cache.get(LOGO_ID)["status"] == "failed" and cache.usable(LOGO_ID, SETTINGS.signature) is None
+    assert cache.find_image(FIG_ID).read_bytes() == FIGURE
+    assert cache.usable(FIG_ID, "openai:other-model:low:p1") is None  # another model describes again
+
+
+def test_image_chunks_keep_text_chunk_identities():
+    text = build_chunks(BASE_DOCS, BASE_SEGS, max_chars=1200)
+    figures = image_chunks(BASE_DOCS, IMAGES, {FIG_ID: "ELR uplink 20 MHz"}, {"new": 2, "old": 1})
+    assert build_chunks(BASE_DOCS, BASE_SEGS, max_chars=1200) == text
+    assert [(c["revision_id"], c["ordinal"], c["location_label"]) for c in figures] == [("new", 3, "第 2 頁・圖 1"), ("old", 2, "圖 1")]
+    assert figures[0]["text"] == "【圖片】Figure 3: ELR uplink\nELR uplink 20 MHz" and figures[0]["image"]["id"] == FIG_ID
+    assert figures[0]["embed_text"].startswith("ELR Spec v2\n第 2 頁・圖 1\n")
+    assert figures[0]["point_id"] != figures[1]["point_id"] and figures[0]["point_id"] not in {c["point_id"] for c in text}
+
+
+def test_import_describes_each_figure_once_and_reuses_the_cache(env):
+    tmp_path, client, _ = env
+    path = tmp_path / "p.zip"
+    make_v2(path, BASE_DOCS, BASE_SEGS, IMAGES, [FIGURE, LOGO])
+    describer, encoder = FakeDescriber(), FakeEncoder()
+    importer = importer_for(env, describer, encoder=encoder)
+    job = importer.submit(path, submitted_by="t")
+    assert job["phase"] == "describe"
+    job = run(importer, job)
+    assert job["status"] == "completed", job.get("error")
+    assert job["images"] == {"distinct": 2, "occurrences": 3, "described": 1, "empty": 1, "failed": 0, "pending": 0,
+                             "signature": SETTINGS.signature}
+    assert sorted(describer.calls) == sorted([FIGURE, LOGO])  # the figure used twice is described once
+    figures = [p for p in chunk_payloads(client) if p.get("image")]
+    assert sorted((p["revision_id"], p["location_label"]) for p in figures) == [("new", "第 2 頁・圖 1"), ("old", "圖 1")]
+    assert all(p["image_id"] == FIG_ID and p["vector_state"] == "ready" for p in figures)
+    assert importer.current()["image_text_signature"] == SETTINGS.signature
+    assert importer.submit(path, submitted_by="t")["status"] == "completed"  # same package and setting: nothing to do
+
+    # A new package with one more document: cached figures are not described again, text vectors are reused.
+    embedded = encoder.texts
+    docs = BASE_DOCS + [doc("extra", "DPS Overview")]
+    make_v2(tmp_path / "p2.zip", docs, BASE_SEGS, IMAGES + [{**IMAGES[0], "revision_id": "extra"}], [FIGURE, LOGO])
+    job = run(importer, importer.submit(tmp_path / "p2.zip", submitted_by="t"))
+    assert job["status"] == "completed" and len(describer.calls) == 2
+    assert encoder.texts == embedded + 1  # only the new document's figure chunk
+
+
+def test_too_many_failures_keep_the_current_package(env, monkeypatch):
+    tmp_path, client, _ = env
+    path = tmp_path / "p.zip"
+    make_v2(path, BASE_DOCS, BASE_SEGS, IMAGES, [FIGURE, LOGO])
+    importer = importer_for(env, FakeDescriber(fail={FIGURE}))
+    monkeypatch.setattr("src.wifi8.images.time.sleep", lambda s: None)
+    job = run(importer, importer.submit(path, submitted_by="t"))
+    assert job["status"] == "failed" and "圖片轉文字失敗 1/2" in job["error"]
+    assert importer.current() is None and importer.active_job() is None
+    # The next job tries the failed figure again (the described one comes from the cache).
+    retry = importer_for(env, FakeDescriber())
+    job = run(retry, retry.submit(path, submitted_by="t"))
+    assert job["status"] == "completed" and retry._describer.calls == [FIGURE]
+
+
+def test_describer_off_imports_text_only_and_says_so(env):
+    tmp_path, client, _ = env
+    path = tmp_path / "p.zip"
+    make_v2(path, BASE_DOCS, BASE_SEGS, IMAGES, [FIGURE, LOGO])
+    importer = importer_for(env, None, settings=DescriberSettings(provider="off"))
+    job = importer.submit(path, submitted_by="t")
+    assert job["phase"] == "stage" and "KM_WIFI8_IMAGE_DESCRIBER=off" in job["message"]
+    assert run(importer, job)["status"] == "completed"
+    assert not any(p.get("image") for p in chunk_payloads(client))
+    assert importer.current()["image_text_signature"] is None
+    # Turning the describer on imports the same package again, now with its figures.
+    enabled = importer_for(env, FakeDescriber())
+    job = enabled.submit(path, submitted_by="t")
+    assert job["status"] == "queued" and run(enabled, job)["status"] == "completed"
+    assert any(p.get("image") for p in chunk_payloads(client))
+
+
+@pytest.fixture
+def image_api(env, monkeypatch):
+    from src.web_api import wifi8_routes
+    tmp_path, client, settings = env
+    path = tmp_path / "p.zip"
+    make_v2(path, BASE_DOCS, BASE_SEGS, IMAGES, [FIGURE, LOGO])
+    importer = importer_for(env, FakeDescriber())
+    assert run(importer, importer.submit(path, submitted_by="t"))["status"] == "completed"
+    monkeypatch.setattr(wifi8_routes, "_importer", lambda: importer)
+    app = FastAPI()
+    state = {"identity": {"sub": "u1"}}
+
+    @app.middleware("http")
+    async def identity(request: Request, call_next):
+        if state["identity"]:
+            request.state.km_identity = state["identity"]
+        return await call_next(request)
+
+    app.include_router(wifi8_routes.router)
+    return TestClient(app), state, importer
+
+
+def test_image_route_serves_only_figures_of_the_current_package(image_api):
+    client, state, importer = image_api
+    response = client.get(f"/api/wifi8/images/{FIG_ID}")
+    assert response.status_code == 200 and response.content == FIGURE
+    assert response.headers["content-type"] == "image/png" and response.headers["x-content-type-options"] == "nosniff"
+    assert client.get(f"/api/wifi8/images/{LOGO_ID}").status_code == 404  # cached, but no chunk (nothing to show)
+    for bad in ("../../etc/passwd", "A" * 64, "0" * 63):
+        assert client.get(f"/api/wifi8/images/{bad}").status_code == 404
+    chunks = client.get("/api/wifi8/documents/new/chunks", params={"start": 1, "count": 20}).json()["chunks"]
+    assert [c["image"]["id"] for c in chunks if c.get("image")] == [FIG_ID]
+    state["identity"] = None
+    assert client.get(f"/api/wifi8/images/{FIG_ID}").status_code == 401

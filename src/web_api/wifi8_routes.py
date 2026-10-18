@@ -15,10 +15,11 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query, Request, UploadFile
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
 from ..wifi8.importer import ImportConflict, Wifi8Importer, Wifi8Settings
-from ..wifi8.package import PackageError
+from ..wifi8.package import IMAGE_TYPES, PackageError
 from ..wifi8.search import SearchOptions, SearchUnavailable, Wifi8Search
 from ..wifi8.store import Wifi8Store
 
@@ -275,6 +276,7 @@ async def wifi8_document_chunks(
         "location_label": payload.get("location_label") or "",
         "content": payload["content"],
         "display_text": payload.get("display_text"),
+        "image": payload.get("image"),
     } for _, payload in page]
     return {
         "revision_id": revision_id,
@@ -284,6 +286,25 @@ async def wifi8_document_chunks(
         "next_start": start + len(chunks) if start + len(chunks) <= total else None,
         "chunks": chunks,
     }
+
+
+@router.get("/images/{image_id}")
+async def wifi8_image(image_id: str, request: Request):
+    """A figure of the serving package (by content hash); figures of replaced or excluded documents are not served."""
+    _identity(request)
+    if len(image_id) != 64 or any(c not in "0123456789abcdef" for c in image_id):
+        raise HTTPException(status_code=404, detail="image not found")
+    importer = _importer()
+    package = _package_store(importer)
+    from ..wifi8.store import match
+    if not importer.qdrant.count(package.chunks_collection, count_filter=package.chunk_filter(match("image_id", image_id)),
+                                 exact=True).count:
+        raise HTTPException(status_code=404, detail="image not found")
+    path = importer.image_cache.find_image(image_id)
+    if path is None:
+        raise HTTPException(status_code=404, detail="image not found")
+    return FileResponse(path, media_type=IMAGE_TYPES[path.suffix.lstrip(".")],
+                        headers={"Cache-Control": "private, max-age=86400", "X-Content-Type-Options": "nosniff"})
 
 
 class SearchRequest(BaseModel):

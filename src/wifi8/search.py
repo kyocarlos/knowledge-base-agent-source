@@ -152,6 +152,7 @@ class Wifi8Search:
                 "point_id": point_id, "revision_id": payload["revision_id"], "chunk_index": payload["chunk_index"],
                 "source": doc.get("title") or payload.get("doc_name"), "content": payload["content"],
                 "display_text": payload.get("display_text"),
+                "image": payload.get("image"),
                 "location": payload.get("location") or {}, "location_label": payload.get("location_label") or "",
                 "segment_ids": payload.get("segment_ids") or [],
                 "wfa_document_id": doc.get("wfa_document_id"), "wfa_revision": doc.get("wfa_revision"),

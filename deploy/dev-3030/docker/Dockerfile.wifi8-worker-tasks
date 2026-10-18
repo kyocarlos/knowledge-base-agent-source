@@ -1,0 +1,14 @@
+ARG BASE_IMAGE
+FROM ${BASE_IMAGE}
+ARG BASE_IMAGE
+ARG SOURCE_COMMIT
+ARG EXPECTED_BASE_TASKS_SHA256
+LABEL io.km.wifi8-worker-tasks-source-commit=${SOURCE_COMMIT} \
+      io.km.wifi8-worker-tasks-base-image=${BASE_IMAGE}
+
+# Worker images only: src/web_api/tasks.py from SOURCE_COMMIT (the WiFi import task keeps re-enqueuing while
+# figures are described). The base image must still carry the expected previous tasks.py, so a worker image
+# with other task backports is never silently overwritten.
+RUN test -n "${EXPECTED_BASE_TASKS_SHA256}" \
+ && echo "${EXPECTED_BASE_TASKS_SHA256}  /app/src/web_api/tasks.py" | sha256sum -c -
+COPY src/web_api/tasks.py /app/src/web_api/tasks.py

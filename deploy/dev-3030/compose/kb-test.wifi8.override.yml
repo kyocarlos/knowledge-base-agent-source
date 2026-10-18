@@ -6,13 +6,21 @@
 # 不含任何 secret。
 x-km-test-app-data: &app_data ${KM_TEST_APP_DATA_DIR:-/home/da40_ai_gb10/.km-control/test-zone-data/app-data}:/app/data
 x-km-test-hf-cache: &hf_cache ${KM_TEST_HF_CACHE_DIR:-/home/da40_ai_gb10/.km-control/test-zone-data/hf-cache}:/root/.cache/huggingface
+# 圖片轉文字（2026-10-18 使用者決策：匯出包附上圖片，由 KM 以 Sub2API 的看圖模型轉成文字）：web 收件時決定是否先轉圖，
+# ingest worker 實際執行，兩者設定必須相同。模型、端點與金鑰變數名稱沿用 KM_LLM_PRIMARY_*；off＝只匯入文字。
+x-km-wifi8-images: &wifi8_images
+  KM_WIFI8_IMAGE_DESCRIBER: ${KM_WIFI8_IMAGE_DESCRIBER:-openai}
+  KM_WIFI8_IMAGE_REASONING_EFFORT: ${KM_WIFI8_IMAGE_REASONING_EFFORT:-low}
 services:
   web:
     environment:
       KM_WIFI8_IMPORT_USERS: ${KM_WIFI8_IMPORT_USERS:-}
+      <<: *wifi8_images
     volumes:
       - *app_data
   celery_ingest_worker:
+    environment:
+      <<: *wifi8_images
     volumes:
       - *app_data
       - *hf_cache

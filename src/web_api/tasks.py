@@ -923,7 +923,7 @@ def _build_search_citation_distribution(sources: list[dict]) -> dict:
         "total_sources": len(sources or []),
     }
 
-WIFI8_ACTIVE_STATUSES = frozenset({"queued", "staging", "embedding", "publishing"})
+WIFI8_ACTIVE_STATUSES = frozenset({"queued", "describing", "staging", "embedding", "publishing"})
 
 
 def build_wifi8_importer():

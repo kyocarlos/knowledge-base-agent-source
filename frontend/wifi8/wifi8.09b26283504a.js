@@ -106,8 +106,13 @@
       hit.score != null ? Number(hit.score).toFixed(4) : '',
     ].filter(Boolean).join(' · ');
   }
-  // Tables extracted as rows come with a Markdown display text (display_text); other chunks stay plain text.
+  // Tables extracted as rows come with a Markdown display text (display_text); figures show the image with the
+  // text it was turned into; other chunks stay plain text.
   function chunkBody(item, text) {
+    const image = item && item.image;
+    if (image && /^[0-9a-f]{64}$/.test(image.id || '')) {
+      return `<figure class="chunk-image"><a href="/api/wifi8/images/${image.id}" target="_blank" rel="noopener"><img src="/api/wifi8/images/${image.id}" alt="${escapeHtml(item.location_label || '文件圖片')}" loading="lazy"></a><figcaption>${escapeHtml(text)}</figcaption></figure>`;
+    }
     return item && item.display_text ? `<div class="markdown chunk-table">${renderMarkdown(item.display_text)}</div>` : `<p>${escapeHtml(text)}</p>`;
   }
   async function runHybridSearch() {
@@ -256,9 +261,15 @@
     $('#agent-submit').addEventListener('click', askAgent);
   }
 
+  function imageProgress(job) {
+    const images = job.images;
+    if (!images || !images.distinct) return '';
+    const finished = Number(images.described || 0) + Number(images.empty || 0) + Number(images.failed || 0);
+    return `<div class="job-meta">圖片轉文字 ${number(finished)} / ${number(images.distinct)}（有內容 ${number(images.described || 0)}、無內容 ${number(images.empty || 0)}、失敗 ${number(images.failed || 0)}）</div>`;
+  }
   function jobRow(job) {
     const total = Number(job.total || job.total_chunks || job.progress?.total || 0); const done = Number(job.completed || job.ready || job.progress?.completed || 0); const value = total ? Math.round(done / total * 100) : (/complete|success/.test(job.status || '') ? 100 : 0);
-    return `<li class="job-item"><div class="job-head"><strong>${escapeHtml(job.job_id || '匯入工作')}</strong><span class="status-badge ${statusClass(job.status)}">${escapeHtml(job.status || '未知')}</span></div><div class="job-meta">${escapeHtml(job.stage || '')} ${done || total ? `· ${number(done)} / ${number(total)}` : ''} · ${formatTime(job.updated_at || job.created_at)}</div>${job.error ? `<p class="error-card">${escapeHtml(job.error)}</p>` : ''}<progress max="100" value="${value}"></progress></li>`;
+    return `<li class="job-item"><div class="job-head"><strong>${escapeHtml(job.job_id || '匯入工作')}</strong><span class="status-badge ${statusClass(job.status)}">${escapeHtml(job.status || '未知')}</span></div><div class="job-meta">${escapeHtml(job.stage || '')} ${done || total ? `· ${number(done)} / ${number(total)}` : ''} · ${formatTime(job.updated_at || job.created_at)}</div>${imageProgress(job)}${job.message ? `<p class="job-meta">${escapeHtml(job.message)}</p>` : ''}${job.error ? `<p class="error-card">${escapeHtml(job.error)}</p>` : ''}<progress max="100" value="${value}"></progress></li>`;
   }
   async function renderJobs(token) {
     const data = await api('/api/wifi8/jobs');

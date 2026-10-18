@@ -180,6 +180,9 @@ tbody tr:hover { background: rgba(127,255,227,.05); }
 .chunk-table table { border-collapse: collapse; }
 .chunk-table th, .chunk-table td { padding: 4px 7px; border: 1px solid var(--line); text-align: left; vertical-align: top; }
 .chunk-table th { position: sticky; top: 0; color: #dffaff; background: #0b2a33; }
+.chunk-image { margin: 6px 0; }
+.chunk-image img { display: block; max-width: 100%; max-height: 320px; border: 1px solid var(--line); border-radius: 4px; background: #fff; }
+.chunk-image figcaption { margin-top: 6px; color: var(--muted); font-size: .8rem; line-height: 1.55; white-space: pre-line; }
 .grounding { margin-top: 10px; padding: 11px 12px; border: 1px solid var(--line-soft); border-radius: 12px; background: rgba(0,0,0,.18); font-size: .74rem; }
 .grounding-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
 .grounding-head strong { color: #dffaff; font-size: .8rem; }

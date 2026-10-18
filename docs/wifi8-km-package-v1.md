@@ -61,3 +61,43 @@ python src\Export-Wifi8KmPackage.py --output D:\exports\wifi8-km-package.zip
 | 檔案大小 | 約 10.4 MB |
 
 匯出前後 Catalog、全文索引、確認紀錄的 sha256 均未變；包內無郵件識別碼、PST 或本機路徑字串。Wi-Fi8 匯出程式單元測試 7 項通過，既有 `test_eligibility.py` 12 項通過。
+
+## v2（`km.wifi8-package.v2`，2026-10-18）：附上文件圖片，由 KM 轉成文字
+
+使用者決策（2026-10-18）：表格以外，圖表與圖片也要能檢索；採「匯出包附上圖片，由 KM 處理」，看圖模型用 Sub2API（與 AI Agent 相同的資料邊界）。
+
+**Wi-Fi8 端（`platform/wifi8km/km_images.py`、`km_export.py`）**
+- 新成員 `images.jsonl`：每張圖一列，含 `image_id`（圖片位元組的 sha256）、`revision_id`、`ordinal`、`location`（docx 段落／表格、pptx 投影片、pdf 頁、單獨圖片檔 `{"type":"image"}`）、`caption`（docx 鄰近的 Figure/Table/圖/表 標題，或投影片標題）、`extension`、`width`、`height`。
+- 圖片檔 `images/<sha256>.<png|jpg>`：同一張圖只存一份。檔名就是校驗碼，`images.jsonl` 已列在 `files` 中並納入 `content_sha256`，所以圖片也在匯出包身分內，不必逐檔列在 manifest。
+- 正規化規則：
+  - 小於 160×100 或 40,000 像素的圖不匯出（圖示、標誌、項目符號）；PDF 先讀宣告尺寸，太小就不解碼。
+  - 200KB 以下的 PNG／JPEG 保留原檔。
+  - 較大的圖長邊縮到 1600；256 色以內存 PNG，其餘轉 JPEG q85（透明鋪白），取較小者。
+  - WMF／EMF 只有 Windows 的 Pillow 能轉換，其他環境記為 `unsupported_format`。
+  - 同一文件內重複的圖只留第一次出現的位置。
+- `manifest.counts` 新增 `images`、`image_files`、`image_bytes`、`images_skipped`（依原因計數）；`documents.jsonl` 新增 `image_count`。可用 `--no-images` 停用。
+
+**KM 端**
+- `package.py` 同時接受 v1、v2。v2 會驗證每個 `images/` 檔的 sha256 與檔名一致，且與 `images.jsonl` 完全對應；多一個、少一個或被竄改都拒收整包。
+- 匯入流程新增第一階段 `describe`：
+  - 逐批把尚未有說明的圖送到看圖模型，產出「【圖中文字】逐字抄錄＋【圖片說明】繁中說明」。
+  - 結果依 `image_id` 快取在該區 `/app/data/wifi8/image-text/`，圖片存在 `/app/data/wifi8/images/`。快取鍵含 provider、模型、推理強度與提示版本，任一項改變就重新描述；兩區資料隔離，各自快取。
+  - 失敗的圖在同一個工作中不再重試（每張圖有 1 次即時重試），下一個匯入工作會再試。
+  - 失敗比例超過 `KM_WIFI8_IMAGE_MAX_FAILED_RATIO`（預設 5%）時整個工作失敗，目前版本繼續服務。
+- 每張有內容的圖成為一個獨立段落，排在該文件文字段落之後：
+  - 段落文字為 `【圖片】<caption>` 加上模型說明；標示如「第 2 頁・圖 1」；payload 帶 `image`、`image_id`。
+  - 文字段落的 ID、順序與向量都不變，只有新的圖片段落需要計算向量。
+  - 模型回答「無內容」的圖不建段落。
+- `GET /api/wifi8/images/{image_id}`：需要登入，而且只提供目前版本有段落的圖。文件段落與混合檢索會顯示縮圖和轉出的文字。
+- 設定（web 與 ingest worker 必須相同）：
+  - `KM_WIFI8_IMAGE_DESCRIBER`：`openai` 或 `off`。
+  - `KM_WIFI8_IMAGE_MODEL`、`_BASE_URL`、`_API_KEY_ENV`：預設沿用 `KM_LLM_PRIMARY_*`。
+  - `KM_WIFI8_IMAGE_REASONING_EFFORT`：預設 `low`。
+  - `KM_WIFI8_IMAGE_TIMEOUT_SECONDS=120`、`_RETRIES=1`、`_BATCH_SIZE=8`、`_CONCURRENCY=4`：單步最壞約 2 輪 × 2 次 × 120 秒，低於 Celery 600 秒軟上限。
+  - 同一份匯出包在圖片設定改變後會重新匯入。
+
+**實測（2026-10-18，DGX 上的 Repository 複本）**
+- 1,655 處圖片、1,361 個不重複圖檔，共 106MB；整包 112MB，低於上傳上限 200MB。
+- 跳過：太小 43,583、同文件重複 482、WMF／EMF 120、PDF 解碼失敗 4。
+- 匯出約 7 分鐘，主要花在 PDF。
+- 同一份 Repository 在 DGX 上算出的目前版本是 367 份，Windows 的匯出包是 368 份；差異是一組 IEEE 802.11bn 白皮書 v01／v02 的取代判斷。DGX 能讀到原檔並比對出 98% 重合，Windows 端標為「待確認」。用原版匯出程式和 pypdf 4.3.1／5.1.0 都得到相同結果，可見與圖片無關。正式資料仍以 Windows 匯出為準。

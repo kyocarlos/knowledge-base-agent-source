@@ -1,7 +1,7 @@
 """Stage, embed and publish a Wi-Fi8 package into the KM WiFi zone.
 
 Each ``step`` call does a bounded amount of work so a Celery task can re-enqueue
-itself: stage -> embed (repeated) -> publish. The current package keeps serving
+itself: describe (figures -> text, repeated) -> stage -> embed (repeated) -> publish. The current package keeps serving
 until a new one has fully finished; only then is ``current.json`` switched.
 """
 from __future__ import annotations
@@ -16,7 +16,8 @@ from pathlib import Path
 from typing import Any, Callable
 
 from . import lexical, store
-from .chunks import DISPLAY_VERSION, build_chunks
+from .chunks import DISPLAY_VERSION, build_chunks, image_chunks
+from .images import DescriberSettings, ImageTextCache, describe_batch, openai_describer
 from .package import PackageError, read_package
 
 SOURCE_SYSTEM = "WIFI8"
@@ -78,8 +79,11 @@ def _read_json(path: Path) -> dict[str, Any] | None:
 
 class Wifi8Importer:
     def __init__(self, settings: Wifi8Settings, *, qdrant=None, encoder: Callable[[list[str]], list[list[float]]] | None = None,
-                 embedding_model: str = "", neo4j_driver=None):
+                 embedding_model: str = "", neo4j_driver=None, describer_settings: DescriberSettings | None = None,
+                 describer: Callable[[bytes, str], str] | None = None):
         self.settings = settings
+        self.describer_settings = describer_settings or DescriberSettings.from_environment()
+        self._describer = describer
         self.qdrant = qdrant
         self.encoder = encoder
         self.embedding_model = embedding_model
@@ -122,7 +126,14 @@ class Wifi8Importer:
         if not lock:
             return None
         job = self.job(lock["job_id"])
-        return job if job and job["status"] in {"queued", "staging", "embedding", "publishing"} else None
+        return job if job and job["status"] in {"queued", "describing", "staging", "embedding", "publishing"} else None
+
+    @property
+    def image_cache(self) -> ImageTextCache:
+        return ImageTextCache(self.root)
+
+    def _image_signature(self, package) -> str | None:
+        return self.describer_settings.signature if package.images and self.describer_settings.enabled else None
 
     # ---- submission ------------------------------------------------------
     def submit(self, upload_path: Path, *, submitted_by: str) -> dict[str, Any]:
@@ -139,13 +150,19 @@ class Wifi8Importer:
         shutil.copyfile(upload_path, incoming)
         # The same package is imported again when the current one predates the Qdrant store (no documents
         # collection) or an older display format (e.g. no table display text): vectors are reused, nothing re-embedded.
+        # A different image description setting (model, prompt version) also imports the same package again.
         same = (current.get("package_id") == package.package_id and bool(current.get("documents_collection"))
-                and int(current.get("display_version") or 0) >= DISPLAY_VERSION)
+                and int(current.get("display_version") or 0) >= DISPLAY_VERSION
+                and current.get("image_text_signature") == self._image_signature(package))
+        describe = bool(package.images) and self.describer_settings.enabled
+        message = "同一份匯出包已是目前版本，不重複匯入" if same else ""
+        if package.images and not self.describer_settings.enabled and not same:
+            message = "圖片轉文字未啟用（KM_WIFI8_IMAGE_DESCRIBER=off），圖片不會進入檢索"
         job = {
             "job_id": job_id, "package_id": package.package_id, "status": "completed" if same else "queued",
-            "phase": "done" if same else "stage", "submitted_by": submitted_by, "created_at": _now(),
-            "manifest_counts": package.manifest.get("counts", {}), "progress": {},
-            "message": "同一份匯出包已是目前版本，不重複匯入" if same else "",
+            "phase": "done" if same else ("describe" if describe else "stage"), "submitted_by": submitted_by,
+            "created_at": _now(), "manifest_counts": package.manifest.get("counts", {}), "progress": {},
+            "message": message,
         }
         self._save(job)
         if not same:
@@ -158,6 +175,8 @@ class Wifi8Importer:
         if not job or job["status"] in {"completed", "failed"}:
             return job or {}
         try:
+            if job["phase"] == "describe":
+                return self._describe(job)
             if job["phase"] == "stage":
                 return self._stage(job)
             if job["phase"] == "embed":
@@ -172,8 +191,62 @@ class Wifi8Importer:
             return self._save(job)
 
     def _package(self, package_id: str):
+        # Figures were verified on submit; image_bytes() checks each one again when it is read.
         return read_package(self.root / "incoming" / f"{package_id}.zip",
-                            max_uncompressed_bytes=self.settings.max_uncompressed_bytes)
+                            max_uncompressed_bytes=self.settings.max_uncompressed_bytes, verify_images=False)
+
+    def _distinct_images(self, package) -> list[dict[str, Any]]:
+        return [{"image_id": i, "extension": e} for i, e in sorted({(i["image_id"], i["extension"]) for i in package.images})]
+
+    def _describe(self, job: dict[str, Any]) -> dict[str, Any]:
+        """Describe one batch of figures that have no usable cached text; failed ones are tried once per job."""
+        job["status"] = "describing"
+        self._save(job)
+        package = self._package(job["package_id"])
+        settings, cache = self.describer_settings, self.image_cache
+        distinct = self._distinct_images(package)
+        records = {image["image_id"]: cache.get(image["image_id"]) for image in distinct}
+
+        def done(image_id: str) -> bool:
+            record = records[image_id]
+            return bool(record and record.get("signature") == settings.signature and (
+                record.get("status") in ("described", "empty") or record.get("job_id") == job["job_id"]))
+
+        pending = [image for image in distinct if not done(image["image_id"])]
+        if pending:
+            describer = self._describer or openai_describer(settings)
+            batch = pending[:settings.batch_size]
+            tagged = _JobTaggedCache(cache, job["job_id"])
+            describe_batch(batch, package.image_bytes, tagged, settings, describer)
+            for image in batch:
+                records[image["image_id"]] = cache.get(image["image_id"])
+        statuses = [(records[i["image_id"]] or {}).get("status") if done(i["image_id"]) else "pending" for i in distinct]
+        summary = {name: statuses.count(name) for name in ("described", "empty", "failed", "pending")}
+        job["images"] = {"distinct": len(distinct), "occurrences": len(package.images), **summary,
+                         "signature": settings.signature}
+        if not summary["pending"]:
+            if distinct and summary["failed"] / len(distinct) > settings.max_failed_ratio:
+                raise RuntimeError(f"圖片轉文字失敗 {summary['failed']}/{len(distinct)} 張，超過門檻 "
+                                   f"{settings.max_failed_ratio:.0%}；目前版本繼續服務，可稍後重新上傳")
+            job.update(phase="stage", status="staging")
+        return self._save(job)
+
+    def _image_texts(self, package) -> dict[str, str]:
+        if not self._image_signature(package):
+            return {}
+        texts = {}
+        for image in self._distinct_images(package):
+            record = self.image_cache.usable(image["image_id"], self.describer_settings.signature)
+            if record and record.get("text"):
+                texts[image["image_id"]] = record["text"]
+        return texts
+
+    def _chunks(self, package) -> list[dict[str, Any]]:
+        chunks = build_chunks(package.documents, package.segments, max_chars=self.settings.chunk_max_chars)
+        last: dict[str, int] = {}
+        for chunk in chunks:
+            last[chunk["revision_id"]] = max(last.get(chunk["revision_id"], 0), chunk["ordinal"])
+        return chunks + image_chunks(package.documents, package.images, self._image_texts(package), last)
 
     def _stage(self, job: dict[str, Any]) -> dict[str, Any]:
         """Write documents and chunk points (BM25 sparse vector, payload) in bounded batches."""
@@ -181,7 +254,7 @@ class Wifi8Importer:
         self._save(job)
         package = self._package(job["package_id"])
         documents = {d["revision_id"]: d for d in package.documents}
-        chunks = build_chunks(package.documents, package.segments, max_chars=self.settings.chunk_max_chars)
+        chunks = self._chunks(package)
         offset = int(job.get("stage_offset") or 0)
         if offset == 0:
             self._ensure_collections()
@@ -217,7 +290,8 @@ class Wifi8Importer:
         for field, schema in (("packages", PayloadSchemaType.KEYWORD), ("revision_id", PayloadSchemaType.KEYWORD),
                               ("analysis_eligible", PayloadSchemaType.BOOL), ("document_role", PayloadSchemaType.KEYWORD),
                               ("publisher", PayloadSchemaType.KEYWORD), ("wfa_document_id", PayloadSchemaType.KEYWORD),
-                              ("vector_state", PayloadSchemaType.KEYWORD), ("chunk_index", PayloadSchemaType.INTEGER)):
+                              ("vector_state", PayloadSchemaType.KEYWORD), ("chunk_index", PayloadSchemaType.INTEGER),
+                              ("image_id", PayloadSchemaType.KEYWORD)):
             self.qdrant.create_payload_index(self.settings.collection, field_name=field, field_schema=schema)
         for field in ("package_id", "kind"):
             self.qdrant.create_payload_index(self.settings.documents_collection, field_name=field, field_schema=PayloadSchemaType.KEYWORD)
@@ -287,6 +361,7 @@ class Wifi8Importer:
                 "segment_ids": chunk["segment_ids"], "location": chunk["location"], "location_label": chunk["location_label"],
                 "content_hash": chunk["content_hash"], "embed_text": chunk["embed_text"], "packages": [package_id],
                 **({"display_text": chunk["display_text"]} if chunk.get("display_text") else {}),
+                **({"image": chunk["image"], "image_id": chunk["image"]["id"]} if chunk.get("image") else {}),
                 "embedding_model": self.embedding_model,
                 "vector_state": "ready" if chunk["point_id"] in reusable else "pending",
             }))
@@ -337,7 +412,8 @@ class Wifi8Importer:
                                                  "previous_package_id": previous, "job_id": job["job_id"],
                                                  "store": "qdrant", "collection": self.settings.collection,
                                                  "documents_collection": self.settings.documents_collection,
-                                                 "embedding_model": self.embedding_model, "display_version": DISPLAY_VERSION})
+                                                 "embedding_model": self.embedding_model, "display_version": DISPLAY_VERSION,
+                                                 "image_text_signature": self._image_signature(self._package(package_id))})
         collection = self.settings.collection
         # Only after the switch: chunks shared with the previous package take this package's document metadata,
         # then everything the new package no longer uses is removed.
@@ -411,3 +487,16 @@ class Wifi8Importer:
             """, rows=rows)
             session.run("MATCH (t:Wifi8Topic) WHERE NOT (t)<-[:HAS_TOPIC]-() DELETE t")
             session.run("MATCH (o:Wifi8Publisher) WHERE NOT (o)<-[:PUBLISHED_BY]-() DELETE o")
+
+
+class _JobTaggedCache:
+    """Cache view that marks every record with the import job, so a failure is retried by the next job only."""
+
+    def __init__(self, cache: ImageTextCache, job_id: str):
+        self._cache, self._job_id = cache, job_id
+
+    def store_image(self, image_id: str, extension: str, data: bytes) -> None:
+        self._cache.store_image(image_id, extension, data)
+
+    def put(self, image_id: str, record: dict[str, Any]) -> None:
+        self._cache.put(image_id, {**record, "job_id": self._job_id})
