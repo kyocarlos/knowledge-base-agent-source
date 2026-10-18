@@ -281,3 +281,5 @@ progress { width: 100%; height: 8px; margin-top: 9px; accent-color: var(--blue);
   .section-intro, .panel-heading { align-items: flex-start; flex-direction: column; }
   .message { max-width: 100%; }
 }
+.update-banner { position: sticky; top: 0; z-index: 50; display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 10px; padding: 9px 16px; border-bottom: 1px solid var(--blue); color: var(--ink); background: #0b2a33; font-size: .82rem; }
+.update-banner .primary-button { padding: 5px 14px; }

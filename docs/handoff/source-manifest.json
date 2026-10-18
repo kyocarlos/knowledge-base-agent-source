@@ -368,6 +368,10 @@
       "sha256": "a3cd2c3e38561d56828ab36e509f9eec21ab39b065f0907163d5009f2800e554"
     },
     {
+      "path": "deploy/dev-3030/docker/Dockerfile.verified-file",
+      "sha256": "9b82b09c4d9f735f7fa8669385bc5124272ea2d74eec9dcd155308af4ff04f8d"
+    },
+    {
       "path": "deploy/dev-3030/docker/Dockerfile.wifi8-qdrant-store",
       "sha256": "4fb91d053f282775fd6565b9f51aa7caa552ed7f7e0ec018e70a3c58fe3b1e26"
     },
@@ -381,7 +385,7 @@
     },
     {
       "path": "deploy/dev-3030/nginx.runtime.conf",
-      "sha256": "54b6e1fded91769c0db5d32e78669e636d59e10f357e0121faaf631f64e4ac53"
+      "sha256": "b9a008f52524ff72c51d85cf1c724ccec3fb74245d4136af53903cc2150ff9fd"
     },
     {
       "path": "deploy/legacy-test/control-3030.env.example",
@@ -577,7 +581,7 @@
     },
     {
       "path": "frontend/chat-v2.html",
-      "sha256": "b6d55076792c7cce5592bbeae53ff2f9a01a738f0ada5d6776dd0e1d7cebeb2a"
+      "sha256": "bc5a9aeaee1f5e2edc91485a8bf70fcbd436cf0a29b63ec110195db295bcf6cb"
     },
     {
       "path": "frontend/chat.html",
@@ -613,7 +617,7 @@
     },
     {
       "path": "frontend/login.html",
-      "sha256": "24a569f26cc9b726186cdc84e6f77ed92c8cf94b40fa4bee895bb5487b00d78f"
+      "sha256": "ecb097b12b3d58540c4312aa4f672d9ca674946029f0f34e36fc7525bab3b585"
     },
     {
       "path": "frontend/oidc-binding.html",
@@ -693,15 +697,15 @@
     },
     {
       "path": "frontend/wifi8/index.html",
-      "sha256": "69cc7b9928cec3b74c64ef43d11c98928cfe98abbe7b8a71353cf1a3bcbad139"
+      "sha256": "0fb7a3395cdc69a49804bb71143023214ef5a7b60f3c66a46e05d016058cca35"
     },
     {
-      "path": "frontend/wifi8/wifi8.7438e002d812.js",
-      "sha256": "7438e002d8122d2813dc8611f6d51a981ecd08d37c7dfcf3eb25ed84e4eac63e"
+      "path": "frontend/wifi8/wifi8.028615087fb8.js",
+      "sha256": "028615087fb89eebef0898781fbdad61a77969794777574e7a373b0dcd2c47dc"
     },
     {
-      "path": "frontend/wifi8/wifi8.eabf0bd539e4.css",
-      "sha256": "eabf0bd539e4ae15e51ba32ccb4706292e8fe4fd685625f624e10f54aa500c9e"
+      "path": "frontend/wifi8/wifi8.666da50c885b.css",
+      "sha256": "666da50c885bee445a76bd361dcca8230a1d1959cfd1f9eb05eb9d8dec217254"
     },
     {
       "path": "frontend/ws-chat-probe.cjs",
@@ -1537,7 +1541,7 @@
     },
     {
       "path": "src/web_api/instance_auth_routes.py",
-      "sha256": "b98b1c9fa4f66549a93f12f2c0230688d94feb698433f09fef994855b936ccf5"
+      "sha256": "4dfa182ec1bb042705c3e152c1c9d3a53851d6b7cc201348dc9158571522e92a"
     },
     {
       "path": "src/web_api/llm_factory.py",
@@ -1829,7 +1833,7 @@
     },
     {
       "path": "tests/test_instance_isolation.py",
-      "sha256": "4b21fb0808852e3e3759c47bf31fca779c574b81bf7324ede091e1191ab17f24"
+      "sha256": "d07d74648bfe4bbff0d8ec2d21be951df6ad07134e438ce2ec84ea4623f5fad5"
     },
     {
       "path": "tests/test_job_ledger_mount_contract.py",

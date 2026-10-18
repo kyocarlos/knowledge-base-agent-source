@@ -22,6 +22,7 @@ ALLOWED_RETURN_PATHS = frozenset({
     "/admin/report-reviews",
     "/skills",
     "/chat-v2.html",
+    "/wifi8/",  # WiFi workspace; its in-page route (#/ai) is restored by the page itself
 })
 # Only health and the one-time entry callback are public.  Nginx serves the
 # login page; every data-bearing HTTP route is authenticated here as well.

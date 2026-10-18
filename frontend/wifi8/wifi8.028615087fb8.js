@@ -29,11 +29,16 @@
   const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (char) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
   const number = (value) => Number(value || 0).toLocaleString('zh-TW');
   const formatTime = (value) => value ? new Date(value).toLocaleString('zh-TW', { hour12: false }) : '—';
+  // The in-page route (#/ai …) never reaches the server, so it is kept in this tab while the user logs in again;
+  // login.html stores it too when /wifi8/#/… was opened without a session.
+  const RETURN_ROUTE_KEY = 'km.wifi8.returnRoute';
+  const LOADED_SCRIPT = (document.currentScript?.src.match(/wifi8\.[0-9a-f]{12}\.js/) || [''])[0];
 
   async function api(path, options = {}) {
     const response = await fetch(path, { credentials: 'same-origin', ...options, headers: { Accept: 'application/json', ...(options.headers || {}) } });
     if (response.status === 401) {
-      location.assign(`/login.html?next=${encodeURIComponent('/wifi8/' + location.hash)}`);
+      try { sessionStorage.setItem(RETURN_ROUTE_KEY, location.hash); } catch (_) { /* storage may be unavailable */ }
+      location.assign('/login.html?next=%2Fwifi8%2F');
       throw new Error('登入已過期');
     }
     let payload = null;
@@ -311,5 +316,25 @@
   $('#refresh-page').addEventListener('click', async (event) => { event.currentTarget.classList.add('is-loading'); event.currentTarget.disabled = true; await renderRoute(); event.currentTarget.classList.remove('is-loading'); event.currentTarget.disabled = false; });
   $('#close-dialog').addEventListener('click', () => $('#document-dialog').close());
   window.addEventListener('hashchange', renderRoute);
-  if (!location.hash) location.replace('#/overview'); else renderRoute();
+
+  // A tab opened before a deploy keeps running the old code; tell the user when the server serves another build.
+  async function checkForUpdate() {
+    if (!LOADED_SCRIPT || $('#update-banner')) return;
+    try {
+      const response = await fetch('/wifi8/', { cache: 'no-store', credentials: 'same-origin', redirect: 'manual' });
+      const current = response.ok ? ((await response.text()).match(/wifi8\.[0-9a-f]{12}\.js/) || [''])[0] : '';
+      if (!current || current === LOADED_SCRIPT) return;
+      const banner = document.createElement('div');
+      banner.id = 'update-banner'; banner.className = 'update-banner'; banner.setAttribute('role', 'status');
+      banner.innerHTML = '<span>WiFi 專區已更新，請重新整理以使用最新版本。</span><button type="button" class="primary-button">重新整理</button>';
+      banner.querySelector('button').addEventListener('click', () => location.reload());
+      document.body.prepend(banner);
+    } catch (_) { /* offline or logged out: check again later */ }
+  }
+  setInterval(checkForUpdate, 5 * 60 * 1000);
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') checkForUpdate(); });
+
+  let returnRoute = null;
+  try { returnRoute = sessionStorage.getItem(RETURN_ROUTE_KEY); sessionStorage.removeItem(RETURN_ROUTE_KEY); } catch (_) { /* no storage */ }
+  if (!location.hash) location.replace(returnRoute && /^#\/[\w-]+/.test(returnRoute) && routeInfo[returnRoute.slice(2).split('/')[0]] ? returnRoute : '#/overview'); else renderRoute();
 })();

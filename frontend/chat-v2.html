@@ -598,6 +598,10 @@
 .wifi-agent-sources li{margin:3px 0;color:#b9d6da}
 .wifi-agent-sources .ref{color:#7fffe3;font-weight:700}
 .wifi-agent-sources .old{color:#ffd9a8}
+.wifi-agent-sources .place{color:#e7ffff;font-weight:700}
+.wifi-agent-sources .badge{display:inline-block;padding:0 7px;border:1px solid #7fffe3;border-radius:999px;color:#7fffe3;font-size:11px;line-height:1.6}
+.wifi-agent-sources .thumb{display:block;margin:5px 0 2px}
+.wifi-agent-sources .thumb img{display:block;width:140px;max-height:100px;object-fit:contain;border:1px solid rgba(127,255,227,.3);border-radius:6px;background:#fff}
 .wifi-agent-trace{margin-top:8px;font-size:12px;color:#8da8ae}
 .wifi-agent-trace summary{cursor:pointer;color:#7fffe3}
 .wifi-agent-trace ol{margin:6px 0 0;padding-left:20px}
@@ -2411,9 +2415,15 @@
         ? marked.parse(safeMarkdown, { breaks: true, gfm: true }) : escapeHtml(answer).replace(/\n/g, '<br>');
       const sources = (data.citations || []).map((c) => {
         const ids = [c.wfa_document_id ? `WFA ${escapeHtml(c.wfa_document_id)}${c.wfa_revision ? ' / ' + escapeHtml(c.wfa_revision) : ''}` : '',
-          c.publisher ? escapeHtml(c.publisher) : '', c.location_label ? escapeHtml(c.location_label) : ''].filter(Boolean).join(' · ');
+          c.publisher ? escapeHtml(c.publisher) : ''].filter(Boolean).join(' · ');
         const old = c.analysis_eligible === false ? ' <span class="old">（舊版本）</span>' : '';
-        return `<li><span class="ref">[${escapeHtml(c.ref)}]</span> ${escapeHtml(c.source || '')}${old}${ids ? ' — ' + ids : ''}</li>`;
+        // Same as the WiFi workspace: the place in the document stands out, and a citation read from a figure shows
+        // a badge plus a thumbnail that opens the image.
+        const image = c.image && /^[0-9a-f]{64}$/.test(c.image.id || '') ? c.image : null;
+        const place = c.location_label ? ` <span class="place">${escapeHtml(c.location_label)}</span>` : '';
+        const badge = image ? ' <span class="badge">圖片</span>' : '';
+        const thumb = image ? `<a class="thumb" href="/api/wifi8/images/${image.id}" target="_blank" rel="noopener" title="開啟原圖"><img src="/api/wifi8/images/${image.id}" alt="${escapeHtml(c.location_label || '引用圖片')}" loading="lazy"></a>` : '';
+        return `<li${image ? ' class="figure"' : ''}><span class="ref">[${escapeHtml(c.ref)}]</span> ${escapeHtml(c.source || '')}${old}${badge}${place}${ids ? ' — ' + ids : ''}${thumb}</li>`;
       }).join('');
       const trace = (data.trace || []).map((t) =>
         `<li>${escapeHtml(t.tool)}（${escapeHtml(JSON.stringify(t.arguments || {}))}）→ ${escapeHtml(t.result_summary || '')}，${Number(t.ms) || 0} ms</li>`).join('');

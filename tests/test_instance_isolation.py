@@ -83,5 +83,7 @@ def test_data_plane_only_allows_health_and_entry_callback_without_session():
     assert "/api/csit/" not in PUBLIC_PATHS
     assert "/" not in PUBLIC_PATHS
     assert safe_return_path("/upload") == "/upload"
+    assert safe_return_path("/wifi8/") == "/wifi8/"
+    assert safe_return_path("/wifi8/#/ai") == "/chat-v2.html"  # fragments never reach the server-side redirect
     assert safe_return_path("/admin?next=https://evil.example") == "/chat-v2.html"
     assert safe_return_path("https://evil.example") == "/chat-v2.html"

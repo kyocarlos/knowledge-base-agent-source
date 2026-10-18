@@ -7,11 +7,13 @@
 <script>
 const status=document.querySelector('#status'),form=document.querySelector('#credentials'),instances=document.querySelector('#instances'),buttons=document.querySelector('#instance-buttons'),adminLink=document.querySelector('#admin-link'),oidcLogin=document.querySelector('#oidc-login');
 async function api(path,opts={}){return fetch('/_control/api/auth'+path,{credentials:'same-origin',headers:{'content-type':'application/json',...(opts.headers||{})},...opts})}
-const allowedReturnPaths=new Set(['/','/upload','/admin','/admin/chunks','/admin/report-reviews','/skills','/chat-v2.html']);
+const allowedReturnPaths=new Set(['/','/upload','/admin','/admin/chunks','/admin/report-reviews','/skills','/chat-v2.html','/wifi8/']);
 let referrerPath=null;
 try{const referrer=new URL(document.referrer);if(referrer.origin===location.origin)referrerPath=referrer.pathname}catch(_){ }
 const requestedReturnPath=new URLSearchParams(location.search).get('next')||referrerPath;
 const returnPath=allowedReturnPaths.has(requestedReturnPath)?requestedReturnPath:'/chat-v2.html';
+// /wifi8/#/ai opened without a session: the in-page route arrives here as this page's hash; the WiFi page restores it.
+if(returnPath==='/wifi8/'&&/^#\/[\w-]+/.test(location.hash)){try{sessionStorage.setItem('km.wifi8.returnRoute',location.hash)}catch(_){}}
 function showAccount(account){form.classList.add('hidden');instances.classList.remove('hidden');adminLink.classList.toggle('hidden',!account.is_admin);buttons.replaceChildren(...account.instances.map(item=>{const b=document.createElement('button');b.textContent=item.instance_id.toUpperCase();b.onclick=async()=>{const r=await api('/select-instance?return_to='+encodeURIComponent(returnPath),{method:'POST',body:JSON.stringify({instance_id:item.instance_id})});if(!r.ok){status.textContent='資料區授權失敗。';return}location.assign((await r.json()).redirect_url)};return b}));status.textContent=account.instances.length?'請選擇已核准資料區。':'帳號尚未取得資料區授權。';}
 form.onsubmit=async e=>{e.preventDefault();const r=await api('/login',{method:'POST',body:JSON.stringify(Object.fromEntries(new FormData(form)))});if(!r.ok){status.textContent='帳號、密碼錯誤，或帳號尚待核准。';return}showAccount(await r.json())};
 document.querySelector('#register').onclick=async()=>{const r=await api('/register',{method:'POST',body:JSON.stringify(Object.fromEntries(new FormData(form)))});status.textContent=r.ok?'註冊完成，請等待系統管理員核准。':'註冊失敗；帳號可能已存在。';};
