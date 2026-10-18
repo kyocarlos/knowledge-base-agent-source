@@ -381,7 +381,7 @@
     },
     {
       "path": "deploy/dev-3030/nginx.runtime.conf",
-      "sha256": "c2e3670788b0ae82d994caebc54ce697c8b9338bbf3642f8db5feee4b6bef48d"
+      "sha256": "54b6e1fded91769c0db5d32e78669e636d59e10f357e0121faaf631f64e4ac53"
     },
     {
       "path": "deploy/legacy-test/control-3030.env.example",
