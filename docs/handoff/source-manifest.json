@@ -349,7 +349,7 @@
     },
     {
       "path": "deploy/dev-3030/compose/kb-test.wifi8.override.yml",
-      "sha256": "7fb9b67ed4dfc53fc47500433b2ff0adaf45dfe2cf79fca45cf55a4cf053a273"
+      "sha256": "d6b6acc53c23f58e9421a1a06c88340af6a7da1d3b34a02ae0d42cef38a1e24c"
     },
     {
       "path": "deploy/dev-3030/compose/kb-timescaledb.compose.yml",
@@ -365,7 +365,7 @@
     },
     {
       "path": "deploy/dev-3030/compose/km-da40.wifi8.override.yml",
-      "sha256": "a3cd2c3e38561d56828ab36e509f9eec21ab39b065f0907163d5009f2800e554"
+      "sha256": "25c34668595053ddf08313b86e790409dd2d1a890fe99afa95586d13ba1578e9"
     },
     {
       "path": "deploy/dev-3030/docker/Dockerfile.verified-file",

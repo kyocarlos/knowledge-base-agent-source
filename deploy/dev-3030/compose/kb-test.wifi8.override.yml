@@ -10,6 +10,11 @@ x-km-test-hf-cache: &hf_cache ${KM_TEST_HF_CACHE_DIR:-/home/da40_ai_gb10/.km-con
 # ingest worker 實際執行，兩者設定必須相同。模型、端點與金鑰變數名稱沿用 KM_LLM_PRIMARY_*；off＝只匯入文字。
 # 圖片說明快取由兩區共用（2026-10-18 使用者決策）：兩區匯入同一份 Wi-Fi8 匯出包，模型對同一張圖的回答不完全穩定，
 # 共用後先完成的說明為準，兩區內容一致，且每張圖只描述一次。只存圖片與其轉出的文字，不含其他區資料。
+# Hugging Face 模型（嵌入模型 BAAI/bge-base-zh-v1.5）只從本區的主機快取載入、不連網（2026-10-18 使用者決策）：
+# 容器重建不再重新下載，huggingface.co 無法連線時也能啟動。更換模型時先把新模型下載到快取目錄。
+x-km-hf-offline: &hf_offline
+  HF_HUB_OFFLINE: "1"
+  TRANSFORMERS_OFFLINE: "1"
 x-km-wifi8-images: &wifi8_images
   KM_WIFI8_IMAGE_DESCRIBER: ${KM_WIFI8_IMAGE_DESCRIBER:-openai}
   KM_WIFI8_IMAGE_REASONING_EFFORT: ${KM_WIFI8_IMAGE_REASONING_EFFORT:-low}
@@ -19,18 +24,21 @@ services:
   web:
     environment:
       KM_WIFI8_IMPORT_USERS: ${KM_WIFI8_IMPORT_USERS:-}
-      <<: *wifi8_images
+      <<: [*wifi8_images, *hf_offline]
     volumes:
       - *wifi8_image_cache
       - *app_data
+      - *hf_cache
   celery_ingest_worker:
     environment:
-      <<: *wifi8_images
+      <<: [*wifi8_images, *hf_offline]
     volumes:
       - *wifi8_image_cache
       - *app_data
       - *hf_cache
   celery_search_worker:
+    environment:
+      <<: *hf_offline
     volumes:
       - *app_data
       - *hf_cache
