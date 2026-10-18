@@ -27,6 +27,12 @@ DEFAULT_VECTOR_EXACT = True
 _WFA_ID = re.compile(r"(?<!\d)\d{5,6}(?!\d)")
 
 
+def _ranked(points) -> list[str]:
+    """Point ids by score; equal scores (frequent in BM25) are ordered by id, so every call and every data zone
+    returns them in the same order instead of whatever order the segments happened to yield."""
+    return [str(p.id) for p in sorted(points, key=lambda p: (-p.score, str(p.id)))]
+
+
 @dataclass(frozen=True)
 class SearchOptions:
     top_k: int = 8
@@ -107,7 +113,7 @@ class Wifi8Search:
         result = self.qdrant.query_points(self.collection, query=SparseVector(indices=indices, values=values),
                                           using=store_module.SPARSE, query_filter=self._filter(options),
                                           limit=options.candidates, with_payload=False)
-        return [str(point.id) for point in result.points]
+        return _ranked(result.points)
 
     def vector(self, query: str, options: SearchOptions) -> list[str]:
         if self.encoder is None:
@@ -116,7 +122,7 @@ class Wifi8Search:
         result = self.qdrant.query_points(self.collection, query=list(self.encoder([query])[0]), using=store_module.DENSE,
                                           query_filter=self._filter(options), limit=options.candidates, with_payload=False,
                                           search_params=SearchParams(exact=self.exact))
-        return [str(point.id) for point in result.points]
+        return _ranked(result.points)
 
     # ---- fusion -------------------------------------------------------
     def search(self, query: str, options: SearchOptions | None = None) -> dict[str, Any]:

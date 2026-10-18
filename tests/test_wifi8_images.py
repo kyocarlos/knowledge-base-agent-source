@@ -321,3 +321,10 @@ def test_dense_retrieval_is_exact_unless_configured(env, monkeypatch):
     monkeypatch.setenv("KM_WIFI8_IMAGE_SCORE_WEIGHT", "1")
     search = Wifi8Search.for_current(importer, encoder=importer.encoder, reranker=None)
     assert (search.exact, search.image_weight) == (False, 1.0)
+
+
+def test_equal_scores_are_ordered_by_id():
+    from types import SimpleNamespace
+    from src.wifi8.search import _ranked
+    points = [SimpleNamespace(id="b", score=1.0), SimpleNamespace(id="c", score=2.0), SimpleNamespace(id="a", score=1.0)]
+    assert _ranked(points) == ["c", "a", "b"] == _ranked(list(reversed(points)))
