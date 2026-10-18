@@ -73,13 +73,15 @@ def summarize_trust(records: list[dict[str, Any]]) -> dict[str, Any]:
 def retrieval_metrics(eval_summary: dict[str, Any]) -> dict[str, Any]:
     overall = eval_summary.get("overall") or {}
     return {"hit_at_10": overall.get("retrieval_hit_at_k"), "mrr": overall.get("retrieval_mrr"),
+            "figure_hit_at_10": overall.get("retrieval_figure_hit_at_k"),
             "ms_p50": overall.get("retrieval_ms_p50"), "cases": overall.get("cases")}
 
 
 def agent_metrics(eval_summary: dict[str, Any]) -> dict[str, Any]:
     overall = eval_summary.get("overall") or {}
     return {"answer_pass": overall.get("answer_pass"), "fact_coverage": overall.get("fact_coverage"),
-            "cited_gold": overall.get("cited_gold"), "latency_ms_p50": overall.get("latency_ms_p50"),
+            "cited_gold": overall.get("cited_gold"), "cited_figure": overall.get("cited_figure"),
+            "unnumbered_repeat_answers": overall.get("unnumbered_repeat_answers"), "latency_ms_p50": overall.get("latency_ms_p50"),
             "errors": overall.get("errors"), "cases": overall.get("cases")}
 
 

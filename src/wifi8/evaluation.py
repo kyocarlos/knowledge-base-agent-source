@@ -4,6 +4,10 @@ Scoring is plain code (no model judges): a case lists gold documents (any one co
 fact groups (each group is a list of accepted spellings; a group matches when any
 spelling appears in the answer), and for unanswerable questions the refusal markers
 and patterns that must not appear (e.g. invented prices).
+
+Figure questions also list gold figures (image ids; any one counts): search must return
+one of them and the answer should cite one. Every answer is checked for citations of the
+same place (page, slide …) that are not told apart by their part number.
 """
 from __future__ import annotations
 
@@ -26,6 +30,8 @@ def load_cases(path: str | Path) -> list[dict[str, Any]]:
             raise ValueError(f"case {case.get('id')} is missing question/gold/facts")
         if case.get("expect_refusal") and not case.get("refusal_markers"):
             raise ValueError(f"case {case['id']} expects a refusal but has no refusal_markers")
+        if "gold_figures" in case and not (isinstance(case["gold_figures"], list) and case["gold_figures"]):
+            raise ValueError(f"case {case['id']} has an empty gold_figures list")
     return cases
 
 
@@ -50,22 +56,40 @@ def score_retrieval(case: dict[str, Any], results: list[dict[str, Any]], k: int 
         return {"applicable": False}
     ranked = list(dict.fromkeys(r["revision_id"] for r in results))[:k]
     rank = next((i for i, rid in enumerate(ranked, 1) if rid in gold), None)
-    return {"applicable": True, "hit": rank is not None, "rank": rank, "mrr": 1.0 / rank if rank else 0.0}
+    scored = {"applicable": True, "hit": rank is not None, "rank": rank, "mrr": 1.0 / rank if rank else 0.0}
+    if case.get("gold_figures"):
+        figures = set(case["gold_figures"])
+        figure_rank = next((i for i, r in enumerate(results[:k], 1) if (r.get("image") or {}).get("id") in figures), None)
+        scored.update({"figure_hit": figure_rank is not None, "figure_rank": figure_rank})
+    return scored
+
+
+def unnumbered_repeats(citations: Iterable[dict[str, Any]]) -> int:
+    """Citations sharing a place (document + location label) with another one but showing no part number."""
+    places: dict[tuple[Any, Any], list[dict[str, Any]]] = defaultdict(list)
+    for citation in citations:
+        if citation.get("revision_id") and citation.get("location_label"):
+            places[(citation["revision_id"], citation["location_label"])].append(citation)
+    return sum(1 for items in places.values() if len(items) > 1 for c in items if not c.get("part"))
 
 
 def score_answer(case: dict[str, Any], output: dict[str, Any]) -> dict[str, Any]:
     answer = output.get("answer") or ""
-    cited = {c.get("revision_id") for c in output.get("citations") or []}
+    citations = output.get("citations") or []
+    cited = {c.get("revision_id") for c in citations}
+    checks = {"unnumbered_repeats": unnumbered_repeats(citations)}
+    if case.get("gold_figures"):
+        checks["cited_figure"] = any((c.get("image") or {}).get("id") in set(case["gold_figures"]) for c in citations)
     if case.get("expect_refusal"):
         refused = any(_norm(m) in _norm(answer) for m in case["refusal_markers"])
         invented = [p for p in case.get("must_not_regex") or [] if re.search(p, answer)]
         return {"refused": refused, "invented": invented, "fact_coverage": None, "cited_gold": None,
-                "passed": refused and not invented}
+                "passed": refused and not invented, **checks}
     hits = fact_hits(answer, case["facts"])
     coverage = sum(hits) / len(hits) if hits else 1.0
     cited_gold = bool(cited & set(case["gold"])) if case["gold"] else None
     return {"fact_hits": hits, "fact_coverage": coverage, "cited_gold": cited_gold,
-            "passed": coverage == 1.0 and cited_gold is not False}
+            "passed": coverage == 1.0 and cited_gold is not False, **checks}
 
 
 def summarize(rows: list[dict[str, Any]]) -> dict[str, Any]:
@@ -74,6 +98,8 @@ def summarize(rows: list[dict[str, Any]]) -> dict[str, Any]:
         answers = [r["answer"] for r in items if r.get("answer")]
         coverage = [a["fact_coverage"] for a in answers if a.get("fact_coverage") is not None]
         cited = [a["cited_gold"] for a in answers if a.get("cited_gold") is not None]
+        figure_hits = [r["figure_hit"] for r in retrieval if "figure_hit" in r]
+        cited_figure = [a["cited_figure"] for a in answers if "cited_figure" in a]
         latency = sorted(r["elapsed_ms"] for r in items if r.get("elapsed_ms") is not None)
         retrieval_ms = sorted(r["retrieval_ms"] for r in items if r.get("retrieval_ms") is not None)
         return {
@@ -83,6 +109,11 @@ def summarize(rows: list[dict[str, Any]]) -> dict[str, Any]:
             "answer_pass": _ratio(sum(a["passed"] for a in answers), len(answers)),
             "fact_coverage": _mean(coverage),
             "cited_gold": _ratio(sum(cited), len(cited)),
+            "figure_cases": len(figure_hits),
+            "retrieval_figure_hit_at_k": _ratio(sum(figure_hits), len(figure_hits)),
+            "cited_figure": _ratio(sum(cited_figure), len(cited_figure)),
+            # Answers with at least one repeated place whose citations are not numbered (None: only retrieval ran).
+            "unnumbered_repeat_answers": sum(1 for a in answers if a.get("unnumbered_repeats")) if answers else None,
             "latency_ms_p50": latency[len(latency) // 2] if latency else None,
             "latency_ms_max": latency[-1] if latency else None,
             "retrieval_ms_p50": retrieval_ms[len(retrieval_ms) // 2] if retrieval_ms else None,

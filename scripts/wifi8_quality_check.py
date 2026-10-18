@@ -15,6 +15,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import importlib.util
 import json
 import os
@@ -48,7 +49,12 @@ def sh(*args: str, timeout: int = 3600) -> str:
     return subprocess.run(args, check=True, capture_output=True, text=True, timeout=timeout).stdout
 
 
-def previous_metrics(zone: str, level: str) -> dict | None:
+def cases_digest() -> str:
+    """Short digest of the golden set: runs are compared with the previous run only when the questions are the same."""
+    return hashlib.sha256((REPO / "eval/wifi8/golden-set.v1.jsonl").read_bytes()).hexdigest()[:16]
+
+
+def previous_metrics(zone: str, level: str, cases: str | None = None) -> dict | None:
     history = ROOT / "history.jsonl"
     if not history.is_file():
         return None
@@ -58,7 +64,8 @@ def previous_metrics(zone: str, level: str) -> dict | None:
         except json.JSONDecodeError:
             continue
         if row.get("zone") == zone and row.get("level") == level and row.get("status") != "INSUFFICIENT":
-            return row.get("metrics")
+            # A changed golden set (rows before the digest was recorded count as changed) has no comparable previous run.
+            return row.get("metrics") if cases is None or row.get("cases_sha256") == cases else None
     return None
 
 
@@ -86,7 +93,8 @@ def trust_level(worker: str, hours: float, out: Path) -> tuple[dict, list[dict]]
     return summarize_trust(records), records
 
 
-RATE_SUFFIXES = ("hit_at_10", "answer_pass", "fact_coverage", "cited_gold", "_rate", "_share")
+RATE_SUFFIXES = ("hit_at_10", "answer_pass", "fact_coverage", "cited_gold", "cited_figure", "_rate", "_share")
+FIGURE_LABELS = {"retrieval": "檢索前 10 筆沒有標準圖片的題目", "agent": "回答沒有引用標準圖片、或同一位置引用沒有標出第幾段的題目"}
 
 
 def fmt(value, metric: str = "") -> str:
@@ -120,6 +128,10 @@ def render(report: dict) -> str:
             if data.get("failed_cases"):
                 label = "檢索前 10 筆沒有標準來源的題目" if level == "retrieval" else "回答未通過或出錯的題目"
                 lines += ["", f"{label}：" + "、".join(data["failed_cases"])]
+            if data.get("figure_failed"):
+                lines += ["", f"{FIGURE_LABELS[level]}：" + "、".join(data["figure_failed"])]
+            if data.get("previous_note"):
+                lines += ["", data["previous_note"]]
             lines.append("")
     return "\n".join(lines) + "\n"
 
@@ -141,7 +153,8 @@ def main() -> int:
     run_id = now.strftime("%Y%m%dT%H%M%SZ")
     run_dir = ROOT / run_id
     commit = subprocess.run(["git", "-C", str(REPO), "rev-parse", "--short", "HEAD"], capture_output=True, text=True).stdout.strip()
-    report = {"created_utc": now.isoformat(timespec="seconds"), "commit": commit, "zones": {},
+    cases = cases_digest()
+    report = {"created_utc": now.isoformat(timespec="seconds"), "commit": commit, "zones": {}, "cases_sha256": cases,
               "trust_window_hours": config["trust_window_hours"], "levels": levels}
     history_rows = []
     for zone in zones:
@@ -162,7 +175,10 @@ def main() -> int:
                 else:
                     result = run_golden(worker, f"{run_id}-{zone}", level, out, commit)
                     metrics = (retrieval_metrics if level == "retrieval" else agent_metrics)(result["summary"])
-                    checks = judge(level, metrics, config["thresholds"], previous_metrics(zone, level))
+                    previous = previous_metrics(zone, level, cases)
+                    checks = judge(level, metrics, config["thresholds"], previous)
+                    if previous is None and previous_metrics(zone, level) is not None:
+                        entry["previous_note"] = "題庫和上次不同，這次不與上次比較是否退步。"
                     entry["package_id"] = result.get("package_id")
                     # Each level lists its own failures: retrieval misses for ①, wrong or failed answers for ②.
                     if level == "retrieval":
@@ -170,6 +186,11 @@ def main() -> int:
                     else:
                         failed = [c["id"] for c in result["cases"] if c.get("error") or (c.get("answer") or {}).get("passed") is False]
                     entry["failed_cases"] = failed
+                    if level == "retrieval":
+                        entry["figure_failed"] = [c["id"] for c in result["cases"] if (c.get("retrieval") or {}).get("figure_hit") is False]
+                    else:
+                        entry["figure_failed"] = [c["id"] for c in result["cases"] if (c.get("answer") or {}).get("cited_figure") is False
+                                                  or (c.get("answer") or {}).get("unnumbered_repeats")]
             except (subprocess.SubprocessError, OSError, KeyError, json.JSONDecodeError) as exc:
                 metrics, checks = {}, [{"metric": f"{level}.run", "value": None, "direction": "higher", "warn": None, "fail": None,
                                         "previous": None, "status": "FAIL", "reason": f"執行失敗：{type(exc).__name__}: {str(exc)[:200]}"}]
@@ -177,7 +198,8 @@ def main() -> int:
             entry.update({"status": status, "metrics": metrics, "checks": checks})
             report["zones"][zone][level] = entry
             history_rows.append({"ts": report["created_utc"], "run": run_id, "zone": zone, "level": level, "status": status,
-                                 "metrics": {k: v for k, v in metrics.items() if not isinstance(v, dict)}, "commit": commit})
+                                 "metrics": {k: v for k, v in metrics.items() if not isinstance(v, dict)}, "commit": commit,
+                                 **({"cases_sha256": cases} if level != "trust" else {})})
         report["zones"][zone]["_status"] = overall_status([c for lv in levels for c in report["zones"][zone][lv]["checks"]])
     report["status"] = overall_status([c for z in report["zones"].values() for lv in levels for c in z[lv]["checks"]])
 

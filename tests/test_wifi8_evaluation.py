@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from src.wifi8.evaluation import fact_hits, load_cases, score_answer, score_retrieval, summarize
+from src.wifi8.evaluation import fact_hits, load_cases, score_answer, score_retrieval, summarize, unnumbered_repeats
 
 GOLDEN = Path(__file__).resolve().parent.parent / "eval" / "wifi8" / "golden-set.v1.jsonl"
 
@@ -19,6 +19,9 @@ def test_golden_set_is_well_formed():
         else:
             assert case["facts"] and all(group for group in case["facts"])
             assert len(case["gold"]) == len(case["gold_titles"])
+    figures = [c for c in cases if c["category"] == "圖片圖表"]
+    assert len(figures) >= 6 and all(c["gold_figures"] and c["gold"] for c in figures)
+    assert all(len(f) == 64 for c in figures for f in c["gold_figures"])
 
 
 def test_load_cases_rejects_duplicates_and_incomplete_refusals(tmp_path):
@@ -122,3 +125,80 @@ def test_fact_matching_treats_multiplication_sign_as_x():
 
 def test_fact_matching_ignores_markdown_emphasis():
     assert fact_hits("參加設備：6 台 **AP**、7 台 **STA**", [["6 台 AP"], ["7 台 STA"]]) == [True, True]
+
+
+def test_figure_cases_need_a_gold_figure_in_search_and_citations():
+    case = {"gold": ["g1"], "facts": [["HVAC"]], "gold_figures": ["img1"]}
+    results = [{"revision_id": "g1"}, {"revision_id": "x", "image": {"id": "other"}}, {"revision_id": "g1", "image": {"id": "img1"}}]
+    assert score_retrieval(case, results) == {"applicable": True, "hit": True, "rank": 1, "mrr": 1.0, "figure_hit": True, "figure_rank": 3}
+    assert score_retrieval(case, results[:2])["figure_hit"] is False
+    assert "figure_hit" not in score_retrieval({"gold": ["g1"]}, results)
+    text_only = score_answer(case, {"answer": "依 Occupancy 控制 HVAC", "citations": [{"revision_id": "g1"}]})
+    assert text_only["passed"] and text_only["cited_figure"] is False  # a figure miss is reported, not a failed answer
+    assert score_answer(case, {"answer": "HVAC", "citations": [{"revision_id": "g1", "image": {"id": "img1"}}]})["cited_figure"]
+    assert "cited_figure" not in score_answer({"gold": ["g1"], "facts": [["x"]]}, {"answer": "x", "citations": []})
+
+
+def test_repeated_places_must_be_numbered():
+    page3 = {"revision_id": "d", "location_label": "第 3 頁"}
+    assert unnumbered_repeats([page3, {**page3, "location_label": "第 6 頁"}]) == 0  # different places
+    assert unnumbered_repeats([page3, page3]) == 2
+    assert unnumbered_repeats([{**page3, "part": {"index": 1, "total": 2}}, {**page3, "part": {"index": 2, "total": 2}}]) == 0
+    assert unnumbered_repeats([page3, {**page3, "revision_id": "other"}]) == 0  # same label, other document
+    scored = score_answer({"gold": ["d"], "facts": [["x"]]}, {"answer": "x", "citations": [page3, page3]})
+    assert scored["unnumbered_repeats"] == 2
+
+
+def test_summary_and_report_for_figure_checks():
+    rows = [
+        {"id": "F1", "category": "圖片圖表", "question": "q", "retrieval": {"applicable": True, "hit": True, "rank": 1, "mrr": 1.0, "figure_hit": False},
+         "answer": {"passed": True, "fact_coverage": 1.0, "cited_gold": True, "fact_hits": [True], "cited_figure": False, "unnumbered_repeats": 0}},
+        {"id": "F2", "category": "圖片圖表", "retrieval": {"applicable": True, "hit": True, "rank": 1, "mrr": 1.0, "figure_hit": True},
+         "answer": {"passed": True, "fact_coverage": 1.0, "cited_gold": True, "fact_hits": [True], "cited_figure": True, "unnumbered_repeats": 0}},
+        {"id": "A", "category": "c", "question": "q2", "retrieval": {"applicable": True, "hit": True, "rank": 1, "mrr": 1.0},
+         "answer": {"passed": True, "fact_coverage": 1.0, "cited_gold": True, "fact_hits": [True], "unnumbered_repeats": 2}},
+    ]
+    overall = summarize(rows)["overall"]
+    assert (overall["figure_cases"], overall["retrieval_figure_hit_at_k"], overall["cited_figure"], overall["unnumbered_repeat_answers"]) == (2, 0.5, 0.5, 1)
+    assert summarize([{"id": "R", "category": "c", "retrieval": {"applicable": True, "hit": True, "rank": 1, "mrr": 1.0}}])["overall"]["unnumbered_repeat_answers"] is None
+
+    spec = importlib.util.spec_from_file_location("eval_wifi8_agent", Path(__file__).resolve().parent.parent / "scripts" / "eval_wifi8_agent.py")
+    runner = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(runner)
+    report = runner.render_report({"created_utc": "t", "source_commit": "abc", "package_id": "p", "cases_file": "g.jsonl",
+                                   "agent": None, "summary": summarize(rows), "cases": rows})
+    assert "圖片題 2 題：檢索前 10 筆有標準圖片 50.0%；回答引用標準圖片 50.0%" in report
+    assert "**F1** q：檢索前 10 筆沒有標準圖片；引用未包含標準圖片" in report
+    assert "**A** q2：同一位置的引用有 2 筆沒有標出第幾段" in report and "**F2**" not in report
+
+
+def test_figure_cases_resolve_titles_places_and_shared_figures(tmp_path):
+    spec = importlib.util.spec_from_file_location("figure_cases", Path(__file__).resolve().parent.parent / "eval" / "wifi8" / "figure_cases.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    docs = [{"revision_id": "a", "title": "Deck A v1", "analysis_eligible": True}, {"revision_id": "b", "title": "Article B", "analysis_eligible": True},
+            {"revision_id": "old", "title": "Deck A v0", "analysis_eligible": False}]
+    images = [{"revision_id": "a", "image_id": "1" * 64, "ordinal": 2, "location": {"type": "slide", "slide": 5}},
+              {"revision_id": "a", "image_id": "2" * 64, "ordinal": 3, "location": {"type": "slide", "slide": 5}},
+              {"revision_id": "b", "image_id": "1" * 64, "ordinal": 1, "location": {"type": "image"}},
+              {"revision_id": "old", "image_id": "1" * 64, "ordinal": 2, "location": {"type": "slide", "slide": 5}}]
+    for name, rows in (("documents.jsonl", docs), ("images.jsonl", images)):
+        (tmp_path / name).write_text("\n".join(json.dumps(r) for r in rows), encoding="utf-8")
+    module.CASES = [dict(id="F1", question="q", facts=[["x"]], figures=[("Deck A", 2, {"slide": 5}), ("Article B", 1, {})])]
+    case = module.figure_cases(tmp_path)[0]
+    assert case["gold"] == ["a", "b"] and case["gold_figures"] == ["1" * 64]  # the figure shared by both documents counts once
+    assert case["gold_figure_places"] == ["Deck A v1｜投影片 5・圖 2", "Article B｜圖 1"] and case["category"] == "圖片圖表"
+    module.CASES = [dict(id="F2", question="q", facts=[["x"]], figures=[("Deck A", 9, {})])]
+    with pytest.raises(AssertionError):
+        module.figure_cases(tmp_path)  # a figure that cannot be found is an error, not a silently smaller case
+
+    golden = tmp_path / "golden.jsonl"
+    golden.write_text(json.dumps({"id": "D1", "category": "功能定義"}) + "\n" + json.dumps({"id": "F0", "category": "圖片圖表"}) + "\n", encoding="utf-8")
+    module.CASES = [dict(id="F1", question="q", facts=[["x"]], figures=[("Article B", 1, {})])]
+    import sys
+    argv, sys.argv = sys.argv, ["figure_cases.py", str(tmp_path), str(golden)]
+    try:
+        module.main()
+    finally:
+        sys.argv = argv
+    assert [json.loads(l)["id"] for l in golden.read_text(encoding="utf-8").splitlines()] == ["D1", "F1"]
