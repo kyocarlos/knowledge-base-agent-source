@@ -1,0 +1,10 @@
+# Standalone public-base alternative; the Compose worker uses Dockerfile target=worker.
+FROM python:3.12-slim-bookworm@sha256:34386ef0cb081344d7ec1c103ba398e6e9f64e9ab3a1509accc92a4e24a07258
+WORKDIR /app
+COPY deploy/csit-integration-v1/requirements*.txt /tmp/
+RUN pip install --no-cache-dir -r /tmp/requirements.lock.txt && pip install --no-cache-dir --index-url https://download.pytorch.org/whl/cpu torch==2.13.0 && pip install --no-cache-dir -r /tmp/requirements-worker.lock.txt
+COPY src /app/src
+COPY app /app/app
+COPY config/csit-integration-v1.numeric-rules.json /app/config/csit-integration-v1.numeric-rules.json
+ENV PYTHONPATH=/app PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1
+CMD ["python","-m","src.csit_integration_v1.runtime"]

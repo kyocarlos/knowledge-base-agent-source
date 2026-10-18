@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CSIT AI KM 開發進程</title>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Noto Sans TC', sans-serif; background: #1a1a2e; color: white; min-height: 100vh; padding: 40px; }
+    
+    .slide {
+      background: #16213e;
+      border-radius: 20px;
+      padding: 40px;
+      margin-bottom: 40px;
+      max-width: 1200px;
+      margin-left: auto;
+      margin-right: auto;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+    }
+    
+    .slide-title {
+      font-size: 32px;
+      font-weight: 700;
+      margin-bottom: 8px;
+      color: #e94560;
+    }
+    .slide-subtitle {
+      font-size: 18px;
+      color: #888;
+      margin-bottom: 30px;
+    }
+    
+    .phase-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 24px;
+      padding-bottom: 16px;
+      border-bottom: 2px solid #e94560;
+    }
+    .phase-title {
+      font-size: 24px;
+      font-weight: 700;
+      color: #e94560;
+    }
+    .phase-date {
+      background: #e94560;
+      color: white;
+      padding: 8px 20px;
+      border-radius: 20px;
+      font-size: 14px;
+      font-weight: 500;
+    }
+    
+    .two-columns {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+    }
+    
+    .column {
+      background: #0f3460;
+      border-radius: 16px;
+      padding: 24px;
+    }
+    .column-title {
+      font-size: 16px;
+      font-weight: 700;
+      margin-bottom: 16px;
+      padding-bottom: 8px;
+      border-bottom: 2px solid;
+    }
+    .column-title.expectation { border-color: #f59e0b; color: #f59e0b; }
+    .column-title.actual { border-color: #22c55e; color: #22c55e; }
+    
+    .column ul {
+      list-style: none;
+      padding: 0;
+    }
+    .column li {
+      padding: 10px 0;
+      border-bottom: 1px solid rgba(255,255,255,0.1);
+      font-size: 15px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .column li:last-child { border-bottom: none; }
+    .column li::before { content: '•'; color: #e94560; font-size: 20px; }
+    
+    .progress-section {
+      margin-top: 24px;
+      background: #0f3460;
+      border-radius: 16px;
+      padding: 24px;
+    }
+    .progress-title {
+      font-size: 16px;
+      font-weight: 700;
+      color: #22c55e;
+      margin-bottom: 12px;
+    }
+    .progress-bar {
+      background: #1a1a2e;
+      border-radius: 10px;
+      height: 20px;
+      overflow: hidden;
+    }
+    .progress-fill {
+      background: linear-gradient(90deg, #22c55e, #16a34a);
+      height: 100%;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      font-weight: 600;
+    }
+    .progress-fill.partial { width: 60%; }
+    .progress-fill.complete { width: 100%; background: linear-gradient(90deg, #22c55e, #16a34a); }
+    
+    .highlight-box {
+      background: linear-gradient(135deg, #e94560, #0f3460);
+      border-radius: 16px;
+      padding: 24px;
+      margin-top: 24px;
+      text-align: center;
+    }
+    .highlight-box h3 { font-size: 20px; margin-bottom: 8px; }
+    .highlight-box p { color: #ccc; }
+    
+    .checklist {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+    .checklist-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 12px 16px;
+      background: #1a1a2e;
+      border-radius: 10px;
+      font-size: 14px;
+    }
+    .checklist-item.done { border-left: 4px solid #22c55e; }
+    .checklist-item.pending { border-left: 4px solid #f59e0b; }
+    .checklist-item .icon { font-size: 18px; }
+    
+    .footer {
+      text-align: center;
+      padding: 40px;
+      color: #666;
+      font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+  
+  <!-- Slide 1: 專案目標 -->
+  <div class="slide">
+    <div class="slide-title">CSIT AI KM 開發進程</div>
+    <div class="slide-subtitle">AnythingLLM 搜尋系統 + Knowledge Base 知識庫</div>
+    
+    <div class="highlight-box">
+      <h3>📅 目標完成日期：5/31</h3>
+      <p>兩個系統需於 5 月底前完成 POC</p>
+    </div>
+  </div>
+  
+  <!-- Slide 2: 第一階段 -->
+  <div class="slide">
+    <div class="phase-header">
+      <div class="phase-title">第一階段</div>
+      <div class="phase-date">~ 4/30 已完成 ✅</div>
+    </div>
+    
+    <div class="two-columns">
+      <div class="column">
+        <div class="column-title expectation">預期目標</div>
+        <ul>
+          <li>跨平台搜尋</li>
+          <li>關聯式知識圖譜</li>
+        </ul>
+      </div>
+      <div class="column">
+        <div class="column-title actual">實際開發內容</div>
+        <ul>
+          <li>Confluence / Jira / TestRail 跨平台搜尋</li>
+          <li>Hybrid Search API</li>
+          <li>Qdrant + Neo4j 資料庫關聯</li>
+          <li>Neo4j 優化</li>
+          <li>6種萃取模式 + 5種搜尋模式</li>
+          <li>n8n 每小時自動攝入排程</li>
+        </ul>
+      </div>
+    </div>
+    
+    <div class="progress-section">
+      <div class="progress-title">目前進度：跨平台搜尋、知識圖譜功能已開發完成</div>
+      <div class="progress-bar">
+        <div class="progress-fill complete">100% 完成</div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Slide 3: 第二階段 -->
+  <div class="slide">
+    <div class="phase-header">
+      <div class="phase-title">第二階段</div>
+      <div class="phase-date">5/1 - 5/31 🔥</div>
+    </div>
+    
+    <div class="two-columns">
+      <div class="column">
+        <div class="column-title expectation">預期目標</div>
+        <ul>
+          <li>整體效能優化</li>
+          <li>LLM（大語言模型）選型</li>
+        </ul>
+      </div>
+      <div class="column">
+        <div class="column-title actual">實際開發內容</div>
+        <ul>
+          <li>LLM 參數調整，效能極大化</li>
+          <li>LLM 選型功能極大化</li>
+          <li>KM Web 開發（Corporate 熱圖介面）</li>
+          <li>n8n 自動化排程、爬蟲</li>
+          <li>AnythingLLM 讀取檔案、圖片、.pcap</li>
+          <li>點擊、下載流量統計</li>
+        </ul>
+      </div>
+    </div>
+    
+    <div class="progress-section">
+      <div class="progress-title">目前進度：KM Web 熱圖介面開發中、AnythingLLM 整合規劃中</div>
+      <div class="progress-bar">
+        <div class="progress-fill partial">40% 進行中</div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Slide 4: 第三階段 -->
+  <div class="slide">
+    <div class="phase-header">
+      <div class="phase-title">第三階段：ES (POC)</div>
+      <div class="phase-date">5/31 - 6/30</div>
+    </div>
+    
+    <div class="two-columns">
+      <div class="column">
+        <div class="column-title expectation">預期目標</div>
+        <ul>
+          <li>開放 CSIT 測試搜尋</li>
+          <li>開放 CSIT 測試知識關聯</li>
+        </ul>
+      </div>
+      <div class="column">
+        <div class="column-title actual">實際開發內容</div>
+        <ul>
+          <li>修正搜尋系統問題</li>
+          <li>修正知識關連問題</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Slide 5: 第四階段 -->
+  <div class="slide">
+    <div class="phase-header">
+      <div class="phase-title">第四階段：EV</div>
+      <div class="phase-date">6/30 - 7/31</div>
+    </div>
+    
+    <div class="two-columns">
+      <div class="column">
+        <div class="column-title expectation">預期目標</div>
+        <ul>
+          <li>壓力測試（上限 20~30 人）</li>
+          <li>架構、軟/硬體評估</li>
+        </ul>
+      </div>
+      <div class="column">
+        <div class="column-title actual">實際開發內容</div>
+        <ul>
+          <li>評估人數及資料量，進行滾動式調整</li>
+          <li>硬體：DG10 → H100</li>
+          <li>軟體：LanceDB / Qdrant / Neo4j</li>
+          <li>架構：PageIndex 快速檢索</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Slide 6: 第五階段 -->
+  <div class="slide">
+    <div class="phase-header">
+      <div class="phase-title">第五階段：DV</div>
+      <div class="phase-date">7/31 - 8/31</div>
+    </div>
+    
+    <div class="two-columns">
+      <div class="column">
+        <div class="column-title expectation">預期目標</div>
+        <ul>
+          <li>Debug（除錯）</li>
+          <li>卡片盒知識庫</li>
+        </ul>
+      </div>
+      <div class="column">
+        <div class="column-title actual">實際開發內容</div>
+        <ul>
+          <li>系統優化與除錯</li>
+          <li>知識庫最終調整</li>
+          <li>正式上線準備</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Slide 7: 5/31 前交付清單 -->
+  <div class="slide">
+    <div class="slide-title">5/31 前交付重點</div>
+    <div class="slide-subtitle">AnythingLLM + Knowledge Base 雙系統 POC</div>
+    
+    <div class="checklist">
+      <div class="checklist-item done">
+        <span class="icon">✅</span>
+        <span>Hybrid Search API</span>
+      </div>
+      <div class="checklist-item done">
+        <span class="icon">✅</span>
+        <span>Neo4j + QDrant 知識圖譜</span>
+      </div>
+      <div class="checklist-item done">
+        <span class="icon">✅</span>
+        <span>6種萃取模式</span>
+      </div>
+      <div class="checklist-item done">
+        <span class="icon">✅</span>
+        <span>n8n 每小時自動攝入</span>
+      </div>
+      <div class="checklist-item pending">
+        <span class="icon">⏳</span>
+        <span>AnythingLLM 檔案處理</span>
+      </div>
+      <div class="checklist-item pending">
+        <span class="icon">⏳</span>
+        <span>流量統計與下載追蹤</span>
+      </div>
+      <div class="checklist-item pending">
+        <span class="icon">⏳</span>
+        <span>Corporate KM Web 熱圖</span>
+      </div>
+      <div class="checklist-item pending">
+        <span class="icon">⏳</span>
+        <span>論文覆蓋熱圖（18 Topics）</span>
+      </div>
+      <div class="checklist-item pending">
+        <span class="icon">⏳</span>
+        <span>LLM 效能優化</span>
+      </div>
+      <div class="checklist-item pending">
+        <span class="icon">⏳</span>
+        <span>跨系統整合測試</span>
+      </div>
+    </div>
+  </div>
+  
+  <div class="footer">
+    CSIT AI KM Development | AnythingLLM + Knowledge Base | 目標完成：5/31
+  </div>
+  
+</body>
+</html>

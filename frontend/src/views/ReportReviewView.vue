@@ -97,4 +97,60 @@ onMounted(loadReports)
 
 <style scoped>
 .review-page{max-width:1400px;margin:0 auto;padding:32px}.review-header,.auth-card{display:flex;align-items:center;justify-content:space-between;gap:16px}.review-header{margin-bottom:24px}.review-header h1{font-size:28px}.review-header p{color:var(--text-secondary)}.auth-card,.table-card{background:#fff;border:1px solid var(--border);border-radius:var(--radius-lg);box-shadow:var(--shadow);padding:18px;margin-bottom:18px}.auth-card input{flex:1;max-width:520px}.auth-card input,.auth-card select{border:1px solid var(--border-strong);border-radius:8px;padding:10px 12px}button{border:0;border-radius:8px;padding:9px 14px;background:var(--primary-light);color:#fff;cursor:pointer}button.secondary{background:#e7eef6;color:var(--primary)}button.danger{background:var(--error)}button:disabled{opacity:.55}.table-card{overflow:auto;padding:0}table{width:100%;border-collapse:collapse}th,td{padding:14px;text-align:left;border-bottom:1px solid var(--border)}th{background:var(--bg-surface);font-size:13px}td small{display:block;color:var(--text-muted);margin-top:3px}.actions{white-space:nowrap}.actions button{margin-right:6px}.verdict{font-weight:700;text-transform:uppercase}.verdict.pass{color:var(--success)}.verdict.fail,.verdict.error{color:var(--error)}.message{padding:12px;border-radius:8px;margin-bottom:14px}.message.error{background:#feecec;color:var(--error)}.message.success{background:#e8f7f0;color:var(--success)}.empty{text-align:center;color:var(--text-muted);padding:40px}@media(max-width:760px){.review-page{padding:18px}.review-header,.auth-card{align-items:stretch;flex-direction:column}.auth-card input{max-width:none}th:nth-child(2),td:nth-child(2),th:nth-child(5),td:nth-child(5){display:none}}
+
+.review-page { color: var(--km-text-primary); }
+.review-page .review-header h1 { color: var(--km-text-primary); }
+.review-page .review-header p,
+.review-page .auth-card label { color: var(--km-text-secondary); }
+.review-page .auth-card,
+.review-page .table-card {
+  background: var(--km-panel-bg);
+  color: var(--km-text-primary);
+  border-color: var(--km-panel-border);
+  box-shadow: var(--km-panel-shadow);
+}
+.review-page .auth-card input,
+.review-page .auth-card select {
+  background: var(--km-panel-raised);
+  color: var(--km-text-primary);
+  border-color: var(--km-panel-border);
+  color-scheme: dark;
+}
+.review-page .auth-card input::placeholder { color: var(--km-text-muted); opacity: 1; }
+.review-page .auth-card option { background: #0e303a; color: var(--km-text-primary); }
+.review-page button.secondary {
+  background: var(--km-panel-raised);
+  color: var(--km-text-primary);
+  border: 1px solid var(--km-panel-border);
+}
+.review-page button.secondary:hover { background: var(--km-panel-hover); }
+.review-page .auth-card button:not(.secondary) {
+  background: var(--km-accent-strong);
+  color: #06161d;
+}
+.review-page table { background: var(--km-panel-bg); }
+.review-page th {
+  background: var(--km-panel-raised);
+  color: var(--km-text-primary);
+}
+.review-page td { color: var(--km-text-primary); }
+.review-page td small,
+.review-page .empty { color: var(--km-text-secondary); }
+.review-page th,
+.review-page td { border-color: var(--km-panel-border); }
+.review-page .message.error {
+  background: rgba(255, 100, 100, .14);
+  color: #ffaaa8;
+}
+.review-page .message.success {
+  background: rgba(127, 255, 227, .12);
+  color: var(--km-accent);
+}
+.review-page input:focus-visible,
+.review-page select:focus-visible,
+.review-page button:focus-visible {
+  outline: 2px solid var(--km-accent);
+  outline-offset: 2px;
+}
+
 </style>

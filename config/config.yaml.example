@@ -1,7 +1,7 @@
 # 知識庫系統設定檔
 # 請複製此檔案為 config.yaml 並填入實際值
 
-# LLM 設定（目前僅保留 Ollama）
+# LLM 設定
 llm_provider: "ollama"
 llm_model: "qwen3-coder-next"
 
@@ -11,7 +11,7 @@ neo4j_user: "neo4j"
 neo4j_password: "your-neo4j-password"
 
 # Embedding 模型（用於向量檢索）
-embedding_model: "sentence-transformers/all-MiniLM-L6-v2"
+embedding_model: "BAAI/bge-base-zh-v1.5"
 
 # 檔案轉換設定
 converter:
@@ -47,3 +47,11 @@ ollama:
   num_predict: 4096
   strategy: "round_robin"
   timeout: 300
+
+# OpenAI-compatible gateway（例如本機 Sub2API）。
+# 僅在 llm_provider=openai_compatible 時使用；API key 由環境變數注入。
+# openai:
+#   base_url: "http://host.docker.internal:18080/v1"
+#   api_key_env: "SUB2API_API_KEY"
+#   max_tokens: 4096
+#   timeout: 300

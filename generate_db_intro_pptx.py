@@ -7,7 +7,7 @@ from pptx.enum.text import MSO_AUTO_SIZE, PP_ALIGN
 from pptx.util import Inches, Pt
 
 
-OUT_DIR = Path("<project-root>/knowledge-base")
+OUT_DIR = Path("/home/da40_ai_gb10/knowledge-base")
 NEO4J_OUT = OUT_DIR / "neo4j_customer_intro.pptx"
 QDRANT_OUT = OUT_DIR / "qdrant_customer_intro.pptx"
 

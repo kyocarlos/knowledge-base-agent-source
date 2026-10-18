@@ -4,12 +4,14 @@
 """
 
 import logging
+import json
 import os
 import yaml
 from pathlib import Path
 
 from .storage_paths import resolve_storage_category, infer_storage_category_from_path
 from .runtime_config import resolve_neo4j_uri
+from .knowledge_package import build_package_metadata, resolve_document_version
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -126,6 +128,35 @@ def _write_neo4j_document(
     from neo4j import GraphDatabase
 
     result = result or {}
+    identity = {}
+    source_metadata = {}
+    metadata_path = Path(doc_path).with_name(f"{Path(doc_path).stem}.source.json")
+    if metadata_path.exists():
+        try:
+            source_metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+            identity = {
+                key: source_metadata[key]
+                for key in (
+                    "source_system", "environment_id", "project_id", "run_id", "artifact_type",
+                    "report_schema", "original_file_name", "source_file_hash", "ingest_file_hash",
+                    "document_id", "idempotency_key", "generated_at",
+                )
+                if source_metadata.get(key) not in (None, "")
+            }
+            document_version = resolve_document_version(source_metadata)
+        except Exception as metadata_error:
+            logger.warning("讀取 Neo4j 文件身份 metadata 失敗: %s", metadata_error)
+            document_version = resolve_document_version({})
+    else:
+        document_version = resolve_document_version({})
+    package_metadata = build_package_metadata(
+        document_id=identity.get("document_id", doc_name),
+        document_version=document_version,
+        content_hash=str(source_metadata.get("content_hash") or ""),
+        publish_status=str(source_metadata.get("publish_status") or "draft"),
+        is_current=source_metadata.get("is_current", False),
+    )
+    identity.update(package_metadata)
     driver = GraphDatabase.driver(
         neo4j_uri,
         auth=(neo4j_user, neo4j_password)
@@ -137,8 +168,14 @@ def _write_neo4j_document(
             SET d.content = $content,
                 d.source = $source,
                 d.extraction_mode = $mode,
-                d.storage_category = $storage_category
-        """, name=doc_name, content=content[:1000], source=doc_path, mode=extraction_mode, storage_category=storage_category or "")
+                d.storage_category = $storage_category,
+                d.package_schema_version = $package_schema_version,
+                d.package_id = $package_id,
+                d.document_version = $document_version,
+                d.publish_status = $publish_status,
+                d.is_current = $is_current,
+                d += $identity
+        """, name=doc_name, content=content[:1000], source=doc_path, mode=extraction_mode, storage_category=storage_category or "", package_schema_version=identity["package_schema_version"], package_id=identity["package_id"], document_version=document_version, publish_status=identity["publish_status"], is_current=identity["is_current"], identity=identity)
 
         session.run("""
             MATCH (d:Document {name: $name})
@@ -286,6 +323,8 @@ def ingest_document(
     system_prompt = get_extraction_prompt(extraction_mode)
     mode_name = EXTRACTION_MODES.get(extraction_mode, {}).get("name", extraction_mode)
     logger.info(f"使用萃取模式: {mode_name}")
+    # doc_name 是搜尋顯示、文件名稱比對與重新攝入覆蓋的鍵，固定使用檔名；
+    # document_id 等身分欄位由 sidecar 寫入 Neo4j 屬性與 chunk metadata。
     doc_name = Path(doc_path).stem
     content = Path(doc_path).read_text(encoding="utf-8")
     cleanup_existing_document(
@@ -434,19 +473,12 @@ def ingest_document(
         neo4j_uri, neo4j_user, neo4j_password = _get_neo4j_connection_info(config)
         content = Path(doc_path).read_text(encoding="utf-8")
         
-        # 讀取 ollama client
-        from src.web_api.ollama_client import OllamaClient
-        ollama_config = config["ollama"]
-        
-        llm = OllamaClient(
-            model=ollama_config.get("model", "gemma4:12b"),
-            base_url=ollama_config["instances"][0] if len(ollama_config["instances"]) > 0 else ollama_config.get("base_url", "http://localhost:11434")
-        )
+        from src.web_api.llm_factory import create_llm_client
+        llm = create_llm_client(config)
         
         # 嘗試萃取
         result = {}
         try:
-            import json
             import re
 
             # 呼叫 LLM 萃取（最多重試 2 次）
@@ -575,6 +607,7 @@ def ingest_vector(doc_path: str, storage_category: str | None = None):
         from src.chunker import chunk_document
 
         doc_name = Path(doc_path).stem
+        source_metadata = {}
 
         # 分塊
         chunks = chunk_document(doc_path)
@@ -595,7 +628,6 @@ def ingest_vector(doc_path: str, storage_category: str | None = None):
         elif resolved_category == "Simple":
             extraction_mode = "simple"
 
-        source_metadata = {}
         metadata_path = Path(doc_path).with_name(f"{Path(doc_path).stem}.source.json")
         if metadata_path.exists():
             try:
@@ -610,6 +642,9 @@ def ingest_vector(doc_path: str, storage_category: str | None = None):
             for key in (
                 "run_id", "environment", "project_code", "dut_model", "band",
                 "protocol", "direction", "verdict", "started_at", "schema_version",
+                "source_system", "environment_id", "project_id", "artifact_type", "report_schema",
+                "original_file_name", "source_file_hash", "ingest_file_hash", "document_id",
+                "idempotency_key", "generated_at",
             ):
                 if source_metadata.get(key) not in (None, ""):
                     metadata.setdefault(key, source_metadata[key])

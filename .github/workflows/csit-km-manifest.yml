@@ -1,0 +1,40 @@
+name: CSIT KM Manifest Contract
+
+on:
+  push:
+    paths:
+      - "src/csit/**"
+      - "src/document_pipeline.py"
+      - "src/ingest_registry.py"
+      - "config/csit_km_v1_contract.json"
+      - "tests/test_csit_*.py"
+      - "tests/fixtures/csit_km_uat_manifest.json"
+      - ".github/workflows/csit-km-manifest.yml"
+  pull_request:
+    paths:
+      - "src/csit/**"
+      - "src/document_pipeline.py"
+      - "src/ingest_registry.py"
+      - "config/csit_km_v1_contract.json"
+      - "tests/test_csit_*.py"
+      - "tests/fixtures/csit_km_uat_manifest.json"
+      - ".github/workflows/csit-km-manifest.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  km-manifest-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install isolated contract test dependencies
+        run: python -m pip install --disable-pip-version-check pytest httpx openpyxl fastapi
+      - name: Compile KM CSIT adapter
+        run: python -m compileall -q src/csit src/document_pipeline.py src/ingest_registry.py scripts/run_csit_km_manifest_pull.py
+      - name: Run KM manifest and UAT contract tests
+        run: python -m pytest -q tests/test_csit_manifest.py tests/test_csit_manifest_ingest.py tests/test_csit_pull.py tests/test_csit_sync.py tests/test_csit_contract.py

@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#06161d">
+  <meta http-equiv="Cache-Control" content="no-store">
+  <title>WiFi 知識專區</title>
+  <link rel="stylesheet" href="/wifi8/wifi8.666da50c885b.css">
+</head>
+<body>
+  <div id="app" class="app-shell" aria-busy="true">
+    <aside class="sidebar" aria-label="WiFi 知識專區導覽">
+      <a class="brand" href="#/overview" aria-label="WiFi 知識專區首頁">
+        <span class="brand-mark" aria-hidden="true">K</span>
+        <span><strong>KM</strong><small>WiFi knowledge zone</small></span>
+      </a>
+      <button id="nav-toggle" class="nav-toggle" type="button" aria-expanded="false" aria-controls="primary-nav">開啟功能選單</button>
+      <nav id="primary-nav" class="primary-nav"></nav>
+      <div class="sidebar-footer">
+        <span class="computer-icon" aria-hidden="true"></span>
+        <span><strong>KM DEV</strong><small><i></i><span id="zone-status">正在確認資料區</span></small></span>
+      </div>
+    </aside>
+    <section class="workspace">
+      <header class="topbar">
+        <div class="page-title"><p id="page-section">WiFi 知識專區</p><h1 id="page-title">正在載入</h1></div>
+        <div class="topbar-actions">
+          <div class="snapshot-time"><span class="clock-icon" aria-hidden="true"></span><span><strong>資料更新</strong><time id="page-updated">—</time></span></div>
+          <button id="refresh-page" class="refresh-button" type="button"><span class="refresh-icon" aria-hidden="true"></span>重新讀取</button>
+          <a class="back-link" href="/chat-v2.html">返回知識中樞</a>
+        </div>
+      </header>
+      <main id="page-content" tabindex="-1"><div class="loading-card">正在讀取 WiFi 知識專區…</div></main>
+      <footer class="page-footer"><span>WiFi Knowledge Zone · KM DEV</span><span>內容依目前匯入版本提供</span></footer>
+    </section>
+  </div>
+  <dialog id="document-dialog" class="document-dialog" aria-labelledby="document-dialog-title">
+    <div class="dialog-head"><h2 id="document-dialog-title">文件詳情</h2><button id="close-dialog" type="button" aria-label="關閉文件詳情">×</button></div>
+    <div id="document-dialog-body"></div>
+  </dialog>
+  <noscript><p class="noscript">WiFi 知識專區需要 JavaScript 才能顯示。</p></noscript>
+  <script src="/wifi8/wifi8.a9ed42ca0f0e.js" defer></script>
+</body>
+</html>

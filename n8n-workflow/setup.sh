@@ -1,6 +1,6 @@
 #!/bin/bash
 # n8n 安裝與設定腳本
-# 位置: <project-root>/knowledge-base/n8n-workflow/setup.sh
+# 位置: /home/da40_ai_gb10/knowledge-base/n8n-workflow/setup.sh
 
 set -e
 
@@ -10,8 +10,8 @@ echo "====================================="
 echo ""
 
 # 1. 建立監控資料夾
-WATCH_FOLDER="<project-root>/knowledge-base/data/watch"
-LOG_FOLDER="<project-root>/knowledge-base/logs"
+WATCH_FOLDER="/home/da40_ai_gb10/knowledge-base/data/watch"
+LOG_FOLDER="/home/da40_ai_gb10/knowledge-base/logs"
 
 echo "1. 建立資料夾..."
 mkdir -p "$WATCH_FOLDER"
@@ -24,7 +24,7 @@ echo ""
 
 # 2. 建立 n8n 設定檔
 echo "2. 建立 n8n docker-compose.yml..."
-cat > <project-root>/knowledge-base/n8n-workflow/docker-compose.yml << 'EOF'
+cat > /home/da40_ai_gb10/knowledge-base/n8n-workflow/docker-compose.yml << 'EOF'
 version: '3'
 services:
   n8n:
@@ -44,9 +44,9 @@ services:
       - EXECUTIONS_DATA_PRUNE=true
       - EXECUTIONS_DATA_MAX_AGE=7
     volumes:
-      - <project-root>/n8n:/home/node/.n8n
-      - <project-root>/knowledge-base/data/watch:/watch
-      - <project-root>/knowledge-base/logs:/logs
+      - /home/da40_ai_gb10/n8n:/home/node/.n8n
+      - /home/da40_ai_gb10/knowledge-base/data/watch:/watch
+      - /home/da40_ai_gb10/knowledge-base/logs:/logs
 EOF
 echo "   ✅ docker-compose.yml 已建立"
 echo ""
@@ -68,7 +68,7 @@ echo "====================================="
 echo ""
 echo "下一步："
 echo "1. 進入 n8n-workflow 目錄:"
-echo "   cd <project-root>/knowledge-base/n8n-workflow"
+echo "   cd /home/da40_ai_gb10/knowledge-base/n8n-workflow"
 echo ""
 echo "2. 啟動 n8n:"
 echo "   docker-compose up -d"

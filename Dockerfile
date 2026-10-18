@@ -16,7 +16,9 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # 複製應用程式
+COPY app/ ./app/
 COPY src/ ./src/
+COPY km_credentials/ ./km_credentials/
 COPY config/ ./config/
 COPY data/ ./data/
 
@@ -28,4 +30,4 @@ ENV PYTHONPATH=/app
 ENV PYTHONUNBUFFERED=1
 
 # 預設指令
-CMD ["uvicorn", "src.web_api:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "4"]
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "4"]

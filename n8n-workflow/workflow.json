@@ -25,7 +25,7 @@
       "parameters": {
         "fileSelection": {
           "value": {
-            "path": "<project-root>/knowledge-base/data/watch/*"
+            "path": "/home/da40_ai_gb10/knowledge-base/data/watch/*"
           },
           "mode": "name",
           "resolution": "file"

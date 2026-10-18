@@ -13,13 +13,15 @@ from datetime import datetime
 from pathlib import Path
 from celery import Celery
 from celery.signals import worker_init
+from kombu import Queue
 from ..storage_paths import resolve_storage_category
+from app.core.job_config import JOB_CONFIG, classify_job_error
 
 logger = logging.getLogger(__name__)
 
 # ===== 並發控制設定 =====
-MAX_CONCURRENT_PROCESSING = 2  # 最大同時處理檔案數
-PROCESSING_LOCK_TTL = 600  # 鎖的過期時間（秒）
+MAX_CONCURRENT_PROCESSING = JOB_CONFIG.max_concurrent_processing
+PROCESSING_LOCK_TTL = JOB_CONFIG.processing_lock_ttl_seconds
 REDIS_URL = os.getenv("REDIS_URL") or os.getenv("CELERY_BROKER_URL") or "redis://redis:6379/0"
 REPORT_QUERY_HINTS = (
     "report",
@@ -39,6 +41,17 @@ REPORT_QUERY_HINTS = (
 REPORT_RECALL_TOP_K = 60
 REPORT_FOCUS_HINTS = ("throughput", "latency", "bler", "rtt")
 REPORT_PERFORMANCE_SECTION_HINTS = ("performance test",)
+
+
+def _attachment_hashes_from_state(state: dict) -> dict[str, str]:
+    """Rebuild the validated RawArtifacts hash mapping for worker re-validation."""
+    hashes: dict[str, str] = {}
+    for attachment in state.get("attachments", []) or []:
+        name = Path(str(attachment.get("name", ""))).name
+        digest = str(attachment.get("sha256", "")).strip().lower()
+        if name and re.fullmatch(r"[0-9a-f]{64}", digest):
+            hashes[name] = digest
+    return hashes
 
 
 def _is_report_like_query(query: str) -> bool:
@@ -168,7 +181,7 @@ def increment_search_count_sync(doc_name: str):
             neo4j_config.get("uri", "bolt://neo4j:7687"),
             auth=(
                 neo4j_config.get("user", "neo4j"),
-                neo4j_config.get("password", "#*cda40da40"),
+                neo4j_config.get("password") or os.getenv("NEO4J_PASSWORD", ""),
             )
         )
         with driver.session() as session:
@@ -291,19 +304,29 @@ celery_app = Celery(
 )
 
 celery_app.conf.update(
+    task_default_queue=JOB_CONFIG.default_queue,
+    task_queues=tuple(Queue(queue) for queue in (
+        JOB_CONFIG.default_queue,
+        JOB_CONFIG.document_queue,
+        JOB_CONFIG.indexing_queue,
+        "search",
+        "ingest",
+    )),
     # 任務路由
     task_routes={
         "tasks.search_task": {"queue": "search"},
         "tasks.watch_folder_scan": {"queue": "search"},
-        "tasks.ingest_task": {"queue": "search"},
+        "tasks.ingest_task": {"queue": "ingest"},
+        "tasks.wifi8_import_task": {"queue": "ingest"},
+        "tasks.wifi8_agent_task": {"queue": "search"},
     },
     # 結果過期時間
-    result_expires=3600,  # 1小時
+    result_expires=JOB_CONFIG.result_ttl_seconds,
     # worker 並發數
-    worker_concurrency=16,
+    worker_concurrency=JOB_CONFIG.max_concurrent_processing,
     # 任務超時
-    task_soft_time_limit=600,  # 10分鐘，避免大型萃取超時
-    task_time_limit=720,  # 12分鐘
+    task_soft_time_limit=JOB_CONFIG.soft_time_limit_seconds,
+    task_time_limit=JOB_CONFIG.time_limit_seconds,
     # 失敗重試
     task_acks_late=True,
     task_reject_on_worker_lost=True,
@@ -350,21 +373,17 @@ def preload_models(**kwargs):
         neo4j_config = config.get("neo4j", {})
         _preloaded_neo4j_driver = GraphDatabase.driver(
             neo4j_config.get("uri", "bolt://neo4j:7687"),
-            auth=(neo4j_config.get("user", "neo4j"), neo4j_config.get("password", "#*cda40da40"))
+            auth=(neo4j_config.get("user", "neo4j"), neo4j_config.get("password") or os.getenv("NEO4J_PASSWORD", ""))
         )
         with _preloaded_neo4j_driver.session() as session:
             session.run("RETURN 1")
         logger.info("      Neo4j 連線: ✅")
         
-        # 3. 預先初始化 Ollama Client
-        logger.info("[3/4] 初始化 Ollama Client...")
-        from ..web_api.ollama_client import OllamaClient
-        ollama_config = config.get("ollama", {})
-        _preloaded_llm_client = OllamaClient(
-            model=ollama_config.get("model", "qwen3-coder-next"),
-            base_url=ollama_config.get("instances", ["http://localhost:11434"])[0] if ollama_config.get("instances") else ollama_config.get("base_url", "http://localhost:11434")
-        )
-        logger.info("      Ollama Client: ✅")
+        # 3. 預先初始化 configured LLM provider
+        logger.info("[3/4] 初始化 configured LLM client...")
+        from ..web_api.llm_factory import create_llm_client
+        _preloaded_llm_client = create_llm_client(config)
+        logger.info("      LLM client: ✅")
         
         logger.info("=" * 50)
         logger.info("✅ Worker 預載入完成！所有模型已就緒")
@@ -380,10 +399,17 @@ def preload_models(**kwargs):
 INGEST_TASK_PREFIX = "kb:ingest_task:"
 INGEST_TASK_INDEX_KEY = "kb:ingest_tasks:index"
 INGEST_FILE_HASH_INDEX_KEY = "kb:ingest_tasks:file_hash_index"
+INGEST_DOCUMENT_LOCK_PREFIX = "kb:ingest:document-lock:"
+INGEST_DOCUMENT_LOCK_TTL = int(os.getenv("KB_INGEST_DOCUMENT_LOCK_TTL", "3600"))
 INGEST_TASK_SUCCESS_TTL = 24 * 60 * 60
 INGEST_TASK_FAILED_TTL = 72 * 60 * 60
 INGEST_UPLOAD_ROOT = Path(os.getenv("KB_INGEST_UPLOAD_ROOT", "data/uploads"))
 SOURCE_METADATA_SUFFIX = ".source.json"
+SOURCE_IDENTITY_KEYS = (
+    "source_system", "environment", "environment_id", "project_id", "run_id", "artifact_type",
+    "report_schema", "original_file_name", "source_file_hash", "ingest_file_hash",
+    "document_id", "idempotency_key", "generated_at",
+)
 SUPPORTED_WATCH_EXTENSIONS = {
     ".xlsx", ".xls", ".pdf", ".docx", ".doc", ".pptx", ".ppt",
     ".txt", ".md", ".html", ".csv", ".json", ".xml", ".epub", ".msg"
@@ -461,7 +487,18 @@ def _normalise_task_state(state: dict) -> dict:
     state.setdefault("progress", progress)
     state.setdefault("status_text", status_text)
     state.setdefault("step", step)
+    state.setdefault("job_status", _job_status_for_ingest(status))
     return state
+
+
+def _job_status_for_ingest(status: str) -> str:
+    if status in {"queued", "upload_saved", "converting", "converted", "extracting", "writing_neo4j", "writing_qdrant", "refreshing_index"}:
+        return "running" if status != "queued" else "queued"
+    if status in {"completed", "success", "succeeded"}:
+        return "succeeded"
+    if status in {"cancelled", "canceled"}:
+        return "cancelled"
+    return "failed" if status in {"failed", "error"} else status
 
 
 def set_ingest_task_state(task_id: str, state: dict, ttl: int | None = None) -> dict:
@@ -493,6 +530,24 @@ def get_ingest_task_state(task_id: str) -> dict | None:
         return None
 
 
+def acquire_document_lock(document_id: str, owner_token: str, ttl: int = INGEST_DOCUMENT_LOCK_TTL) -> bool:
+    """Acquire a Redis document lock without ever stealing another worker's lock."""
+    if not document_id or not owner_token:
+        return False
+    return bool(get_redis_client().set(f"{INGEST_DOCUMENT_LOCK_PREFIX}{document_id}", owner_token, nx=True, ex=ttl))
+
+
+def release_document_lock(document_id: str, owner_token: str) -> bool:
+    """Compare-and-delete: a late worker cannot release someone else's lock."""
+    if not document_id or not owner_token:
+        return False
+    script = """
+    if redis.call('GET', KEYS[1]) == ARGV[1] then
+        return redis.call('DEL', KEYS[1])
+    end
+    return 0
+    """
+    return bool(get_redis_client().eval(script, 1, f"{INGEST_DOCUMENT_LOCK_PREFIX}{document_id}", owner_token))
 def update_ingest_task_state(task_id: str, **updates) -> dict:
     """局部更新攝入任務狀態。"""
     current = get_ingest_task_state(task_id) or {"task_id": task_id, "created_at": _now_iso()}
@@ -503,6 +558,8 @@ def update_ingest_task_state(task_id: str, **updates) -> dict:
         current["progress"] = updates.get("progress", progress)
         current["status_text"] = updates.get("status_text", status_text)
         current["step"] = updates.get("step", step)
+    if "job_status" not in updates and status:
+        current["job_status"] = _job_status_for_ingest(status)
     ttl = None
     if status == "completed":
         ttl = INGEST_TASK_SUCCESS_TTL
@@ -588,7 +645,7 @@ def clear_ingest_task_history(statuses: list[str] | None = None) -> dict:
     }
 
 
-@celery_app.task(name="tasks.ingest_file_task", bind=True, max_retries=0)
+@celery_app.task(name="tasks.ingest_file_task", bind=True, max_retries=JOB_CONFIG.max_retries)
 def ingest_file_task(self, task_id: str):
     """背景處理單一上傳檔案：轉 Markdown → 攝入 Neo4j/QDrant → 更新 index.md。"""
     state = get_ingest_task_state(task_id)
@@ -596,8 +653,29 @@ def ingest_file_task(self, task_id: str):
         logger.error(f"找不到攝入任務狀態: {task_id}")
         return {"status": "failed", "error": "找不到任務狀態", "task_id": task_id}
 
+    document_id = state.get("document_id")
+    lock_owner = uuid.uuid4().hex
+    lock_acquired = False
     try:
-        update_ingest_task_state(task_id, status="upload_saved", started_at=_now_iso(), celery_task_id=self.request.id)
+        if document_id:
+            lock_acquired = acquire_document_lock(document_id, lock_owner)
+            if not lock_acquired:
+                error = f"document_lock_busy: {document_id}"
+                update_ingest_task_state(task_id, status="failed", error=error, ingested=False)
+                try:
+                    from ..ingest_registry import IngestRegistry
+                    IngestRegistry().update_status(task_id, "rejected")
+                    IngestRegistry().record_event("document_lock_busy", task_id, document_id=document_id)
+                except Exception as registry_error:
+                    logger.error("記錄 document lock 衝突失敗: %s", registry_error)
+                return get_ingest_task_state(task_id) or {"task_id": task_id, "status": "failed", "error": error}
+            try:
+                from ..ingest_registry import IngestRegistry
+                IngestRegistry().record_event("document_lock_acquired", task_id, document_id=document_id)
+            except Exception as registry_error:
+                logger.error("記錄 document lock 取得事件失敗: %s", registry_error)
+        trace_id = (getattr(self.request, "headers", None) or {}).get("trace_id")
+        update_ingest_task_state(task_id, status="upload_saved", started_at=_now_iso(), celery_task_id=self.request.id, trace_id=trace_id)
 
         original_path = Path(state["original_path"])
         converted_path = Path(state["converted_path"])
@@ -619,25 +697,48 @@ def ingest_file_task(self, task_id: str):
         canonical_report = None
         if state.get("canonical_test_report"):
             from ..test_reports.excel_contract import parse_and_validate_report, render_report_markdown
-            canonical_report = parse_and_validate_report(original_path)
+            canonical_report = parse_and_validate_report(
+                original_path,
+                _attachment_hashes_from_state(state),
+            )
             converted_path.parent.mkdir(parents=True, exist_ok=True)
-            converted_path.write_text(render_report_markdown(canonical_report), encoding="utf-8")
+            canonical_markdown = render_report_markdown(canonical_report)
+            image_refs = []
+            if original_path.suffix.lower() == ".xlsx":
+                # The canonical report renderer owns the report contract, while
+                # the converter owns Excel embedded-image extraction. Keep both
+                # responsibilities and persist the image section beside the
+                # canonical report instead of losing it at this boundary.
+                from ..converter import FileConverter
+
+                excel_enrichment = FileConverter()._build_excel_enrichment(original_path)
+                enrichment_text = str(excel_enrichment.get("text") or "").strip()
+                image_refs = excel_enrichment.get("image_refs", []) or []
+                if enrichment_text:
+                    canonical_markdown = f"{canonical_markdown}\n\n{enrichment_text}"
+
+            converted_path.write_text(canonical_markdown, encoding="utf-8")
             manifest = canonical_report["manifest"]
+            # Keep the converted sidecar authoritative for downstream Neo4j/Qdrant
+            # writers.  The upload state is also persisted separately, but the
+            # vector writer reads metadata next to the converted document.
+            canonical_identity = {
+                "run_id": manifest["run_id"],
+                "environment": manifest["environment"],
+                "project_code": manifest["project_code"],
+                "dut_model": manifest["dut_model"],
+                "verdict": manifest["overall_verdict"],
+                "started_at": manifest["started_at"],
+                "schema_version": manifest["schema_version"],
+                "storage_category": "Report",
+                "extraction_mode": "report",
+                "image_refs": image_refs,
+            }
             converted_path.with_name(f"{converted_path.stem}.source.json").write_text(
-                json.dumps({
-                    "run_id": manifest["run_id"],
-                    "environment": manifest["environment"],
-                    "project_code": manifest["project_code"],
-                    "dut_model": manifest["dut_model"],
-                    "verdict": manifest["overall_verdict"],
-                    "started_at": manifest["started_at"],
-                    "schema_version": manifest["schema_version"],
-                    "storage_category": "Report",
-                    "extraction_mode": "report",
-                }, ensure_ascii=False, indent=2),
+                json.dumps(canonical_identity, ensure_ascii=False, indent=2),
                 encoding="utf-8",
             )
-            result = {"status": "success", "image_refs": []}
+            result = {"status": "success", "image_refs": image_refs}
         else:
             from ..converter import FileConverter
             converter = FileConverter()
@@ -654,9 +755,11 @@ def ingest_file_task(self, task_id: str):
                 md_path=converted_path,
                 extraction_mode=extraction_mode,
                 image_refs=result.get("image_refs", []),
+                identity=state,
             )
         except Exception as meta_error:
             logger.warning(f"寫入來源中繼資料失敗，繼續攝入: {meta_error}")
+        _write_converted_identity(converted_path, state)
         update_ingest_task_state(task_id, status="extracting")
 
         from ..ingest import ingest_document
@@ -690,6 +793,9 @@ def ingest_file_task(self, task_id: str):
         except Exception as index_error:
             logger.warning(f"更新 index.md 失敗（不阻斷攝入完成）: {index_error}")
 
+        if state.get("ui_session_upload"):
+            from ..ui_upload_tracking import record_upload
+            record_upload(task_id=task_id, data_zone=state["data_zone"], file_name=state["file_name"], file_hash=state["file_hash"], extraction_mode=extraction_mode, status="completed", report=canonical_report)
         final_state = update_ingest_task_state(
             task_id,
             status="completed",
@@ -697,6 +803,13 @@ def ingest_file_task(self, task_id: str):
             error=None,
             content=(converted_path.read_text(encoding="utf-8")[:5000] if converted_path.exists() else "")
         )
+        if state.get("document_id"):
+            try:
+                from ..ingest_registry import IngestRegistry
+                IngestRegistry().update_status(task_id, "completed")
+                IngestRegistry().record_event("ingest_completed", task_id, document_id=state["document_id"])
+            except Exception as registry_error:
+                logger.error("更新攝入 registry 完成狀態失敗: %s", registry_error)
         if state.get("submission_id"):
             try:
                 from ..test_reports.registry import SubmissionRegistry
@@ -704,17 +817,47 @@ def ingest_file_task(self, task_id: str):
             except Exception as registry_error:
                 logger.error("同步 report submission 完成狀態失敗: %s", registry_error)
         logger.info(f"攝入任務完成: {task_id} ({state.get('file_name')})")
+        if lock_acquired:
+            release_document_lock(document_id, lock_owner)
         return final_state
 
     except Exception as e:
-        logger.error(f"攝入任務失敗 {task_id}: {e}")
+        decision = classify_job_error(e)
+        trace_id = (getattr(self.request, "headers", None) or {}).get("trace_id")
+        logger.error("攝入任務失敗 task_id=%s trace_id=%s retryable=%s: %s", task_id, trace_id, decision.retryable, e)
+        if decision.retryable and self.request.retries < JOB_CONFIG.max_retries:
+            update_ingest_task_state(task_id, status="retrying", error=decision.reason, trace_id=trace_id)
+            if state.get("ui_session_upload"):
+                try:
+                    from ..ui_upload_tracking import update_upload_status
+                    update_upload_status(state, "retrying")
+                except Exception as tracking_error:
+                    logger.error("更新 UI 上傳重試狀態失敗 task_id=%s: %s", task_id, tracking_error)
+            if lock_acquired:
+                release_document_lock(document_id, lock_owner)
+            raise self.retry(exc=e, countdown=JOB_CONFIG.retry_countdown_seconds)
+        if state.get("ui_session_upload"):
+            try:
+                from ..ui_upload_tracking import update_upload_status
+                update_upload_status(state, "failed")
+            except Exception as tracking_error:
+                logger.error("更新 UI 上傳追蹤狀態失敗 task_id=%s: %s", task_id, tracking_error)
         failed_state = update_ingest_task_state(task_id, status="failed", error=str(e))
+        if state.get("document_id"):
+            try:
+                from ..ingest_registry import IngestRegistry
+                IngestRegistry().update_status(task_id, "ingest_failed")
+                IngestRegistry().record_event("ingest_failed", task_id, document_id=state["document_id"], error=str(e))
+            except Exception as registry_error:
+                logger.error("更新攝入 registry 失敗狀態失敗: %s", registry_error)
         if state.get("submission_id"):
             try:
                 from ..test_reports.registry import SubmissionRegistry
                 SubmissionRegistry().sync_ingest_status(state["submission_id"], failed_state)
             except Exception as registry_error:
                 logger.error("同步 report submission 失敗狀態失敗: %s", registry_error)
+        if lock_acquired:
+            release_document_lock(document_id, lock_owner)
         return failed_state
 
 
@@ -780,7 +923,68 @@ def _build_search_citation_distribution(sources: list[dict]) -> dict:
         "total_sources": len(sources or []),
     }
 
-@celery_app.task(name="tasks.search_task", bind=True, max_retries=3)
+WIFI8_ACTIVE_STATUSES = frozenset({"queued", "describing", "staging", "embedding", "publishing"})
+
+
+def build_wifi8_importer():
+    """Wi-Fi8 importer bound to this worker's embedding model, Qdrant and Neo4j."""
+    from ..wifi8.importer import Wifi8Importer, Wifi8Settings
+    from ..vector_store import VectorStore
+    from ..ingest import load_config, _get_neo4j_connection_info
+    from neo4j import GraphDatabase
+
+    vector_store = _preloaded_vector_store or VectorStore()
+    if not vector_store.available or vector_store.client is None:
+        raise RuntimeError("Qdrant is unavailable")
+    neo4j_uri, neo4j_user, neo4j_password = _get_neo4j_connection_info(load_config())
+    return Wifi8Importer(
+        Wifi8Settings.from_environment(), qdrant=vector_store.client, encoder=vector_store.encode,
+        embedding_model=vector_store.model_name,
+        neo4j_driver=GraphDatabase.driver(neo4j_uri, auth=(neo4j_user, neo4j_password)),
+    )
+
+
+@celery_app.task(name="tasks.wifi8_import_task", bind=True)
+def wifi8_import_task(self, job_id: str):
+    """Run one bounded Wi-Fi8 import step, then re-enqueue until the job finishes."""
+    importer = build_wifi8_importer()
+    try:
+        job = importer.step(job_id)
+    finally:
+        importer.neo4j.close()
+    if job.get("status") in WIFI8_ACTIVE_STATUSES:
+        wifi8_import_task.apply_async(args=[job_id])
+    return {"job_id": job_id, "status": job.get("status"), "phase": job.get("phase")}
+
+
+@celery_app.task(name="tasks.wifi8_agent_task", bind=True)
+def wifi8_agent_task(self, question: str, history: list | None = None, owner: dict | None = None):
+    """WiFi zone agent: the LLM picks read-only WiFi tools; limits and citations stay in code."""
+    from ..wifi8.agent import AgentSettings, CitationRegistry, WifiTools, run_agent
+    from ..wifi8.importer import Wifi8Importer, Wifi8Settings
+    from ..wifi8.search import SearchUnavailable, Wifi8Search
+    from ..vector_store import VectorStore
+    from ..main import load_config
+    from .ollama_client import _build_primary_client
+
+    base = {"owner": owner or {}, "question": question}
+    try:
+        vector_store = _preloaded_vector_store or VectorStore()
+        search = Wifi8Search.for_current(Wifi8Importer(Wifi8Settings.from_environment()), qdrant=vector_store.client,
+                                         encoder=vector_store.encode, embedding_model=vector_store.model_name)
+    except SearchUnavailable as exc:
+        return {**base, "status": "failed", "error": str(exc)}
+    client, label = _build_primary_client(load_config())
+    if client is None:
+        # The agent needs tool calling; the Ollama fallback is not used for it.
+        return {**base, "status": "failed", "error": "WiFi agent 需要主要 LLM（支援工具呼叫），目前未設定或無法建立"}
+    settings = AgentSettings.from_environment()
+    result = run_agent(question, llm=lambda **kw: client.chat.completions.create(**kw),
+                       tools=WifiTools(search, settings, CitationRegistry()), settings=settings, history=history)
+    return {**base, "status": "completed", "model": label, "package_id": search.package_id, **result}
+
+
+@celery_app.task(name="tasks.search_task", bind=True, max_retries=JOB_CONFIG.max_retries)
 def search_task(self, query: str, mode: str, top_k: int | None = None, sources_only: bool = False, **kwargs):
     """
     搜尋任務本體
@@ -818,7 +1022,10 @@ def search_task(self, query: str, mode: str, top_k: int | None = None, sources_o
 
         # 對報告型查詢拉高召回，避免只拿到 TOC / 前言
         effective_top_k = top_k
-        if _is_report_like_query(query):
+        # Source-only requests feed the citation/source-first UI path and must
+        # not fan out to the full report recall set. Full answer generation
+        # keeps the existing high-recall behavior.
+        if _is_report_like_query(query) and not sources_only:
             effective_top_k = max(effective_top_k or 0, REPORT_RECALL_TOP_K)
             logger.info(f"Report-like query detected, top_k adjusted to {effective_top_k}")
 
@@ -939,19 +1146,9 @@ def search_task(self, query: str, mode: str, top_k: int | None = None, sources_o
                             "status": "completed"
                         }
 
-            if kb.search_engine._is_report_like_query(query):
-                report_graph_result = kb.search_engine._report_graph_search_raw(query, effective_top_k)
-                raw_sources = report_graph_result.get("sources", []) or []
-                answer = report_graph_result.get("answer", "") or ""
-                if raw_sources:
-                    citation_distribution = _build_search_citation_distribution(raw_sources)
-                    return {
-                        "answer": answer,
-                        "sources": raw_sources,
-                        "citation_distribution": citation_distribution,
-                        "mode": report_graph_result.get("mode", search_mode),
-                        "status": "completed"
-                    }
+            # Source-only is deliberately a retrieval contract.  Do not call
+            # report-graph answer generation here: that path may invoke the
+            # LLM and defeats the source-first UI latency boundary.
             if search_mode == "vector":
                 vector_result = kb.search_engine._vector_search_raw(query, effective_top_k)
                 raw_sources = _prefer_report_detailed_sources(query, vector_result.get("sources", []))
@@ -1043,11 +1240,16 @@ def search_task(self, query: str, mode: str, top_k: int | None = None, sources_o
             }
 
     except Exception as e:
-        logger.error(f"搜尋任務失敗: {e}")
+        trace_id = (getattr(self.request, "headers", None) or {}).get("trace_id")
+        logger.error("搜尋任務失敗 trace_id=%s: %s", trace_id, e)
 
         # 重試機制
+        decision = classify_job_error(e)
+        if not decision.retryable:
+            return {"status": "failed", "error": str(e), "mode": mode}
         try:
-            self.retry(exc=e, countdown=5)
+            logger.warning("搜尋任務進行重試 trace_id=%s reason=%s", trace_id, decision.reason)
+            self.retry(exc=e, countdown=JOB_CONFIG.retry_countdown_seconds)
         except self.MaxRetriesExceededError:
             return {
                 "status": "failed",
@@ -1101,16 +1303,16 @@ def _load_beat_config():
         return {
             "enabled": auto_ingest.get("enabled", False),
             "interval_minutes": auto_ingest.get("interval_minutes", 5),
-            "watch_folder": auto_ingest.get("watch_folder", "<project-root>/knowledge-base/data/watch"),
-            "processed_folder": auto_ingest.get("processed_folder", "<project-root>/knowledge-base/data/processed")
+            "watch_folder": auto_ingest.get("watch_folder", "/home/da40_ai_gb10/knowledge-base/data/watch"),
+            "processed_folder": auto_ingest.get("processed_folder", "/home/da40_ai_gb10/knowledge-base/data/processed")
         }
     except Exception as e:
         logger.error(f"載入排程設定失敗: {e}")
         return {
             "enabled": False,
             "interval_minutes": 5,
-            "watch_folder": "<project-root>/knowledge-base/data/watch",
-            "processed_folder": "<project-root>/knowledge-base/data/processed"
+            "watch_folder": "/home/da40_ai_gb10/knowledge-base/data/watch",
+            "processed_folder": "/home/da40_ai_gb10/knowledge-base/data/processed"
         }
 
 def _save_beat_config(config: dict):
@@ -1122,8 +1324,8 @@ def _save_beat_config(config: dict):
         yaml_config["auto_ingest"] = {
             "enabled": config.get("enabled", False),
             "interval_minutes": config.get("interval_minutes", 5),
-            "watch_folder": config.get("watch_folder", "<project-root>/knowledge-base/data/watch"),
-            "processed_folder": config.get("processed_folder", "<project-root>/knowledge-base/data/processed")
+            "watch_folder": config.get("watch_folder", "/home/da40_ai_gb10/knowledge-base/data/watch"),
+            "processed_folder": config.get("processed_folder", "/home/da40_ai_gb10/knowledge-base/data/processed")
         }
         
         with open(_config_path, "w", encoding="utf-8") as f:
@@ -1226,6 +1428,7 @@ def _write_source_metadata(
     md_path: Path,
     extraction_mode: str | None = None,
     image_refs: list[str] | None = None,
+    identity: dict | None = None,
 ) -> None:
     payload = {
         "source_name": source_path.name,
@@ -1239,6 +1442,9 @@ def _write_source_metadata(
         "image_refs": list(image_refs or []),
         "updated_at": _now_iso(),
     }
+    for key in SOURCE_IDENTITY_KEYS:
+        if identity and identity.get(key) not in (None, ""):
+            payload[key] = identity[key]
     try:
         _source_metadata_path(source_path).write_text(
             json.dumps(payload, ensure_ascii=False, indent=2),
@@ -1246,6 +1452,24 @@ def _write_source_metadata(
         )
     except Exception as e:
         logger.warning(f"寫入來源中繼資料失敗: {source_path} - {e}")
+
+
+def _write_converted_identity(converted_path: Path, identity: dict) -> None:
+    """Merge upload identity into the sidecar the chunker and graph writers read.
+
+    Downstream writers read ``<converted stem>.source.json``; without this the
+    identity only lands beside the original file and never reaches Qdrant or
+    Neo4j.  Keys already in the sidecar (canonical report fields) win.
+    """
+    fields = {key: identity[key] for key in SOURCE_IDENTITY_KEYS if identity.get(key) not in (None, "")}
+    if not fields:
+        return
+    sidecar = _source_metadata_path(converted_path)
+    try:
+        existing = json.loads(sidecar.read_text(encoding="utf-8")) if sidecar.exists() else {}
+        sidecar.write_text(json.dumps({**fields, **existing}, ensure_ascii=False, indent=2), encoding="utf-8")
+    except Exception as e:
+        logger.warning(f"寫入轉換檔身份中繼資料失敗: {sidecar} - {e}")
 
 
 def _build_processed_inventory(processed_folder: Path) -> dict:
@@ -1424,8 +1648,8 @@ def watch_folder_scan(self):
             logger.info("自動攝入已停用")
             return {"status": "skipped", "message": "自動攝入已停用"}
         
-        watch_folder = Path(config.get("watch_folder", "<project-root>/.n8n-files/watch"))
-        processed_folder = Path(config.get("processed_folder", "<project-root>/knowledge-base/data/processed"))
+        watch_folder = Path(config.get("watch_folder", "/home/da40_ai_gb10/.n8n-files/watch"))
+        processed_folder = Path(config.get("processed_folder", "/home/da40_ai_gb10/knowledge-base/data/processed"))
         
         processed_folder.mkdir(parents=True, exist_ok=True)
         

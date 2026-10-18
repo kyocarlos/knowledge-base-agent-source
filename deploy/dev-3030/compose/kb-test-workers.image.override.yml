@@ -1,0 +1,10 @@
+# Reconstructed 2026-10-15 from the running TEST celery workers. Replaces the
+# lost /tmp/km-ui-upload-image.override.yml, whose only remaining effect on the
+# workers is the image. Worker images (*-docid-2d6a062) carry
+# src/web_api/tasks.py from commit 2d6a062 and src/ingest.py patched with
+# deploy/dev-3030/backports/ingest-doc-name-stem.patch. No secrets in this file.
+services:
+  celery_ingest_worker:
+    image: km-test-web:c8884f72-llm-ba82d79-docid-2d6a062-wifi8-c01693c-qstore-3a85eab-table-a29835b-img-38de9c7-cfg-bgezh
+  celery_search_worker:
+    image: km-test-web:c8884f72-llm-ba82d79-docid-2d6a062-wifi8-c01693c-qstore-3a85eab-table-a29835b-img-38de9c7-cfg-bgezh

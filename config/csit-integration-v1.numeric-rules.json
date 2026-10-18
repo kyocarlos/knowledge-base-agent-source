@@ -1,0 +1,5 @@
+[
+ {"timestamp":"timestamp","value":"throughput_mbps","metric":"throughput","unit":"Mbit/s"},
+ {"timestamp":"timestamp","value":"iperf_mbps","metric":"iperf","unit":"Mbit/s"},
+ {"timestamp":"timestamp","value":"kpi_percent","metric":"kpi","unit":"percent"}
+]

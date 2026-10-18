@@ -108,6 +108,22 @@ class SubmissionRegistry:
             ).fetchone()
         return self._decode(row)
 
+    def find_by_run_any_environment(self, run_id: str) -> list[dict]:
+        with self._connection() as connection:
+            rows = connection.execute(
+                self._sql("SELECT * FROM report_submissions WHERE run_id = ? ORDER BY created_at DESC"),
+                (run_id,),
+            ).fetchall()
+        return [self._decode(row) for row in rows]
+
+    def delete_by_submission_id(self, submission_id: str, run_id: str) -> bool:
+        with self._connection() as connection:
+            cursor = connection.execute(
+                self._sql("DELETE FROM report_submissions WHERE submission_id = ? AND run_id = ?"),
+                (submission_id, run_id),
+            )
+        return cursor.rowcount == 1
+
     def create(self, item: dict) -> tuple[dict, bool]:
         existing = self.find_by_run(item["environment"], item["run_id"])
         if existing:

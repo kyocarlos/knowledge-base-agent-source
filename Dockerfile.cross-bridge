@@ -1,0 +1,7 @@
+FROM km-chat-v2-secure:418610dc-202610021610
+# Control registry with sealed source-credential lookups (envelopes only; the
+# bridge has no private key and cannot read credentials).
+COPY src/km_control.py /app/src/km_control.py
+COPY src/web_api/cross_search_bridge.py /app/src/web_api/cross_search_bridge.py
+COPY cross_bridge_main.py /app/cross_bridge_main.py
+CMD ["uvicorn", "cross_bridge_main:app", "--host", "0.0.0.0", "--port", "8000"]

@@ -1,6 +1,6 @@
 #!/bin/bash
 # n8n 停止腳本
-# 位置：<project-root>/knowledge-base/n8n-workflow/stop-n8n.sh
+# 位置：/home/da40_ai_gb10/knowledge-base/n8n-workflow/stop-n8n.sh
 
 if [ -f /tmp/n8n.pid ]; then
     PID=$(cat /tmp/n8n.pid)

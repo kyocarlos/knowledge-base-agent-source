@@ -838,4 +838,84 @@ export default {
   border-radius: 4px;
   font-size: 13px;
 }
+
+.skill-management { color: var(--km-text-primary); }
+.skill-management .page-header h1,
+.skill-management .skill-section h2,
+.skill-management .api-info h2,
+.skill-management .stat-value,
+.skill-management .skill-name,
+.skill-management .modal-header h2 { color: var(--km-text-primary); }
+.skill-management .subtitle,
+.skill-management .section-desc,
+.skill-management .skill-description,
+.skill-management .file-info,
+.skill-management .api-table td { color: var(--km-text-secondary); }
+.skill-management .stats-bar,
+.skill-management .skill-card,
+.skill-management .empty-state,
+.skill-management .api-info,
+.skill-management .modal-content {
+  background: var(--km-panel-bg);
+  color: var(--km-text-primary);
+  border-color: var(--km-panel-border);
+  box-shadow: var(--km-panel-shadow);
+}
+.skill-management .stats-bar,
+.skill-management .empty-state,
+.skill-management .api-info,
+.skill-management .modal-content { border: 1px solid var(--km-panel-border); }
+.skill-management .skill-card.readonly { opacity: 1; }
+.skill-management .stat-label,
+.skill-management .skill-path,
+.skill-management .meta-tag { color: var(--km-text-muted); }
+.skill-management .skill-path,
+.skill-management .api-table code { background: var(--km-panel-raised); }
+.skill-management .meta-tag {
+  background: var(--km-panel-hover);
+  color: var(--km-text-secondary);
+  border: 1px solid var(--km-panel-border);
+}
+.skill-management .refresh-btn:hover,
+.skill-management .filter-bar button:hover,
+.skill-management .btn-cancel:hover { background: var(--km-panel-hover); }
+.skill-management .filter-bar button,
+.skill-management .file-tabs button,
+.skill-management .btn-cancel {
+  background: var(--km-panel-raised);
+  color: var(--km-text-primary);
+  border-color: var(--km-panel-border);
+}
+.skill-management .filter-bar button.active,
+.skill-management .file-tabs button.active {
+  background: var(--km-accent);
+  color: #06161d;
+  border-color: var(--km-accent);
+}
+.skill-management .modal-header,
+.skill-management .modal-actions,
+.skill-management .file-tabs { background: var(--km-panel-raised); }
+.skill-management .modal-header,
+.skill-management .modal-actions { border-color: var(--km-panel-border); }
+.skill-management .close-btn { color: var(--km-text-secondary); }
+.skill-management .close-btn:hover { color: var(--km-accent); }
+.skill-management .btn-save {
+  background: var(--km-accent-strong);
+  color: #06161d;
+}
+.skill-management .btn-save:hover { background: var(--km-accent); }
+.skill-management .btn-save:disabled { background: var(--km-panel-hover); color: var(--km-text-muted); }
+.skill-management .api-table th {
+  background: var(--km-panel-raised);
+  color: var(--km-text-primary);
+}
+.skill-management .api-table th,
+.skill-management .api-table td { border-color: var(--km-panel-border); }
+.skill-management .api-table code { color: var(--km-accent); }
+.skill-management button:focus-visible,
+.skill-management .skill-card:focus-visible {
+  outline: 2px solid var(--km-accent);
+  outline-offset: 2px;
+}
+
 </style>

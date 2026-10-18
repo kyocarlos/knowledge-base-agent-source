@@ -1,0 +1,41 @@
+# Extracted 2026-10-15 from knowledge-base commit 680034c6 (branch
+# agent/km-v26-ci-cd-validation-20260915-r2), the source of kb-redis and
+# kb-report-registry. Their original working directory
+# /tmp/km-v26-ci-cd-20260915-main-r2 was lost on the 10-04 reboot.
+# Definitions were kept byte-for-byte so the compose config-hash matched the
+# running containers; on 2026-10-15 redis gained a configurable restart policy.
+# Data lives in the named volumes below, not on /tmp.
+# KB_REPORT_DB_PASSWORD comes from the protected deployment env file.
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: kb-redis
+    # Shared TEST-plane broker: restart after host reboot or crash (AGENTS.md).
+    restart: ${KB_REDIS_RESTART_POLICY:-unless-stopped}
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+
+  report_registry:
+    image: postgres:16-alpine
+    container_name: kb-report-registry
+    environment:
+      - POSTGRES_DB=kb_reports
+      - POSTGRES_USER=kb_report
+      - POSTGRES_PASSWORD=${KB_REPORT_DB_PASSWORD:?KB_REPORT_DB_PASSWORD must be set}
+    volumes:
+      - report_registry_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U kb_report -d kb_reports"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  redis_data:
+  report_registry_data:

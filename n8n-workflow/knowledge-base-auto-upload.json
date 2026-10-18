@@ -20,7 +20,7 @@
     {
       "parameters": {
         "fileSelector": {
-          "path": "<project-root>/knowledge-base/data/watch"
+          "path": "/home/da40_ai_gb10/knowledge-base/data/watch"
         }
       },
       "id": "read-folder-files",
@@ -95,7 +95,7 @@
     },
     {
       "parameters": {
-        "fileName": "=<project-root>/knowledge-base/logs/upload-{{ $json.timestamp }}.json"
+        "fileName": "=/home/da40_ai_gb10/knowledge-base/logs/upload-{{ $json.timestamp }}.json"
       },
       "id": "save-log",
       "name": "Save Log to File",

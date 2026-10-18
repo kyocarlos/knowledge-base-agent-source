@@ -18,7 +18,7 @@
 docker run -d \
   --name n8n \
   -p 5678:5678 \
-  -v <project-root>/n8n:/home/node/.n8n \
+  -v /home/da40_ai_gb10/n8n:/home/node/.n8n \
   -e N8N_BASIC_AUTH_ACTIVE=true \
   -e N8N_BASIC_AUTH_USER=admin \
   -e N8N_BASIC_AUTH_PASSWORD=n8n_password \
@@ -38,7 +38,7 @@ docker run -d \
 2. 雙擊 "Read Watch Folder" 節點
 3. 修改路徑：
    ```
-   <project-root>/knowledge-base/data/watch
+   /home/da40_ai_gb10/knowledge-base/data/watch
    ```
 4. 點擊 "Save"
 
@@ -82,14 +82,14 @@ Save Log to File (保存日誌)
 | `0 9,12,18 * * *` | 每天 09:00, 12:00, 18:00 |
 | `0 9 * * 1-5` | 平日 09:00 |
 
-### 監控資料夾（預設：<project-root>/knowledge-base/data/watch）
+### 監控資料夾（預設：/home/da40_ai_gb10/knowledge-base/data/watch）
 
 ```bash
 # 建立監控資料夾
-mkdir -p <project-root>/knowledge-base/data/watch
+mkdir -p /home/da40_ai_gb10/knowledge-base/data/watch
 
 # 設定權限
-chmod 777 <project-root>/knowledge-base/data/watch
+chmod 777 /home/da40_ai_gb10/knowledge-base/data/watch
 ```
 
 ### Email 通知
@@ -111,7 +111,7 @@ POST http://localhost:8000/upload
 ## 📁 日誌位置
 
 ```
-<project-root>/knowledge-base/logs/upload-{timestamp}.json
+/home/da40_ai_gb10/knowledge-base/logs/upload-{timestamp}.json
 ```
 
 ---
@@ -120,7 +120,7 @@ POST http://localhost:8000/upload
 
 1. 將測試檔案放入監控資料夾：
    ```bash
-   cp test.pdf <project-root>/knowledge-base/data/watch/
+   cp test.pdf /home/da40_ai_gb10/knowledge-base/data/watch/
    ```
 
 2. 手動執行 Workflow：

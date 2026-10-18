@@ -64,13 +64,10 @@ class KnowledgeBaseSystem:
         self.default_basic_top_k = int(search_config.get("basic_top_k", 3))
         self.default_deep_top_k = int(search_config.get("deep_top_k", 6))
 
-        # 初始化 Ollama 用戶端
-        from .web_api.ollama_client import OllamaClient
+        from .web_api.llm_factory import create_llm_client
 
-        self.llm_client = OllamaClient(
-            model=ollama_config.get("model", "gemma4:12b"),
-            base_url=ollama_config.get("base_url", "http://localhost:11434")
-        )
+        self.llm_client = create_llm_client(self.config)
+        llm_model = self.config.get("llm_model") or ollama_config.get("model", "gemma4:12b")
 
         # 初始化各模組
         self.converter = FileConverter()
@@ -80,7 +77,7 @@ class KnowledgeBaseSystem:
             neo4j_user=neo4j_config.get("user", "neo4j"),
             neo4j_password=neo4j_config.get("password", "#*cda40da40"),
             llm_client=self.llm_client,
-            llm_model=ollama_config.get("model", "gemma4:12b")
+            llm_model=llm_model
         )
 
         logger.info("知識庫系統初始化完成")

@@ -28,6 +28,12 @@
           </svg>
           <span>檔案上傳</span>
         </router-link>
+        <router-link to="/csit" class="nav-link">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 8h10M7 12h6M7 16h8"/>
+          </svg>
+          <span>CSIT 瀏覽</span>
+        </router-link>
         <router-link to="/admin" class="nav-link">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"/>
@@ -143,6 +149,16 @@ onUnmounted(() => {
 }
 
 :root {
+  --km-panel-bg: rgba(10, 35, 44, .84);
+  --km-panel-raised: rgba(14, 48, 58, .92);
+  --km-panel-hover: rgba(127, 255, 227, .08);
+  --km-text-primary: #e7ffff;
+  --km-text-secondary: #b9d6da;
+  --km-text-muted: #8da8ae;
+  --km-panel-border: rgba(127, 255, 227, .2);
+  --km-accent: #7fffe3;
+  --km-accent-strong: #17d9ff;
+  --km-panel-shadow: 0 16px 45px rgba(0, 0, 0, .16);
   --primary: #143a66;
   --primary-light: #215ea8;
   --primary-dark: #0b2440;

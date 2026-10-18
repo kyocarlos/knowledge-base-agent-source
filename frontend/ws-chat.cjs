@@ -12,13 +12,13 @@ let CHAT_CONFIG = null;
 let CHAT_CONFIG_PROMISE = null;
 
 function resolveGatewayUrl() {
-  if (CHAT_CONFIG && CHAT_CONFIG.gatewayWsUrl) {
-    return normalizeWsUrl(CHAT_CONFIG.gatewayWsUrl);
-  }
-
   const override = process.env.OPENCLAW_WS_URL || process.env.OPENCLAW_GATEWAY_URL;
   if (override) {
     return normalizeWsUrl(override);
+  }
+
+  if (CHAT_CONFIG && CHAT_CONFIG.gatewayWsUrl) {
+    return normalizeWsUrl(CHAT_CONFIG.gatewayWsUrl);
   }
 
   return 'ws://100.65.63.58:18789/ws';
@@ -135,11 +135,18 @@ async function sendMessage(message) {
       
       // 聊天回應
       if (msg.type === 'res' && msg.id === 'chat1') {
+        if (msg.ok && msg.payload && msg.payload.status === 'queued') {
+          return;
+        }
         clearTimeout(timeout);
         ws.close();
         if (msg.ok) {
           console.log('✅ 訊息已發送！');
-          resolve(msg.payload);
+          const responsePayload = msg.payload || (msg.content ? { content: msg.content } : null);
+          if (process.env.OPENCLAW_PRINT_RESPONSE === '1') {
+            console.log('📩 回覆:', JSON.stringify(responsePayload));
+          }
+          resolve(responsePayload);
         } else {
           reject(new Error('發送失敗: ' + JSON.stringify(msg.error)));
         }

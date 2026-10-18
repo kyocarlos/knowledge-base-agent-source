@@ -29,10 +29,14 @@ import yaml
 
 from ..compare_rules import is_compare_like_query
 from .tasks import search_task
+from app.core.job_config import celery_headers
 from .cache import cache_get, cache_set
+from ..csit.assistant import is_csit_query
+from .csit_routes import router as csit_router, run_csit_assistant_query
 from ..storage_paths import resolve_storage_category
+from ..instance_isolation import configured_instance_id
 
-WORKSPACE_DIR = "<project-root>/.openclaw/workspace"
+WORKSPACE_DIR = "/home/da40_ai_gb10/.openclaw/workspace"
 UPLOAD_RETENTION_LIMIT = 10
 
 logging.basicConfig(level=logging.INFO)
@@ -53,6 +57,13 @@ class ReportSearchFilters(BaseModel):
     direction: Optional[List[str] | str] = None
     verdict: Optional[List[str] | str] = None
     schema_version: Optional[List[str] | str] = None
+    source_system: Optional[List[str] | str] = None
+    environment_id: Optional[List[str] | str] = None
+    project_id: Optional[List[str] | str] = None
+    artifact_type: Optional[List[str] | str] = None
+    report_schema: Optional[List[str] | str] = None
+    document_id: Optional[List[str] | str] = None
+    idempotency_key: Optional[List[str] | str] = None
     date_from: Optional[str] = None
     date_to: Optional[str] = None
 
@@ -153,10 +164,10 @@ def _load_data_base() -> Path:
     project_root = Path(__file__).resolve().parents[2]
     config_path = project_root / "config" / "config.yaml"
     if not config_path.exists():
-        config_path = Path("<project-root>/knowledge-base/config/config.yaml")
+        config_path = Path("/home/da40_ai_gb10/knowledge-base/config/config.yaml")
     with open(config_path) as f:
         config = yaml.safe_load(f)
-    return Path(config.get("data", {}).get("base", "<project-root>/knowledge-base/data"))
+    return Path(config.get("data", {}).get("base", "/home/da40_ai_gb10/knowledge-base/data"))
 
 
 def _normalize_document_lookup_name(doc_name: str) -> tuple[str, str]:
@@ -474,7 +485,7 @@ def _resolve_openclaw_dir() -> Path:
     if env_dir:
         return Path(env_dir).expanduser()
 
-    candidate = Path("<project-root>/.openclaw")
+    candidate = Path("/home/da40_ai_gb10/.openclaw")
     if candidate.exists():
         return candidate
 
@@ -1178,6 +1189,11 @@ app = FastAPI(
 
 from .report_routes import router as report_router
 app.include_router(report_router)
+app.include_router(csit_router)
+from .e2e_cleanup_routes import router as e2e_cleanup_router
+app.include_router(e2e_cleanup_router)
+from .wifi8_routes import router as wifi8_router
+app.include_router(wifi8_router)
 
 # CORS 允許前端跨域
 app.add_middleware(
@@ -1245,6 +1261,19 @@ async def websocket_chat_proxy(websocket: WebSocket):
         async with browser_send_lock:
             await websocket.send_json(payload)
 
+    async def send_direct_chat_final(request_id: str, content: str):
+        """Adapt local shortcut results to the legacy chat.html final-event contract."""
+        await send_to_browser({
+            "type": "event",
+            "event": "chat",
+            "payload": {
+                "state": "final",
+                "message": {"content": [{"type": "text", "text": content}]},
+                "requestId": request_id,
+                "sessionKey": session_key,
+            },
+        })
+
     async def release_current_request():
         nonlocal session_key, active_request_id, current_queue_position, session_lock_acquired
         if session_key and session_lock_acquired:
@@ -1283,6 +1312,19 @@ async def websocket_chat_proxy(websocket: WebSocket):
         if not str(result.get("answer") or "").strip():
             return None
         return result
+
+    async def run_csit_query_direct(message_text: str) -> Optional[str]:
+        """Handle explicit CSIT questions inside KM, without exposing secrets."""
+        if not is_csit_query(message_text):
+            return None
+        try:
+            return await asyncio.to_thread(run_csit_assistant_query, message_text)
+        except HTTPException as exc:
+            logger.warning("CSIT assistant query unavailable status=%s", exc.status_code)
+            return f"目前無法查詢 CSIT：{exc.detail}"
+        except Exception as exc:
+            logger.error("CSIT assistant query failed: %s", type(exc).__name__)
+            return "目前無法查詢 CSIT，請稍後再試。"
 
     def _run_compare_report_graph_via_local_api(message_text: str, top_k: int = 12) -> Optional[dict]:
         """
@@ -1442,9 +1484,22 @@ async def websocket_chat_proxy(websocket: WebSocket):
                                 current_queue_position = None
                                 pending_request_ids.discard(request_id)
                                 logger.info("WebSocket chat request granted request_id=%s session_key=%s", request_id, session_key)
+                                csit_result = await run_csit_query_direct(params.get("message", ""))
+                                if csit_result is not None:
+                                    logger.info("WebSocket CSIT read-only shortcut applied request_id=%s", request_id)
+                                    await send_direct_chat_final(request_id, csit_result)
+                                    await send_to_browser({
+                                        "type": "res",
+                                        "id": request_id,
+                                        "ok": True,
+                                        "content": csit_result,
+                                    })
+                                    await release_current_request()
+                                    break
                                 compare_result = await run_compare_report_graph_direct(params.get("message", ""))
                                 if compare_result is not None:
                                     logger.info("WebSocket compare shortcut applied request_id=%s", request_id)
+                                    await send_direct_chat_final(request_id, compare_result.get("answer", ""))
                                     await send_to_browser({
                                         "type": "res",
                                         "id": request_id,
@@ -1608,6 +1663,7 @@ async def websocket_chat_proxy(websocket: WebSocket):
                             compare_result = await run_compare_report_graph_direct(normalized_message.get("params", {}).get("message", ""))
                             if compare_result is not None:
                                 logger.info("WebSocket bare compare shortcut applied request_id=%s", request_id)
+                                await send_direct_chat_final(request_id, compare_result.get("answer", ""))
                                 await send_to_browser({
                                     "type": "res",
                                     "id": request_id,
@@ -1813,7 +1869,7 @@ async def websocket_chat_proxy(websocket: WebSocket):
 
 
 @app.post("/search", response_model=SearchResponse)
-async def search(request: SearchRequest, background_tasks: BackgroundTasks, response: Response):
+async def search(request: SearchRequest, background_tasks: BackgroundTasks, response: Response, http_request: Request):
     """
     提交搜尋任務
 
@@ -1844,7 +1900,8 @@ async def search(request: SearchRequest, background_tasks: BackgroundTasks, resp
             "top_k": request.top_k,
             "sources_only": request.sources_only,
             "filters": filters,
-        }
+        },
+        headers=celery_headers(http_request.headers.get("x-trace-id")),
     )
 
     logger.info(f"任務已提交: {task.id}")
@@ -2027,12 +2084,8 @@ async def analyze_question(request: AnalyzeQuestionRequest):
 
     config = load_config()
     neo4j_config = config.get("neo4j", {})
-    llm_config = config.get("ollama", {})
-    from .ollama_client import OllamaClient
-    llm = OllamaClient(
-        model=llm_config.get("model", "qwen3-coder-next"),
-        base_url=llm_config.get("instances", ["http://localhost:11434"])[0] if llm_config.get("instances") else llm_config.get("base_url", "http://localhost:11434")
-    )
+    from .llm_factory import create_llm_client
+    llm = create_llm_client(config)
     
     # Step 1: LLM 提取實體
     entity_prompt = f"""你是一個專業的知識庫助理。請從以下問題中提取關鍵實體名詞。
@@ -2098,7 +2151,7 @@ async def analyze_question(request: AnalyzeQuestionRequest):
     
     # Step 3: 建立實際檔案資料夾對照表（用於驗證檔案是否真的在該類別）
     import os
-    processed_dir = "<project-root>/knowledge-base/data/processed"
+    processed_dir = "/home/da40_ai_gb10/knowledge-base/data/processed"
     category_to_folder = {
         '4G/5G': '4G_5G',
         'WiFi': 'WiFi',
@@ -2254,7 +2307,7 @@ async def get_system_stats():
                 neo4j_config.get("uri", "bolt://neo4j:7687"),
                 auth=(
                     neo4j_config.get("user", "neo4j"),
-                    neo4j_config.get("password", "#*cda40da40"),
+                    neo4j_config.get("password") or os.getenv("NEO4J_PASSWORD", ""),
                 ),
             )
             with driver.session() as session:
@@ -2779,6 +2832,7 @@ async def upload_file(request: Request, background_tasks: BackgroundTasks):
 
 @app.post("/upload/ingest")
 @app.post("/api/upload/ingest")
+@app.post("/api/ui/upload/ingest")
 async def upload_and_ingest(request: Request, extraction_mode: str = "4g5g"):
     """
     上傳檔案並提交背景攝入任務。
@@ -2794,12 +2848,24 @@ async def upload_and_ingest(request: Request, extraction_mode: str = "4g5g"):
         set_ingest_task_state,
         get_ingest_queue_position,
         ingest_file_task,
+        get_ingest_task_state,
         get_ingest_task_state_by_file_hash,
     )
     from ..ingest import detect_extraction_mode
+    from ..ingest_conflict_protection import IngestContractError, validate_ingest_file
+    from ..ingest_registry import IngestRegistry, IngestRegistryConflict
+    import shutil
 
-    allowed_upload_modes = {"4g5g", "wifi", "lab", "project", "automation"}
-
+    ui_session_upload = request.url.path == "/api/ui/upload/ingest"
+    data_zone = None
+    if ui_session_upload:
+        session_identity = getattr(request.state, "km_identity", None)
+        data_zone = configured_instance_id()
+        if not session_identity or not data_zone or session_identity.get("instance_id") != data_zone:
+            raise HTTPException(status_code=401, detail={"code": "session_required", "message": "請先登入並選擇資料區"})
+        data_zone = data_zone.upper()
+    allowed_upload_modes = {"4g5g", "wifi", "lab", "project", "automation", "report"}
+    staging_path = None
     try:
         form = await request.form(
             max_files=10,
@@ -2807,12 +2873,17 @@ async def upload_and_ingest(request: Request, extraction_mode: str = "4g5g"):
             max_part_size=UPLOAD_MAX_PART_SIZE
         )
         file = _extract_uploaded_file(form)
+        agent_identity = None
+        if not ui_session_upload and os.getenv("KB_INGEST_REQUIRE_AGENT_AUTH", "false").lower() in {"1", "true", "yes"}:
+            from ..test_reports.auth import authenticate_agent
+            agent_identity = authenticate_agent(request)
         content = await file.read()
+        file_name = Path(file.filename or "upload.bin").name
         file_hash = hashlib.sha256(content).hexdigest()
         filename_mode = detect_extraction_mode(Path(file.filename).stem)
         # 檔名若已明確指向特定類型，優先使用檔名判定結果，避免 UI 預設值覆蓋。
         # 只有檔名無法辨識時，才回退到前端傳入的 extraction_mode。
-        effective_mode = filename_mode if filename_mode != "4g5g" else extraction_mode
+        effective_mode = extraction_mode if ui_session_upload and extraction_mode == "report" else (filename_mode if filename_mode != "4g5g" else extraction_mode)
         if effective_mode not in allowed_upload_modes:
             logger.warning(
                 "upload/ingest 收到不支援的 extraction_mode=%s，回退為 4g5g",
@@ -2821,21 +2892,111 @@ async def upload_and_ingest(request: Request, extraction_mode: str = "4g5g"):
             effective_mode = "4g5g"
         mode_info = get_extraction_info(effective_mode)
         mode_name = mode_info.get("name", effective_mode)
-        category_folder = resolve_storage_category(effective_mode, file.filename)
+        category_folder = resolve_storage_category(effective_mode, file_name)
+        allow_legacy = os.getenv("KB_ALLOW_LEGACY_INGEST", "false").lower() in {"1", "true", "yes"}
+        supplied_identity_headers = any(
+            request.headers.get(name)
+            for name in ("Idempotency-Key", "X-KB-Source-System", "X-KB-Environment-Id", "X-KB-Run-Id", "X-KB-Artifact-Type", "X-KB-Document-Id")
+        )
+        identity = None
+        staging_dir = INGEST_UPLOAD_ROOT / ".staging"
+        staging_dir.mkdir(parents=True, exist_ok=True)
+        staging_path = staging_dir / f"{uuid.uuid4().hex}_{file_name}"
+        staging_path.write_bytes(content)
+        try:
+            if ui_session_upload:
+                from ..ingest_conflict_protection import IngestIdentity
+                report_manifest = None
+                if effective_mode == "report":
+                    from ..test_reports.excel_contract import parse_and_validate_report, ReportValidationError
+                    try:
+                        report_manifest = parse_and_validate_report(staging_path)["manifest"]
+                    except ReportValidationError as report_error:
+                        raise HTTPException(status_code=422, detail={"code": "invalid_test_report", "message": str(report_error)})
+                identity = IngestIdentity(
+                    source_system="KM_UI", environment_id=data_zone, project_id="KM_UI",
+                    run_id=(report_manifest or {}).get("run_id") or f"ui-{uuid.uuid4().hex}",
+                    artifact_type="test_report" if effective_mode == "report" else "document",
+                    report_schema=(report_manifest or {}).get("schema_version", "none"),
+                    original_file_name=file_name, source_file_hash=file_hash, ingest_file_hash=file_hash,
+                    document_id=f"kmui-{uuid.uuid4().hex}", idempotency_key=f"kmui-{uuid.uuid4().hex}",
+                    generated_at=datetime.now().isoformat(timespec="seconds"),
+                )
+            else:
+                identity = validate_ingest_file(
+                    path=staging_path, headers=request.headers, extraction_mode=effective_mode,
+                    original_file_name=file_name,
+                    require_contract=not ((ui_session_upload or allow_legacy) and not supplied_identity_headers),
+                )
+        except IngestContractError as contract_error:
+            if contract_error.code != "legacy_upload":
+                logger.warning(
+                    "upload/ingest contract rejected: code=%s fields=%s file_name=%s extraction_mode=%s",
+                    contract_error.code,
+                    contract_error.fields,
+                    file_name,
+                    effective_mode,
+                )
+                staging_path.unlink(missing_ok=True)
+                raise HTTPException(
+                    status_code=contract_error.status_code,
+                    detail={"code": contract_error.code, "message": str(contract_error), "fields": contract_error.fields},
+                )
 
-        existing_state = get_ingest_task_state_by_file_hash(file_hash)
-        if existing_state:
+        registry = IngestRegistry() if identity else None
+        if identity:
+            registry.record_event("ingest_received", document_id=identity.document_id, source_system=identity.source_system, environment_id=identity.environment_id, run_id=identity.run_id)
+            registry.record_event("metadata_validated", document_id=identity.document_id, idempotency_key=identity.idempotency_key)
+            registry.record_event("hash_validated", document_id=identity.document_id, ingest_file_hash=identity.ingest_file_hash)
+            if agent_identity and agent_identity["environment"] != identity.source_system.lower():
+                staging_path.unlink(missing_ok=True)
+                raise HTTPException(status_code=403, detail={"code": "agent_source_mismatch", "message": "Agent environment 與 sourceSystem 不一致"})
+            task_id = create_ingest_task_id()
+            try:
+                record, duplicate = registry.register(identity.as_dict(), task_id)
+            except IngestRegistryConflict as conflict:
+                staging_path.unlink(missing_ok=True)
+                registry.record_event("conflict_rejected", **{
+                    "document_id": identity.document_id,
+                    "idempotency_key": identity.idempotency_key,
+                    "code": conflict.code,
+                })
+                raise HTTPException(
+                    status_code=409,
+                    detail={"code": conflict.code, "message": str(conflict), "document_id": identity.document_id, "idempotency_key": identity.idempotency_key},
+                )
+            if duplicate:
+                staging_path.unlink(missing_ok=True)
+                existing_state = get_ingest_task_state(record["task_id"])
+                registry.record_event("duplicate_detected", record["task_id"], document_id=identity.document_id, idempotency_key=identity.idempotency_key)
+                return {
+                    "status": (existing_state or {}).get("status", record.get("status", "submitted")),
+                    "task_id": record["task_id"],
+                    "file_name": record["original_file_name"],
+                    "file_hash": record["ingest_file_hash"],
+                    "document_id": record["document_id"],
+                    "idempotency_key": record["idempotency_key"],
+                    "duplicate": True,
+                    "ingested": bool((existing_state or {}).get("ingested")),
+                    "message": "相同 idempotency_key 已存在，沿用原攝入任務",
+                }
+        else:
+            # 僅在明確允許 legacy upload 時保留舊的檔案 hash 去重行為。
+            existing_state = get_ingest_task_state_by_file_hash(file_hash)
+            task_id = create_ingest_task_id()
+        if not identity and existing_state:
             existing_status = existing_state.get("status")
             existing_mode = str(existing_state.get("extraction_mode") or "").strip()
             mode_changed = bool(existing_mode and existing_mode != effective_mode)
             if existing_status == "completed" and not mode_changed:
+                staging_path.unlink(missing_ok=True)
                 logger.info(
                     f"偵測到重複攝入檔案，略過：{file.filename} "
                     f"(hash={file_hash[:12]}, task_id={existing_state.get('task_id')})"
                 )
                 return {
                     "status": "success",
-                    "file_name": file.filename,
+                    "file_name": file_name,
                     "task_id": existing_state.get("task_id"),
                     "converted_path": existing_state.get("converted_path"),
                     "content": existing_state.get("content", ""),
@@ -2847,6 +3008,7 @@ async def upload_and_ingest(request: Request, extraction_mode: str = "4g5g"):
                     "message": "檔案內容已攝入，已略過重複提交",
                 }
             if existing_status not in {"failed"} and not mode_changed:
+                staging_path.unlink(missing_ok=True)
                 queue_position = existing_state.get("queue_position")
                 if not queue_position and existing_status == "queued":
                     queue_position = get_ingest_queue_position(existing_state.get("task_id"))
@@ -2867,21 +3029,20 @@ async def upload_and_ingest(request: Request, extraction_mode: str = "4g5g"):
                     "message": "相同檔案已在處理中，請等待目前任務完成",
                 }
 
-        task_id = create_ingest_task_id()
         task_dir = INGEST_UPLOAD_ROOT / category_folder / task_id
         original_dir = task_dir / "original"
         converted_dir = task_dir / "converted"
         original_dir.mkdir(parents=True, exist_ok=True)
         converted_dir.mkdir(parents=True, exist_ok=True)
 
-        original_path = original_dir / file.filename
-        converted_path = converted_dir / f"{Path(file.filename).stem}.md"
-        original_path.write_bytes(content)
+        original_path = original_dir / file_name
+        converted_path = converted_dir / f"{Path(file_name).stem}.md"
+        shutil.move(str(staging_path), str(original_path))
 
         created_at = datetime.now().isoformat(timespec="seconds")
         state = {
             "task_id": task_id,
-            "file_name": file.filename,
+            "file_name": file_name,
             "original_path": str(original_path),
             "converted_path": str(converted_path),
             "file_hash": file_hash,
@@ -2896,17 +3057,38 @@ async def upload_and_ingest(request: Request, extraction_mode: str = "4g5g"):
             "ingested": False,
             "content": "",
         }
+        if identity:
+            state.update(identity.as_dict())
+            state["file_hash"] = identity.ingest_file_hash
+            if ui_session_upload:
+                state.update({"data_zone": data_zone, "ui_session_upload": True, "canonical_test_report": effective_mode == "report"})
+            registry.record_event("task_created", task_id, document_id=identity.document_id, idempotency_key=identity.idempotency_key)
         set_ingest_task_state(task_id, state)
-        async_result = ingest_file_task.apply_async(args=[task_id], queue="ingest")
+        if ui_session_upload:
+            from ..ui_upload_tracking import record_upload
+            record_upload(task_id=task_id, data_zone=data_zone, file_name=file_name, file_hash=file_hash, extraction_mode=effective_mode, status="queued")
+        try:
+            async_result = ingest_file_task.apply_async(
+                args=[task_id],
+                queue="ingest",
+                headers=celery_headers(request.headers.get("x-trace-id")),
+            )
+        except Exception:
+            if registry:
+                registry.update_status(task_id, "ingest_failed")
+            if ui_session_upload:
+                from ..ui_upload_tracking import update_upload_status
+                update_upload_status(state, "queue_failed")
+            raise
         state["celery_task_id"] = async_result.id
         set_ingest_task_state(task_id, state)
         queue_position = get_ingest_queue_position(task_id)
 
-        logger.info(f"上傳已加入攝入佇列：{file.filename} task_id={task_id} (萃取模式: {mode_name})")
-        return {
+        logger.info(f"上傳已加入攝入佇列：{file_name} task_id={task_id} (萃取模式: {mode_name})")
+        response = {
             "status": "submitted",
             "task_id": task_id,
-            "file_name": file.filename,
+            "file_name": file_name,
             "file_hash": file_hash,
             "storage_category": category_folder,
             "extraction_mode": effective_mode,
@@ -2914,8 +3096,23 @@ async def upload_and_ingest(request: Request, extraction_mode: str = "4g5g"):
             "queue_position": queue_position,
             "message": "已加入攝入佇列"
         }
+        if ui_session_upload:
+            response["data_zone"] = data_zone
+        if identity:
+            response.update({
+                "document_id": identity.document_id,
+                "idempotency_key": identity.idempotency_key,
+                "duplicate": False,
+            })
+        return response
 
+    except HTTPException:
+        if staging_path:
+            staging_path.unlink(missing_ok=True)
+        raise
     except Exception as e:
+        if staging_path:
+            staging_path.unlink(missing_ok=True)
         logger.error(f"提交攝入任務失敗：{e}")
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -2928,7 +3125,23 @@ async def get_upload_task(task_id: str):
 
     state = get_ingest_task_state(task_id)
     if not state:
-        raise HTTPException(status_code=404, detail="找不到攝入任務")
+        from ..ingest_registry import IngestRegistry
+        record = IngestRegistry().find_by_task(task_id)
+        if not record:
+            raise HTTPException(status_code=404, detail="找不到攝入任務")
+        state = {
+            "task_id": task_id,
+            "status": record.get("status", "unknown"),
+            "file_name": record.get("original_file_name", ""),
+            "document_id": record.get("document_id", ""),
+            "idempotency_key": record.get("idempotency_key", ""),
+            "source_system": record.get("source_system", ""),
+            "environment_id": record.get("environment_id", ""),
+            "project_id": record.get("project_id", ""),
+            "run_id": record.get("run_id", ""),
+            "artifact_type": record.get("artifact_type", ""),
+            "ingested": record.get("status") == "completed",
+        }
     if state.get("status") == "queued":
         state["queue_position"] = get_ingest_queue_position(task_id)
     else:
@@ -3128,7 +3341,7 @@ async def get_category_stats():
             neo4j_config.get("uri", "bolt://neo4j:7687"),
             auth=(
                 neo4j_config.get("user", "neo4j"),
-                neo4j_config.get("password", "#*cda40da40"),
+                neo4j_config.get("password") or os.getenv("NEO4J_PASSWORD", ""),
             ),
         )
         with driver.session() as session:
@@ -3312,7 +3525,7 @@ async def increment_search_count(doc_name: str):
             neo4j_config.get("uri", "bolt://neo4j:7687"),
             auth=(
                 neo4j_config.get("user", "neo4j"),
-                neo4j_config.get("password", "#*cda40da40"),
+                neo4j_config.get("password") or os.getenv("NEO4J_PASSWORD", ""),
             ),
         )
         with driver.session() as session:

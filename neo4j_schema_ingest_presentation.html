@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Neo4j Schema 與 Ingest 流程設計</title>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Noto Sans TC', sans-serif;
+      background:
+        radial-gradient(circle at top left, rgba(34, 197, 94, 0.12), transparent 26%),
+        radial-gradient(circle at top right, rgba(59, 130, 246, 0.10), transparent 30%),
+        linear-gradient(180deg, #08111f 0%, #0c1729 42%, #101a2f 100%);
+      color: #e5eefc;
+      padding: 28px 18px 50px;
+    }
+    .slide {
+      max-width: 1280px;
+      margin: 0 auto 26px;
+      padding: 34px 34px 30px;
+      border-radius: 22px;
+      background: linear-gradient(180deg, rgba(10, 18, 33, 0.94), rgba(15, 26, 47, 0.94));
+      border: 1px solid rgba(148, 163, 184, 0.16);
+      box-shadow: 0 24px 70px rgba(0, 0, 0, 0.34);
+      position: relative;
+      overflow: hidden;
+    }
+    .slide::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(120deg, rgba(34,197,94,0.08), transparent 25%, rgba(59,130,246,0.08) 70%, transparent 100%);
+      pointer-events: none;
+    }
+    .kicker {
+      color: #7dd3fc;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      font-size: 12px;
+      margin-bottom: 8px;
+    }
+    h1 {
+      font-size: 38px;
+      line-height: 1.15;
+      margin-bottom: 12px;
+      color: #f8fbff;
+    }
+    h2 {
+      font-size: 26px;
+      margin-bottom: 14px;
+      color: #f8fbff;
+    }
+    h3 {
+      font-size: 18px;
+      margin-bottom: 10px;
+      color: #8bd2ff;
+    }
+    p, li {
+      color: #bfd0e8;
+      line-height: 1.7;
+      font-size: 15px;
+    }
+    .muted { color: #90a4bf; font-size: 13px; }
+    .pill-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 16px;
+    }
+    .pill {
+      padding: 8px 12px;
+      border-radius: 999px;
+      background: rgba(148, 163, 184, 0.12);
+      border: 1px solid rgba(148, 163, 184, 0.18);
+      color: #d9e7fb;
+      font-size: 13px;
+    }
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 18px;
+    }
+    .grid-3 {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+    }
+    .card {
+      background: rgba(11, 20, 36, 0.88);
+      border: 1px solid rgba(148, 163, 184, 0.16);
+      border-radius: 18px;
+      padding: 18px 18px 16px;
+      position: relative;
+    }
+    .card strong { color: #fff; }
+    .card .tag {
+      display: inline-block;
+      padding: 5px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      margin-bottom: 10px;
+      color: #fff;
+      background: linear-gradient(135deg, #2563eb, #22c55e);
+    }
+    .tag.green { background: linear-gradient(135deg, #16a34a, #34d399); }
+    .tag.blue { background: linear-gradient(135deg, #2563eb, #38bdf8); }
+    .tag.orange { background: linear-gradient(135deg, #d97706, #f59e0b); }
+    .tag.purple { background: linear-gradient(135deg, #7c3aed, #c084fc); }
+    ul { padding-left: 20px; }
+    li { margin: 7px 0; }
+    .diagram {
+      display: grid;
+      grid-template-columns: 1.1fr 0.8fr 0.8fr 0.8fr 1.1fr;
+      gap: 14px;
+      align-items: stretch;
+      margin-top: 12px;
+    }
+    .box {
+      background: linear-gradient(180deg, rgba(18, 31, 55, 0.96), rgba(14, 24, 43, 0.96));
+      border: 1px solid rgba(125, 211, 252, 0.18);
+      border-radius: 18px;
+      padding: 16px 14px;
+      min-height: 160px;
+    }
+    .box h4 {
+      font-size: 16px;
+      color: #f8fbff;
+      margin-bottom: 8px;
+    }
+    .arrow {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #7dd3fc;
+      font-size: 26px;
+      font-weight: 700;
+      opacity: 0.9;
+    }
+    .code {
+      margin-top: 12px;
+      background: #06111f;
+      border: 1px solid rgba(125, 211, 252, 0.16);
+      border-radius: 14px;
+      padding: 14px;
+      color: #d8f3ff;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 12px;
+      line-height: 1.6;
+      white-space: pre-wrap;
+      overflow-x: auto;
+    }
+    .matrix {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 14px;
+      margin-top: 14px;
+    }
+    .matrix .cell {
+      border-radius: 16px;
+      padding: 16px;
+      border: 1px solid rgba(148, 163, 184, 0.16);
+      background: rgba(11, 20, 36, 0.88);
+    }
+    .cell .label {
+      font-size: 12px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: #7dd3fc;
+      margin-bottom: 8px;
+    }
+    .cell .value {
+      font-size: 18px;
+      font-weight: 800;
+      color: #fff;
+      margin-bottom: 6px;
+    }
+    .footer {
+      max-width: 1280px;
+      margin: 0 auto;
+      color: #7d93b4;
+      font-size: 12px;
+      text-align: center;
+      padding-top: 6px;
+    }
+    .two-col-note {
+      display: grid;
+      grid-template-columns: 1.1fr 0.9fr;
+      gap: 18px;
+      margin-top: 14px;
+    }
+    .callout {
+      border-left: 4px solid #7dd3fc;
+      padding: 14px 16px;
+      border-radius: 12px;
+      background: rgba(125, 211, 252, 0.08);
+      color: #d8f3ff;
+    }
+    @media (max-width: 1100px) {
+      .grid-2, .grid-3, .matrix, .two-col-note, .diagram { grid-template-columns: 1fr; }
+      h1 { font-size: 30px; }
+    }
+  </style>
+</head>
+<body>
+  <section class="slide">
+    <div class="kicker">Neo4j / Excel Report Graph Design</div>
+    <h1>Neo4j Schema 與 Ingest 流程<br>投影片版設計稿</h1>
+    <p>目標是把不同專案的 Excel 測試報告，轉成可跨報告關聯的圖譜結構，讓使用者能以共通測試項目，例如 <strong>Throughput</strong>、<strong>Latency</strong>、<strong>Handover</strong> 做跨專案搜尋與比對。</p>
+    <div class="pill-row">
+      <div class="pill">Project-aware</div>
+      <div class="pill">Report-aware</div>
+      <div class="pill">TestItem canonicalization</div>
+      <div class="pill">Case-level metrics</div>
+      <div class="pill">Source provenance</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="kicker">Slide 1</div>
+    <h2>問題與目標</h2>
+    <div class="grid-2">
+      <div class="card">
+        <div class="tag orange">現況痛點</div>
+        <ul>
+          <li>Excel 報告被切成 chunk 後，只能「找文本」，不容易跨專案關聯。</li>
+          <li>Throughput / Latency / BLER / RTT 常以不同寫法出現，無法穩定對齊。</li>
+          <li>使用者問「某個測試項目」時，系統容易只找到單份報告或錯誤章節。</li>
+          <li>如果某份報告沒有對應章節，系統常會誤答其他報告內容。</li>
+        </ul>
+      </div>
+      <div class="card">
+        <div class="tag green">設計目標</div>
+        <ul>
+          <li>把「報告」與「測試項目」分層，不讓 chunk 直接代表語意主體。</li>
+          <li>建立 canonical TestItem，例如 <strong>Throughput</strong>。</li>
+          <li>讓不同專案報告透過相同 TestItem 節點關聯。</li>
+          <li>保留原始來源 chunk，方便回溯與引用。</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="kicker">Slide 2</div>
+    <h2>建議 Neo4j Schema</h2>
+    <div class="diagram">
+      <div class="box">
+        <h4>Project</h4>
+        <p><strong>用途：</strong>專案維度</p>
+        <p class="muted">例如：SCU2140、SCU2060、SCE2200</p>
+        <div class="code">{ code, name, owner, domain }</div>
+      </div>
+      <div class="arrow">→</div>
+      <div class="box">
+        <h4>Report</h4>
+        <p><strong>用途：</strong>報告主節點</p>
+        <p class="muted">Excel 檔案本體</p>
+        <div class="code">{ doc_name, version, report_type, date, band }</div>
+      </div>
+      <div class="arrow">→</div>
+      <div class="box">
+        <h4>TestItem</h4>
+        <p><strong>用途：</strong>測試項目標準化</p>
+        <p class="muted">Throughput / Handover / Latency</p>
+        <div class="code">{ name, canonical_name, aliases[] }</div>
+      </div>
+      <div class="box">
+        <h4>Case / Metric / SourceChunk</h4>
+        <p><strong>用途：</strong>數值與證據層</p>
+        <p class="muted">case 編號、數值欄位、原文 chunk</p>
+        <div class="code">{ case_no, metric_name, metric_value, chunk_hash }</div>
+      </div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="kicker">Slide 3</div>
+    <h2>節點與屬性設計</h2>
+    <div class="grid-3">
+      <div class="card">
+        <div class="tag blue">Project</div>
+        <ul>
+          <li><strong>code</strong>: SCU2140</li>
+          <li><strong>name</strong>: 專案顯示名稱</li>
+          <li><strong>domain</strong>: 4G/5G / WiFi / Lab</li>
+        </ul>
+      </div>
+      <div class="card">
+        <div class="tag blue">Report</div>
+        <ul>
+          <li><strong>doc_name</strong>: 檔名</li>
+          <li><strong>report_type</strong>: throughput / handover</li>
+          <li><strong>version</strong>: V13.8 / V05</li>
+          <li><strong>band</strong>: n78 / n79 / n48</li>
+        </ul>
+      </div>
+      <div class="card">
+        <div class="tag blue">TestItem</div>
+        <ul>
+          <li><strong>name</strong>: Throughput</li>
+          <li><strong>canonical_name</strong>: throughput</li>
+          <li><strong>aliases</strong>: TCP Throuhgput、UDP Throughput、吞吐量</li>
+        </ul>
+      </div>
+      <div class="card">
+        <div class="tag blue">Section</div>
+        <ul>
+          <li><strong>section_no</strong>: 4 / 3</li>
+          <li><strong>name</strong>: Performance Test / Test Result Summary</li>
+          <li><strong>role</strong>: 結構定位</li>
+        </ul>
+      </div>
+      <div class="card">
+        <div class="tag blue">TestCase</div>
+        <ul>
+          <li><strong>case_no</strong>: 13</li>
+          <li><strong>tdd_slot</strong>: DDDSU (4:1)</li>
+          <li><strong>bandwidth</strong>: 100</li>
+        </ul>
+      </div>
+      <div class="card">
+        <div class="tag blue">Metric</div>
+        <ul>
+          <li><strong>name</strong>: DL / UL / RTT / BLER</li>
+          <li><strong>value</strong>: 397 / 431 / 28</li>
+          <li><strong>unit</strong>: Mbps / ms / %</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="kicker">Slide 4</div>
+    <h2>關係設計</h2>
+    <div class="matrix">
+      <div class="cell">
+        <div class="label">1</div>
+        <div class="value">Project → Report</div>
+        <p><strong>(Project)-[:HAS_REPORT]->(Report)</strong></p>
+        <p>一個專案可有多份報告。</p>
+      </div>
+      <div class="cell">
+        <div class="label">2</div>
+        <div class="value">Report → Section</div>
+        <p><strong>(Report)-[:HAS_SECTION]->(Section)</strong></p>
+        <p>章節做文件內定位。</p>
+      </div>
+      <div class="cell">
+        <div class="label">3</div>
+        <div class="value">Section → TestItem</div>
+        <p><strong>(Section)-[:HAS_TEST_ITEM]->(TestItem)</strong></p>
+        <p>把章節歸到標準測試項目。</p>
+      </div>
+      <div class="cell">
+        <div class="label">4</div>
+        <div class="value">TestItem → Case</div>
+        <p><strong>(TestItem)-[:HAS_CASE]->(TestCase)</strong></p>
+        <p>同一測試項目可跨多 case。</p>
+      </div>
+      <div class="cell">
+        <div class="label">5</div>
+        <div class="value">Case → Metric</div>
+        <p><strong>(TestCase)-[:HAS_METRIC]->(Metric)</strong></p>
+        <p>數值級查詢的核心。</p>
+      </div>
+      <div class="cell">
+        <div class="label">6</div>
+        <div class="value">Case → SourceChunk</div>
+        <p><strong>(TestCase)-[:SUPPORTED_BY]->(SourceChunk)</strong></p>
+        <p>保留原文證據與引用來源。</p>
+      </div>
+      <div class="cell">
+        <div class="label">7</div>
+        <div class="value">Report → SourceChunk</div>
+        <p><strong>(Report)-[:HAS_SOURCE_CHUNK]->(SourceChunk)</strong></p>
+        <p>方便文件級回溯與展示。</p>
+      </div>
+      <div class="cell">
+        <div class="label">8</div>
+        <div class="value">TestItem ↔ TestItem</div>
+        <p><strong>(TestItem)-[:RELATED_TO]->(TestItem)</strong></p>
+        <p>可補上同義/上下位關係。</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="kicker">Slide 5</div>
+    <h2>Ingest 流程：Excel → Graph</h2>
+    <div class="two-col-note">
+      <div class="card">
+        <div class="tag purple">流程</div>
+        <ul>
+          <li>1. 讀取 Excel 原始檔與轉出的 md。</li>
+          <li>2. 偵測報告類型：throughput / handover / simple。</li>
+          <li>3. 抽出 Project、Report、Section、TestItem、Case、Metric。</li>
+          <li>4. 產生 canonical TestItem，統一 Throughput / Latency 等名稱。</li>
+          <li>5. 寫入 Neo4j：先節點、後關係、再 SourceChunk 證據。</li>
+          <li>6. 同步保留 Qdrant chunk 向量，供語義查詢。</li>
+        </ul>
+      </div>
+      <div class="card">
+        <div class="tag purple">原則</div>
+        <ul>
+          <li>chunk 不等於語意主體，chunk 只是證據。</li>
+          <li>數值型資料要拆成 case / metric，不要只存整段文字。</li>
+          <li>同一測試項目的命名要先標準化，再建圖。</li>
+          <li>Handover 沒有 Performance Test 時，必須明確標記為無對應章節。</li>
+        </ul>
+      </div>
+    </div>
+    <div class="code">1) ingest_document()
+   ├─ 讀檔 / 轉檔
+   ├─ 章節解析
+   ├─ TestItem canonicalization
+   ├─ Case / Metric 抽取
+   ├─ 寫入 Neo4j 節點與關係
+   └─ 同步寫入向量庫與 source metadata</div>
+  </section>
+
+  <section class="slide">
+    <div class="kicker">Slide 6</div>
+    <h2>查詢流程：使用者問 Throughput 時怎麼找</h2>
+    <div class="grid-2">
+      <div class="card">
+        <div class="tag green">Graph Path</div>
+        <div class="code">User Query
+  ↓
+Intent: "Throughput"
+  ↓
+MATCH (ti:TestItem {canonical_name: 'throughput'})
+  ←[:HAS_TEST_ITEM]- (Section)-[:HAS_REPORT]->(Report)
+  ↓
+再往下找 TestCase / Metric
+  ↓
+回傳跨專案相關報告與數值</div>
+      </div>
+      <div class="card">
+        <div class="tag green">回答策略</div>
+        <ul>
+          <li>若是「列出有哪些報告有 Throughput」→ 直接用 Neo4j。</li>
+          <li>若是「某個 case 的數值」→ 讀 TestCase / Metric。</li>
+          <li>若是「哪個報告最相關」→ 結合 Neo4j 與向量庫。</li>
+          <li>若找不到對應章節 → 明確回覆無對應章節，不亂補值。</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="kicker">Slide 7</div>
+    <h2>實作建議：先做什麼，後做什麼</h2>
+    <div class="grid-3">
+      <div class="card">
+        <div class="tag orange">Phase 1</div>
+        <p><strong>先建 canonical schema</strong></p>
+        <ul>
+          <li>Project / Report / TestItem / Section / TestCase / Metric / SourceChunk</li>
+          <li>建立唯一鍵與索引</li>
+        </ul>
+      </div>
+      <div class="card">
+        <div class="tag orange">Phase 2</div>
+        <p><strong>再改 ingest</strong></p>
+        <ul>
+          <li>Excel 解析出 structured fields</li>
+          <li>寫入圖譜前先做 canonical mapping</li>
+        </ul>
+      </div>
+      <div class="card">
+        <div class="tag orange">Phase 3</div>
+        <p><strong>最後改 query router</strong></p>
+        <ul>
+          <li>TestItem 優先查圖譜</li>
+          <li>數值題只用對應 case / metric</li>
+          <li>沒有章節就明確說沒有</li>
+        </ul>
+      </div>
+    </div>
+    <div class="callout" style="margin-top:16px;">
+      <strong>重點：</strong>Neo4j 的價值在於「結構化關聯」，不是單純把 chunk 放進圖庫。要讓 Throughput 能跨專案搜尋，關鍵是 TestItem 標準化 + Case/Metric 結構化 + SourceChunk 證據化。
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="kicker">Appendix</div>
+    <h2>可直接落地的最小資料模型</h2>
+    <div class="code">(:Project {code: "SCU2140"})
+(:Report {doc_name: "SIT-TR-SC-NR-Throughput-SCU2140-n78-EV-V005.xlsx"})
+(:TestItem {canonical_name: "throughput", name: "Throughput"})
+(:Section {section_no: "4", name: "Performance Test"})
+(:TestCase {case_no: 13, tdd_slot: "DDDSU (4:1)"})
+(:Metric {name: "DL TCP", value: 397, unit: "Mbps"})
+(:SourceChunk {chunk_index: 46, hash: "..."})
+
+(:Project)-[:HAS_REPORT]->(:Report)
+(:Report)-[:HAS_SECTION]->(:Section)
+(:Section)-[:HAS_TEST_ITEM]->(:TestItem)
+(:TestItem)-[:HAS_CASE]->(:TestCase)
+(:TestCase)-[:HAS_METRIC]->(:Metric)
+(:TestCase)-[:SUPPORTED_BY]->(:SourceChunk)</div>
+    <p style="margin-top:14px;">如果你要，我下一步可以直接把這份內容改成 <strong>HTML 單頁簡報版</strong>、<strong>Markdown 投影片版</strong>，或進一步補成 <strong>Neo4j Cypher ingest 範例</strong>。</p>
+  </section>
+
+  <div class="footer">Neo4j Schema & Ingest Flow Proposal · knowledge-base</div>
+</body>
+</html>

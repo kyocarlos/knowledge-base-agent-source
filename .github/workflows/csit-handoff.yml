@@ -1,0 +1,38 @@
+name: KM handoff regression
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - codex/km-dev-handoff-20261014
+    paths:
+      - 'contracts/csit-km-integration-v1/**'
+      - 'src/csit_integration_v1/**'
+      - 'tests/csit_v1/**'
+      - 'migrations/**'
+      - 'deploy/csit-integration-v1/**'
+      - 'scripts/check-csit-contract-sync.py'
+      - 'scripts/test-csit-handoff.sh'
+      - '.github/workflows/csit-handoff.yml'
+  pull_request:
+    paths:
+      - 'contracts/csit-km-integration-v1/**'
+      - 'src/csit_integration_v1/**'
+      - 'tests/csit_v1/**'
+      - 'tests/control_v1/**'
+      - 'migrations/**'
+      - 'deploy/csit-integration-v1/**'
+      - 'scripts/check-csit-contract-sync.py'
+      - 'scripts/test-csit-handoff.sh'
+      - '.github/workflows/csit-handoff.yml'
+permissions:
+  contents: read
+jobs:
+  regression:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify pinned canonical CSIT schemas
+        run: python3 scripts/check-csit-contract-sync.py
+      - name: Run canonical contract, Integration v1, OIDC, binding, and KM regression tests
+        run: bash scripts/test-csit-handoff.sh
