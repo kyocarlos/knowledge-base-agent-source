@@ -54,8 +54,11 @@ def test_judge_thresholds_regression_and_missing_values():
 def test_eval_summaries_map_to_metrics():
     summary = {"overall": {"retrieval_hit_at_k": 0.933, "retrieval_mrr": 0.79, "retrieval_ms_p50": 90, "answer_pass": 0.97,
                            "fact_coverage": 0.96, "cited_gold": 1.0, "latency_ms_p50": 8000, "errors": 1, "cases": 34}}
-    assert retrieval_metrics(summary) == {"hit_at_10": 0.933, "mrr": 0.79, "ms_p50": 90, "cases": 34}
+    assert retrieval_metrics(summary) == {"hit_at_10": 0.933, "mrr": 0.79, "figure_hit_at_10": None, "ms_p50": 90, "cases": 34}
     assert agent_metrics(summary)["answer_pass"] == 0.97 and agent_metrics(summary)["errors"] == 1
+    summary["overall"].update({"retrieval_figure_hit_at_k": 0.889, "cited_figure": 0.778, "unnumbered_repeat_answers": 0})
+    assert retrieval_metrics(summary)["figure_hit_at_10"] == 0.889
+    assert agent_metrics(summary)["cited_figure"] == 0.778 and agent_metrics(summary)["unnumbered_repeat_answers"] == 0
 
 
 def test_agent_logs_counts_only_and_can_be_disabled(caplog, monkeypatch):
@@ -96,3 +99,24 @@ def test_report_formats_rates_scores_and_counts():
     assert module.fmt(0.7944, "retrieval.mrr") == "0.794"
     assert module.fmt(0.933, "retrieval.hit_at_10") == "93.3%" and module.fmt(0.014, "trust.values_not_found_rate") == "1.4%"
     assert module.fmt(7070, "agent.latency_ms_p50") == "7,070" and module.fmt(1, "agent.errors") == "1" and module.fmt(None) == "—"
+
+
+def test_previous_run_is_compared_only_with_the_same_golden_set(tmp_path, monkeypatch):
+    spec = importlib.util.spec_from_file_location("wifi8_quality_check", Path(__file__).resolve().parent.parent / "scripts" / "wifi8_quality_check.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    monkeypatch.setattr(module, "ROOT", tmp_path)
+    rows = [{"zone": "da40", "level": "retrieval", "status": "PASS", "metrics": {"hit_at_10": 0.93}},  # before digests were recorded
+            {"zone": "da40", "level": "retrieval", "status": "PASS", "metrics": {"hit_at_10": 0.91}, "cases_sha256": "new"}]
+    (tmp_path / "history.jsonl").write_text(json.dumps(rows[0]) + "\n", encoding="utf-8")
+    assert module.previous_metrics("da40", "retrieval", "new") is None
+    assert module.previous_metrics("da40", "retrieval") == {"hit_at_10": 0.93}  # trust is not tied to the golden set
+    (tmp_path / "history.jsonl").write_text("".join(json.dumps(r) + "\n" for r in rows), encoding="utf-8")
+    assert module.previous_metrics("da40", "retrieval", "new") == {"hit_at_10": 0.91}
+    assert len(module.cases_digest()) == 16
+    checks = judge("agent", {"unnumbered_repeat_answers": 1}, {"agent.unnumbered_repeat_answers": {"direction": "lower", "warn": 0, "fail": 1}})
+    assert checks[0]["status"] == "WARN"
+    text = module.render({"created_utc": "t", "commit": "abc", "status": "WARN", "trust_window_hours": 24, "levels": ["agent"],
+                          "zones": {"test": {"_status": "WARN", "agent": {"status": "WARN", "metrics": {}, "checks": checks,
+                                                                         "figure_failed": ["F02"], "previous_note": "題庫和上次不同，這次不與上次比較是否退步。"}}}})
+    assert "回答沒有引用標準圖片、或同一位置引用沒有標出第幾段的題目：F02" in text and "題庫和上次不同" in text

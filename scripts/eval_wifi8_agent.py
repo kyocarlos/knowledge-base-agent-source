@@ -112,7 +112,9 @@ def main() -> int:
                                  "steps": len(output.get("trace") or []),
                                  "tools": [t.get("tool") for t in output.get("trace") or []],
                                  "citations": [{"ref": c.get("ref"), "revision_id": c.get("revision_id"), "source": c.get("source"),
-                                                "point_id": c.get("point_id")} for c in output.get("citations") or []],
+                                                "point_id": c.get("point_id"), "location_label": c.get("location_label"),
+                                                "part": c.get("part"), "image": ({"id": c["image"].get("id")} if c.get("image") else None)}
+                                               for c in output.get("citations") or []],
                                  "grounding": output.get("grounding")}
         except Exception as exc:  # one failing case must not hide the rest
             row["error"] = f"{type(exc).__name__}: {exc}"
@@ -148,20 +150,32 @@ def render_report(result: dict) -> str:
     for name, b in blocks.items():
         lines.append(f"| {name} | {b['cases']} | {_pct(b['retrieval_hit_at_k'])} | {b['retrieval_mrr'] if b['retrieval_mrr'] is not None else '—'} | "
                      f"{_pct(b['answer_pass'])} | {_pct(b['fact_coverage'])} | {_pct(b['cited_gold'])} | {b['latency_ms_p50'] or '—'} | {b['errors']} | {b.get('retrieval_ms_p50') or '—'} |")
+    overall = result["summary"]["overall"]
+    if overall.get("figure_cases") or overall.get("unnumbered_repeat_answers") is not None:
+        lines += ["", f"- 圖片題 {overall.get('figure_cases') or 0} 題：檢索前 10 筆有標準圖片 {_pct(overall.get('retrieval_figure_hit_at_k'))}；"
+                      f"回答引用標準圖片 {_pct(overall.get('cited_figure'))}",
+                  f"- 同一位置多筆引用卻沒有標出第幾段的回答：{'—' if overall.get('unnumbered_repeat_answers') is None else overall['unnumbered_repeat_answers']} 則"]
     lines += ["", "## 未通過的題目", ""]
     for row in result["cases"]:
         answer, retrieval = row.get("answer") or {}, row.get("retrieval") or {}
-        if row.get("skipped") or (answer.get("passed", True) and retrieval.get("hit", True) and not row.get("error")):
+        if row.get("skipped") or (answer.get("passed", True) and retrieval.get("hit", True) and retrieval.get("figure_hit", True)
+                                  and answer.get("cited_figure", True) and not answer.get("unnumbered_repeats") and not row.get("error")):
             continue
         reasons = []
         if row.get("error"):
             reasons.append(f"錯誤：{row['error']}")
         if retrieval.get("applicable") and not retrieval.get("hit"):
             reasons.append("檢索前 10 筆沒有標準來源")
+        if retrieval.get("figure_hit") is False:
+            reasons.append("檢索前 10 筆沒有標準圖片")
         if answer.get("fact_hits") and not all(answer["fact_hits"]):
             reasons.append(f"缺少事實組 {[i + 1 for i, hit in enumerate(answer['fact_hits']) if not hit]}")
         if answer.get("cited_gold") is False:
             reasons.append("引用未包含標準來源")
+        if answer.get("cited_figure") is False:
+            reasons.append("引用未包含標準圖片")
+        if answer.get("unnumbered_repeats"):
+            reasons.append(f"同一位置的引用有 {answer['unnumbered_repeats']} 筆沒有標出第幾段")
         if answer.get("refused") is False:
             reasons.append("應拒答但未拒答")
         if answer.get("invented"):

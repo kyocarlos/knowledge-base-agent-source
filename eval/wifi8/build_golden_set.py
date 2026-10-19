@@ -139,9 +139,19 @@ EXTRA = {
 }
 for c in cases:
     c["gold"] = list(dict.fromkeys(c["gold"] + EXTRA.get(c["id"], [])))
+# 圖片圖表題（eval/wifi8/figure_cases.py）：匯出包 v2 才有 images.jsonl
+import os as _os
+if _os.path.exists(sys.argv[1].replace("documents.jsonl", "images.jsonl")):
+    sys.path.insert(0, _os.path.dirname(_os.path.abspath(__file__)))
+    from figure_cases import figure_cases
+    _figures = figure_cases(_os.path.dirname(_os.path.abspath(sys.argv[1])))
+else:
+    _figures = []
 with open(out, "w", encoding="utf-8") as f:
     for c in cases:
         c.setdefault("expect_refusal", False)
         c["gold_titles"] = [next(d["title"] for d in docs if d["revision_id"] == r) for r in c["gold"]]
         f.write(json.dumps(c, ensure_ascii=False) + "\n")
-print(len(cases), "cases")
+    for c in _figures:
+        f.write(json.dumps(c, ensure_ascii=False) + "\n")
+print(len(cases) + len(_figures), "cases")
