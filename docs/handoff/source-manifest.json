@@ -557,7 +557,7 @@
     },
     {
       "path": "eval/wifi8/README.md",
-      "sha256": "f764c317830ed00f4ff08c50409b5932966a50aaa3779756b52684c59acfc377"
+      "sha256": "748f3a7086894c4871e64f2e25fdaf0b09768d6cae0f7353c902d7155a28ee01"
     },
     {
       "path": "eval/wifi8/build_golden_set.py",
@@ -1581,7 +1581,7 @@
     },
     {
       "path": "src/wifi8/agent.py",
-      "sha256": "84503182bc57a120887e006666e9d7de8718f82ebb5e4415be9ae631f5329566"
+      "sha256": "a10a9a111b136ce37e19329c6e02306e3100b25039fb37c9c933f7e835f63154"
     },
     {
       "path": "src/wifi8/chunks.py",
