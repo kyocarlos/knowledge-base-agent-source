@@ -128,3 +128,13 @@ def test_previous_run_is_compared_only_with_the_same_golden_set(tmp_path, monkey
                           "zones": {"test": {"_status": "WARN", "agent": {"status": "WARN", "metrics": {}, "checks": checks,
                                                                          "figure_failed": ["F02"], "previous_note": "題庫和上次不同，這次不與上次比較是否退步。"}}}})
     assert "回答沒有引用標準圖片、或同一位置引用沒有標出第幾段的題目：F02" in text and "題庫和上次不同" in text
+
+
+def test_failures_are_classified_so_a_gateway_timeout_is_not_taken_for_a_regression():
+    from src.wifi8.quality import classify_failures, is_infra_error
+    cases = [{"id": "A", "retrieval": {"hit": False}, "answer": {"passed": False}},
+             {"id": "B", "error": "RuntimeError: OpenAI-compatible LLM request failed"},
+             {"id": "C", "error": "KeyError: 'x'"}, {"id": "D", "skipped": "case is bound to package p"},
+             {"id": "E", "retrieval": {"hit": True}, "answer": {"passed": True}}]
+    assert classify_failures(cases) == {"infra": ["B"], "error": ["C"], "retrieval": ["A"], "answer": ["A"], "skipped": ["D"]}
+    assert is_infra_error("ReadTimeout") and not is_infra_error("KeyError: 'x'") and not is_infra_error(None)

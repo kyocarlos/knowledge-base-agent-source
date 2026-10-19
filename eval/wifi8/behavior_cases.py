@@ -33,8 +33,10 @@ CASES = [
          facts=[["September 28, 2026", "2026-09-28", "2026/9/28", "9 月 28", "9月28"]]),
     dict(id="B03", category="議程規範", question="2026-10-12 TTG 議程中，PF#2 的 Security Profile 建議為何？",
          gold_titles=["WFA - Wi-Fi 8 TTG Agenda - 2026-10-12"], facts=[["#1", "Profile 1", "Profile #1"], ["#9", "Profile 9", "Profile #9"]]),
+    # 版本題：Agent 可以只靠版本清單回答，引用舊版本也算有依據，所以標準來源包含所有版本（history=True）
     dict(id="B04", category="議程規範", question="NPCA MRD Contribution 現行版本是哪一版？之前有哪些版本已被取代？",
-         gold_titles=["WFA - Wi-Fi 8 MRD - NPCA Contribution v0.6"], facts=[["v0.6", "0.6"], ["v0.2", "0.2"], ["v0.5", "0.5"]]),
+         gold_titles=["WFA - Wi-Fi 8 MRD - NPCA Contribution"], history=True,
+         facts=[["v0.6", "0.6"], ["v0.2", "0.2"], ["v0.5", "0.5"]]),
     dict(id="B05", category="議程規範", question="NPCA 對支援 5 GHz 或 6 GHz 的 AP 是必要還是選用？",
          gold_titles=["WFA - Wi-Fi 8 MRD - NPCA Contribution v0.6", "WFA - Wi-Fi 8 MRD v1.0"], facts=[["必要", "mandatory", "必須"]]),
     dict(id="B06", category="議程規範", question="What does the October 12, 2026 Wi-Fi 8 TTG agenda list under Test Case Review?",
@@ -100,14 +102,14 @@ def behavior_cases(package_dir):
     docs = _read(package_dir / "documents.jsonl")
     current = [d for d in docs if d["analysis_eligible"]]
 
-    def resolve(prefix):
-        found = [d["revision_id"] for d in current if d["title"].startswith(prefix)]
+    def resolve(prefix, history=False):
+        found = [d["revision_id"] for d in (docs if history else current) if d["title"].startswith(prefix)]
         assert found, f"沒有目前版本文件的標題以「{prefix}」開頭"
         return found
 
     cases = []
     for spec in CASES:
-        gold = list(dict.fromkeys(r for prefix in spec["gold_titles"] for r in resolve(prefix)))
+        gold = list(dict.fromkeys(r for prefix in spec["gold_titles"] for r in resolve(prefix, spec.get("history", False))))
         case = {"id": spec["id"], "category": spec["category"], "question": spec["question"], "gold": gold, "facts": spec["facts"],
                 "expect_refusal": bool(spec.get("expect_refusal"))}
         if case["expect_refusal"]:

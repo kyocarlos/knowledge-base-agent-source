@@ -257,6 +257,11 @@ def test_behavior_cases_resolve_gold_and_compute_lists_from_the_package(tmp_path
     cases = module.behavior_cases(tmp_path)
     assert cases[0]["gold"] == ["d"] and cases[0]["gold_titles"] == ["WFA - Agenda 1"]
     assert cases[1]["list_gold"] == ["Paper A about reuse"] and cases[1]["expect_tool"] == "find_documents"  # b: too few mentions, c: not current
+    module.CASES = [dict(id="B3", category="議程規範", question="q", gold_titles=["Old"], facts=[["x"]], history=True)]
+    module.LISTS = []
+    docs.append({"revision_id": "e", "title": "Old paper v1", "analysis_eligible": False, "publisher": "WFA"})
+    (tmp_path / "documents.jsonl").write_text("\n".join(json.dumps(r) for r in docs), encoding="utf-8")
+    assert module.behavior_cases(tmp_path)[0]["gold"] == ["e"]  # a version question accepts superseded versions as sources
     module.CASES = [dict(id="B2", category="議程規範", question="q", gold_titles=["No such title"], facts=[["x"]])]
     with pytest.raises(AssertionError):
         module.behavior_cases(tmp_path)  # a gold document that cannot be found is an error

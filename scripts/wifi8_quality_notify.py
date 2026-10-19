@@ -43,16 +43,34 @@ def load_settings(path: Path = ENV_FILE) -> dict[str, str]:
     return values
 
 
-def build_message(report: dict, report_path: str = "") -> str:
+def _failed_cases(data: dict, names: dict) -> list[str]:
+    """Which questions failed, by kind: the question ids are not sensitive, and the kind tells a developer where to look."""
+    lines = []
+    for kind, ids in (data.get("failure_classes") or {}).items():
+        lines.append(f"　{names.get(kind, kind)}：{'、'.join(ids)}")
+    if data.get("retried"):
+        lines.append(f"　已自動重試（LLM 逾時）：{'、'.join(data['retried'])}" + ("，重試仍失敗" if data.get("retry_failed") else ""))
+    return lines
+
+
+def build_message(report: dict, report_path: str = "", always: bool = False) -> str:
+    """WARN/FAIL levels with their failing metrics and questions; with ``always`` (a data change) every level, so a passing
+    check of new data is reported too."""
     lines = [f"[KM WiFi 品質驗證] {report.get('status')}", f"時間 {report.get('created_utc')}・程式 {report.get('commit')}"]
+    if report.get("changes"):
+        lines.append("資料更新：" + "；".join(report["changes"]))
+    names = report.get("failure_class_names") or {}
     for zone, levels in (report.get("zones") or {}).items():
         for level, data in levels.items():
-            if level.startswith("_") or data.get("status") not in ("WARN", "FAIL"):
+            if level.startswith("_"):
                 continue
-            bad = [c for c in data.get("checks") or [] if c.get("status") in ("WARN", "FAIL")]
+            flagged = data.get("status") in ("WARN", "FAIL")
+            if not flagged and not (always and data.get("status")):
+                continue
             lines.append(f"{zone.upper()} {LEVEL_NAMES.get(level, level)}：{data['status']}")
-            for c in bad:
+            for c in [c for c in data.get("checks") or [] if c.get("status") in ("WARN", "FAIL")]:
                 lines.append(f"・{c['metric']}={c.get('value')}（上次 {c.get('previous')}）{c.get('reason') or ''}")
+            lines += _failed_cases(data, names)
     if report_path:
         lines.append(f"報告：{report_path}")
     text = "\n".join(lines)
@@ -95,12 +113,13 @@ def send(text: str, settings: dict[str, str]) -> list[str]:
     return sent
 
 
-def notify_report(report: dict, report_path: str, notify_on: list[str]) -> str:
-    """Called by wifi8_quality_check.py; never raises (the check result must still be written)."""
-    if report.get("status") not in notify_on:
+def notify_report(report: dict, report_path: str, notify_on: list[str], always: bool = False) -> str:
+    """Called by wifi8_quality_check.py; never raises (the check result must still be written). ``always``: notify whatever the
+    status is (a data change is worth a message even when everything passes)."""
+    if not always and report.get("status") not in notify_on:
         return "未達通知條件"
     try:
-        return "已通知：" + ",".join(send(build_message(report, report_path), load_settings()))
+        return "已通知：" + ",".join(send(build_message(report, report_path, always), load_settings()))
     except Exception as exc:  # noqa: BLE001
         return f"通知失敗：{exc}"
 

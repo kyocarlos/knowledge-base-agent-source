@@ -201,3 +201,12 @@ docker cp $C:/tmp/km-eval/out ./wifi8-eval-out
   - `list_gold` + `min_recall`：列舉題。標準清單由原文計算（內文比對到主題的次數達門檻的目前版本文件，標題前 36 字），回答列出的比例 >= `min_recall`（預設 0.5）才通過；指標 `agent.list_recall`（警示 65%／失敗 45%）。
   - `expect_tool`：列舉題預期使用 `find_documents`；指標 `agent.expected_tool_rate`（警示 70%／失敗 40%）。
 - 限制：列舉題的標準清單以提及次數計，綜合性文件（例如 R&S 的 ELR 簡報、MRD v1.0）會被 Agent 排除，所以 `min_recall` 設 0.5 而不是 1；題庫變動後第一次執行不與上次比較。
+
+## 資料更新後主動檢查與回饋（2026-10-19）
+
+- 問題：排程檢查最慢要等 24 小時（檢索）或 7 天（Agent 回答）才發現壞掉的匯入；報告分不清是資料變動還是程式變差；通知只有指標數值，開發者不知道哪些題失敗、為什麼。
+- `scripts/wifi8_quality_watch.py`（cron 每 5 分鐘）：讀兩區 search worker 的 `current.json`（匯入的發布步驟切換）；資料包 ID 或 `switched_at` 變動、且連續 `settle_polls`（預設 2）次輪詢都沒再變，才啟動一次 `wifi8_quality_check.py --trigger package_change`（只含有變動的區）。第一次輪詢只記錄現況；與排程共用 `quality.lock`，忙碌就延到下次；連續 `max_attempts`（3）次無法執行會通知。狀態在 `<品質目錄>/package-state.json`。設定在 `quality-config.json` 的 `watch`。
+- 報告：標明「觸發原因：資料更新（TEST：A → B）」，與上一次同題庫的結果比較（也就是換資料包前的基準）。
+- 失敗分類：每個失敗題歸為「LLM／連線逾時（非資料問題）」「程式錯誤」「檢索沒找到標準來源」「回答內容不符」「略過（題目綁定舊資料版本）」。Agent 層遇到 LLM 閘道逾時的題目會自動重試一次，重試後仍失敗才算。
+- 通知：列出資料更新、WARN／FAIL 的指標，以及失敗題號與類型；資料更新後的檢查即使全部 PASS 也會通知（`notify.on_package_change`）。題號不含敏感內容。
+- 限制：只看 `current.json` 的變動，不判斷匯入中途失敗（匯入失敗不會切換 current）；Agent 層全題約 10 分鐘，資料更新後的完整結果要等這麼久；題庫仍綁定特定文件版本，新版本進來時版本題會需要人工更新（下一步：標準來源過期偵測）。

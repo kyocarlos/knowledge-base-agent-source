@@ -1,3 +1,4 @@
+import copy
 import importlib.util
 import urllib.error
 from pathlib import Path
@@ -79,3 +80,24 @@ def test_notify_report_respects_levels_and_never_raises(monkeypatch, tmp_path):
     assert notify.notify_report(REPORT, "r", ["WARN", "FAIL"]) == "已通知：telegram" and "②Agent" in sent[0]
     monkeypatch.setattr(notify, "load_settings", lambda: (_ for _ in ()).throw(FileNotFoundError("通知設定檔不存在")))
     assert notify.notify_report(REPORT, "r", ["WARN"]).startswith("通知失敗：通知設定檔不存在")
+
+
+def test_message_names_the_data_change_and_the_failed_questions_by_kind():
+    report = {**copy.deepcopy(REPORT), "changes": ["TEST：wifi8-a → wifi8-b"], "failure_class_names": {"answer": "回答內容不符", "infra": "LLM／連線逾時（非資料問題）"}}
+    report["zones"]["da40"]["agent"].update(failure_classes={"answer": ["D09", "T01"], "infra": ["L01"]}, retried=["L01"], retry_failed=True)
+    text = notify.build_message(report, "/r/report.md")
+    assert "資料更新：TEST：wifi8-a → wifi8-b" in text
+    assert "回答內容不符：D09、T01" in text and "LLM／連線逾時（非資料問題）：L01" in text and "已自動重試（LLM 逾時）：L01，重試仍失敗" in text
+    assert "檢索" not in text  # a passing level is left out unless the message is requested for every level
+
+
+def test_a_data_change_is_reported_even_when_everything_passes(monkeypatch):
+    report = {**copy.deepcopy(REPORT), "status": "PASS", "changes": ["DA40：wifi8-a → wifi8-b"]}
+    for zone in report["zones"].values():
+        zone["agent"]["status"] = "PASS"
+    assert notify.notify_report(report, "/r", ["WARN", "FAIL"]) == "未達通知條件"
+    sent = []
+    monkeypatch.setattr(notify, "load_settings", lambda: {"KM_NOTIFY_CHANNEL": "telegram"})
+    monkeypatch.setattr(notify, "send", lambda text, settings: sent.append(text) or ["telegram"])
+    assert notify.notify_report(report, "/r", ["WARN", "FAIL"], always=True) == "已通知：telegram"
+    assert "資料更新：DA40" in sent[0] and "DA40 ①檢索：PASS" in sent[0]
