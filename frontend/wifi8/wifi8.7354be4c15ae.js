@@ -291,12 +291,37 @@
     const total = Number(job.total || job.total_chunks || job.progress?.total || 0); const done = Number(job.completed || job.ready || job.progress?.completed || 0); const value = total ? Math.round(done / total * 100) : (/complete|success/.test(job.status || '') ? 100 : 0);
     return `<li class="job-item"><div class="job-head"><strong>${escapeHtml(job.job_id || '匯入工作')}</strong><span class="status-badge ${statusClass(job.status)}">${escapeHtml(job.status || '未知')}</span></div><div class="job-meta">${escapeHtml(job.stage || '')} ${done || total ? `· ${number(done)} / ${number(total)}` : ''} · ${formatTime(job.updated_at || job.created_at)}</div>${imageProgress(job)}${job.message ? `<p class="job-meta">${escapeHtml(job.message)}</p>` : ''}${job.error ? `<p class="error-card">${escapeHtml(job.error)}</p>` : ''}<progress max="100" value="${value}"></progress></li>`;
   }
+  // Automatic quality check after a data update: the switch is a file in this zone (see src/wifi8/autocheck.py); the host's watcher reads it.
+  function autoCheckPanel(info) {
+    const on = info.enabled !== false;
+    const last = info.last_check ? `${formatTime(info.last_check.at)}（${escapeHtml(info.last_check.status || '—')}；資料版本 ${escapeHtml(info.last_check.package_id || '—')}）` : '尚無資料更新後的檢查紀錄';
+    const alive = info.last_poll_at ? formatTime(info.last_poll_at) : '尚未回報';
+    const warn = info.watcher_overdue ? `<p class="auto-check-warn" role="alert">監看程式超過 ${Number(info.interval_minutes || 5) * 3} 分鐘沒有回報，開關仍會記住，但目前不會自動檢查，請通知開發者。</p>` : '';
+    const body = `<div class="auto-check-row"><label class="switch"><input id="auto-check-toggle" type="checkbox" role="switch" ${on ? 'checked' : ''} aria-describedby="auto-check-note"><span class="switch-track" aria-hidden="true"></span><span id="auto-check-state">${on ? '已開啟' : '已關閉'}</span></label>
+      <p id="auto-check-note" class="results-meta">新資料匯入完成後，系統每 ${Number(info.interval_minutes || 5)} 分鐘確認一次，發現資料更新就自動做品質檢查（檢索、回答、可信度），有問題會通知開發者。關閉後不再自動檢查，重新開啟時會補檢查關閉期間的資料更新；每日與每週的排程檢查不受影響。</p></div>
+      ${warn}<dl class="auto-check-status"><dt>最近輪詢</dt><dd>${escapeHtml(alive)}</dd><dt>目前監看的資料版本</dt><dd>${escapeHtml(info.watching?.package_id || '—')}</dd><dt>最近一次資料更新檢查</dt><dd>${last}</dd><dt>開關最後變更</dt><dd>${info.changed_at ? `${escapeHtml(info.changed_by || '—')}，${formatTime(info.changed_at)}` : '尚未變更（預設開啟）'}</dd></dl>
+      <p id="auto-check-message" class="results-meta" role="status" aria-live="polite"></p>`;
+    return panel('資料更新後自動檢查', body, on ? '已開啟' : '已關閉');
+  }
+  function bindAutoCheck(host) {
+    const toggle = $('#auto-check-toggle');
+    toggle?.addEventListener('change', async () => {
+      const wanted = toggle.checked; const message = $('#auto-check-message'); toggle.disabled = true; message.textContent = '正在儲存…';
+      try {
+        const info = await api('/api/wifi8/auto-check', { method: 'POST', headers: { 'x-km-wifi8-setting': '1', 'Content-Type': 'application/json' }, body: JSON.stringify({ enabled: wanted }) });
+        host.innerHTML = autoCheckPanel(info); bindAutoCheck(host); $('#auto-check-message').textContent = wanted ? '已開啟自動檢查。' : '已關閉自動檢查。';
+      } catch (error) { toggle.checked = !wanted; toggle.disabled = false; message.textContent = `儲存失敗：${error.message}`; }
+    });
+  }
   async function renderJobs(token) {
     const data = await api('/api/wifi8/jobs');
     if (token !== state.renderToken) return;
     let upload = '';
     try { const status = await api('/api/wifi8/status'); if (status.upload_enabled) upload = `<div class="upload-box"><form id="upload-form" class="upload-row"><label>Wi-Fi8 匯出包 (.zip)<input name="file" type="file" accept=".zip" required></label><button class="primary-button" type="submit">上傳並匯入</button></form><p id="upload-status" class="results-meta">匯入完成前不會切換目前版本。</p></div>`; } catch (_) { /* jobs remain readable */ }
-    content.innerHTML = panel('匯入工作', `${upload}<ul class="job-list">${(data.jobs || []).map(jobRow).join('') || '<li class="empty">尚無匯入工作</li>'}</ul>`, `${(data.jobs || []).length} 筆近期工作`);
+    let autoCheck = '<div id="auto-check-host"></div>';
+    try { autoCheck = `<div id="auto-check-host">${autoCheckPanel(await api('/api/wifi8/auto-check'))}</div>`; } catch (_) { /* the jobs stay readable without the switch */ }
+    content.innerHTML = panel('匯入工作', `${upload}<ul class="job-list">${(data.jobs || []).map(jobRow).join('') || '<li class="empty">尚無匯入工作</li>'}</ul>`, `${(data.jobs || []).length} 筆近期工作`) + autoCheck;
+    if ($('#auto-check-host')?.firstElementChild) bindAutoCheck($('#auto-check-host'));
     $('#upload-form')?.addEventListener('submit', async (event) => { event.preventDefault(); const message = $('#upload-status'); message.textContent = '正在上傳…'; try { const result = await api('/api/wifi8/packages', { method:'POST', headers:{'x-km-wifi8-import':'1'}, body:new FormData(event.target) }); message.textContent = `已送出 ${result.job_id}`; setTimeout(() => renderRoute(), 1000); } catch (error) { message.textContent = error.message; } });
   }
 

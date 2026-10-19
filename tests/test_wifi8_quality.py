@@ -64,6 +64,9 @@ def test_eval_summaries_map_to_metrics():
     summary["overall"].update({"retrieval_figure_hit_at_k": 0.889, "cited_figure": 0.778, "unnumbered_repeat_answers": 0})
     assert retrieval_metrics(summary)["figure_hit_at_10"] == 0.889
     assert agent_metrics(summary)["cited_figure"] == 0.778 and agent_metrics(summary)["unnumbered_repeat_answers"] == 0
+    summary["overall"].update({"list_recall": 0.8, "expected_tool_rate": 1.0, "forbidden_answers": 0})
+    mapped = agent_metrics(summary)
+    assert mapped["list_recall"] == 0.8 and mapped["expected_tool_rate"] == 1.0 and mapped["forbidden_answers"] == 0
 
 
 def test_agent_logs_counts_only_and_can_be_disabled(caplog, monkeypatch):
@@ -125,3 +128,13 @@ def test_previous_run_is_compared_only_with_the_same_golden_set(tmp_path, monkey
                           "zones": {"test": {"_status": "WARN", "agent": {"status": "WARN", "metrics": {}, "checks": checks,
                                                                          "figure_failed": ["F02"], "previous_note": "題庫和上次不同，這次不與上次比較是否退步。"}}}})
     assert "回答沒有引用標準圖片、或同一位置引用沒有標出第幾段的題目：F02" in text and "題庫和上次不同" in text
+
+
+def test_failures_are_classified_so_a_gateway_timeout_is_not_taken_for_a_regression():
+    from src.wifi8.quality import classify_failures, is_infra_error
+    cases = [{"id": "A", "retrieval": {"hit": False}, "answer": {"passed": False}},
+             {"id": "B", "error": "RuntimeError: OpenAI-compatible LLM request failed"},
+             {"id": "C", "error": "KeyError: 'x'"}, {"id": "D", "skipped": "case is bound to package p"},
+             {"id": "E", "retrieval": {"hit": True}, "answer": {"passed": True}}]
+    assert classify_failures(cases) == {"infra": ["B"], "error": ["C"], "retrieval": ["A"], "answer": ["A"], "skipped": ["D"]}
+    assert is_infra_error("ReadTimeout") and not is_infra_error("KeyError: 'x'") and not is_infra_error(None)

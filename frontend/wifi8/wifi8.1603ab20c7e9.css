@@ -283,3 +283,22 @@ progress { width: 100%; height: 8px; margin-top: 9px; accent-color: var(--blue);
 }
 .update-banner { position: sticky; top: 0; z-index: 50; display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 10px; padding: 9px 16px; border-bottom: 1px solid var(--blue); color: var(--ink); background: #0b2a33; font-size: .82rem; }
 .update-banner .primary-button { padding: 5px 14px; }
+
+/* Automatic quality check switch (jobs page) */
+.auto-check-row { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; }
+.auto-check-row .results-meta { flex: 1 1 320px; margin: 0; }
+.switch { position: relative; display: inline-flex; align-items: center; gap: 10px; min-height: 42px; font-weight: 800; cursor: pointer; }
+.switch input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.switch-track { position: relative; width: 48px; height: 26px; border: 1px solid var(--line); border-radius: 999px; background: rgba(255,255,255,.08); transition: background .15s, border-color .15s; }
+.switch-track::after { content: ""; position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 50%; background: var(--muted); transition: transform .15s, background .15s; }
+.switch input:checked + .switch-track { border-color: var(--green); background: var(--green-soft); }
+.switch input:checked + .switch-track::after { transform: translateX(22px); background: var(--green); }
+.switch input:focus-visible + .switch-track { outline: 2px solid var(--green); outline-offset: 3px; }
+.switch input:disabled + .switch-track { opacity: .5; }
+.switch input:disabled ~ span { opacity: .7; }
+.auto-check-status { display: grid; grid-template-columns: max-content 1fr; gap: 6px 18px; margin: 14px 0 0; }
+.auto-check-status dt { color: var(--muted); }
+.auto-check-status dd { margin: 0; overflow-wrap: anywhere; }
+.auto-check-warn { margin: 12px 0 0; padding: 8px 10px; border-radius: 10px; color: var(--amber); background: rgba(255,200,87,.1); }
+@media (max-width: 640px) { .auto-check-status { grid-template-columns: 1fr; } .auto-check-status dd { margin-bottom: 6px; } }
+@media (prefers-reduced-motion: reduce) { .switch-track, .switch-track::after { transition: none; } }

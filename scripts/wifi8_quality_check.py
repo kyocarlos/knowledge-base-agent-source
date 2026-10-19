@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import time
 import importlib.util
 import json
 import os
@@ -33,6 +34,10 @@ _quality = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(_quality)
 agent_metrics, judge, overall_status = _quality.agent_metrics, _quality.judge, _quality.overall_status
 parse_quality_lines, retrieval_metrics, summarize_trust = _quality.parse_quality_lines, _quality.retrieval_metrics, _quality.summarize_trust
+_spec = importlib.util.spec_from_file_location("wifi8_evaluation", REPO / "src/wifi8/evaluation.py")
+_evaluation = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(_evaluation)
+classify_failures, describe_change, is_infra_error = _quality.classify_failures, _quality.describe_change, _quality.is_infra_error
 _spec = importlib.util.spec_from_file_location("wifi8_quality_notify", REPO / "scripts/wifi8_quality_notify.py")
 _notify = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(_notify)
@@ -45,8 +50,15 @@ LEVEL_NAMES = {"retrieval": "① 檢索找文件的能力", "agent": "② Agent 
 EXIT = {"PASS": 0, "WARN": 3, "FAIL": 1}
 
 
-def sh(*args: str, timeout: int = 3600) -> str:
-    return subprocess.run(args, check=True, capture_output=True, text=True, timeout=timeout).stdout
+def sh(*args: str, timeout: int = 3600, retries: int = 0) -> str:
+    """Run a command; a failure reports the command's own stderr (not just the exit status) and may be retried."""
+    for attempt in range(retries + 1):
+        done = subprocess.run(args, capture_output=True, text=True, timeout=timeout)
+        if done.returncode == 0:
+            return done.stdout
+        if attempt == retries:
+            raise subprocess.SubprocessError(f"{' '.join(args[:3])} … 結束碼 {done.returncode}：{(done.stderr or done.stdout).strip()[:300]}")
+        time.sleep(3)
 
 
 def cases_digest() -> str:
@@ -80,9 +92,33 @@ def run_golden(worker: str, run_id: str, level: str, out: Path, commit: str) -> 
     if level == "retrieval":
         args.append("--retrieval-only")
     subprocess.run(args, check=True, capture_output=True, text=True, timeout=7200)
-    sh("docker", "cp", f"{worker}:{remote}/{level}", str(out / level))
+    out.mkdir(parents=True, exist_ok=True)
+    sh("docker", "cp", f"{worker}:{remote}/{level}", str(out / level), retries=2)
+    result = json.loads((out / level / "results.json").read_text(encoding="utf-8"))
+    if level == "agent":
+        result = retry_gateway_errors(worker, remote, out, commit, result)
     sh("docker", "exec", worker, "python", "-c", f"import shutil; shutil.rmtree({remote!r}, ignore_errors=True)")
-    return json.loads((out / level / "results.json").read_text(encoding="utf-8"))
+    return result
+
+
+def retry_gateway_errors(worker: str, remote: str, out: Path, commit: str, result: dict) -> dict:
+    """Cases that failed only because a request to the LLM gateway timed out are run once more: a gateway hiccup is not a
+    quality problem, and counting it as one sends a developer looking for a regression that is not there."""
+    ids = [c["id"] for c in result["cases"] if c.get("error") and is_infra_error(c["error"])]
+    if not ids:
+        return result
+    args = ["docker", "exec", "-w", "/app", "-e", "KM_WIFI8_QUALITY_LOG=0", worker, "python", f"{remote}/eval_wifi8_agent.py",
+            "--cases", f"{remote}/golden-set.v1.jsonl", "--out", f"{remote}/agent-retry", "--ids", ",".join(ids), "--source-commit", commit]
+    try:
+        subprocess.run(args, check=True, capture_output=True, text=True, timeout=7200)
+        sh("docker", "cp", f"{worker}:{remote}/agent-retry", str(out / "agent-retry"), retries=2)
+        again = {c["id"]: c for c in json.loads((out / "agent-retry" / "results.json").read_text(encoding="utf-8"))["cases"]}
+    except (subprocess.SubprocessError, OSError, KeyError, json.JSONDecodeError):
+        return {**result, "retried": ids, "retry_failed": True}
+    cases = [again.get(c["id"], c) if c["id"] in ids else c for c in result["cases"]]
+    merged = {**result, "cases": cases, "retried": ids, "summary": _evaluation.summarize([c for c in cases if not c.get("skipped")])}
+    (out / "agent" / "results.json").write_text(json.dumps(merged, ensure_ascii=False, indent=1), encoding="utf-8")
+    return merged
 
 
 def trust_level(worker: str, hours: float, out: Path) -> tuple[dict, list[dict]]:
@@ -93,7 +129,7 @@ def trust_level(worker: str, hours: float, out: Path) -> tuple[dict, list[dict]]
     return summarize_trust(records), records
 
 
-RATE_SUFFIXES = ("hit_at_10", "answer_pass", "fact_coverage", "cited_gold", "cited_figure", "_rate", "_share")
+RATE_SUFFIXES = ("hit_at_10", "answer_pass", "fact_coverage", "cited_gold", "cited_figure", "list_recall", "_rate", "_share")
 FIGURE_LABELS = {"retrieval": "檢索前 10 筆沒有標準圖片的題目", "agent": "回答沒有引用標準圖片、或同一位置引用沒有標出第幾段的題目"}
 
 
@@ -109,7 +145,10 @@ def fmt(value, metric: str = "") -> str:
 
 
 def render(report: dict) -> str:
-    lines = [f"# WiFi 專區品質驗證報告", "", f"- 時間：{report['created_utc']}；程式版本：`{report['commit']}`；總結：**{report['status']}**", ""]
+    lines = [f"# WiFi 專區品質驗證報告", "", f"- 時間：{report['created_utc']}；程式版本：`{report['commit']}`；總結：**{report['status']}**"]
+    if report.get("trigger") == "package_change":
+        lines += ["- 觸發原因：**資料更新**（" + "；".join(report.get("changes") or ["資料版本變動"]) + "）；與上一次同題庫的結果比較"]
+    lines.append("")
     for zone, levels in report["zones"].items():
         lines += [f"## {zone.upper()}（{levels.get('_status', '')}）", ""]
         for level in LEVELS:
@@ -130,6 +169,10 @@ def render(report: dict) -> str:
                 lines += ["", f"{label}：" + "、".join(data["failed_cases"])]
             if data.get("figure_failed"):
                 lines += ["", f"{FIGURE_LABELS[level]}：" + "、".join(data["figure_failed"])]
+            for name, ids in (data.get("failure_classes") or {}).items():
+                lines += ["", f"失敗類型「{_quality.FAILURE_CLASS_NAMES[name]}」：" + "、".join(ids)]
+            if data.get("retried"):
+                lines += ["", "LLM 逾時後自動重試一次的題目：" + "、".join(data["retried"]) + ("（重試也失敗）" if data.get("retry_failed") else "")]
             if data.get("previous_note"):
                 lines += ["", data["previous_note"]]
             lines.append("")
@@ -142,6 +185,9 @@ def main() -> int:
     parser.add_argument("--zones", default=",".join(config["zones"]))
     parser.add_argument("--levels", default=",".join(LEVELS))
     parser.add_argument("--no-notify", action="store_true", help="do not send WARN/FAIL notifications")
+    parser.add_argument("--trigger", default="schedule", choices=("schedule", "package_change", "manual"),
+                        help="why this run happens; a package_change run is also notified when it passes")
+    parser.add_argument("--changes", default="[]", help="JSON list of {zone, before, after} for a package_change run")
     args = parser.parse_args()
     zones = [z for z in args.zones.split(",") if z]
     levels = [l for l in args.levels.split(",") if l]
@@ -154,7 +200,10 @@ def main() -> int:
     run_dir = ROOT / run_id
     commit = subprocess.run(["git", "-C", str(REPO), "rev-parse", "--short", "HEAD"], capture_output=True, text=True).stdout.strip()
     cases = cases_digest()
+    changes = json.loads(args.changes)
     report = {"created_utc": now.isoformat(timespec="seconds"), "commit": commit, "zones": {}, "cases_sha256": cases,
+              "failure_class_names": _quality.FAILURE_CLASS_NAMES,
+              "trigger": args.trigger, "changes": [describe_change(c["zone"], c.get("before"), c["after"]) for c in changes],
               "trust_window_hours": config["trust_window_hours"], "levels": levels}
     history_rows = []
     for zone in zones:
@@ -186,6 +235,10 @@ def main() -> int:
                     else:
                         failed = [c["id"] for c in result["cases"] if c.get("error") or (c.get("answer") or {}).get("passed") is False]
                     entry["failed_cases"] = failed
+                    entry["failure_classes"] = classify_failures(result["cases"])
+                    if result.get("retried"):
+                        entry["retried"] = result["retried"]
+                        entry["retry_failed"] = bool(result.get("retry_failed"))
                     if level == "retrieval":
                         entry["figure_failed"] = [c["id"] for c in result["cases"] if (c.get("retrieval") or {}).get("figure_hit") is False]
                     else:
@@ -199,13 +252,15 @@ def main() -> int:
             report["zones"][zone][level] = entry
             history_rows.append({"ts": report["created_utc"], "run": run_id, "zone": zone, "level": level, "status": status,
                                  "metrics": {k: v for k, v in metrics.items() if not isinstance(v, dict)}, "commit": commit,
+                                 "trigger": args.trigger, **({"package_id": entry["package_id"]} if entry.get("package_id") else {}),
                                  **({"cases_sha256": cases} if level != "trust" else {})})
         report["zones"][zone]["_status"] = overall_status([c for lv in levels for c in report["zones"][zone][lv]["checks"]])
     report["status"] = overall_status([c for z in report["zones"].values() for lv in levels for c in z[lv]["checks"]])
 
     notify_on = (config.get("notify") or {}).get("on") or []
+    always = args.trigger == "package_change" and (config.get("notify") or {}).get("on_package_change", True)
     report["notification"] = ("未通知（--no-notify）" if args.no_notify
-                              else _notify.notify_report(report, str(run_dir / "report.md"), notify_on))
+                              else _notify.notify_report(report, str(run_dir / "report.md"), notify_on, always=always))
     text = render(report) + f"\n- 通知：{report['notification']}\n"
     (run_dir / "report.json").write_text(json.dumps(report, ensure_ascii=False, indent=1), encoding="utf-8")
     (run_dir / "report.md").write_text(text, encoding="utf-8")

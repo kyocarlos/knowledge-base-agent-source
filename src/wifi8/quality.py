@@ -11,6 +11,7 @@ of the same zone (a drop larger than the configured regression tolerance is at l
 from __future__ import annotations
 
 import json
+import re
 from typing import Any, Iterable
 
 QUALITY_LOG_PREFIX = "WIFI8_ANSWER_QUALITY "
@@ -82,8 +83,49 @@ def agent_metrics(eval_summary: dict[str, Any]) -> dict[str, Any]:
     overall = eval_summary.get("overall") or {}
     return {"answer_pass": overall.get("answer_pass"), "fact_coverage": overall.get("fact_coverage"),
             "cited_gold": overall.get("cited_gold"), "cited_figure": overall.get("cited_figure"),
-            "unnumbered_repeat_answers": overall.get("unnumbered_repeat_answers"), "latency_ms_p50": overall.get("latency_ms_p50"),
+            "unnumbered_repeat_answers": overall.get("unnumbered_repeat_answers"), "list_recall": overall.get("list_recall"),
+            "expected_tool_rate": overall.get("expected_tool_rate"), "forbidden_answers": overall.get("forbidden_answers"),
+            "latency_ms_p50": overall.get("latency_ms_p50"),
             "errors": overall.get("errors"), "cases": overall.get("cases")}
+
+
+# ---- failures of a golden-set run: what kind of problem each failed case is ------------------------
+# A request to the LLM gateway that timed out says nothing about the data or the code; it is told apart so a developer is not
+# sent looking for a regression that is an outage.
+INFRA_ERROR = re.compile(r"LLM request failed|ReadTimeout|ConnectTimeout|ConnectionError|timed out|Timeout", re.I)
+FAILURE_CLASSES = ("infra", "error", "retrieval", "answer", "skipped")
+FAILURE_CLASS_NAMES = {"infra": "LLM／連線逾時（非資料問題）", "error": "程式錯誤", "retrieval": "檢索沒找到標準來源",
+                       "answer": "回答內容不符", "skipped": "略過（題目綁定舊資料版本）"}
+
+
+def is_infra_error(error: Any) -> bool:
+    return bool(error) and INFRA_ERROR.search(str(error)) is not None
+
+
+def classify_failures(cases: list[dict[str, Any]]) -> dict[str, list[str]]:
+    """Case ids by kind of failure (a case can be both a retrieval miss and a wrong answer)."""
+    classes: dict[str, list[str]] = {name: [] for name in FAILURE_CLASSES}
+    for case in cases:
+        if case.get("skipped"):
+            classes["skipped"].append(case["id"])
+        elif case.get("error"):
+            classes["infra" if is_infra_error(case["error"]) else "error"].append(case["id"])
+        else:
+            if (case.get("retrieval") or {}).get("hit") is False:
+                classes["retrieval"].append(case["id"])
+            if (case.get("answer") or {}).get("passed") is False:
+                classes["answer"].append(case["id"])
+    return {name: ids for name, ids in classes.items() if ids}
+
+
+def describe_change(zone: str, before: dict[str, Any] | None, after: dict[str, Any]) -> str:
+    """One line for a data change of a zone: a new package, or the same package published again."""
+    new_id = after.get("package_id") or "?"
+    if not before:
+        return f"{zone.upper()}：{new_id}"
+    if before.get("package_id") != new_id:
+        return f"{zone.upper()}：{before.get('package_id')} → {new_id}"
+    return f"{zone.upper()}：{new_id} 重新發布（{before.get('switched_at')} → {after.get('switched_at')}）"
 
 
 # ---- judgement -----------------------------------------------------------------------

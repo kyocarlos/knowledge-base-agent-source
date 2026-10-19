@@ -237,3 +237,34 @@ def test_results_say_whether_they_are_the_document_the_question_names_when_the_s
     assert wide["named_documents_in_question"] == ["WFA - Wi-Fi 8 PF1 Report"]
     scoped = tools.search_wifi("APUT UHR-4.5.2 results")
     assert "is_named_document" not in scoped["hits"][0]  # everything in scope is the named document
+
+
+def test_documents_counts_every_candidate_chunk_of_a_document(engine):
+    search, *_ = engine
+    per_chunk = search.search("NR RAN architecture overview gNB", SearchOptions(top_k=12))
+    assert sum(1 for r in per_chunk["results"] if r["source"].startswith("3GPP")) <= 3  # the per-document cap of search()
+    found = search.documents("NR RAN architecture overview gNB")
+    top = found["results"][0]
+    assert top["best"]["source"].startswith("3GPP") and top["matching_chunks"] > 3
+    assert found["documents_found"] >= 1 and len({r["revision_id"] for r in found["results"]}) == len(found["results"])
+    assert "ELR MRD v1" not in [r["best"]["source"] for r in search.documents("ELR preamble")["results"]]  # superseded stay out
+
+
+def test_find_documents_tool_lists_documents_with_refs_and_ignores_unknown_filters(engine):
+    from src.wifi8.agent import AgentSettings, CitationRegistry, WifiTools
+    search, *_ = engine
+    tools = WifiTools(search, AgentSettings(), CitationRegistry())
+    result = tools.find_documents("ELR preamble", publisher="No Such Vendor")
+    assert result["ignored_filters"] == {"publisher": "No Such Vendor"} and result["count"] > 0
+    row = next(d for d in result["documents"] if d["title"] == "ELR MRD v2")
+    assert row["ref"].startswith("S") and row["matching_chunks"] >= 1 and row["current_version"] is True
+    assert tools.call("find_documents", {"query": "ELR preamble", "limit": 1})["count"] == 1
+    assert "找不到" not in str(tools.call("find_documents", {"query": "ELR", "bogus": 1}).get("error", ""))  # bad arguments are reported, not raised
+
+
+def test_documents_rank_a_document_that_matches_on_many_chunks_above_one_with_a_single_chunk(engine):
+    search, *_ = engine
+    ranked = search.documents("network design gNB")["results"]
+    by_title = {r["best"]["source"]: r for r in ranked}
+    assert by_title["3GPP TS 38.300 NR Overall Description"]["matching_chunks"] > by_title["Mesh Network Design Guide"]["matching_chunks"]
+    assert ranked[0]["best"]["source"] == "3GPP TS 38.300 NR Overall Description"

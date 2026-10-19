@@ -17,8 +17,13 @@ def test_golden_set_is_well_formed():
         if case["expect_refusal"]:
             assert not case["gold"] and not case["facts"]
         else:
-            assert case["facts"] and all(group for group in case["facts"])
+            assert (case["facts"] or case.get("list_gold")) and all(group for group in case["facts"])
             assert len(case["gold"]) == len(case["gold_titles"])
+    assert {"議程規範", "混淆防護", "推理與摘要", "安全與模糊", "拒答不補推測", "列舉"} <= {c["category"] for c in cases}
+    lists = [c for c in cases if c["category"] == "列舉"]
+    assert len(lists) >= 4 and all(c["list_gold"] and c["expect_tool"] == "find_documents" for c in lists)
+    refusals = [c for c in cases if c["category"] == "拒答不補推測"]
+    assert refusals and all(c["expect_refusal"] and c["must_not_regex"] for c in refusals)  # refusals also forbid invented advice
     figures = [c for c in cases if c["category"] == "圖片圖表"]
     assert len(figures) >= 6 and all(c["gold_figures"] and c["gold"] for c in figures)
     assert all(len(f) == 64 for c in figures for f in c["gold_figures"])
@@ -202,3 +207,61 @@ def test_figure_cases_resolve_titles_places_and_shared_figures(tmp_path):
     finally:
         sys.argv = argv
     assert [json.loads(l)["id"] for l in golden.read_text(encoding="utf-8").splitlines()] == ["D1", "F1"]
+
+
+def test_list_cases_score_the_share_of_expected_titles_named_in_the_answer():
+    case = {"id": "L", "question": "q", "gold": [], "facts": [], "expect_refusal": False, "expect_tool": "find_documents",
+            "list_gold": ["Flow Matching for Multi-AP", "A Tutorial on Wi-Fi 8", "Deep Reinforcement"], "min_recall": 0.5}
+    full = score_answer(case, {"answer": "1. Flow Matching for Multi‑AP Coordination 2. A Tutorial on Wi‑Fi 8 3. Deep Reinforcement Learning",
+                               "citations": [], "tools": ["find_documents"]})
+    assert full["list_recall"] == 1.0 and full["list_missing"] == [] and full["passed"] and full["used_expected_tool"] is True
+    half = score_answer(case, {"answer": "只有 Flow Matching for Multi-AP。", "citations": [], "trace": [{"tool": "search_wifi"}]})
+    assert half["list_recall"] == 0.3333 and not half["passed"] and half["used_expected_tool"] is False  # below min_recall, tool not used
+    assert score_answer({**case, "min_recall": 0.3}, {"answer": "Flow Matching for Multi-AP", "citations": []})["passed"]
+
+
+def test_forbidden_content_fails_any_case_and_refusals_keep_reporting_it_as_invented():
+    advice = [r"通常", r"建議.{0,6}詢價"]
+    answerable = {"id": "A", "question": "q", "gold": [], "facts": [["25"]], "expect_refusal": False, "must_not_regex": advice}
+    assert score_answer(answerable, {"answer": "數值是 25。", "citations": []})["passed"]
+    bad = score_answer(answerable, {"answer": "數值是 25，通常如此。", "citations": []})
+    assert not bad["passed"] and bad["forbidden"] == ["通常"]
+    refusal = {"id": "R", "question": "q", "gold": [], "facts": [], "expect_refusal": True, "refusal_markers": ["沒有"], "must_not_regex": advice}
+    assert score_answer(refusal, {"answer": "文件沒有提供費用。", "citations": []})["passed"]
+    spec = score_answer(refusal, {"answer": "文件沒有提供費用，建議向實驗室詢價。", "citations": []})
+    assert not spec["passed"] and spec["invented"] == ["建議.{0,6}詢價"]
+    rows = [{"category": "x", "answer": spec}, {"category": "x", "answer": bad}, {"category": "x", "answer": {"passed": True, "forbidden": []}}]
+    assert summarize(rows)["overall"]["forbidden_answers"] == 2
+
+
+def test_summary_reports_list_recall_and_expected_tool_rate():
+    rows = [{"category": "列舉", "answer": {"passed": True, "list_recall": 1.0, "used_expected_tool": True}},
+            {"category": "列舉", "answer": {"passed": False, "list_recall": 0.5, "used_expected_tool": False}}]
+    overall = summarize(rows)["overall"]
+    assert overall["list_cases"] == 2 and overall["list_recall"] == 0.75 and overall["expected_tool_rate"] == 0.5
+
+
+def test_behavior_cases_resolve_gold_and_compute_lists_from_the_package(tmp_path):
+    spec = importlib.util.spec_from_file_location("behavior_cases", GOLDEN.parent / "behavior_cases.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    docs = [{"revision_id": "a", "title": "arXiv - Paper A about reuse - arXiv 2501.00001", "analysis_eligible": True, "publisher": "arXiv"},
+            {"revision_id": "b", "title": "arXiv - Paper B passing mention - arXiv 2501.00002", "analysis_eligible": True, "publisher": "arXiv"},
+            {"revision_id": "c", "title": "arXiv - Old paper - arXiv 2401.00003", "analysis_eligible": False, "publisher": "arXiv"},
+            {"revision_id": "d", "title": "WFA - Agenda 1", "analysis_eligible": True, "publisher": "WFA"}]
+    segments = [{"revision_id": "a", "text": "reuse reuse reuse"}, {"revision_id": "b", "text": "reuse"}, {"revision_id": "c", "text": "reuse reuse reuse reuse"}]
+    for name, rows in (("documents.jsonl", docs), ("segments.jsonl", segments)):
+        (tmp_path / name).write_text("\n".join(json.dumps(r) for r in rows), encoding="utf-8")
+    module.CASES = [dict(id="B1", category="議程規範", question="q", gold_titles=["WFA - Agenda"], facts=[["x"]])]
+    module.LISTS = [dict(id="L1", question="q", pattern=r"reuse", flags="i", min_mentions=3, publisher="arXiv")]
+    cases = module.behavior_cases(tmp_path)
+    assert cases[0]["gold"] == ["d"] and cases[0]["gold_titles"] == ["WFA - Agenda 1"]
+    assert cases[1]["list_gold"] == ["Paper A about reuse"] and cases[1]["expect_tool"] == "find_documents"  # b: too few mentions, c: not current
+    module.CASES = [dict(id="B3", category="議程規範", question="q", gold_titles=["Old"], facts=[["x"]], history=True)]
+    module.LISTS = []
+    docs.append({"revision_id": "e", "title": "Old paper v1", "analysis_eligible": False, "publisher": "WFA"})
+    (tmp_path / "documents.jsonl").write_text("\n".join(json.dumps(r) for r in docs), encoding="utf-8")
+    assert module.behavior_cases(tmp_path)[0]["gold"] == ["e"]  # a version question accepts superseded versions as sources
+    module.CASES = [dict(id="B2", category="議程規範", question="q", gold_titles=["No such title"], facts=[["x"]])]
+    with pytest.raises(AssertionError):
+        module.behavior_cases(tmp_path)  # a gold document that cannot be found is an error
