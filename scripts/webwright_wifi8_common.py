@@ -60,10 +60,13 @@ class Run:
         (target.screenshot(path=str(shot)) if target is not None else pg.screenshot(path=str(shot), full_page=True))
         return bool(ok)
 
-    def finish(self, **extra: Any) -> int:
-        self.results["api_all_ok"] = not [x for x in self.wifi8_api if x[0] >= 400]
+    def finish(self, expected_failures: tuple[tuple[int, str, str], ...] = (), **extra: Any) -> int:
+        """expected_failures: (status, method, path) calls the flow makes on purpose (e.g. a rejected upload); they are listed, not counted as errors."""
+        failures = [x for x in self.wifi8_api if x[0] >= 400 and x not in expected_failures]
+        self.results["api_all_ok"] = not failures
         summary = {"zone": self.zone, "user": self.user, "base_url": BASE, "results": self.results,
-                   "wifi8_api_calls": len(self.wifi8_api), "wifi8_api_failures": [x for x in self.wifi8_api if x[0] >= 400],
+                   "wifi8_api_calls": len(self.wifi8_api), "wifi8_api_failures": failures,
+                   "expected_failures": [x for x in self.wifi8_api if x in expected_failures],
                    "failed_requests": self.failed_requests, "console_errors": self.console_errors, **extra}
         self._log.write("final: " + json.dumps(summary, ensure_ascii=False) + "\n")
         self._log.close()

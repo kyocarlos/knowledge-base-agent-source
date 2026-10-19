@@ -44,8 +44,13 @@ def main() -> int:
         run.act(pg, "processing_panel", f"{zone} 總覽「資料處理狀態」：{'資料處理狀態' in text}；預期 {len(wanted)} 項，畫面缺 {absent}",
                 "資料處理狀態" in text and not absent and processing["failed_jobs"] >= 0)
 
-        docs = api(pg, "/api/wifi8/documents?page_size=100&include_history=false")["documents"]
-        target = next(d for d in docs if d.get("supersedes"))
+        target, page = None, 1
+        while target is None:  # the first current document that replaced an older version, wherever it sits in the list
+            found = api(pg, f"/api/wifi8/documents?page_size=100&page={page}&include_history=false")
+            target = next((d for d in found["documents"] if d.get("supersedes")), None)
+            if target is None and page * 100 >= found["total"]:
+                raise SystemExit("沒有任何取代舊版的目前版本文件，無法驗證版本關係")
+            page += 1
         detail = api(pg, f"/api/wifi8/documents/{target['revision_id']}")
         old_ids = set(target["supersedes"])
         old_labels = [v.get("version_label") or v.get("wfa_revision") or v["revision_id"] for v in detail["versions"] if v["revision_id"] in old_ids]
@@ -63,6 +68,7 @@ def main() -> int:
         pg.keyboard.press("Escape")
 
         before = api(pg, "/api/wifi8/status")["current"]["package_id"]
+        known = {j["job_id"] for j in api(pg, "/api/wifi8/jobs?limit=100")["jobs"]}  # records that exist before this upload
         pg.goto(BASE + "/wifi8/#/jobs")
         pg.wait_for_timeout(3000)
         pg.locator('#upload-form input[name="file"]').set_input_files(BROKEN)
@@ -71,16 +77,16 @@ def main() -> int:
         shown = pg.locator("#upload-status").inner_text()
         pg.reload()
         pg.wait_for_timeout(3000)
-        items = pg.locator(".job-item", has_text="wifi8-acceptance-broken.zip")
+        jobs = api(pg, "/api/wifi8/jobs?limit=100")["jobs"]
+        rejected = [j["job_id"] for j in jobs if j["job_id"] not in known and "wifi8-acceptance-broken.zip" in (j.get("message") or "")]
+        items = pg.locator(".job-item", has_text=rejected[0]) if rejected else pg.locator(".job-item", has_text="(none)")
         listed = items.first.inner_text() if items.count() else ""
-        jobs = api(pg, "/api/wifi8/jobs?limit=20")["jobs"]
-        rejected = [j["job_id"] for j in jobs if "wifi8-acceptance-broken.zip" in (j.get("message") or "")]
         after = api(pg, "/api/wifi8/status")["current"]["package_id"]
         run.act(pg, "failure_visible",
-                f"上傳當下訊息={shown[:60]!r}；任務清單={'failed' in items.first.inner_html() if items.count() else False}、"
+                f"上傳當下訊息={shown[:60]!r}；新增失敗紀錄 {len(rejected)} 筆，畫面清單={'failed' in items.first.inner_html() if items.count() else False}、"
                 f"含原因={'匯出包驗證失敗' in listed}；資料版本 {before} → {after}",
-                items.count() == 1 and "匯出包驗證失敗" in listed and "failed" in items.first.inner_html() and before == after)
-    return run.finish(rejected_jobs=rejected, package_id=before)
+                len(rejected) == 1 and items.count() == 1 and "匯出包驗證失敗" in listed and "failed" in items.first.inner_html() and before == after)
+    return run.finish(expected_failures=((422, "POST", "/api/wifi8/packages"),), rejected_jobs=rejected, package_id=before)
 
 
 if __name__ == "__main__":

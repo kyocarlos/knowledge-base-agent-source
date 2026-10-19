@@ -163,6 +163,19 @@ def ui_rows(dirs: list[Path], package_id: str) -> list[dict]:
     return rows
 
 
+def cleanup_rejected(container: str, dirs: list[Path]) -> list[str]:
+    """Remove the failed-upload records the Webwright flow created on purpose (only validate-phase jobs of its own broken file)."""
+    ids = sorted({job for d in dirs if (d / "summary.json").is_file() for job in json.loads((d / "summary.json").read_text(encoding="utf-8")).get("rejected_jobs") or []})
+    if not ids:
+        return []
+    script = ("import json,sys\nfrom src.wifi8.importer import Wifi8Settings\nroot=Wifi8Settings.from_environment().root/'jobs'\nremoved=[]\n"
+              "for job_id in json.loads(sys.argv[1]):\n    path=root/(job_id+'.json')\n"
+              "    try: job=json.loads(path.read_text(encoding='utf-8'))\n    except OSError: continue\n"
+              "    if job.get('status')=='failed' and job.get('phase')=='validate' and 'wifi8-acceptance-broken.zip' in (job.get('message') or ''):\n"
+              "        path.unlink(); removed.append(job_id)\nprint(json.dumps(removed))")
+    return json.loads(sh("docker", "exec", container, "python", "-c", script, json.dumps(ids), timeout=60).strip().splitlines()[-1])
+
+
 # ---- report -------------------------------------------------------------------------
 def overall(rows: list[dict]) -> str:
     present = {r["status"] for r in rows}
@@ -215,6 +228,7 @@ def main() -> int:
     parser.add_argument("--ui", action="append", default=[], help="ZONE=DIR[,DIR]：該區 Webwright 輸出目錄")
     parser.add_argument("--quality-root", type=Path, default=ROOT)
     parser.add_argument("--publish-doc", type=Path)
+    parser.add_argument("--keep-rejected", action="store_true", help="不清除 Webwright 故意上傳損毀檔留下的失敗紀錄")
     args = parser.parse_args()
     spec = json.loads(SPEC_PATH.read_text(encoding="utf-8"))
     config = json.loads(CONFIG.read_text(encoding="utf-8"))
@@ -232,7 +246,8 @@ def main() -> int:
         result = probe(settings["search_worker"], args.out / f"probe-{zone}.json")
         rows = identity_rows + result["rows"] + answer_rows(zone, result["package_id"], spec, args.quality_root) + ui_rows(ui.get(zone, []), result["package_id"])
         rows.sort(key=lambda r: [int(p) for p in r["id"].split(".")])
-        zones[zone] = {"package_id": result["package_id"], "counts": result["counts"], "identity": info, "status": overall(rows), "rows": rows}
+        removed = [] if args.keep_rejected else cleanup_rejected(containers["web"], ui.get(zone, []))
+        zones[zone] = {"package_id": result["package_id"], "counts": result["counts"], "identity": info, "status": overall(rows), "rows": rows, "removed_test_jobs": removed}
         print(f"{zone}: {zones[zone]['status']}  " + " ".join(f"{r['id']}={r['status']}" for r in rows), flush=True)
     report = {"created_utc": now(), "commit": git("rev-parse", "--short=7", "HEAD"),
               "cases_sha256": hashlib.sha256(GOLDEN.read_bytes()).hexdigest()[:16], "status": overall([r for z in zones.values() for r in z["rows"]]),
