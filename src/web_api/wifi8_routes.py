@@ -7,6 +7,7 @@ Reading the import status only requires a KM session for this data zone.
 """
 from __future__ import annotations
 
+import logging
 import os
 import tempfile
 from collections import Counter
@@ -16,15 +17,18 @@ from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query, Request, UploadFile
 from fastapi.responses import FileResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, StrictBool
 
+from ..wifi8 import autocheck
 from ..wifi8.importer import ImportConflict, Wifi8Importer, Wifi8Settings
 from ..wifi8.package import IMAGE_TYPES, PackageError
 from ..wifi8.search import SearchOptions, SearchUnavailable, Wifi8Search
 from ..wifi8.store import Wifi8Store
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/wifi8", tags=["Wi-Fi8 import"])
 IMPORT_HEADER = "x-km-wifi8-import"
+SETTING_HEADER = "x-km-wifi8-setting"
 IMPORT_TASK = "tasks.wifi8_import_task"
 AGENT_TASK = "tasks.wifi8_agent_task"
 
@@ -138,6 +142,43 @@ async def wifi8_status(request: Request):
         "active_job": importer.active_job(),
         "upload_enabled": _can_import(request),
     }
+
+
+def _wifi8_root() -> Path:
+    return Wifi8Settings.from_environment().root
+
+
+def _account_name(request: Request) -> str:
+    identity = _identity(request)
+    try:
+        from ..km_control import ControlRegistry
+        user = ControlRegistry.from_environment().get_user(identity["sub"])
+        return user.username if user else str(identity["sub"])
+    except Exception:  # noqa: BLE001 - who changed the switch is recorded, but the control database must not block it
+        return str(identity["sub"])
+
+
+class AutoCheckRequest(BaseModel):
+    enabled: StrictBool
+
+
+@router.get("/auto-check")
+async def auto_check_state(request: Request):
+    """Switch and status of the quality check that follows a data update (any logged-in account of this zone may read it)."""
+    _identity(request)
+    return autocheck.view(_wifi8_root())
+
+
+@router.post("/auto-check")
+async def set_auto_check(body: AutoCheckRequest, request: Request):
+    """Switch the automatic check on or off. Any logged-in account of this zone may; the account is recorded."""
+    _identity(request)
+    if request.headers.get(SETTING_HEADER) != "1":
+        raise HTTPException(status_code=403, detail="Same-origin Wi-Fi8 setting request required")
+    username = _account_name(request)
+    autocheck.write_settings(_wifi8_root(), body.enabled, username)
+    logger.info("wifi8 auto-check %s by %s", "enabled" if body.enabled else "disabled", username)
+    return autocheck.view(_wifi8_root())
 
 
 @router.get("/overview")

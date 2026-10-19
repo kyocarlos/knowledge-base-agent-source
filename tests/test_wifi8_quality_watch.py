@@ -52,6 +52,10 @@ def test_publishing_the_same_package_again_counts_as_a_change():
     assert quality.describe_change("da40", A, B) == "DA40：wifi8-a → wifi8-b"
 
 
+class Sandbox(tuple):
+    """(served, sent, runs) plus the page switches (.enabled) and the statuses written to each zone (.written)."""
+
+
 @pytest.fixture
 def sandbox(tmp_path, monkeypatch):
     monkeypatch.setattr(watch, "ROOT", tmp_path)
@@ -61,7 +65,13 @@ def sandbox(tmp_path, monkeypatch):
     monkeypatch.setattr(watch, "read_current", lambda worker: served[worker])
     sent, runs = [], []
     monkeypatch.setattr(watch, "notify_text", sent.append)
-    return served, sent, runs
+    enabled = {"kb-celery-search": True, "km-da40-celery_search_worker-1": True}
+    written = {}
+    monkeypatch.setattr(watch, "read_enabled", lambda worker: enabled[worker])
+    monkeypatch.setattr(watch, "write_status", lambda worker, status: written.__setitem__(worker, status) or True)
+    box = Sandbox((served, sent, runs))
+    box.enabled, box.written = enabled, written
+    return box
 
 
 def fake_check(monkeypatch, runs, code):
@@ -71,7 +81,7 @@ def fake_check(monkeypatch, runs, code):
     monkeypatch.setattr(watch.subprocess, "run", run)
 
 
-def test_a_new_package_starts_one_check_for_the_changed_zone_only(sandbox, monkeypatch):
+def test_a_new_package_starts_one_check_for_the_changed_zone_only(sandbox, monkeypatch):  # noqa: D103
     served, sent, runs = sandbox
     fake_check(monkeypatch, runs, 3)  # WARN still means the check ran
     monkeypatch.setattr(watch.sys, "argv", ["watch"])
@@ -117,3 +127,37 @@ def test_a_running_check_delays_the_new_one(sandbox, monkeypatch):
         fcntl.flock(held, fcntl.LOCK_EX)
         assert watch.main() == 0 and not runs  # the other check holds the lock
     assert watch.main() == 0 and len(runs) == 1  # runs as soon as the lock is free
+
+
+def test_a_zone_switched_off_on_its_page_is_not_checked_until_it_is_switched_on_again(sandbox, monkeypatch):
+    served, sent, runs = sandbox
+    fake_check(monkeypatch, runs, 0)
+    monkeypatch.setattr(watch.sys, "argv", ["watch"])
+    watch.main()
+    sandbox.enabled["kb-celery-search"] = False
+    served["kb-celery-search"] = B
+    for _ in range(3):
+        watch.main()
+    assert not runs  # switched off: the change is neither polled nor checked
+    assert sandbox.written["kb-celery-search"]["enabled"] is False and sandbox.written["kb-celery-search"]["watching"]["package_id"] == "wifi8-b"
+    assert json.loads(watch.STATE.read_text())["test"]["checked"] == A  # still owed
+    sandbox.enabled["kb-celery-search"] = True
+    watch.main()
+    watch.main()
+    assert len(runs) == 1  # the change made while it was off is checked once it is on again
+
+
+def test_every_run_tells_each_zone_page_that_the_watcher_is_alive_and_what_it_last_did(sandbox, monkeypatch):
+    served, sent, runs = sandbox
+    fake_check(monkeypatch, runs, 0)
+    monkeypatch.setattr(watch.sys, "argv", ["watch"])
+    (watch.ROOT / "latest.json").write_text(json.dumps({"created_utc": "2026-10-19T09:00:00+00:00", "zones": {"test": {"_status": "PASS"}}}))
+    watch.main()
+    status = sandbox.written["kb-celery-search"]
+    assert status["enabled"] is True and status["interval_minutes"] == 5 and status["last_poll_at"] and status["last_check"] is None
+    served["kb-celery-search"] = B
+    watch.main()
+    watch.main()
+    last = sandbox.written["kb-celery-search"]["last_check"]
+    assert last == {"at": "2026-10-19T09:00:00+00:00", "status": "PASS", "package_id": "wifi8-b", "trigger": "package_change"}
+    assert sandbox.written["km-da40-celery_search_worker-1"]["last_check"] is None  # the other zone did not change
