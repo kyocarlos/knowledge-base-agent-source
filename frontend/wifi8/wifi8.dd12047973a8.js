@@ -97,8 +97,8 @@
       ['檢索單位', `${number(counts.chunks_ready)} 個可用／${number(counts.chunks_pending)} 個處理中`],
       ['匯入失敗紀錄', p.failed_jobs ? `${number(p.failed_jobs)} 筆（最近：${escapeHtml((p.latest_failure?.error || '').slice(0, 80))}）` : '無'],
     ];
-    const coverage = (p.metadata_coverage || []).map((m) => `<div class="metric"><div class="metric-copy"><span>${escapeHtml(m.label)}</span><strong>${m.total ? Math.round(m.present / m.total * 100) : 0}%</strong><small>${number(m.present)} / ${number(m.total)} 份有值</small></div></div>`).join('');
-    return panel('資料處理狀態', `<div class="detail-grid">${rows.map(([label, value]) => `<div class="detail-field"><small>${label}</small><strong>${value}</strong></div>`).join('')}</div><h3>metadata 覆蓋率</h3><div class="metric-grid">${coverage}</div>`, '清理、檢索單位、metadata 與失敗');
+    const coverage = (p.metadata_coverage || []).map((m) => `<div class="detail-field"><small>${escapeHtml(m.label)}</small><strong>${m.total ? Math.round(m.present / m.total * 100) : 0}%</strong><small>${number(m.present)} / ${number(m.total)} 份有值</small></div>`).join('');
+    return panel('資料處理狀態', `<div class="detail-grid">${rows.map(([label, value]) => `<div class="detail-field"><small>${label}</small><strong>${value}</strong></div>`).join('')}</div><h3>metadata 覆蓋率</h3><div class="detail-grid">${coverage}</div>`, '清理、檢索單位、metadata 與失敗');
   }
 
   function documentFilters() {
