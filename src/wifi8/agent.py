@@ -29,7 +29,7 @@ SYSTEM_PROMPT = """你是 KM「WiFi 知識專區」的研究助理，可查詢�
 5. 以繁體中文回答；技術名詞、文件名稱、識別碼保持原文。回答先給結論，再列重點與依據。
 6. 工具結果中 figure=true 的段落，是從文件圖片（比較表、時程圖、架構圖、流程圖等）轉出的文字；問題問到圖或表的內容時，優先依據並引用這些段落。
 7. 資料不足或找不到時，只說明已確認什麼、缺什麼；不要補上一般常識、可能原因或建議（例如「費用通常取決於…」「建議向…詢價」）。
-8. 列舉類問題（有哪些、列出所有、有幾份）：先用兩個以上不同的關鍵字（標題用語與內文用語）搜尋，或用 list_documents，再列出。回答要寫明清單的依據（例如「依本次檢索結果」）；除非工具回傳了明確的總數，不要斷言「只有 N 筆」「共 N 筆」，並說明可能未涵蓋全部。"""
+8. 列舉類問題（有哪些、列出所有、有幾份）：先用 find_documents（依文件彙整，一次列出最相關的文件）；必要時再用另一組關鍵字（標題用語與內文用語）補查，或用 list_documents，再列出。回答要寫明清單的依據（例如「依本次檢索結果」）；除非工具回傳了明確的總數，不要斷言「只有 N 筆」「共 N 筆」，並說明可能未涵蓋全部。"""
 
 TOOLS = [
     {"type": "function", "function": {
@@ -42,6 +42,16 @@ TOOLS = [
             "publisher": {"type": "string", "description": "限定發布者，例如 WFA、Broadcom、Qualcomm"},
             "document_role": {"type": "string", "description": "限定文件角色，例如 MRD、Certification Test Case"},
             "all_documents": {"type": "boolean", "description": "題目指名了某份文件（如 PF1 Report）時，預設只搜尋那份文件；設 true 則搜尋全部文件，用於比較或需要其他文件時"},
+        }, "required": ["query"]}}},
+    {"type": "function", "function": {
+        "name": "find_documents",
+        "description": "依文件彙整檢索：用同一套混合檢索掃過大量段落，再按文件排名，回傳最相關的文件清單（每份文件附最相關段落與 matching_chunks＝內文有比對到查詢字詞的段落數）。用於「有哪些文件／論文討論 X」「哪些文件提到 X」這類列舉題；matching_chunks 越大表示該文件越常談到 X。",
+        "parameters": {"type": "object", "properties": {
+            "query": {"type": "string", "description": "主題字詞；技術名詞建議用英文原文，例如 Coordinated Spatial Reuse、DSO"},
+            "limit": {"type": "integer", "minimum": 1, "maximum": 30},
+            "include_history": {"type": "boolean", "description": "是否包含已被取代的舊版本"},
+            "publisher": {"type": "string", "description": "限定發布者，例如 arXiv、WFA、Qualcomm"},
+            "document_role": {"type": "string", "description": "限定文件角色，例如 Research Paper、Meeting Minutes"},
         }, "required": ["query"]}}},
     {"type": "function", "function": {
         "name": "get_document",
@@ -204,6 +214,27 @@ class WifiTools:
                 **({"named_documents_in_question": sorted(set(asked.values())), "note": "is_named_document=false 的結果不是題目指名的文件，不可當作該文件的內容"} if asked else {}),
                 **({"ignored_filters": ignored, "note_filters": "這些篩選值不是專區裡有的值，已忽略；文件角色與發布者可用 zone_overview 查詢"} if ignored else {})}
 
+    def find_documents(self, query: str, limit: int = 15, include_history: bool = False, publisher: str = "", document_role: str = ""):
+        known = {"publisher": {str(d.get("publisher") or "").casefold() for d in self.store.documents()},
+                 "document_role": {str(d.get("document_role") or "").casefold() for d in self.store.documents()}}
+        ignored = {k: v for k, v in (("publisher", publisher), ("document_role", document_role)) if v and str(v).casefold() not in known[k]}
+        options = SearchOptions(include_history=bool(include_history),
+                                publishers=(publisher,) if publisher and "publisher" not in ignored else (),
+                                document_roles=(document_role,) if document_role and "document_role" not in ignored else ())
+        found = self.search_engine.documents(query, options, limit=max(1, min(int(limit or 15), 30)))
+        rows = []
+        for entry in found["results"]:
+            item = entry["best"]
+            ref = self._cite(item)
+            rows.append({"ref": ref, "title": item["source"], "revision_id": item["revision_id"], "publisher": item.get("publisher"),
+                         "document_role": item.get("document_role"), "document_date": item.get("document_date"),
+                         "current_version": item["analysis_eligible"], "matching_chunks": entry["matching_chunks"],
+                         "best_location": item["location_label"], **({"figure": True} if item.get("image") else {}),
+                         **_text_fields(item, query, min(self.settings.snippet_chars, 400))})
+        return {"filters": found["filters"], "documents": rows, "count": len(rows), "documents_found": found["documents_found"],
+                "note": "依相關度排序；清單是檢索結果，不保證涵蓋專區所有相關文件（matching_chunks 低的文件可能只是順帶提到）",
+                **({"ignored_filters": ignored} if ignored else {})}
+
     def get_document(self, revision_id: str = "", wfa_document_id: str = ""):
         if revision_id:
             rows = self._doc_rows(revision_id=revision_id)
@@ -277,7 +308,7 @@ class WifiTools:
                 "top_topics": topics.most_common(20)}
 
     def call(self, name: str, arguments: dict[str, Any]) -> dict[str, Any]:
-        handler = {"search_wifi": self.search_wifi, "get_document": self.get_document, "list_versions": self.list_versions,
+        handler = {"search_wifi": self.search_wifi, "find_documents": self.find_documents, "get_document": self.get_document, "list_versions": self.list_versions,
                    "read_document": self.read_document, "list_documents": self.list_documents,
                    "zone_overview": self.zone_overview}.get(name)
         if handler is None:

@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import os
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any, Callable
 
 from . import store as store_module
@@ -51,6 +51,10 @@ _WFA_ID = re.compile(r"(?<!\d)\d{5,6}(?!\d)")
 # Scores are compared at this precision: the same chunk scores 24.407490 in one Qdrant and 24.407488 in another
 # (float sums in a different segment order), which would otherwise decide the order of equally relevant chunks.
 SCORE_DECIMALS = 4
+# documents(): a document's rank is its three best chunk scores plus this much per chunk that matched the query words, so a paper
+# that talks about the topic on every page is not outranked by one with a single strong chunk (golden check 2026-10-19, five topic
+# questions: recall@10 0.84 -> 0.89, @5 0.43 -> 0.62).
+LEXICAL_CHUNK_BONUS = 0.003
 # Extra candidates fetched beyond ``options.candidates`` so that chunks tied at the cut-off are chosen by id here
 # rather than by whichever the server happened to return first.
 CANDIDATE_MARGIN = 25
@@ -220,6 +224,39 @@ class Wifi8Search:
                 "filters": {"publishers": list(options.publishers), "document_roles": list(options.document_roles),
                             "revision_ids": list(options.revision_ids)[:20], "include_history": options.include_history},
                 "results": results}
+
+    def documents(self, query: str, options: SearchOptions | None = None, *, limit: int = 15, candidates: int = 200) -> dict[str, Any]:
+        """Documents ranked by how much of them the query matches: the hybrid retrieval over a wide candidate pool, grouped per
+        document. For "which documents discuss X" a per-document cap on chunks (``search``) hides papers that talk about X on every
+        page behind documents with one strong chunk; here every candidate chunk counts towards its document."""
+        documents = self._documents()
+        options = self._resolve(query, replace(options or SearchOptions(), candidates=candidates), documents)
+        lexical, vector = self.lexical(query, options), self.vector(query, options)
+        scores: dict[str, float] = {}
+        for ranking in (lexical, vector):
+            for rank, point_id in enumerate(ranking, 1):
+                scores[point_id] = scores.get(point_id, 0.0) + 1.0 / (RRF_K + rank)
+        chunks = self.chunks(list(scores))
+        in_lexical = set(lexical)
+        grouped: dict[str, list[str]] = {}
+        for point_id in sorted(scores, key=lambda pid: (-scores[pid], pid)):
+            if point_id in chunks:
+                grouped.setdefault(chunks[point_id]["revision_id"], []).append(point_id)
+        ranked = []
+        for revision_id, point_ids in grouped.items():
+            ranked.append({
+                "revision_id": revision_id,
+                "score": round(sum(scores[pid] for pid in point_ids[:3]) + LEXICAL_CHUNK_BONUS * sum(1 for pid in point_ids if pid in in_lexical),
+                               SCORE_DECIMALS),
+                "matching_chunks": sum(1 for pid in point_ids if pid in in_lexical),
+                "candidate_chunks": len(point_ids),
+                "best": chunks[point_ids[0]],
+            })
+        ranked.sort(key=lambda r: (-r["score"], r["revision_id"]))
+        return {"query": query, "package_id": self.package_id, "candidates": len(scores), "documents_found": len(ranked),
+                "filters": {"publishers": list(options.publishers), "document_roles": list(options.document_roles),
+                            "include_history": options.include_history},
+                "results": ranked[: max(1, int(limit))]}
 
     def _rerank(self, query: str, ordered: list[str], chunks: dict[str, dict[str, Any]]) -> dict[str, float]:
         """Cross-encoder scores for the top fused candidates (title + query-focused excerpt)."""
