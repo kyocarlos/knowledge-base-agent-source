@@ -365,3 +365,17 @@ def test_same_package_is_reimported_for_a_newer_display_version(env):
     table = [p.payload for p in client.scroll("wifi8_test", limit=100, with_payload=True)[0] if p.payload["revision_id"] == "new"]
     assert table and table[0]["display_text"].startswith("| H1 | H2 |")
     assert importer.current()["display_version"] >= 1
+
+
+def test_rejected_upload_stays_visible_in_the_job_list(api, monkeypatch):
+    client, state, enqueued, tmp_path = api
+    monkeypatch.setenv("KM_WIFI8_IMPORT_USERS", "*")
+    bad = {"file": ("broken.zip", b"not a zip", "application/zip")}
+    response = client.post("/api/wifi8/packages", files=bad, headers={"x-km-wifi8-import": "1"})
+    assert response.status_code == 422 and "匯出包驗證失敗" in response.json()["detail"]
+    jobs = client.get("/api/wifi8/jobs").json()
+    assert [j["status"] for j in jobs["jobs"]] == ["failed"] and jobs["active_job"] is None
+    failed = jobs["jobs"][0]
+    assert failed["phase"] == "validate" and failed["submitted_by"] == "km-clude1" and "broken.zip" in failed["message"]
+    assert "匯出包驗證失敗" in failed["error"] and not enqueued  # no work was queued, nothing is locked
+    assert not (tmp_path / "wifi8" / "import.lock").exists()

@@ -75,3 +75,14 @@ def test_jobs_and_authentication(monkeypatch, engine):  # noqa: F811
     assert anonymous.get("/api/wifi8/overview").status_code == 401
     assert anonymous.get("/api/wifi8/documents").status_code == 401
     assert anonymous.post("/api/wifi8/search", json={"query": "ELR"}).status_code == 401
+
+
+def test_overview_reports_processing_state(monkeypatch, engine):  # noqa: F811
+    body = make_client(monkeypatch, engine).get("/api/wifi8/overview").json()
+    processing = body["processing"]
+    assert dict(processing["text_status"]) == {"indexed": 5}
+    coverage = {m["field"]: m for m in processing["metadata_coverage"]}
+    assert coverage["title"]["present"] == coverage["title"]["total"] == 5
+    assert coverage["wfa_document_id"]["present"] < 5  # only some test documents carry a WFA id
+    assert processing["failed_jobs"] == 0 and processing["latest_failure"] is None
+    assert body["counts"]["chunks_pending"] == 0
