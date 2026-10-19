@@ -212,7 +212,7 @@ tbody tr:hover { background: rgba(127,255,227,.05); }
 .g-flags code.other_source { background: rgba(255,200,87,.14); color: #ffd98a; }
 .g-flags small { color: var(--muted); }
 .g-reason { padding: 1px 7px; border-radius: 999px; background: rgba(255,200,87,.14); color: #ffd98a; }
-.g-reason.no_source, .g-reason.value_not_found { background: rgba(255,120,120,.14); color: #ffb3b3; }
+.g-reason.no_source, .g-reason.value_not_found, .g-reason.value_not_in_cited, .g-reason.source_name_mismatch { background: rgba(255,120,120,.14); color: #ffb3b3; }
 .job-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .job-head strong { color: #dffaff; }
 .job-meta { margin-top: 6px; color: var(--muted); }

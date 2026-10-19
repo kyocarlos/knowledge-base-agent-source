@@ -12,6 +12,13 @@ Plain code, no model judges. For every technical sentence ("claim") of the answe
                 (embedding model of the zone). Off by default: on the 2026-10-17 calibration
                 (Chinese answers, mostly English sources) it barely separated cited from
                 unrelated text, so it is not shown to users.
+* assigned numbers -- the short numbers a claim assigns to a label ("2.4G：6", "UHR-4.5.2：25，30，30") are
+                not values above (too short to be ids), yet they are what a table answer is made of. For a cited
+                claim each must appear in the cited chunks (verified), in another cited chunk (other_source) or it
+                is not_in_cited -- the answer states a figure its own citation does not show.
+* source names -- a document name such as PF1 / EE1 that the claim (or, for a bare list item, the question) names
+                and that is the name of a document seen in this run must be in the title or text of the chunks the
+                claim cites; otherwise the claim quotes another document than the one it names.
 Plus the authority of the cited sources (WFA, current version).
 """
 from __future__ import annotations
@@ -22,7 +29,7 @@ from dataclasses import dataclass
 from typing import Any, Callable
 
 from .excerpt import _SENTENCE
-from .lexical import query_terms, tokens
+from .lexical import query_terms, text_codes, title_codes, tokens
 
 Encoder = Callable[[list[str]], list[list[float]]]
 
@@ -40,6 +47,8 @@ _VALUE = re.compile(
     rf"|(?P<dotted>{_A}\d+(?:\.\d+)+)"
     rf"|(?P<integer>{_A}\d{{3,}}{_Z})"
 )
+# "2.4G：6"  "UHR-4.5.2: 25、30、30"  "x = 12": numbers right after a label separator, up to a list of them (not dates: 2026/08/03).
+_ASSIGNED = re.compile(r"[：:=]\s*\**(?P<n>\d+(?:\.\d+)?(?:\s*[,，、]\s*\d+(?:\.\d+)?)*)(?![\d.]*(?:\s*[A-Za-z%μ]|[-/][A-Za-z0-9]))")
 _DASHES = str.maketrans({**{c: "-" for c in "‐‑‒–—−﹣－"}, "×": "x"})
 
 
@@ -171,6 +180,19 @@ def extract_values(text: str) -> list[str]:
     return list(dict.fromkeys(values))
 
 
+def assigned_numbers(text: str) -> list[str]:
+    """Numbers a claim assigns to a label ("2.4G：6", "UHR-4.5.2：25，30，30"); units and ids are extract_values' job."""
+    found = []
+    for match in _ASSIGNED.finditer(str(text or "").translate(_DASHES)):
+        found.extend(n.strip() for n in re.split(r"[,，、]", match.group("n")) if n.strip())
+    return list(dict.fromkeys(found))
+
+
+def source_names(text: str) -> set[str]:
+    """Short document names (pf1, ee1 ...) in a claim, question or chunk; [S#] references are not names."""
+    return text_codes(_REF.sub("", str(text or "")))
+
+
 def _value_in(token: str, normalized_text: str) -> bool:
     key = re.sub(r"\s+", "", _norm(token))
     # Numbers must not match inside longer numbers ("5ghz" in "15ghz"); ids not inside longer ids.
@@ -199,14 +221,16 @@ def _closest_by_terms(claim: str, sentences: list[str], limit: int) -> list[str]
 
 
 def check_answer(answer: str, sources: dict[str, dict[str, Any]], *, context: str = "", encoder: Encoder | None = None,
-                 settings: GroundingSettings | None = None) -> dict[str, Any]:
-    """`sources` maps ref -> {"text": full chunk text, "publisher", "analysis_eligible", ...};
-    `context` is everything else the agent saw (question and tool results)."""
+                 settings: GroundingSettings | None = None, question: str = "") -> dict[str, Any]:
+    """`sources` maps ref -> {"text": full chunk text, "source": title, "publisher", "analysis_eligible", ...};
+    `context` is everything else the agent saw (question and tool results); `question` is the user's question."""
     settings = settings or GroundingSettings()
     claims = split_claims(answer, settings.min_claim_chars)[: settings.max_claims]
     normalized = {ref: _norm(src.get("text") or "") for ref, src in sources.items()}
     tool_data = _norm(context)
     all_cited = list(dict.fromkeys(ref for c in claims for ref in c["refs"] if ref in sources))
+    seen_names = set().union(*(title_codes(src.get("source")) for src in sources.values())) if sources else set()
+    question_names = source_names(question) & seen_names
 
     for claim in claims:
         claim["refs"] = [ref for ref in claim["refs"] if ref in sources]
@@ -218,6 +242,17 @@ def check_answer(answer: str, sources: dict[str, dict[str, Any]], *, context: st
                            for v in extract_values(claim["text"])]
         # Uncited statements whose every value is in the evidence (e.g. a version table built from
         # list_versions) are supported by tool data rather than unsupported.
+        if claim["refs"]:  # the short numbers of a table-like answer must be in what the claim cites
+            known = [v["value"] for v in claim["values"]]
+            for number in assigned_numbers(claim["text"]):
+                if any(k.startswith(number) for k in known):
+                    continue
+                claim["values"].append({"value": number, "status": "verified" if _value_in(number, own)
+                                        else "other_source" if other and _value_in(number, other) else "not_in_cited"})
+        cited_text = " ".join(f"{sources[ref].get('source') or ''} {sources[ref].get('text') or ''}" for ref in claim["refs"])
+        # A name in the claim, else the single document name the question asks about (a list item rarely repeats it).
+        named = (source_names(claim["text"]) & seen_names) or (question_names if len(question_names) == 1 else set())
+        claim["names_missing"] = sorted(n.upper() for n in named - source_names(cited_text)) if claim["refs"] else []
         claim["support"] = ("citation" if claim["refs"] else
                             "tool_data" if claim["values"] and all(v["status"] != "not_found" for v in claim["values"]) else "none")
 
@@ -240,6 +275,8 @@ def check_answer(answer: str, sources: dict[str, dict[str, Any]], *, context: st
         "values_verified": sum(v["status"] == "verified" for v in values),
         "values_other_source": sum(v["status"] == "other_source" for v in values),
         "values_tool_data": sum(v["status"] == "tool_data" for v in values),
+        "values_not_in_cited": sum(v["status"] == "not_in_cited" for v in values),
+        "claims_source_mismatch": sum(1 for c in claims if c["names_missing"]),
         "values_not_found": sum(v["status"] == "not_found" for v in values),
         "similarity": {level: levels.count(level) for level in ("high", "medium", "low", "none", "unknown") if level in levels},
         "sources": {"total": len(cited_sources),
@@ -251,8 +288,11 @@ def check_answer(answer: str, sources: dict[str, dict[str, Any]], *, context: st
     flagged = [{"text": c["text"][:240], "refs": c["refs"],
                 "reasons": [r for r, hit in (("no_source", c["support"] == "none"),
                                              ("value_not_found", any(v["status"] == "not_found" for v in c["values"])),
+                                             ("value_not_in_cited", any(v["status"] == "not_in_cited" for v in c["values"])),
+                                             ("source_name_mismatch", bool(c["names_missing"])),
                                              ("low_similarity", c["similarity_level"] == "low")) if hit],
-                "values": [v for v in c["values"] if v["status"] == "not_found"],
+                "values": [v for v in c["values"] if v["status"] in ("not_found", "not_in_cited")],
+                "names": c["names_missing"],
                 "similarity": c.get("similarity")}
                for c in claims]
     return {"summary": summary, "flagged": [f for f in flagged if f["reasons"]],

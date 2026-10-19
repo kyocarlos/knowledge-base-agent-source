@@ -58,6 +58,7 @@ def summarize_trust(records: list[dict[str, Any]]) -> dict[str, Any]:
         "grounding_error_rate": _ratio(sum(1 for r in records if r.get("grounding_error")), len(records)),
         "values_not_found_rate": _ratio(g("values_not_found"), values),
         "answers_with_value_not_found_rate": _ratio(sum(1 for r in graded if r["grounding"].get("values_not_found")), len(graded)),
+        "answers_with_cited_mismatch_rate": _ratio(sum(1 for r in graded if r["grounding"].get("values_not_in_cited") or r["grounding"].get("claims_source_mismatch")), len(graded)),
         "unsupported_claim_rate": _ratio(claims - supported, claims),
         "wfa_source_share": _ratio(sum(s.get("wfa", 0) for s in sources), sum(s.get("total", 0) for s in sources)),
         "current_source_share": _ratio(sum(s.get("current", 0) for s in sources), sum(s.get("total", 0) for s in sources)),

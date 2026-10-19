@@ -54,6 +54,13 @@ CASES = [
                   ("來源待確認 - Wi-Fi 8 - 建立超可靠Wi-Fi通信時代", 12, {"page": 4}),
                   ("eefocue-與非網 - Wi-Fi 8，玩出新花樣！", 1, {"paragraph": 18})],
          facts=[["320"], ["23Gbps", "23Gb"], ["4096"]]),
+    # PF1 與 EE1 兩份報告的結果表長得幾乎一樣、數字不同：問題指名哪一份，答案就必須是那一份的數字。
+    dict(id="F10", question="Wi-Fi 8 PF1 Report 的 STAUT 結果表中，UHR-5.4.1 在 2.4G、5G、6G 的數值各是多少？",
+         figures=[("WFA - Wi-Fi 8 PF1 Report", 2, {"slide": 7})],
+         facts=[["18"], ["35"]]),
+    dict(id="F11", question="Wi-Fi 8 PF1 Report 的 STAUT 結果表中，UHR-5.5.1 在 2.4G、5G、6G 的數值各是多少？",
+         figures=[("WFA - Wi-Fi 8 PF1 Report", 2, {"slide": 7})],
+         facts=[["30"], ["35"]]),
 ]
 
 

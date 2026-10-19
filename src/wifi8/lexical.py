@@ -23,6 +23,19 @@ STOPWORDS = frozenset({
 _CJK_STOPWORDS = sorted((w for w in STOPWORDS if _CJK.fullmatch(w)), key=len, reverse=True)
 K1, B = 1.2, 0.75
 
+# Short names that tell sibling documents apart (PF1 Report / EE1 Report). In a title they are upper-case letters then
+# digits, so version labels (v1, Rev2, Part2) are not names; a user may type them in any case.
+_TITLE_CODE = re.compile(r"(?<![A-Za-z0-9-])[A-Z]{2,5}\d{1,3}(?![A-Za-z0-9])")
+_TEXT_CODE = re.compile(r"(?<![A-Za-z0-9-])[A-Za-z]{2,5}\d{1,3}(?![A-Za-z0-9])")
+
+
+def title_codes(title: str) -> set[str]:
+    return {c.casefold() for c in _TITLE_CODE.findall(str(title or ""))}
+
+
+def text_codes(text: str) -> set[str]:
+    return {c.casefold() for c in _TEXT_CODE.findall(str(text or ""))}
+
 
 def _latin(token: str) -> list[str]:
     token = token.casefold().rstrip(".+/_-")

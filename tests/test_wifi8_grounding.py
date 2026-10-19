@@ -162,3 +162,55 @@ def test_fenced_code_blocks_are_not_claims():
 def test_unclosed_fence_hides_the_rest_but_does_not_fail():
     texts = [c["text"] for c in split_claims("第一句說明 DBE 的頻寬擴展用途。[S1]\n```\n未關閉的程式碼區塊內容")]
     assert texts == ["第一句說明 DBE 的頻寬擴展用途。"]
+
+
+PF1_EE1 = {
+    "S1": {"source": "WFA - Wi-Fi 8 PF1 Report", "text": "【圖片】Results: APUT\nUHR-4.5.2_24G | G1 | 25\nUHR-4.5.2_5G | G1 | 30\nUHR-4.5.2_6G | G1 | 30"},
+    "S2": {"source": "WFA - Wi-Fi 8 EE1 Report", "text": "【圖片】Results: APUT\nUHR-4.5.2_24G | G1 | 6\nUHR-4.5.2_5G | G1 | 9\nUHR-4.5.2_6G | G1 | 9"},
+    "S3": {"source": "WFA - Wi-Fi 8 PF1 Report", "text": "Results: APUT"},
+}
+PF1_QUESTION = "Wi-Fi 8 PF1 Report 的 APUT 結果表中，UHR-4.5.2 在 2.4G、5G、6G 的數值各是多少？"
+
+
+def _table_answer(ref, intro="Wi-Fi 8 PF1 Report 的 UHR-4.5.2 數值為："):
+    return f"{intro}\n- **2.4G：{{a}}** [{ref}]\n- **5G：{{b}}** [{ref}]\n- **6G：{{b}}** [{ref}]"
+
+
+def test_assigned_numbers_are_numbers_after_a_label():
+    from src.wifi8.grounding import assigned_numbers
+    assert assigned_numbers("2.4G：6") == ["6"]
+    assert assigned_numbers("UHR-4.5.2: 25、30、30") == ["25", "30"]
+    assert assigned_numbers("最大頻寬：320 MHz，調變：4096-QAM") == []  # units and ids belong to extract_values
+    assert assigned_numbers("沒有標籤的 6 與 9") == []
+    assert assigned_numbers("舉行時間：2026/08/03–2026/08/14。") == []  # dates are not assigned numbers
+    assert assigned_numbers("比例：3/4") == []
+
+
+def test_numbers_the_cited_chunk_does_not_show_are_flagged():
+    wrong = _table_answer("S3").format(a=6, b=9)  # PF1 slide text only says "Results: APUT"
+    result = check_answer(wrong, PF1_EE1, question=PF1_QUESTION)
+    assert result["summary"]["values_not_in_cited"] == 3
+    flagged = {f["text"]: f["reasons"] for f in result["flagged"]}
+    assert all("value_not_in_cited" in flagged[t] for t in flagged if t.endswith(("：6", "：9")))
+    right = check_answer(_table_answer("S1").format(a=25, b=30), PF1_EE1, question=PF1_QUESTION)
+    assert right["summary"]["values_not_in_cited"] == 0
+    assert not any(r in f["reasons"] for f in right["flagged"] for r in ("value_not_in_cited", "source_name_mismatch"))
+
+
+def test_a_claim_naming_one_document_but_citing_another_is_flagged():
+    wrong = _table_answer("S2").format(a=6, b=9)  # the numbers are in S2, but S2 is the EE1 report
+    result = check_answer(wrong, PF1_EE1, question=PF1_QUESTION)
+    assert result["summary"]["claims_source_mismatch"] == 3  # the list items take the name from the question
+    item = next(f for f in result["flagged"] if f["text"].endswith("：6"))
+    assert "source_name_mismatch" in item["reasons"] and item["names"] == ["PF1"]
+    intro = next(c for c in result["claims"] if c["text"].startswith("Wi-Fi 8 PF1 Report"))
+    assert intro["refs"] == []  # the lead-in is not itself cited; only the cited rows are compared
+
+
+def test_document_names_not_seen_in_this_run_or_found_in_the_chunk_are_not_mismatches():
+    sources = {"S1": {"source": "WFA - Wi-Fi 8 Test Plan", "text": "AP1 and AP2 run EE1 test cases."},
+               "S2": {"source": "WFA - Wi-Fi 8 PF1 Report", "text": "x"}}
+    answer = "EE1 測項由 AP1 與 AP2 執行 [S1]。"  # EE1 is in no title, AP1 is not a document name
+    assert check_answer(answer, sources)["summary"]["claims_source_mismatch"] == 0
+    two = "此測項屬於 PF1 Report 的範圍，需要 AP1 與 AP2 同時參與 [S1]。"  # PF1 is a document name, S1 is not that document
+    assert check_answer(two, sources)["summary"]["claims_source_mismatch"] == 1

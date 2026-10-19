@@ -14,7 +14,7 @@ from typing import Any, Callable
 
 from . import store as store_module
 from .excerpt import excerpt
-from .lexical import query_terms, query_vector
+from .lexical import query_terms, query_vector, text_codes, title_codes
 
 RRF_K = 60
 # Figure chunks (text made from images) compete with the document text; their fused score is scaled so a related
@@ -29,6 +29,13 @@ DEFAULT_FIGURE_TERMS = (
     "比較表", "對照表", "表格", "圖表", "圖片", "圖中", "圖示", "示意圖", "架構圖", "流程圖", "時程圖", "時序圖", "時間軸",
     "截圖", "投影片中的圖", "figure", "diagram", "chart", "timeline", "table",
 )
+
+
+# A question that names a document by its short name ("PF1 Report", "EE1 Report") also matches sibling documents whose
+# slides, tables and figure texts are alike but carry other numbers. Chunks of the named documents have their fused
+# score multiplied by this weight (1.0 disables it). A name counts only when it is in at most MAX_NAMED_DOCUMENTS titles.
+DEFAULT_TITLE_MATCH_WEIGHT = 1.3  # golden set 2026-10-19: hit@10 unchanged, MRR 0.804 -> 0.817, PF1 result table rank 5 -> 2
+MAX_NAMED_DOCUMENTS = 10
 
 
 def figure_intent(text: str, terms: tuple[str, ...] = DEFAULT_FIGURE_TERMS) -> bool:
@@ -66,6 +73,7 @@ class SearchOptions:
     document_roles: tuple[str, ...] = ()
     revision_ids: tuple[str, ...] = ()
     figure_focus: bool | None = None  # None: decided from the query text (figure_intent)
+    context: str = ""  # the user's question when ``query`` is the agent's own rewrite; document names in it count too
 
 
 class SearchUnavailable(RuntimeError):
@@ -76,8 +84,9 @@ class Wifi8Search:
     def __init__(self, store: store_module.Wifi8Store, *, qdrant=None,
                  encoder: Callable[[list[str]], list[list[float]]] | None = None, reranker=None,
                  image_weight: float = 1.0, exact: bool = False, figure_weight: float | None = None,
-                 figure_terms: tuple[str, ...] = DEFAULT_FIGURE_TERMS):
+                 figure_terms: tuple[str, ...] = DEFAULT_FIGURE_TERMS, title_weight: float = DEFAULT_TITLE_MATCH_WEIGHT):
         self.store = store
+        self.title_weight = title_weight
         self.image_weight = image_weight
         self.figure_weight = image_weight if figure_weight is None else figure_weight
         self.figure_terms = figure_terms
@@ -105,8 +114,9 @@ class Wifi8Search:
         exact = os.getenv("KM_WIFI8_VECTOR_EXACT", str(DEFAULT_VECTOR_EXACT)).strip().lower() in ("1", "true", "yes", "on")
         figure_weight = float(os.getenv("KM_WIFI8_IMAGE_FOCUS_WEIGHT", str(DEFAULT_FIGURE_FOCUS_WEIGHT)))
         terms = tuple(t.strip() for t in os.getenv("KM_WIFI8_FIGURE_TERMS", "").split(",") if t.strip()) or DEFAULT_FIGURE_TERMS
+        title_weight = float(os.getenv("KM_WIFI8_TITLE_MATCH_WEIGHT", str(DEFAULT_TITLE_MATCH_WEIGHT)))
         return cls(package, encoder=encoder, reranker=reranker, image_weight=image_weight, exact=exact,
-                   figure_weight=figure_weight, figure_terms=terms)
+                   figure_weight=figure_weight, figure_terms=terms, title_weight=title_weight)
 
     # ---- filters ------------------------------------------------------
     def _documents(self) -> dict[str, dict[str, Any]]:
@@ -122,6 +132,21 @@ class Wifi8Search:
         for wfa_id in _WFA_ID.findall(query):
             revisions |= {rid for rid, d in documents.items() if str(d.get("wfa_document_id") or "") == wfa_id}
         return SearchOptions(**{**options.__dict__, "publishers": tuple(sorted(publishers)), "revision_ids": tuple(sorted(revisions))})
+
+    def named_documents(self, query: str, documents: dict[str, dict[str, Any]] | None = None) -> dict[str, str]:
+        """{revision_id: title} of the documents whose title carries a short name (PF1, EE1 ...) that the query also contains."""
+        wanted = text_codes(query)
+        if not wanted:
+            return {}
+        documents = self._documents() if documents is None else documents
+        by_code: dict[str, set[str]] = {}
+        for revision_id, doc in documents.items():
+            if not doc.get("analysis_eligible"):
+                continue  # superseded versions share the name; the current one is what a question means
+            for code in title_codes(doc.get("title")) & wanted:
+                by_code.setdefault(code, set()).add(revision_id)
+        ids = set().union(*(ids for ids in by_code.values() if len(ids) <= MAX_NAMED_DOCUMENTS)) if by_code else set()
+        return {rid: documents[rid].get("title") or rid for rid in ids}
 
     def _filter(self, options: SearchOptions):
         from qdrant_client.models import FieldCondition, MatchAny
@@ -156,7 +181,8 @@ class Wifi8Search:
 
     # ---- fusion -------------------------------------------------------
     def search(self, query: str, options: SearchOptions | None = None) -> dict[str, Any]:
-        options = self._resolve(query, options or SearchOptions(), self._documents())
+        documents = self._documents()
+        options = self._resolve(query, options or SearchOptions(), documents)
         lexical = self.lexical(query, options)
         vector = self.vector(query, options)
         scores: dict[str, float] = {}
@@ -170,6 +196,10 @@ class Wifi8Search:
             for point_id, chunk in chunks.items():
                 if chunk.get("image"):
                     scores[point_id] *= weight
+        named = self.named_documents(f"{query} {options.context}", documents) if self.title_weight != 1.0 else set()
+        for point_id, chunk in chunks.items():
+            if chunk["revision_id"] in named:
+                scores[point_id] *= self.title_weight
         ordered = sorted(scores, key=lambda pid: (-scores[pid], pid))
         rerank_scores = self._rerank(query, [pid for pid in ordered if pid in chunks], chunks)
         if rerank_scores:
