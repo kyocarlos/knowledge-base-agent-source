@@ -1581,7 +1581,7 @@
     },
     {
       "path": "src/wifi8/agent.py",
-      "sha256": "4297df5f694b8b19c1b3cf707b96c4e3740e37c49007781e304c3f571b99a9fd"
+      "sha256": "84503182bc57a120887e006666e9d7de8718f82ebb5e4415be9ae631f5329566"
     },
     {
       "path": "src/wifi8/chunks.py",
@@ -2017,7 +2017,7 @@
     },
     {
       "path": "tests/test_wifi8_search.py",
-      "sha256": "59693bccf58b22c3366c65562ca78abd0370730de7b38eecc6928eaf8441d2e9"
+      "sha256": "ba0d1b50d07daac89f654ae741ef22d838631a6af2c4c8b00c4440bab3d0eb85"
     },
     {
       "path": "tests/test_wp0_api_contract.py",

@@ -162,6 +162,15 @@ class WifiTools:
 
     def search_wifi(self, query: str, top_k: int = 6, include_history: bool = False, publisher: str = "", document_role: str = "",
                     all_documents: bool = False):
+        # A filter value that is not one the zone has (the model passing "PF1 Report" as a document role) matches nothing and the
+        # model then drops its protections; it is ignored and reported instead (2026-10-19: F10 returned 0 hits, then all_documents=true).
+        ignored = {}
+        documents = self.store.documents()
+        for name, value, field in (("publisher", publisher, "publisher"), ("document_role", document_role, "document_role")):
+            if value and str(value).casefold() not in {str(d.get(field) or "").casefold() for d in documents}:
+                ignored[name] = value
+        publisher = "" if "publisher" in ignored else publisher
+        document_role = "" if "document_role" in ignored else document_role
         # A question about a figure or table keeps favouring figure chunks even when the model's own query drops those words.
         focus = True if figure_intent(self.question, self.search_engine.figure_terms) else None
         options = SearchOptions(top_k=max(1, min(int(top_k or 6), 12)), include_history=bool(include_history),
@@ -179,15 +188,19 @@ class WifiTools:
         if not scoped:
             result = self.search_engine.search(query, options)
         hits = []
+        asked = self.search_engine.named_documents(self.question) if not scoped else {}
         for item in result["results"]:
             ref = self._cite(item)
             hits.append({"ref": ref, "title": item["source"], "revision_id": item["revision_id"], "location": item["location_label"],
                          **({"figure": True} if item.get("image") else {}),
+                         **({"is_named_document": item["revision_id"] in asked} if asked else {}),
                          "chunk_index": item["chunk_index"], "current_version": item["analysis_eligible"],
                          "wfa_document_id": item.get("wfa_document_id"), "publisher": item.get("publisher"),
                          **_text_fields(item, query, self.settings.snippet_chars)})
         return {"filters": result["filters"], "hits": hits, "count": len(hits),
-                **({"scope": {"documents": scoped, "note": "題目指名這些文件，只搜尋它們；要搜尋全部文件請設 all_documents=true"}} if scoped else {})}
+                **({"scope": {"documents": scoped, "note": "題目指名這些文件，只搜尋它們；要搜尋全部文件請設 all_documents=true"}} if scoped else {}),
+                **({"named_documents_in_question": sorted(set(asked.values())), "note": "is_named_document=false 的結果不是題目指名的文件，不可當作該文件的內容"} if asked else {}),
+                **({"ignored_filters": ignored, "note_filters": "這些篩選值不是專區裡有的值，已忽略；文件角色與發布者可用 zone_overview 查詢"} if ignored else {})}
 
     def get_document(self, revision_id: str = "", wfa_document_id: str = ""):
         if revision_id:

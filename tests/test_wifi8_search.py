@@ -215,3 +215,25 @@ def test_scoped_agent_search_does_not_downweight_figure_chunks(siblings):
     tools.question = "APUT 結果"
     tools.search_wifi("APUT results")
     assert seen[-1].figure_focus is None and not seen[-1].revision_ids
+
+
+def test_unknown_filter_values_are_ignored_instead_of_returning_nothing(siblings):
+    from src.wifi8.agent import AgentSettings, CitationRegistry, WifiTools
+    tools = WifiTools(siblings, AgentSettings(), CitationRegistry())
+    tools.question = "PF1 Report 的 APUT 結果"
+    result = tools.search_wifi("APUT results", document_role="PF1 Report", publisher="No Such Vendor")
+    assert result["ignored_filters"] == {"document_role": "PF1 Report", "publisher": "No Such Vendor"} and result["count"] > 0
+    known = tools.search_wifi("APUT results", publisher="WFA")
+    assert "ignored_filters" not in known and known["count"] > 0
+
+
+def test_results_say_whether_they_are_the_document_the_question_names_when_the_search_is_not_scoped(siblings):
+    from src.wifi8.agent import AgentSettings, CitationRegistry, WifiTools
+    tools = WifiTools(siblings, AgentSettings(), CitationRegistry())
+    tools.question = "PF1 Report 的 APUT 結果"
+    wide = tools.search_wifi("APUT UHR-4.5.2 results", all_documents=True)
+    flags = {h["title"]: h["is_named_document"] for h in wide["hits"]}
+    assert flags["WFA - Wi-Fi 8 PF1 Report"] is True and flags["WFA - Wi-Fi 8 EE1 Report"] is False
+    assert wide["named_documents_in_question"] == ["WFA - Wi-Fi 8 PF1 Report"]
+    scoped = tools.search_wifi("APUT UHR-4.5.2 results")
+    assert "is_named_document" not in scoped["hits"][0]  # everything in scope is the named document
