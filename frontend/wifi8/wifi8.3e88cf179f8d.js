@@ -230,7 +230,7 @@
     return `<li class="${image ? 'citation-figure' : ''}">${thumb}<div><strong>[${escapeHtml(item.ref || index + 1)}]</strong> <span title="${escapeHtml(item.revision_id)}">${escapeHtml(hitTitle(item))}</span><div class="citation-meta">${badge}${place}${meta ? `<small>${escapeHtml(meta)}</small>` : ''}</div></div></li>`;
   }
   // Grounding check computed by the worker against the full text of the cited chunks (absent on older answers).
-  const groundingReasons = { no_source: '未附來源', value_not_found: '數值在資料中找不到', value_other_source: '數值出現在其他引用', low_similarity: '與原文相似度低' };
+  const groundingReasons = { no_source: '未附來源', value_not_found: '數值在資料中找不到', value_other_source: '數值出現在其他引用', value_not_in_cited: '數值不在引用的段落', source_name_mismatch: '引用的不是題目指名的文件', low_similarity: '與原文相似度低' };
   function groundingChip(label, text, tone) { return `<span class="g-chip ${tone}"><small>${label}</small>${escapeHtml(text)}</span>`; }
   function groundingPanel(grounding) {
     if (!grounding) return '';
@@ -247,7 +247,7 @@
       s.similarity_enabled && (sim.high || sim.medium || sim.low) ? groundingChip('原文相似度', `高 ${sim.high || 0}・中 ${sim.medium || 0}・低 ${sim.low || 0}`, sim.low ? 'warn' : 'ok') : '',
       s.sources && s.sources.total ? groundingChip('引用來源', `${s.sources.wfa} 份 WFA・${s.sources.current}/${s.sources.total} 份目前版本`, s.sources.current === s.sources.total ? 'ok' : 'warn') : '',
     ].join('');
-    const items = flagged.map((f) => `<li><p>${escapeHtml(f.text)}${(f.refs || []).length ? ` <span class="cite-ref">[${escapeHtml(f.refs.join('][')) }]</span>` : ''}</p><div>${(f.reasons || []).map((r) => `<span class="g-reason ${r}">${escapeHtml(groundingReasons[r] || r)}</span>`).join('')}${(f.values || []).map((v) => `<code class="${v.status}" title="${v.status === 'not_found' ? '在 Agent 取得的資料中找不到' : '出現在其他引用，不在本句引用的段落'}">${escapeHtml(v.value)}</code>`).join('')}${f.similarity != null && (f.reasons || []).includes('low_similarity') ? `<small>相似度 ${Number(f.similarity).toFixed(2)}</small>` : ''}</div></li>`).join('');
+    const items = flagged.map((f) => `<li><p>${escapeHtml(f.text)}${(f.refs || []).length ? ` <span class="cite-ref">[${escapeHtml(f.refs.join('][')) }]</span>` : ''}</p><div>${(f.reasons || []).map((r) => `<span class="g-reason ${r}">${escapeHtml(groundingReasons[r] || r)}</span>`).join('')}${(f.values || []).map((v) => `<code class="${v.status}" title="${v.status === 'not_found' ? '在 Agent 取得的資料中找不到' : v.status === 'not_in_cited' ? '不在本句引用的段落' : '出現在其他引用，不在本句引用的段落'}">${escapeHtml(v.value)}</code>`).join('')}${(f.names || []).map((n) => `<code class="not_in_cited" title="本句提到的文件，引用的段落不是這份文件">${escapeHtml(n)}</code>`).join('')}${f.similarity != null && (f.reasons || []).includes('low_similarity') ? `<small>相似度 ${Number(f.similarity).toFixed(2)}</small>` : ''}</div></li>`).join('');
     return `<section class="grounding" aria-label="依據檢核"><div class="grounding-head"><strong>依據檢核</strong><div class="g-chips">${chips}</div></div><p class="grounding-note">由程式比對 Agent 取得的原文段落與文件資料：檢查每句是否有引用，以及數字、版本、型號是否真的出現在資料中${s.similarity_enabled ? '；相似度只代表用詞接近程度，不代表內容正確' : ''}。這是輔助檢核，不保證內容正確。</p>${flagged.length ? `<details><summary>需留意的句子（${flagged.length}）</summary><ul class="g-flags">${items}</ul></details>` : '<p class="grounding-note ok">所有句子都有依據，數值皆可在資料中找到。</p>'}</section>`;
   }
   function agentOutput(value) {

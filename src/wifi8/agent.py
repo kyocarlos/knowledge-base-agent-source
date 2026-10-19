@@ -39,6 +39,7 @@ TOOLS = [
             "include_history": {"type": "boolean", "description": "是否包含已被取代的舊版本"},
             "publisher": {"type": "string", "description": "限定發布者，例如 WFA、Broadcom、Qualcomm"},
             "document_role": {"type": "string", "description": "限定文件角色，例如 MRD、Certification Test Case"},
+            "all_documents": {"type": "boolean", "description": "題目指名了某份文件（如 PF1 Report）時，預設只搜尋那份文件；設 true 則搜尋全部文件，用於比較或需要其他文件時"},
         }, "required": ["query"]}}},
     {"type": "function", "function": {
         "name": "get_document",
@@ -159,13 +160,24 @@ class WifiTools:
                 "version_label", "analysis_eligible", "replacement_id", "topics", "supersedes", "segment_count")
         return {k: doc.get(k) for k in keys if doc.get(k) not in (None, "", [])}
 
-    def search_wifi(self, query: str, top_k: int = 6, include_history: bool = False, publisher: str = "", document_role: str = ""):
+    def search_wifi(self, query: str, top_k: int = 6, include_history: bool = False, publisher: str = "", document_role: str = "",
+                    all_documents: bool = False):
         # A question about a figure or table keeps favouring figure chunks even when the model's own query drops those words.
         focus = True if figure_intent(self.question, self.search_engine.figure_terms) else None
         options = SearchOptions(top_k=max(1, min(int(top_k or 6), 12)), include_history=bool(include_history),
                                 publishers=(publisher,) if publisher else (), document_roles=(document_role,) if document_role else (),
-                                figure_focus=focus)
-        result = self.search_engine.search(query, options)
+                                figure_focus=focus, context=self.question)
+        # A question that names a document ("PF1 Report") is answered from it: sibling reports with look-alike tables and other
+        # numbers stay out of the model's sight, which only has to pick among what it is given. Inside one named document its
+        # figure chunks (result tables) are as relevant as its text, so they are not down-weighted (2026-10-19 test: F05/F06/F10/F11
+        # x 4 runs x 2 zones: 31/32 correct, 0 wrong; without figure_focus 13/32 correct, 19 declined).
+        named = {} if all_documents else self.search_engine.named_documents(self.question)
+        scoped = None
+        if named:
+            result = self.search_engine.search(query, SearchOptions(**{**options.__dict__, "revision_ids": tuple(sorted(named)), "figure_focus": True}))
+            scoped = sorted(set(named.values())) if result["results"] else None
+        if not scoped:
+            result = self.search_engine.search(query, options)
         hits = []
         for item in result["results"]:
             ref = self._cite(item)
@@ -174,7 +186,8 @@ class WifiTools:
                          "chunk_index": item["chunk_index"], "current_version": item["analysis_eligible"],
                          "wfa_document_id": item.get("wfa_document_id"), "publisher": item.get("publisher"),
                          **_text_fields(item, query, self.settings.snippet_chars)})
-        return {"filters": result["filters"], "hits": hits, "count": len(hits)}
+        return {"filters": result["filters"], "hits": hits, "count": len(hits),
+                **({"scope": {"documents": scoped, "note": "題目指名這些文件，只搜尋它們；要搜尋全部文件請設 all_documents=true"}} if scoped else {})}
 
     def get_document(self, revision_id: str = "", wfa_document_id: str = ""):
         if revision_id:
@@ -322,7 +335,7 @@ def quality_record(result: dict[str, Any], package_id: str | None = None) -> dic
     grounding = result.get("grounding") or {}
     summary = grounding.get("summary") or {}
     keys = ("claims", "claims_cited", "claims_tool_data", "values", "values_verified", "values_other_source",
-            "values_tool_data", "values_not_found")
+            "values_tool_data", "values_not_found", "values_not_in_cited", "claims_source_mismatch")
     return {"ts": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), "package_id": package_id,
             "stop_reason": result.get("stop_reason"), "steps": len(result.get("trace") or []),
             "elapsed_ms": result.get("elapsed_ms"), "citations": len(result.get("citations") or []),
@@ -364,6 +377,6 @@ def ground(result: dict[str, Any], tools: WifiTools, encoder=None, question: str
     try:
         return check_answer(result.get("answer") or "", tools.citations.grounding_sources(),
                             context="\n".join([question, *tools.evidence]), encoder=encoder,
-                            settings=GroundingSettings.from_environment())
+                            settings=GroundingSettings.from_environment(), question=question)
     except Exception as exc:  # noqa: BLE001 - the check must not hide the answer
         return {"error": f"{type(exc).__name__}: {exc}"[:300]}

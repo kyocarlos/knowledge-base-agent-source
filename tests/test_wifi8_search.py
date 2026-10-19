@@ -127,3 +127,91 @@ def test_reranker_is_off_without_configuration(engine, monkeypatch):
     search, *_ = engine
     assert search.reranker is None
     assert all("rerank_score" not in r for r in search.search("ELR", SearchOptions())["results"])
+
+
+SIBLINGS = [doc("pf1", "WFA - Wi-Fi 8 PF1 Report", publisher="WFA"), doc("ee1", "WFA - Wi-Fi 8 EE1 Report", publisher="WFA"),
+            doc("v2a", "Vendor Note v2", publisher="Askey"), doc("v2b", "Other Note v2", publisher="Askey")]
+SIBLING_SEGS = [seg("pf1", 1, "Results APUT table UHR-4.5.2 values 25 30 30"),
+                seg("ee1", 1, "Results APUT table UHR-4.5.2 values 6 9 9"),
+                seg("v2a", 1, "Results APUT table UHR-4.5.2 values 1 1 1"), seg("v2b", 1, "Results APUT table notes")]
+
+
+@pytest.fixture
+def siblings(tmp_path):
+    client = QdrantClient(":memory:")
+    settings = Wifi8Settings(root=tmp_path / "wifi8", collection="wifi8_siblings", embed_batch_size=50, chunk_max_chars=200)
+    encoder = FakeEncoder()
+    importer = Wifi8Importer(settings, qdrant=client, encoder=encoder, embedding_model="fake")
+    path = tmp_path / "s.zip"
+    make_package(path, SIBLINGS, SIBLING_SEGS)
+    assert run(importer, importer.submit(path, submitted_by="t"))["status"] == "completed"
+    return Wifi8Search.for_current(importer, qdrant=client, encoder=encoder, embedding_model="fake")
+
+
+def test_named_documents_are_found_by_short_name_in_the_title(siblings):
+    docs = siblings._documents()
+    assert {docs[r]["title"] for r in siblings.named_documents("Wi-Fi 8 PF1 Report 的 APUT 結果", docs)} == {"WFA - Wi-Fi 8 PF1 Report"}
+    assert {docs[r]["title"] for r in siblings.named_documents("ee1 results", docs)} == {"WFA - Wi-Fi 8 EE1 Report"}
+    assert siblings.named_documents("what is v2 about", docs) == {}  # version labels are not document names
+    assert siblings.named_documents("APUT results of all reports", docs) == {}
+
+
+def test_title_weight_puts_the_named_sibling_first_and_leaves_other_questions_alone(siblings):
+    question = "PF1 Report 的 APUT UHR-4.5.2 結果表"
+    siblings.title_weight = 1.0
+    plain = [r["source"] for r in siblings.search(question, SearchOptions(top_k=4))["results"]]
+    siblings.title_weight = 1.5
+    weighted = [r["source"] for r in siblings.search(question, SearchOptions(top_k=4))["results"]]
+    assert weighted[0] == "WFA - Wi-Fi 8 PF1 Report"
+    assert set(weighted) == set(plain)  # a weight reorders, it never drops results
+    generic = "APUT UHR-4.5.2 結果表"
+    siblings.title_weight = 1.0
+    before = siblings.search(generic, SearchOptions(top_k=4))["results"]
+    siblings.title_weight = 1.5
+    assert [(r["point_id"], r["score"]) for r in siblings.search(generic, SearchOptions(top_k=4))["results"]] == [(r["point_id"], r["score"]) for r in before]
+
+
+def test_document_name_in_the_question_counts_when_the_agent_rewrites_the_query(siblings):
+    siblings.title_weight = 1.5
+    rewritten = "APUT UHR-4.5.2 results"
+    plain = siblings.search(rewritten, SearchOptions(top_k=4))["results"]
+    asked = siblings.search(rewritten, SearchOptions(top_k=4, context="PF1 Report 的 APUT 結果表中，UHR-4.5.2 的數值各是多少？"))["results"]
+    assert asked[0]["source"] == "WFA - Wi-Fi 8 PF1 Report"
+    score = lambda results, title: next(r["score"] for r in results if r["source"] == title)  # noqa: E731
+    assert score(asked, "WFA - Wi-Fi 8 PF1 Report") == pytest.approx(score(plain, "WFA - Wi-Fi 8 PF1 Report") * 1.5, rel=1e-3)
+    assert score(asked, "WFA - Wi-Fi 8 EE1 Report") == score(plain, "WFA - Wi-Fi 8 EE1 Report")
+
+
+def test_agent_search_is_limited_to_the_document_the_question_names(siblings):
+    from src.wifi8.agent import AgentSettings, CitationRegistry, WifiTools
+    tools = WifiTools(siblings, AgentSettings(), CitationRegistry())
+    tools.question = "PF1 Report 的 APUT 結果表中，UHR-4.5.2 的數值各是多少？"
+    scoped = tools.search_wifi("APUT UHR-4.5.2 results")
+    assert {h["title"] for h in scoped["hits"]} == {"WFA - Wi-Fi 8 PF1 Report"}
+    assert scoped["scope"]["documents"] == ["WFA - Wi-Fi 8 PF1 Report"]
+    everything = tools.search_wifi("APUT UHR-4.5.2 results", all_documents=True)
+    assert {"WFA - Wi-Fi 8 PF1 Report", "WFA - Wi-Fi 8 EE1 Report"} <= {h["title"] for h in everything["hits"]} and "scope" not in everything
+    tools.question = "APUT 結果表的數值各是多少？"  # no document named: nothing is narrowed
+    assert "scope" not in tools.search_wifi("APUT UHR-4.5.2 results")
+
+
+def test_agent_search_falls_back_when_the_named_document_has_no_match(siblings):
+    from src.wifi8.agent import AgentSettings, CitationRegistry, WifiTools
+    tools = WifiTools(siblings, AgentSettings(), CitationRegistry())
+    tools.question = "EE1 Report 的 notes 是什麼？"
+    result = tools.search_wifi("zzzunmatchedterm qqqq", top_k=3)
+    assert "scope" not in result or result["scope"]["documents"] == ["WFA - Wi-Fi 8 EE1 Report"]
+
+
+def test_scoped_agent_search_does_not_downweight_figure_chunks(siblings):
+    from src.wifi8.agent import AgentSettings, CitationRegistry, WifiTools
+    seen = []
+    real = siblings.search
+    siblings.search = lambda query, options=None: (seen.append(options), real(query, options))[1]
+    tools = WifiTools(siblings, AgentSettings(), CitationRegistry())
+    tools.question = "PF1 Report 的 APUT 結果"
+    tools.search_wifi("APUT results")
+    assert seen[0].figure_focus is True and seen[0].revision_ids
+    tools.question = "APUT 結果"
+    tools.search_wifi("APUT results")
+    assert seen[-1].figure_focus is None and not seen[-1].revision_ids

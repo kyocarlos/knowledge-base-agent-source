@@ -38,6 +38,11 @@ def test_summarize_trust_rates():
     assert s["wfa_source_share"] == 0.5 and s["grounding_error_rate"] == 0.25 and s["not_answered_rate"] == 0.25
     assert s["stop_reasons"] == {"answered": 3, "max_steps": 1} and s["latency_ms_p50"] in (8000, 5000)
     assert summarize_trust([])["values_not_found_rate"] is None
+    assert s["answers_with_cited_mismatch_rate"] == 0
+    mismatched = [record(), record()]
+    mismatched[0]["grounding"]["values_not_in_cited"] = 3
+    mismatched[1]["grounding"]["claims_source_mismatch"] = 1
+    assert summarize_trust(mismatched + [record(), record()])["answers_with_cited_mismatch_rate"] == 0.5
 
 
 def test_judge_thresholds_regression_and_missing_values():

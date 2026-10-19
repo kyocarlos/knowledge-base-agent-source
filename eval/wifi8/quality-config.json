@@ -78,6 +78,11 @@
       "warn": 0.05,
       "fail": 0.1
     },
+    "trust.answers_with_cited_mismatch_rate": {
+      "direction": "lower",
+      "warn": 0.1,
+      "fail": 0.25
+    },
     "trust.unsupported_claim_rate": {
       "direction": "lower",
       "warn": 0.3,
