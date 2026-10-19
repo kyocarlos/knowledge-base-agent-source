@@ -183,6 +183,13 @@ class Wifi8Importer:
             _write_json(self.root / "import.lock", {"job_id": job_id, "created_at": job["created_at"]})
         return job
 
+    def record_rejection(self, *, submitted_by: str, filename: str, error: str) -> dict[str, Any]:
+        """Keep a failed upload (it never reached staging) in the job list so the failure stays visible after the page is left."""
+        job_id = f"wifi8-import-{datetime.now(timezone.utc):%Y%m%dT%H%M%SZ}-{uuid.uuid4().hex[:8]}"
+        job = {"job_id": job_id, "package_id": None, "status": "failed", "phase": "validate", "submitted_by": submitted_by,
+               "created_at": _now(), "progress": {}, "message": f"檔案「{filename[:120]}」未通過驗證，目前版本不受影響", "error": error[:500]}
+        return self._save(job)
+
     # ---- steps -----------------------------------------------------------
     def step(self, job_id: str) -> dict[str, Any]:
         job = self.job(job_id)

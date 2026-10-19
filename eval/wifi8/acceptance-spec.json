@@ -1,0 +1,59 @@
+{
+  "_comment": "WiFi 專區驗收規格（scripts/wifi8_acceptance.py、src/wifi8/acceptance.py）。需求文字取自 Patty 的功能缺口表（Patty需求/re1.jpg、re2.jpg）第 1、4 項；門檻是驗收標準，改門檻要說明理由。",
+  "items": {
+    "0": {
+      "name": "部署身分與可追溯",
+      "requirement": "驗收的是正在服務的版本：映像、commit 與部署程式必須能對帳（AGENTS.md 第 6 條）"
+    },
+    "1": {
+      "name": "文件清理 / Normalize / Chunk / Metadata",
+      "requirement": "完整驗收「清理狀態、chunk、metadata、版本、失敗狀態可見」"
+    },
+    "4": {
+      "name": "Knowledge Search / RAG",
+      "requirement": "Qdrant semantic search、hybrid retrieval、rerank、引用證據"
+    }
+  },
+  "chunk": {
+    "min_segment_coverage": 0.99
+  },
+  "metadata": {
+    "required": [
+      "revision_id",
+      "title",
+      "publisher",
+      "document_role",
+      "source_sha256"
+    ],
+    "reported": [
+      "wfa_document_id",
+      "wfa_revision",
+      "document_date",
+      "version_label",
+      "lifecycle_status",
+      "topics"
+    ]
+  },
+  "retrieval": {
+    "min_hit_at_10": 0.9,
+    "tolerance": 0.02
+  },
+  "citation": {
+    "sample_cases": 20,
+    "min_cited_gold": 0.9,
+    "max_value_not_found": 0.05
+  },
+  "quality_report": {
+    "max_age_hours": 48
+  },
+  "containers": {
+    "test": {
+      "web": "kb-web",
+      "ingest_worker": "kb-celery-ingest"
+    },
+    "da40": {
+      "web": "km-da40-web-1",
+      "ingest_worker": "km-da40-celery_ingest_worker-1"
+    }
+  }
+}

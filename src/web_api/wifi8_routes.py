@@ -207,8 +207,32 @@ async def wifi8_overview(request: Request):
         "top_topics": Counter(
             topic for doc in current_documents for topic in (doc.get("topics") or [])
         ).most_common(20),
+        "processing": _processing_state(documents, importer),
         "active_job": importer.active_job(),
         "upload_enabled": _can_import(request),
+    }
+
+
+METADATA_FIELDS = (
+    ("title", "標題"), ("publisher", "發布者"), ("document_role", "文件角色"), ("wfa_document_id", "WFA 文件 ID"),
+    ("wfa_revision", "WFA 版次"), ("document_date", "文件日期"), ("version_label", "版本標籤"),
+)
+
+
+def _processing_state(documents: list[dict[str, Any]], importer: Wifi8Importer) -> dict[str, Any]:
+    """What the import did with the documents: text status, metadata coverage and the latest failed jobs (visible, not only in logs)."""
+    failed = [job for job in (importer.job(path.stem) for path in (importer.root / "jobs").glob("wifi8-import-*.json"))
+              if job and job.get("status") == "failed"]
+    failed.sort(key=lambda job: str(job.get("updated_at") or job.get("created_at") or ""), reverse=True)
+    return {
+        "text_status": Counter(doc.get("text_status") or "未標示" for doc in documents).most_common(),
+        "metadata_coverage": [
+            {"field": field, "label": label, "present": sum(1 for doc in documents if doc.get(field) not in (None, "", [])),
+             "total": len(documents)} for field, label in METADATA_FIELDS
+        ],
+        "failed_jobs": len(failed),
+        "latest_failure": ({"job_id": failed[0].get("job_id"), "at": failed[0].get("updated_at"), "error": failed[0].get("error")}
+                           if failed else None),
     }
 
 
@@ -422,7 +446,12 @@ async def upload_wifi8_package(request: Request, file: UploadFile):
     except ImportConflict as exc:
         raise HTTPException(status_code=409, detail="已有匯入工作進行中，請等待完成") from exc
     except PackageError as exc:
-        raise HTTPException(status_code=422, detail=f"匯出包驗證失敗：{exc}") from exc
+        detail = f"匯出包驗證失敗：{exc}"
+        try:
+            importer.record_rejection(submitted_by=username, filename=file.filename or "", error=detail)
+        except OSError:  # the rejection itself is still answered
+            logger.exception("wifi8 rejected upload could not be recorded")
+        raise HTTPException(status_code=422, detail=detail) from exc
     finally:
         temp.unlink(missing_ok=True)
     if job["status"] == "queued":

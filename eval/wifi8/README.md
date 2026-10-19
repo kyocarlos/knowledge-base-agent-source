@@ -218,3 +218,15 @@ docker cp $C:/tmp/km-eval/out ./wifi8-eval-out
 - 狀態回報：監看程式每次執行把 `auto-check-status.json`（最近輪詢時間、目前監看的資料版本、最近一次資料更新檢查）寫進各資料區，頁面顯示；超過 3 個輪詢間隔（15 分鐘）沒回報，頁面會警告「監看程式沒有回報」。
 - 不受開關影響：每日 03:30、每週日 04:00 的排程檢查。
 - 驗收：`scripts/webwright_wifi8_autocheck.py RUN_DIR ZONE USER PASS_KEY`（面板、點擊切換並儲存、重新載入後保留、鍵盤操作、結束還原）。
+
+
+## 驗收包（Patty 需求第 1、4 項）
+
+`scripts/wifi8_acceptance.py` 把「有底層」變成「可驗收」：對每個資料區現場取證，產生逐項 PASS／FAIL／WARN／未啟用／未驗證的報告（`report.json`、`report.md`）。
+
+- 規格與門檻：`eval/wifi8/acceptance-spec.json`；檢查邏輯：`src/wifi8/acceptance.py`（在各區 search worker 內執行，探針為 `scripts/wifi8_acceptance_probe.py`）。
+- 編號：`0.1` 部署身分（容器、映像 commit、部署程式與 git 逐檔雜湊）；`1.x` 清理／chunk／metadata／版本／失敗可見；`4.x` 語意＋全文向量、混合檢索對照、引用證據、rerank 狀態、回答引用、使用者流程。
+- 畫面流程由 Webwright 提供：`scripts/webwright_wifi8_item1.py`（處理狀態、版本關係、失敗可見）與 `scripts/webwright_wifi8_accept.py`（檢索、Agent）；用 `--ui ZONE=DIR[,DIR]` 帶入摘要。沒有畫面結果就是 NOT_RUN，不算通過。
+- 品質報告（4.5）資料版本與目前服務版本不同、或超過 `quality_report.max_age_hours`，就標 STALE。
+- 驗收的檢查本身有故障注入測試（`tests/test_wifi8_acceptance.py`）：空內容、缺 chunk、metadata 不一致、被取代版本仍為目前、排除等級留在庫內、引用缺位置，都必須判為 FAIL。
+- 已知保留：`1.10`（同一版本系列有兩份目前版本，來源端未判定取代關係）為 WARN；`4.4` rerank 為「未啟用」，不算通過也不算失敗。

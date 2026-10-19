@@ -82,7 +82,23 @@
       <section class="health-panel"><div class="section-intro"><div><span class="health-icon">⌑</span><div><h2>系統狀態</h2><p>目前資料版本與匯入進度</p></div></div><span class="inline-note">LIVE API</span></div>
         <div class="health-grid">${healthItem('◈','資料集','可用', current.package_id || current.version || current.import_id || '目前版本')}${healthItem('▤','文件','已索引',`${number(counts.current_documents)} 目前 / ${number(counts.superseded_documents)} 歷史`)}${healthItem('⌕','檢索單位','已就緒',`${number(counts.chunks || counts.retrieval_units)} 個`)}${healthItem('⇩','匯入工作',job ? (job.status || '執行中') : '無進行中工作',job?.job_id || '穩定',job ? 'warning' : '')}</div></section>
       <div class="overview-grid">${panel('內容統計', `<div class="metric-grid">${[['▤','全部文件',counts.documents],['◈','目前版本',counts.current_documents],['◷','歷史版本',counts.superseded_documents],['⌕','檢索單位',counts.chunks || counts.retrieval_units]].map(([icon,label,value]) => `<div class="metric"><span class="metric-icon">${icon}</span><div class="metric-copy"><span>${label}</span><strong>${number(value)}</strong><small>來自目前匯入版本</small></div></div>`).join('')}</div>`, '僅顯示真實匯入統計')}${panel('發布者', categoryRows(data.by_publisher), '目前版本')}</div>
-      <div class="overview-grid">${panel('文件角色', categoryRows(data.by_document_role))}${panel('主題', `<div class="topic-list">${(data.top_topics || []).map(([name,count]) => `<span class="topic">${escapeHtml(name)} · ${number(count)}</span>`).join('') || '<span class="empty">尚無主題</span>'}</div>`)}</div>`;
+      <div class="overview-grid">${panel('文件角色', categoryRows(data.by_document_role))}${panel('主題', `<div class="topic-list">${(data.top_topics || []).map(([name,count]) => `<span class="topic">${escapeHtml(name)} · ${number(count)}</span>`).join('') || '<span class="empty">尚無主題</span>'}</div>`)}</div>
+      ${processingPanel(data, counts)}`;
+  }
+
+  // What the import did with the data (Patty item 1): text status, excluded documents, chunk state, metadata coverage, failures.
+  function processingPanel(data, counts) {
+    const p = data.processing || {};
+    const excluded = Object.entries(counts.excluded || {});
+    const names = { indexed: '已建立全文', not_indexed: '未建立全文（圖片檔，由圖片轉文字進入檢索）' };
+    const rows = [
+      ['已排除（不匯入）', excluded.length ? excluded.map(([reason, n]) => `${escapeHtml(reason)}：${number(n)} 份`).join('、') : '無'],
+      ...(p.text_status || []).map(([name, n]) => [`文字狀態：${escapeHtml(names[name] || name)}`, `${number(n)} 份`]),
+      ['檢索單位', `${number(counts.chunks_ready)} 個可用／${number(counts.chunks_pending)} 個處理中`],
+      ['匯入失敗紀錄', p.failed_jobs ? `${number(p.failed_jobs)} 筆（最近：${escapeHtml((p.latest_failure?.error || '').slice(0, 80))}）` : '無'],
+    ];
+    const coverage = (p.metadata_coverage || []).map((m) => `<div class="detail-field"><small>${escapeHtml(m.label)}</small><strong>${m.total ? Math.round(m.present / m.total * 100) : 0}%</strong><small>${number(m.present)} / ${number(m.total)} 份有值</small></div>`).join('');
+    return panel('資料處理狀態', `<div class="detail-grid">${rows.map(([label, value]) => `<div class="detail-field"><small>${label}</small><strong>${value}</strong></div>`).join('')}</div><h3>metadata 覆蓋率</h3><div class="detail-grid">${coverage}</div>`, '清理、檢索單位、metadata 與失敗');
   }
 
   function documentFilters() {
