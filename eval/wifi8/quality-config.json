@@ -58,6 +58,22 @@
       "fail": 0.55,
       "regression": 0.12
     },
+    "agent.list_recall": {
+      "direction": "higher",
+      "warn": 0.65,
+      "fail": 0.45,
+      "regression": 0.15
+    },
+    "agent.expected_tool_rate": {
+      "direction": "higher",
+      "warn": 0.7,
+      "fail": 0.4
+    },
+    "agent.forbidden_answers": {
+      "direction": "lower",
+      "warn": 0,
+      "fail": 3
+    },
     "agent.unnumbered_repeat_answers": {
       "direction": "lower",
       "warn": 0,

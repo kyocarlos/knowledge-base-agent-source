@@ -82,7 +82,9 @@ def agent_metrics(eval_summary: dict[str, Any]) -> dict[str, Any]:
     overall = eval_summary.get("overall") or {}
     return {"answer_pass": overall.get("answer_pass"), "fact_coverage": overall.get("fact_coverage"),
             "cited_gold": overall.get("cited_gold"), "cited_figure": overall.get("cited_figure"),
-            "unnumbered_repeat_answers": overall.get("unnumbered_repeat_answers"), "latency_ms_p50": overall.get("latency_ms_p50"),
+            "unnumbered_repeat_answers": overall.get("unnumbered_repeat_answers"), "list_recall": overall.get("list_recall"),
+            "expected_tool_rate": overall.get("expected_tool_rate"), "forbidden_answers": overall.get("forbidden_answers"),
+            "latency_ms_p50": overall.get("latency_ms_p50"),
             "errors": overall.get("errors"), "cases": overall.get("cases")}
 
 

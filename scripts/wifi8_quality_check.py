@@ -93,7 +93,7 @@ def trust_level(worker: str, hours: float, out: Path) -> tuple[dict, list[dict]]
     return summarize_trust(records), records
 
 
-RATE_SUFFIXES = ("hit_at_10", "answer_pass", "fact_coverage", "cited_gold", "cited_figure", "_rate", "_share")
+RATE_SUFFIXES = ("hit_at_10", "answer_pass", "fact_coverage", "cited_gold", "cited_figure", "list_recall", "_rate", "_share")
 FIGURE_LABELS = {"retrieval": "檢索前 10 筆沒有標準圖片的題目", "agent": "回答沒有引用標準圖片、或同一位置引用沒有標出第幾段的題目"}
 
 

@@ -147,6 +147,11 @@ if _os.path.exists(sys.argv[1].replace("documents.jsonl", "images.jsonl")):
     _figures = figure_cases(_os.path.dirname(_os.path.abspath(sys.argv[1])))
 else:
     _figures = []
+# 行為題（eval/wifi8/behavior_cases.py）：需要 segments.jsonl 計算列舉題的標準清單
+if _os.path.exists(sys.argv[1].replace("documents.jsonl", "segments.jsonl")):
+    sys.path.insert(0, _os.path.dirname(_os.path.abspath(__file__)))
+    from behavior_cases import behavior_cases
+    _figures = _figures + behavior_cases(_os.path.dirname(_os.path.abspath(sys.argv[1])))
 with open(out, "w", encoding="utf-8") as f:
     for c in cases:
         c.setdefault("expect_refusal", False)

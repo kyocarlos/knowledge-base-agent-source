@@ -101,8 +101,8 @@ def main() -> int:
             if case["id"] in previous:
                 old = previous[case["id"]]
                 row["elapsed_ms"], row["output"] = old.get("elapsed_ms"), old["output"]
-                row["answer"] = score_answer(case, {"answer": old["output"]["answer"],
-                                                    "citations": old["output"]["citations"]})
+                row["answer"] = score_answer(case, {"answer": old["output"]["answer"], "citations": old["output"]["citations"],
+                                                    "tools": old["output"].get("tools")})
             elif agent:
                 started = time.monotonic()
                 output = agent(case["question"])
@@ -155,11 +155,16 @@ def render_report(result: dict) -> str:
         lines += ["", f"- 圖片題 {overall.get('figure_cases') or 0} 題：檢索前 10 筆有標準圖片 {_pct(overall.get('retrieval_figure_hit_at_k'))}；"
                       f"回答引用標準圖片 {_pct(overall.get('cited_figure'))}",
                   f"- 同一位置多筆引用卻沒有標出第幾段的回答：{'—' if overall.get('unnumbered_repeat_answers') is None else overall['unnumbered_repeat_answers']} 則"]
+    if overall.get("list_cases"):
+        lines += ["", f"- 列舉題 {overall['list_cases']} 題：平均清單召回 {_pct(overall.get('list_recall'))}；使用預期工具 {_pct(overall.get('expected_tool_rate'))}"]
+    if overall.get("forbidden_answers") is not None:
+        lines += [f"- 回答含禁止內容（沒有依據的推測、建議或具體數值）：{overall['forbidden_answers']} 則"]
     lines += ["", "## 未通過的題目", ""]
     for row in result["cases"]:
         answer, retrieval = row.get("answer") or {}, row.get("retrieval") or {}
         if row.get("skipped") or (answer.get("passed", True) and retrieval.get("hit", True) and retrieval.get("figure_hit", True)
-                                  and answer.get("cited_figure", True) and not answer.get("unnumbered_repeats") and not row.get("error")):
+                                  and answer.get("cited_figure", True) and not answer.get("unnumbered_repeats") and not row.get("error")
+                                  and answer.get("used_expected_tool", True)):
             continue
         reasons = []
         if row.get("error"):
@@ -179,7 +184,13 @@ def render_report(result: dict) -> str:
         if answer.get("refused") is False:
             reasons.append("應拒答但未拒答")
         if answer.get("invented"):
-            reasons.append("出現不應有的具體數值")
+            reasons.append("出現不應有的內容（具體數值或沒有依據的建議）")
+        if answer.get("forbidden"):
+            reasons.append("回答含此題禁止的內容")
+        if answer.get("list_missing"):
+            reasons.append(f"清單召回 {_pct(answer.get('list_recall'))}，沒列出：{'、'.join(answer['list_missing'])}")
+        if answer.get("used_expected_tool") is False:
+            reasons.append("沒有使用預期的工具")
         lines.append(f"- **{row['id']}** {row['question']}：{'；'.join(reasons)}")
     skipped = [r for r in result["cases"] if r.get("skipped")]
     if skipped:

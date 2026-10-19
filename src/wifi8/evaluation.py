@@ -5,6 +5,11 @@ fact groups (each group is a list of accepted spellings; a group matches when an
 spelling appears in the answer), and for unanswerable questions the refusal markers
 and patterns that must not appear (e.g. invented prices).
 
+Enumeration questions ("which documents discuss X") list the titles an answer should name (list_gold, a fragment of
+each title); the answer passes with the share of them it names (min_recall, default 0.5). Any case may list regexes the
+answer must not contain (must_not_regex, e.g. invented prices or advice the documents do not give) and the tool the agent
+is expected to use (expect_tool).
+
 Figure questions also list gold figures (image ids; any one counts): search must return
 one of them and the answer should cite one. Every answer is checked for citations of the
 same place (page, slide …) that are not told apart by their part number.
@@ -32,6 +37,8 @@ def load_cases(path: str | Path) -> list[dict[str, Any]]:
             raise ValueError(f"case {case['id']} expects a refusal but has no refusal_markers")
         if "gold_figures" in case and not (isinstance(case["gold_figures"], list) and case["gold_figures"]):
             raise ValueError(f"case {case['id']} has an empty gold_figures list")
+        if "list_gold" in case and not (isinstance(case["list_gold"], list) and case["list_gold"]):
+            raise ValueError(f"case {case['id']} has an empty list_gold list")
     return cases
 
 
@@ -78,18 +85,28 @@ def score_answer(case: dict[str, Any], output: dict[str, Any]) -> dict[str, Any]
     citations = output.get("citations") or []
     cited = {c.get("revision_id") for c in citations}
     checks = {"unnumbered_repeats": unnumbered_repeats(citations)}
+    forbidden = [p for p in case.get("must_not_regex") or [] if re.search(p, answer)]
+    if case.get("expect_tool"):
+        tools = output.get("tools") or [t.get("tool") for t in output.get("trace") or []]
+        checks["used_expected_tool"] = case["expect_tool"] in tools
     if case.get("gold_figures"):
         checks["cited_figure"] = any((c.get("image") or {}).get("id") in set(case["gold_figures"]) for c in citations)
     if case.get("expect_refusal"):
         refused = any(_norm(m) in _norm(answer) for m in case["refusal_markers"])
-        invented = [p for p in case.get("must_not_regex") or [] if re.search(p, answer)]
-        return {"refused": refused, "invented": invented, "fact_coverage": None, "cited_gold": None,
-                "passed": refused and not invented, **checks}
+        return {"refused": refused, "invented": forbidden, "fact_coverage": None, "cited_gold": None,
+                "passed": refused and not forbidden, **checks}
     hits = fact_hits(answer, case["facts"])
     coverage = sum(hits) / len(hits) if hits else 1.0
     cited_gold = bool(cited & set(case["gold"])) if case["gold"] else None
-    return {"fact_hits": hits, "fact_coverage": coverage, "cited_gold": cited_gold,
-            "passed": coverage == 1.0 and cited_gold is not False, **checks}
+    scored = {"fact_hits": hits, "fact_coverage": coverage, "cited_gold": cited_gold, "forbidden": forbidden, **checks}
+    listed_ok = True
+    if case.get("list_gold"):
+        named = [_norm(title) in _norm(answer) for title in case["list_gold"]]
+        recall = sum(named) / len(named)
+        scored.update({"list_recall": round(recall, 4), "list_missing": [t for t, hit in zip(case["list_gold"], named) if not hit]})
+        listed_ok = recall >= case.get("min_recall", 0.5)
+    scored["passed"] = coverage == 1.0 and cited_gold is not False and not forbidden and listed_ok
+    return scored
 
 
 def summarize(rows: list[dict[str, Any]]) -> dict[str, Any]:
@@ -100,6 +117,8 @@ def summarize(rows: list[dict[str, Any]]) -> dict[str, Any]:
         cited = [a["cited_gold"] for a in answers if a.get("cited_gold") is not None]
         figure_hits = [r["figure_hit"] for r in retrieval if "figure_hit" in r]
         cited_figure = [a["cited_figure"] for a in answers if "cited_figure" in a]
+        list_recall = [a["list_recall"] for a in answers if "list_recall" in a]
+        expected_tool = [a["used_expected_tool"] for a in answers if "used_expected_tool" in a]
         latency = sorted(r["elapsed_ms"] for r in items if r.get("elapsed_ms") is not None)
         retrieval_ms = sorted(r["retrieval_ms"] for r in items if r.get("retrieval_ms") is not None)
         return {
@@ -112,6 +131,11 @@ def summarize(rows: list[dict[str, Any]]) -> dict[str, Any]:
             "figure_cases": len(figure_hits),
             "retrieval_figure_hit_at_k": _ratio(sum(figure_hits), len(figure_hits)),
             "cited_figure": _ratio(sum(cited_figure), len(cited_figure)),
+            "list_cases": len(list_recall),
+            "list_recall": _mean(list_recall),
+            "expected_tool_rate": _ratio(sum(expected_tool), len(expected_tool)),
+            # Answers containing something their case forbids (invented numbers, advice the documents do not give).
+            "forbidden_answers": sum(1 for a in answers if a.get("forbidden") or a.get("invented")) if answers else None,
             # Answers with at least one repeated place whose citations are not numbered (None: only retrieval ran).
             "unnumbered_repeat_answers": sum(1 for a in answers if a.get("unnumbered_repeats")) if answers else None,
             "latency_ms_p50": latency[len(latency) // 2] if latency else None,

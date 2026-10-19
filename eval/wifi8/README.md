@@ -4,7 +4,7 @@
 
 ## 檔案
 
-- `golden-set.v1.jsonl`：45 題，一行一題，分為 9 類：功能定義、測試驗證、版本判斷、會議紀錄、廠商產品、研究與內部、總覽統計、應拒答、圖片圖表（2026-10-19 新增 F01～F11）。
+- `golden-set.v1.jsonl`：70 題，一行一題，分為 15 類：功能定義、測試驗證、版本判斷、會議紀錄、廠商產品、研究與內部、總覽統計、應拒答、圖片圖表（2026-10-19 新增 F01～F11），以及 2026-10-19 新增的行為題 B01～B19、列舉題 L01～L06（議程規範、混淆防護、推理與摘要、安全與模糊、拒答不補推測、列舉）。
 - `build_golden_set.py`：從匯出包的 `documents.jsonl`／`segments.jsonl` 產生題庫，把標準來源的標題解析成 `revision_id`，每個標題必須唯一對應一份文件。
   - 用法：`python build_golden_set.py <documents.jsonl> <輸出.jsonl>`，`segments.jsonl` 須和 `documents.jsonl` 放在同一目錄；旁邊有 `images.jsonl`（匯出包 v2）時一併產生圖片圖表題。
 - `figure_cases.py`：圖片圖表題的定義與產生器。標準圖片以「文件標題開頭＋位置（投影片／頁／段）＋第幾張圖」指定，從 `images.jsonl` 解析成 `image_id`，必須唯一；同一張圖表也出現在其他文件時一併列入。
@@ -191,3 +191,13 @@ docker cp $C:/tmp/km-eval/out ./wifi8-eval-out
   - 排名加分在離線檢查（5 個主題）前 10 名召回 0.84 → 0.89、前 5 名 0.43 → 0.62；端到端 80.2% 與 84.0% 差 6 個命中，在 36 次樣本的雜訊範圍內，無法分辨。
 - 限制：標準答案以提及次數計，Agent 會把「主題不限於 X」的綜合性文件排除（例如 R&S 的 ELR 簡報、MRD v1.0），這類漏失不全是缺陷；Kom8ndor（模擬器論文）在 Co-SR 題中六次都沒被列出。
 - 回歸（最終版，兩區）：模擬 17 題事實全對、平均步數 1.6；F05／F06／F10／F11／D05／D07／D09 各 2 輪全過。
+
+## 行為題與列舉題（2026-10-19）
+
+- 來源：`behavior_cases.py`（同 `figure_cases.py` 的用法：`python behavior_cases.py <匯出包目錄> golden-set.v1.jsonl` 只更新自己負責的類別；`build_golden_set.py` 在有 `segments.jsonl` 時也會自動加入）。標準來源由「文件標題開頭」解析成目前版本的 revision_id，不寫死。
+- 題型：議程與規範查詢、英文提問、版本判斷、錯誤前提、跨文件比較、圖表數值（EE1 對 PF1）、計算、摘要、提示注入、模糊問題（應反問）、應拒答、列舉。
+- 新評分欄位：
+  - `must_not_regex`：任何題都可設，回答含這些規則運算式就不通過（`forbidden`）。拒答題用它禁止具體金額與「通常／取決於／建議向…詢價」這類沒有文件依據的推測；`agent.forbidden_answers` 應為 0。
+  - `list_gold` + `min_recall`：列舉題。標準清單由原文計算（內文比對到主題的次數達門檻的目前版本文件，標題前 36 字），回答列出的比例 >= `min_recall`（預設 0.5）才通過；指標 `agent.list_recall`（警示 65%／失敗 45%）。
+  - `expect_tool`：列舉題預期使用 `find_documents`；指標 `agent.expected_tool_rate`（警示 70%／失敗 40%）。
+- 限制：列舉題的標準清單以提及次數計，綜合性文件（例如 R&S 的 ELR 簡報、MRD v1.0）會被 Agent 排除，所以 `min_recall` 設 0.5 而不是 1；題庫變動後第一次執行不與上次比較。

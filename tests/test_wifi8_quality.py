@@ -64,6 +64,9 @@ def test_eval_summaries_map_to_metrics():
     summary["overall"].update({"retrieval_figure_hit_at_k": 0.889, "cited_figure": 0.778, "unnumbered_repeat_answers": 0})
     assert retrieval_metrics(summary)["figure_hit_at_10"] == 0.889
     assert agent_metrics(summary)["cited_figure"] == 0.778 and agent_metrics(summary)["unnumbered_repeat_answers"] == 0
+    summary["overall"].update({"list_recall": 0.8, "expected_tool_rate": 1.0, "forbidden_answers": 0})
+    mapped = agent_metrics(summary)
+    assert mapped["list_recall"] == 0.8 and mapped["expected_tool_rate"] == 1.0 and mapped["forbidden_answers"] == 0
 
 
 def test_agent_logs_counts_only_and_can_be_disabled(caplog, monkeypatch):
