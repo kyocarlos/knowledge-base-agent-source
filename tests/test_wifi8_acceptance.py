@@ -116,6 +116,14 @@ def test_ablation_runs_each_path_alone_and_restores_the_search(engine):  # noqa:
     assert result["hybrid"]["hit_at_10"] >= max(result["dense"]["hit_at_10"], result["lexical"]["hit_at_10"]) - 0.34
 
 
+def test_ablation_leaves_follow_up_questions_out_of_the_count(engine):  # noqa: F811
+    search, *_ = engine
+    follow_up = {"id": "h1", "question": "那它的門檻呢？", "gold": ["mesh"], "facts": [],
+                 "history": [{"role": "user", "content": "漫遊是什麼？"}, {"role": "assistant", "content": "…"}]}
+    result = acceptance.ablation(search, CASES + [follow_up], lambda: SearchOptions(top_k=10))
+    assert all(v["cases"] == 3 and "h1" not in v["missed"] for v in result.values())
+
+
 def test_citation_check_needs_a_place_on_every_result(engine, monkeypatch):  # noqa: F811
     search, *_ = engine
     real = search.search

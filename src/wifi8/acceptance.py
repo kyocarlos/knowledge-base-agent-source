@@ -171,16 +171,17 @@ def ablation(search, cases: Iterable[dict[str, Any]], options_factory: Callable[
     try:
         for name, (vector, lexical) in modes.items():
             search.vector, search.lexical = vector, lexical
-            hits, mrr, miss = 0, 0.0, []
+            hits, mrr, miss, applicable = 0, 0.0, [], 0
             for case in cases:
                 scored = score_retrieval(case, search.search(case["question"], options_factory())["results"])
                 if not scored.get("applicable"):
                     continue
+                applicable += 1
                 hits += scored["hit"]
                 mrr += scored["mrr"]
                 if not scored["hit"]:
                     miss.append(case["id"])
-            results[name] = {"cases": len(cases), "hit_at_10": pct(hits, len(cases)), "mrr": round(mrr / len(cases), 4) if cases else 0.0,
+            results[name] = {"cases": applicable, "hit_at_10": pct(hits, applicable), "mrr": round(mrr / applicable, 4) if applicable else 0.0,
                              "missed": miss}
     finally:
         search.vector, search.lexical = real_vector, real_lexical
