@@ -1,13 +1,13 @@
 """Webwright：KM Control 管理頁「能力授權」的使用者流程驗收（需要 Control 管理員帳號，不輸出密碼與 session）。
 
-用法：python scripts/webwright_km_capability_grants.py RUN_DIR ADMIN_USER PASS_KEY TARGET_USER ZONE
+用法：python scripts/webwright_km_capability_grants.py RUN_DIR ADMIN_USER PASS_KEY TARGET_USER ZONE [--end granted|revoked]
 環境變數見 webwright_wifi8_common.py（KM_TEST_ACCOUNTS_FILE 內要有 PASS_KEY）。
 
 流程：以管理員登入 → 開啟 /control-admin.html → 找到 TARGET_USER 那一列
   row_has_button   該列有「授權 <ZONE> …摘要通知開關」按鈕（TARGET_USER 在該區有授權，且清單允許該區）
   grant_shows      按下後顯示「能力 <ZONE>：…」徽章，按鈕變成「撤銷」，API 清單帶出這項授權
   revoke_shows     再按「撤銷」後徽章消失，按鈕回到「授權」
-  restored         結束時還原成測試前的狀態（失敗時也會嘗試還原）
+  restored         結束時回到指定狀態：預設還原成測試前的狀態；--end granted／revoked 則停在授權／撤銷（供接著驗證專區開關；失敗時也會嘗試）
 """
 import argparse
 import sys
@@ -25,6 +25,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     for name in ("run_dir", "admin", "pass_key", "target", "zone"):
         parser.add_argument(name)
+    parser.add_argument("--end", choices=("granted", "revoked"))
     args = parser.parse_args()
     run = Run(args.run_dir, args.zone, args.admin)
     zone = args.zone.upper()
@@ -51,29 +52,30 @@ def main() -> int:
                 return pg.locator("#users tr", has=pg.locator("td", has_text=args.target)).first.locator("button", has_text=f"{prefix} {zone} ").filter(has_text=CAP_LABEL)
 
             held = original = f"能力 {zone}" in grants_text()
+            wanted_end = original if args.end is None else (args.end == "granted")
             try:
                 run.act(pg, "row_has_button", f"{args.target} 的列：授權按鈕={button('授權').count()}、撤銷按鈕={button('撤銷').count()}（原本{'已' if held else '未'}授權）",
                         (button("撤銷") if held else button("授權")).count() == 1, target=row)
                 if held:
                     button("撤銷").click()
-                    pg.wait_for_function("t => !document.body.innerText.includes(t)", f"能力 {zone}", timeout=10000)
+                    pg.wait_for_function("t => !document.body.innerText.includes(t)", arg=f"能力 {zone}", timeout=10000)
                     held = False
                 button("授權").click()
-                pg.wait_for_function("t => document.body.innerText.includes(t)", f"能力 {zone}", timeout=10000)
+                pg.wait_for_function("t => document.body.innerText.includes(t)", arg=f"能力 {zone}", timeout=10000)
                 run.act(pg, "grant_shows", f"授權後徽章={'有' if f'能力 {zone}' in grants_text() else '無'}，撤銷按鈕={button('撤銷').count()}，授權按鈕={button('授權').count()}",
                         f"能力 {zone}" in grants_text() and button("撤銷").count() == 1 and button("授權").count() == 0,
                         target=pg.locator("#users tr", has=pg.locator("td", has_text=args.target)).first)
                 button("撤銷").click()
-                pg.wait_for_function("t => !document.body.innerText.includes(t)", f"能力 {zone}", timeout=10000)
+                pg.wait_for_function("t => !document.body.innerText.includes(t)", arg=f"能力 {zone}", timeout=10000)
                 run.act(pg, "revoke_shows", f"撤銷後徽章={'有' if f'能力 {zone}' in grants_text() else '無'}，授權按鈕={button('授權').count()}",
                         f"能力 {zone}" not in grants_text() and button("授權").count() == 1,
                         target=pg.locator("#users tr", has=pg.locator("td", has_text=args.target)).first)
             finally:
                 present = f"能力 {zone}" in grants_text()
-                if present != original:
+                if present != wanted_end:
                     (button("撤銷") if present else button("授權")).click()
                     pg.wait_for_timeout(1500)
-                run.act(pg, "restored", f"結束時授權={'有' if f'能力 {zone}' in grants_text() else '無'}（原本{'有' if original else '無'}）", (f"能力 {zone}" in grants_text()) == original)
+                run.act(pg, "restored", f"結束時授權={'有' if f'能力 {zone}' in grants_text() else '無'}（目標{'有' if wanted_end else '無'}）", (f"能力 {zone}" in grants_text()) == wanted_end)
         finally:
             try:
                 pg.goto(BASE + "/login.html")
