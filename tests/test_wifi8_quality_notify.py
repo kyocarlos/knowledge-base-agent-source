@@ -103,11 +103,35 @@ def test_a_data_change_is_reported_even_when_everything_passes(monkeypatch):
     assert "資料更新：DA40" in sent[0] and "DA40 ①檢索：PASS" in sent[0]
 
 
-def test_scheduled_summary_is_off_by_default_and_never_applies_to_manual_runs():
-    assert notify.notify_always({}, "schedule") is False
-    assert notify.notify_always({"on_schedule": False}, "schedule") is False
-    assert notify.notify_always({"on_schedule": True}, "schedule") is True
-    assert notify.notify_always({"on_schedule": True}, "manual") is False
-    assert notify.notify_always({"on_schedule": True}, "package_change") is True  # a data change keeps its own switch
-    assert notify.notify_always({"on_package_change": False, "on_schedule": True}, "package_change") is False
-    assert notify.notify_always({}, "package_change") is True
+def _passing_report():
+    report = {**copy.deepcopy(REPORT), "status": "PASS"}
+    for zone in report["zones"].values():
+        zone["agent"]["status"] = "PASS"
+    return report
+
+
+def test_summary_zones_are_only_those_that_explicitly_say_true():
+    settings = {"test": {"enabled": True}, "da40": {"enabled": "true"}, "rd2": None}
+    assert notify.summary_zones(["test", "da40", "rd2"], settings.get) == ["test"]
+    assert notify.summary_zones(["test"], lambda zone: {}) == []
+    def broken(zone):
+        raise OSError("docker exec failed")
+    assert notify.summary_zones(["test"], broken) == []  # an unreadable zone stays off and does not break the check
+
+
+def test_a_passing_scheduled_check_is_reported_only_for_zones_with_the_summary_on(monkeypatch):
+    report = _passing_report()
+    sent = []
+    monkeypatch.setattr(notify, "load_settings", lambda: {"KM_NOTIFY_CHANNEL": "telegram"})
+    monkeypatch.setattr(notify, "send", lambda text, settings: sent.append(text) or ["telegram"])
+    assert notify.notify_report(report, "/r", ["WARN", "FAIL"], summary=[]) == "未達通知條件" and not sent  # default: nothing
+    assert notify.notify_report(report, "/r", ["WARN", "FAIL"], summary=["da40"]) == "已通知：telegram"
+    assert "排程摘要（DA40" in sent[0] and "DA40 ①檢索：PASS" in sent[0] and "TEST" not in sent[0]
+
+
+def test_a_failing_check_keeps_the_normal_message_even_when_a_summary_is_on(monkeypatch):
+    sent = []
+    monkeypatch.setattr(notify, "load_settings", lambda: {"KM_NOTIFY_CHANNEL": "telegram"})
+    monkeypatch.setattr(notify, "send", lambda text, settings: sent.append(text) or ["telegram"])
+    assert notify.notify_report(REPORT, "/r", ["WARN", "FAIL"], summary=["da40"]) == "已通知：telegram"
+    assert "排程摘要" not in sent[0]  # the usual WARN/FAIL message, for every zone that is flagged

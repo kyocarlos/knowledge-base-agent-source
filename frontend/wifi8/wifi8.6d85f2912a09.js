@@ -329,6 +329,31 @@
       } catch (error) { toggle.checked = !wanted; toggle.disabled = false; message.textContent = `儲存失敗：${error.message}`; }
     });
   }
+  // Scheduled-summary notification: everybody sees the state, only an account that a KM Control admin authorised for this zone can change it.
+  // The page just mirrors the answer of GET /api/wifi8/summary-notify (can_change); the server checks again on every change.
+  function summaryNotifyPanel(info) {
+    const on = info.enabled === true; const can = info.can_change === true;
+    const locked = can ? '' : '<p id="summary-notify-locked" class="results-meta" role="note">您的帳號尚未獲得這個開關的授權，只能查看目前狀態。需要使用時，請聯絡 KM 管理員，在「帳號與資料區授權管理」頁授權。</p>';
+    const body = `<div class="auto-check-row"><label class="switch${can ? '' : ' is-locked'}"><input id="summary-notify-toggle" type="checkbox" role="switch" ${on ? 'checked' : ''} ${can ? '' : 'disabled'} aria-describedby="summary-notify-note"><span class="switch-track" aria-hidden="true"></span><span id="summary-notify-state">${on ? '已開啟' : '已關閉'}</span></label>
+      <p id="summary-notify-note" class="results-meta">開啟後，每次排程的品質檢查（每日、每週）都會通知這個資料區各層的狀態，即使全部通過，用來確認排程有在跑。關閉（預設）時只在發現問題或資料更新後通知。</p></div>
+      ${locked}<dl class="auto-check-status"><dt>開關最後變更</dt><dd>${info.changed_at ? `${escapeHtml(info.changed_by || '—')}，${formatTime(info.changed_at)}` : '尚未變更（預設關閉）'}</dd></dl>
+      <p id="summary-notify-message" class="results-meta" role="status" aria-live="polite"></p>`;
+    return panel('排程摘要通知', body, on ? '已開啟' : '已關閉');
+  }
+  function bindSummaryNotify(host) {
+    const toggle = $('#summary-notify-toggle');
+    if (!toggle || toggle.disabled) return;
+    toggle.addEventListener('change', async () => {
+      const wanted = toggle.checked; const message = $('#summary-notify-message'); toggle.disabled = true; message.textContent = '正在儲存…';
+      try {
+        const info = await api('/api/wifi8/summary-notify', { method: 'POST', headers: { 'x-km-wifi8-setting': '1', 'Content-Type': 'application/json' }, body: JSON.stringify({ enabled: wanted }) });
+        host.innerHTML = summaryNotifyPanel(info); bindSummaryNotify(host); $('#summary-notify-message').textContent = wanted ? '已開啟排程摘要通知。' : '已關閉排程摘要通知。';
+      } catch (error) {
+        toggle.checked = !wanted; toggle.disabled = false; message.textContent = `儲存失敗：${error.message}`;
+        try { host.innerHTML = summaryNotifyPanel(await api('/api/wifi8/summary-notify')); bindSummaryNotify(host); $('#summary-notify-message').textContent = `儲存失敗：${error.message}`; } catch (_) { /* keep the message */ }
+      }
+    });
+  }
   async function renderJobs(token) {
     const data = await api('/api/wifi8/jobs');
     if (token !== state.renderToken) return;
@@ -336,8 +361,11 @@
     try { const status = await api('/api/wifi8/status'); if (status.upload_enabled) upload = `<div class="upload-box"><form id="upload-form" class="upload-row"><label>Wi-Fi8 匯出包 (.zip)<input name="file" type="file" accept=".zip" required></label><button class="primary-button" type="submit">上傳並匯入</button></form><p id="upload-status" class="results-meta">匯入完成前不會切換目前版本。</p></div>`; } catch (_) { /* jobs remain readable */ }
     let autoCheck = '<div id="auto-check-host"></div>';
     try { autoCheck = `<div id="auto-check-host">${autoCheckPanel(await api('/api/wifi8/auto-check'))}</div>`; } catch (_) { /* the jobs stay readable without the switch */ }
-    content.innerHTML = panel('匯入工作', `${upload}<ul class="job-list">${(data.jobs || []).map(jobRow).join('') || '<li class="empty">尚無匯入工作</li>'}</ul>`, `${(data.jobs || []).length} 筆近期工作`) + autoCheck;
+    let summaryNotify = '<div id="summary-notify-host"></div>';
+    try { summaryNotify = `<div id="summary-notify-host">${summaryNotifyPanel(await api('/api/wifi8/summary-notify'))}</div>`; } catch (_) { /* the jobs stay readable without the switch */ }
+    content.innerHTML = panel('匯入工作', `${upload}<ul class="job-list">${(data.jobs || []).map(jobRow).join('') || '<li class="empty">尚無匯入工作</li>'}</ul>`, `${(data.jobs || []).length} 筆近期工作`) + autoCheck + summaryNotify;
     if ($('#auto-check-host')?.firstElementChild) bindAutoCheck($('#auto-check-host'));
+    if ($('#summary-notify-host')?.firstElementChild) bindSummaryNotify($('#summary-notify-host'));
     $('#upload-form')?.addEventListener('submit', async (event) => { event.preventDefault(); const message = $('#upload-status'); message.textContent = '正在上傳…'; try { const result = await api('/api/wifi8/packages', { method:'POST', headers:{'x-km-wifi8-import':'1'}, body:new FormData(event.target) }); message.textContent = `已送出 ${result.job_id}`; setTimeout(() => renderRoute(), 1000); } catch (error) { message.textContent = error.message; } });
   }
 

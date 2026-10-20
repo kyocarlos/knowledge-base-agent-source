@@ -40,13 +40,18 @@ def read_settings(root: Path) -> dict[str, Any]:
     return {"enabled": data.get("enabled") is not False, "changed_by": data.get("changed_by"), "changed_at": data.get("changed_at")}
 
 
-def write_settings(root: Path, enabled: bool, username: str) -> dict[str, Any]:
+def write_json(root: Path, name: str, record: dict[str, Any]) -> None:
+    """Replace ``root/name`` atomically (the host's watcher or quality check may read it at any moment)."""
     root = Path(root)
     root.mkdir(parents=True, exist_ok=True)
-    record = {"enabled": bool(enabled), "changed_by": str(username)[:100], "changed_at": _now().isoformat(timespec="seconds")}
     with tempfile.NamedTemporaryFile("w", encoding="utf-8", dir=root, delete=False) as tmp:
         json.dump(record, tmp, ensure_ascii=False)
-    os.replace(tmp.name, root / SETTINGS_NAME)
+    os.replace(tmp.name, root / name)
+
+
+def write_settings(root: Path, enabled: bool, username: str) -> dict[str, Any]:
+    record = {"enabled": bool(enabled), "changed_by": str(username)[:100], "changed_at": _now().isoformat(timespec="seconds")}
+    write_json(root, SETTINGS_NAME, record)
     return record
 
 

@@ -13,6 +13,7 @@ import time
 import uuid
 from contextlib import contextmanager
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Iterator
 
 from .instance_isolation import VALID_INSTANCE_IDS
@@ -24,6 +25,8 @@ USER_STATUSES = frozenset({"pending", "active", "disabled"})
 GRANT_ROLES = frozenset({"user", "admin"})
 SOURCE_CREDENTIAL_SOURCES = frozenset({"confluence", "jira", "testrail"})
 SOURCE_CREDENTIAL_AUTH_TYPES = frozenset({"basic", "bearer"})
+CAPABILITIES_FILE_ENV = "KM_CAPABILITIES_FILE"
+DEFAULT_CAPABILITIES_FILE = Path(__file__).resolve().parents[1] / "config" / "km_capabilities.json"
 
 
 class ControlError(RuntimeError):
@@ -48,6 +51,20 @@ def _unb64(value: str) -> bytes:
 
 def _now() -> int:
     return int(time.time())
+
+
+def load_capability_catalog() -> dict[str, dict]:
+    """Capabilities an admin may grant, keyed by id; read on every call so a changed file applies without a restart."""
+    path = Path(os.getenv(CAPABILITIES_FILE_ENV) or DEFAULT_CAPABILITIES_FILE)
+    try:
+        items = json.loads(path.read_text(encoding="utf-8"))["capabilities"]
+        catalog = {item["id"]: {"id": item["id"], "label": str(item.get("label") or item["id"]),
+                                "description": str(item.get("description") or ""),
+                                "instances": [i for i in item.get("instances") or sorted(VALID_INSTANCE_IDS) if i in VALID_INSTANCE_IDS]}
+                   for item in items}
+    except (OSError, ValueError, KeyError, TypeError):
+        raise ControlError("capability catalog is not available") from None
+    return catalog
 
 
 def _token_key(name: str) -> bytes:
@@ -183,6 +200,14 @@ class ControlRegistry:
                     active BOOLEAN NOT NULL DEFAULT TRUE, approved_by TEXT NOT NULL,
                     approved_at BIGINT NOT NULL, updated_at BIGINT NOT NULL,
                     PRIMARY KEY (user_id, instance_id)
+                )
+            """))
+            connection.execute(self._sql("""
+                CREATE TABLE IF NOT EXISTS km_capability_grants (
+                    user_id TEXT NOT NULL, instance_id TEXT NOT NULL, capability TEXT NOT NULL,
+                    active BOOLEAN NOT NULL DEFAULT TRUE, approved_by TEXT NOT NULL,
+                    approved_at BIGINT NOT NULL, updated_at BIGINT NOT NULL,
+                    PRIMARY KEY (user_id, instance_id, capability)
                 )
             """))
             connection.execute(self._sql("""
@@ -368,6 +393,8 @@ class ControlRegistry:
             if active_grant:
                 raise ControlError("account has active grants")
             connection.execute(self._sql("DELETE FROM km_instance_grants WHERE user_id = ?"), (user_id,))
+            if not self.is_postgres:  # PostgreSQL removes them through ON DELETE CASCADE (and may not have the table yet)
+                connection.execute(self._sql("DELETE FROM km_capability_grants WHERE user_id = ?"), (user_id,))
             connection.execute(self._sql("DELETE FROM km_login_codes WHERE user_id = ?"), (user_id,))
             connection.execute(self._sql("DELETE FROM km_external_identities WHERE user_id = ?"), (user_id,))
             connection.execute(self._sql("DELETE FROM km_users WHERE user_id = ?"), (user_id,))
@@ -538,6 +565,70 @@ class ControlRegistry:
         statement += " ORDER BY requested_at DESC"
         with self._connection() as connection:
             return [dict(row) for row in connection.execute(self._sql(statement)).fetchall()]
+
+    # ---- Per-instance capabilities (an admin lets an account use one switch; checked live, never cached in a session) ----
+
+    @contextmanager
+    def _capabilities(self) -> Iterator[object]:
+        """Fail closed when the explicit PostgreSQL migration has not been applied."""
+        try:
+            with self._connection() as connection:
+                yield connection
+        except ControlError:
+            raise
+        except Exception as exc:
+            if "km_capability_grants" in str(exc):
+                raise ControlError("capability store is not available") from None
+            raise
+
+    def grant_capability(self, actor_user_id: str, user_id: str, instance_id: str, capability: str) -> None:
+        spec = load_capability_catalog().get(capability)
+        if not spec or instance_id not in VALID_INSTANCE_IDS or instance_id not in spec["instances"]:
+            raise ControlError("invalid capability grant")
+        if instance_id not in {g["instance_id"] for g in self.grants_for(user_id)}:
+            raise ControlError("account has no active grant for this instance")
+        now = _now()
+        with self._capabilities() as connection:
+            existing = connection.execute(self._sql("SELECT 1 FROM km_capability_grants WHERE user_id = ? AND instance_id = ? AND capability = ?"), (user_id, instance_id, capability)).fetchone()
+            if existing:
+                connection.execute(self._sql("UPDATE km_capability_grants SET active = TRUE, approved_by = ?, approved_at = ?, updated_at = ? WHERE user_id = ? AND instance_id = ? AND capability = ?"),
+                                   (actor_user_id, now, now, user_id, instance_id, capability))
+            else:
+                connection.execute(self._sql("INSERT INTO km_capability_grants (user_id, instance_id, capability, active, approved_by, approved_at, updated_at) VALUES (?, ?, ?, TRUE, ?, ?, ?)"),
+                                   (user_id, instance_id, capability, actor_user_id, now, now))
+            # No session_epoch bump: the capability is looked up on every request, so the account is not logged out.
+            self._audit(connection, "capability_granted", actor_user_id, user_id, {"instance_id": instance_id, "capability": capability})
+
+    def revoke_capability(self, actor_user_id: str, user_id: str, instance_id: str, capability: str) -> None:
+        now = _now()
+        with self._capabilities() as connection:
+            cursor = connection.execute(self._sql("UPDATE km_capability_grants SET active = FALSE, updated_at = ? WHERE user_id = ? AND instance_id = ? AND capability = ? AND active = TRUE"),
+                                        (now, user_id, instance_id, capability))
+            if cursor.rowcount != 1:
+                raise ControlError("active capability grant not found")
+            self._audit(connection, "capability_revoked", actor_user_id, user_id, {"instance_id": instance_id, "capability": capability})
+
+    def capabilities_for(self, user_id: str) -> list[dict]:
+        """Active grants as stored (the admin page lists them); an unmigrated store reads as none."""
+        try:
+            with self._capabilities() as connection:
+                rows = connection.execute(self._sql("SELECT instance_id, capability FROM km_capability_grants WHERE user_id = ? AND active = TRUE ORDER BY instance_id, capability"), (user_id,)).fetchall()
+        except ControlError:
+            return []
+        return [{"instance_id": row["instance_id"], "capability": row["capability"]} for row in rows]
+
+    def has_capability(self, user_id: str, instance_id: str, capability: str) -> bool:
+        """True only for an active account that still holds an active grant for the instance and the capability.
+        Any failure (store missing, database unreachable) is a no: the switch stays locked."""
+        try:
+            user = self.get_user(user_id)
+            if not user or user.status != "active" or instance_id not in {g["instance_id"] for g in self.grants_for(user_id)}:
+                return False
+            with self._capabilities() as connection:
+                row = connection.execute(self._sql("SELECT 1 FROM km_capability_grants WHERE user_id = ? AND instance_id = ? AND capability = ? AND active = TRUE"), (user_id, instance_id, capability)).fetchone()
+            return row is not None
+        except Exception:  # noqa: BLE001 - fail closed
+            return False
 
     # ---- Per-user external source credentials (sealed envelopes only) ----
 
