@@ -4,7 +4,7 @@
 # swapped for the read-only TEST chat runtime file. No secrets in this file.
 services:
   web:
-    image: km-chat-v2-secure:418610dc-llm-ba82d79-wifi8-c01693c-workspace-b67c223-qstore-3a85eab-table-a29835b-img-39bfe92
+    image: km-chat-v2-secure:418610dc-llm-ba82d79-wifi8-c01693c-workspace-b67c223-qstore-3a85eab-table-a29835b-img-f093dfa
     environment:
       OPENCLAW_CHAT_CONFIG_PATH: /run/secrets/km-chat/runtime.json
     volumes: !override
