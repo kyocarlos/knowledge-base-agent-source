@@ -353,7 +353,7 @@
     },
     {
       "path": "deploy/dev-3030/compose/kb-test-workers.image.override.yml",
-      "sha256": "d042c3530987f250c096a15e2d5b1d84007d62924289b28734925d4bdad1bb4e"
+      "sha256": "40e13b43d903ca4e7cb6fded59e7e99cf0babb0cd4ddffe124af50976c0e70d8"
     },
     {
       "path": "deploy/dev-3030/compose/kb-test.llm-primary.override.yml",
@@ -369,11 +369,11 @@
     },
     {
       "path": "deploy/dev-3030/compose/kb-web.chat-runtime.override.yml",
-      "sha256": "5faf3bfcd3e65bfc0d48a19e41feb96bbaecc10a04e11309190dbf2a306e3d8f"
+      "sha256": "11e04f5e3bd95bc7e750986047214058f132d7222746d0afd3620ca76e7717cc"
     },
     {
       "path": "deploy/dev-3030/compose/km-da40.llm-primary.override.yml",
-      "sha256": "bc05507dcd325766379b010a31268d6facd9d3b7e0b66a68b6369f70d1f4a357"
+      "sha256": "71fd0e21bb78296cee5da88f102dfe22519422e2de37565a28b9a8045f9a25c9"
     },
     {
       "path": "deploy/dev-3030/compose/km-da40.wifi8.override.yml",
@@ -605,7 +605,7 @@
     },
     {
       "path": "eval/wifi8/README.md",
-      "sha256": "278a496877c2660283f12a85ce5cec338ad49a545e08797d367673549e678eea"
+      "sha256": "572c2b05b00129a96be80eede9101ffdd25f47810ca5dd0ac676f0447dedb4bb"
     },
     {
       "path": "eval/wifi8/acceptance-spec.json",
@@ -621,7 +621,7 @@
     },
     {
       "path": "eval/wifi8/coverage_cases.py",
-      "sha256": "02232c45487ea5ea5a3537589a10d3ffe04c94b4456bd1e82d98ff0d411d4e77"
+      "sha256": "c28b7d853f0a71aa06a3cfc492d74f7891cd17fd5a9067ead27ed336961271aa"
     },
     {
       "path": "eval/wifi8/figure_cases.py",
@@ -629,7 +629,7 @@
     },
     {
       "path": "eval/wifi8/golden-set.v1.jsonl",
-      "sha256": "bc0f302cd16e34d1a0b6a67a6fd3d81d7d91c39d86eb167205a6361a3af0c3b5"
+      "sha256": "68b29dee7da22abd31cd947d8a9ec8b2c0a77823f7808a662b07778bb64227fb"
     },
     {
       "path": "eval/wifi8/quality-config.json",
@@ -1185,7 +1185,7 @@
     },
     {
       "path": "scripts/eval_wifi8_agent.py",
-      "sha256": "682f1bc63704f83b003910ca4bb9bd9df7373967265b4866821731b0f3fa3ea5"
+      "sha256": "ca5f5d5d39566ed34b343e8c4c0c2d0172802be9314a15715297e318132442f3"
     },
     {
       "path": "scripts/generate_csit_contract.py",
@@ -1729,7 +1729,7 @@
     },
     {
       "path": "src/wifi8/evaluation.py",
-      "sha256": "ed570094a87ca7d634c81742f5fe683bf6d82260cbf5bf6acc3b36092674d816"
+      "sha256": "9c15a665bb258532afba1590a63c1ff41ab88553b3e7a14fa2fef1bfce2b8563"
     },
     {
       "path": "src/wifi8/excerpt.py",
@@ -1749,7 +1749,7 @@
     },
     {
       "path": "src/wifi8/lexical.py",
-      "sha256": "e9ce575ef3b56f5080dd9953989042fd18acb7bcb8400e6fa81ca64bc038e177"
+      "sha256": "bce239765e53d2a74c829dbf621cbee650028874d8153b0dddf1d07d803675b2"
     },
     {
       "path": "src/wifi8/overview.py",
@@ -1768,12 +1768,16 @@
       "sha256": "50a5e8af2c488502827c58c530546ec0e86119a66c11e7779a4c1a76b8d7c2c9"
     },
     {
+      "path": "src/wifi8/query_expansions.json",
+      "sha256": "8e1ec3048ec535eec9e66da4d64b4f433fe2d56259fcc7d15adedd1ad09f3718"
+    },
+    {
       "path": "src/wifi8/rerank.py",
       "sha256": "eba42d46115b8219ec2603846893de85110cfcf5effea6a828b418692499954e"
     },
     {
       "path": "src/wifi8/search.py",
-      "sha256": "070475c81a03a1babe051318b5ae6324d5e71054cbf97d195e1c84ed013b138d"
+      "sha256": "0fd04ff958569378da369f0cab388dbca6811db9399337aa144145b6b04eba70"
     },
     {
       "path": "src/wifi8/store.py",
@@ -2145,7 +2149,7 @@
     },
     {
       "path": "tests/test_wifi8_evaluation.py",
-      "sha256": "38e6e554cf895e3ea69e1d35b2462aa30d86b4a9b04e0528e1fb6c1f92e589f5"
+      "sha256": "d8dcf124f81a33b8c705a6878849a50bd40839b868ce2222561b7494253d41af"
     },
     {
       "path": "tests/test_wifi8_grounding.py",
@@ -2158,6 +2162,10 @@
     {
       "path": "tests/test_wifi8_import.py",
       "sha256": "f862a3b2c1f56fa09da8724dbc5cf57a578dff5b98373af3319b6bfe74aa6ccb"
+    },
+    {
+      "path": "tests/test_wifi8_lexical.py",
+      "sha256": "2af31f67bfd855e1b5ac6df1889bf3193c7dd17001aa16589c9849ab5995db6f"
     },
     {
       "path": "tests/test_wifi8_overview.py",
@@ -2189,7 +2197,7 @@
     },
     {
       "path": "tests/test_wifi8_search.py",
-      "sha256": "5a9e90c4e1fe71db5c1a9273a35fe02f58c826b1c34eb84c6f29df2fa20be661"
+      "sha256": "bbaa04e1fcdf53a85a8987b57fd6363c6a461905cdb2c3c372fca3ab408c99e4"
     },
     {
       "path": "tests/test_wp0_api_contract.py",
