@@ -22,6 +22,7 @@ import stat
 import sys
 import urllib.error
 import urllib.request
+from typing import Callable
 from pathlib import Path
 
 ENV_FILE = Path(os.getenv("KM_WIFI8_NOTIFY_ENV", str(Path.home() / ".km-control/notify/wifi8-quality.env")))
@@ -53,14 +54,18 @@ def _failed_cases(data: dict, names: dict) -> list[str]:
     return lines
 
 
-def build_message(report: dict, report_path: str = "", always: bool = False) -> str:
+def build_message(report: dict, report_path: str = "", always: bool = False, zones: list[str] | None = None) -> str:
     """WARN/FAIL levels with their failing metrics and questions; with ``always`` (a data change) every level, so a passing
-    check of new data is reported too."""
+    check of new data is reported too. ``zones`` limits the message to those zones (the scheduled summary)."""
     lines = [f"[KM WiFi 品質驗證] {report.get('status')}", f"時間 {report.get('created_utc')}・程式 {report.get('commit')}"]
+    if zones:
+        lines.append("排程摘要（" + "、".join(z.upper() for z in zones) + " 已開啟摘要通知）")
     if report.get("changes"):
         lines.append("資料更新：" + "；".join(report["changes"]))
     names = report.get("failure_class_names") or {}
     for zone, levels in (report.get("zones") or {}).items():
+        if zones and zone not in zones:
+            continue
         for level, data in levels.items():
             if level.startswith("_"):
                 continue
@@ -113,13 +118,30 @@ def send(text: str, settings: dict[str, str]) -> list[str]:
     return sent
 
 
-def notify_report(report: dict, report_path: str, notify_on: list[str], always: bool = False) -> str:
+def summary_zones(zones: list[str], read_setting: Callable[[str], dict | None]) -> list[str]:
+    """Zones whose page switch asks for the scheduled-summary message. A zone that cannot be read, or whose file does not say
+    ``enabled: true``, is off: the default and every doubtful case keep the old behaviour (only WARN/FAIL and data updates)."""
+    on = []
+    for zone in zones:
+        try:
+            if (read_setting(zone) or {}).get("enabled") is True:
+                on.append(zone)
+        except Exception:  # noqa: BLE001 - an unreadable zone must not break the check
+            continue
+    return on
+
+
+def notify_report(report: dict, report_path: str, notify_on: list[str], always: bool = False, summary: list[str] | None = None) -> str:
     """Called by wifi8_quality_check.py; never raises (the check result must still be written). ``always``: notify whatever the
-    status is (a data change is worth a message even when everything passes)."""
+    status is (a data change is worth a message even when everything passes). ``summary``: zones whose switch asks for a
+    scheduled-summary message; it is sent when nothing else would be, and lists only those zones."""
+    zones = None
     if not always and report.get("status") not in notify_on:
-        return "未達通知條件"
+        if not summary:
+            return "未達通知條件"
+        always, zones = True, summary
     try:
-        return "已通知：" + ",".join(send(build_message(report, report_path, always), load_settings()))
+        return "已通知：" + ",".join(send(build_message(report, report_path, always, zones), load_settings()))
     except Exception as exc:  # noqa: BLE001
         return f"通知失敗：{exc}"
 

@@ -1,0 +1,17 @@
+ARG BASE_IMAGE
+FROM ${BASE_IMAGE}
+ARG BASE_IMAGE
+ARG SOURCE_COMMIT
+ARG EXPECTED_KM_CONTROL_SHA256
+ARG EXPECTED_ROUTES_SHA256
+LABEL io.km.control-capability-source-commit=${SOURCE_COMMIT} \
+      io.km.control-capability-base-image=${BASE_IMAGE}
+
+# KM Control gains per-account capability grants: the registry methods, the admin API and the capability catalog.
+# The base image must still carry the expected previous versions of both Python files, so nothing else is overwritten silently.
+RUN test -n "${EXPECTED_KM_CONTROL_SHA256}" && test -n "${EXPECTED_ROUTES_SHA256}" \
+ && echo "${EXPECTED_KM_CONTROL_SHA256}  /app/src/km_control.py" | sha256sum -c - \
+ && echo "${EXPECTED_ROUTES_SHA256}  /app/src/control_auth_routes.py" | sha256sum -c -
+COPY src/km_control.py /app/src/km_control.py
+COPY src/control_auth_routes.py /app/src/control_auth_routes.py
+COPY config/km_capabilities.json /app/config/km_capabilities.json

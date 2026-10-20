@@ -161,3 +161,87 @@ def test_admin_permanently_deletes_only_disabled_account_and_keeps_audit(monkeyp
             events = connection.execute(registry._sql("SELECT event_type FROM km_audit_events WHERE target_user_id = ?"), (target.user_id,)).fetchall()
         assert "user_permanently_deleted" in {event["event_type"] for event in events}
         assert client.delete(f"/api/auth/admin/users/{admin.user_id}/permanent").status_code == 422
+
+
+def _capability_setup(monkeypatch, tmp_path):
+    _env(monkeypatch, tmp_path)
+    registry = ControlRegistry.from_environment()
+    admin = registry.bootstrap_admin("admin", "strong-password-123")
+    ids = {}
+    for name in ("alice", "bob"):
+        user = registry.create_active_with_grant(admin.user_id, name, "strong-password-123", "user", "test")
+        ids[name] = user.user_id
+    return registry, admin, ids
+
+
+def test_admin_grants_and_revokes_a_capability_without_logging_the_account_out(monkeypatch, tmp_path):
+    registry, admin, ids = _capability_setup(monkeypatch, tmp_path)
+    from app.control_main import app
+    epoch = registry.get_user(ids["alice"]).session_epoch
+    with TestClient(app, base_url="https://control.example.test") as client:
+        assert client.post("/api/auth/login", json={"username": "admin", "password": "strong-password-123"}).status_code == 200
+        listed = client.get("/api/auth/admin/users").json()
+        assert [c["id"] for c in listed["capability_catalog"]] == ["wifi8_summary_notify"]
+        assert registry.has_capability(ids["alice"], "test", "wifi8_summary_notify") is False
+        path = f"/api/auth/admin/users/{ids['alice']}/capabilities/test/wifi8_summary_notify"
+        assert client.put(path).status_code == 200
+        assert registry.has_capability(ids["alice"], "test", "wifi8_summary_notify") is True
+        assert registry.has_capability(ids["bob"], "test", "wifi8_summary_notify") is False
+        assert registry.get_user(ids["alice"]).session_epoch == epoch
+        users = {u["username"]: u for u in client.get("/api/auth/admin/users").json()["users"]}
+        assert users["alice"]["capabilities"] == [{"instance_id": "test", "capability": "wifi8_summary_notify"}] and users["bob"]["capabilities"] == []
+        assert client.delete(path).status_code == 200
+        assert registry.has_capability(ids["alice"], "test", "wifi8_summary_notify") is False
+        assert client.delete(path).status_code == 422  # nothing active to revoke
+    with registry._connection() as connection:
+        rows = connection.execute("SELECT event_type, actor_user_id, target_user_id, detail_json FROM km_audit_events WHERE event_type LIKE 'capability_%' ORDER BY occurred_at, event_type").fetchall()
+    assert sorted(r["event_type"] for r in rows) == ["capability_granted", "capability_revoked"]
+    assert all(r["actor_user_id"] == admin.user_id and r["target_user_id"] == ids["alice"] and "wifi8_summary_notify" in r["detail_json"] for r in rows)
+
+
+def test_only_a_control_admin_can_change_capabilities_and_inputs_are_validated(monkeypatch, tmp_path):
+    registry, admin, ids = _capability_setup(monkeypatch, tmp_path)
+    from app.control_main import app
+    with TestClient(app, base_url="https://control.example.test") as client:
+        assert client.post("/api/auth/login", json={"username": "alice", "password": "strong-password-123"}).status_code == 200
+        own = f"/api/auth/admin/users/{ids['alice']}/capabilities/test/wifi8_summary_notify"
+        assert client.put(own).status_code == 403  # an account cannot grant itself
+        assert client.delete(own).status_code == 403
+    with TestClient(app, base_url="https://control.example.test") as client:
+        assert client.post("/api/auth/login", json={"username": "admin", "password": "strong-password-123"}).status_code == 200
+        base = f"/api/auth/admin/users/{ids['alice']}/capabilities"
+        assert client.put(f"{base}/test/not_a_capability").status_code == 422
+        assert client.put(f"{base}/rd2/wifi8_summary_notify").status_code == 422  # instance not enabled / not offered for it
+        assert client.put(f"/api/auth/admin/users/{ids['alice']}/capabilities/da40/wifi8_summary_notify").status_code == 422  # no grant for da40
+        assert registry.has_capability(ids["alice"], "test", "wifi8_summary_notify") is False
+
+
+def test_a_capability_stops_working_when_the_account_or_its_instance_grant_goes_away(monkeypatch, tmp_path):
+    registry, admin, ids = _capability_setup(monkeypatch, tmp_path)
+    registry.grant_capability(admin.user_id, ids["alice"], "test", "wifi8_summary_notify")
+    registry.grant_capability(admin.user_id, ids["bob"], "test", "wifi8_summary_notify")
+    assert registry.has_capability(ids["alice"], "test", "wifi8_summary_notify")
+    registry.revoke_grant(admin.user_id, ids["alice"], "test")
+    assert registry.has_capability(ids["alice"], "test", "wifi8_summary_notify") is False  # lost the zone
+    registry.delete_user(admin.user_id, ids["bob"])
+    assert registry.has_capability(ids["bob"], "test", "wifi8_summary_notify") is False  # disabled account
+    registry.grant(admin.user_id, ids["alice"], "test", "user")
+    assert registry.has_capability(ids["alice"], "test", "wifi8_summary_notify") is True  # same zone again, the grant record is still there
+    registry.permanently_delete_user(admin.user_id, ids["bob"])
+    assert registry.capabilities_for(ids["bob"]) == []
+
+
+def test_capability_checks_fail_closed_when_the_store_or_catalog_is_unavailable(monkeypatch, tmp_path):
+    registry, admin, ids = _capability_setup(monkeypatch, tmp_path)
+    registry.grant_capability(admin.user_id, ids["alice"], "test", "wifi8_summary_notify")
+    with registry._connection() as connection:
+        connection.execute("DROP TABLE km_capability_grants")
+    assert registry.has_capability(ids["alice"], "test", "wifi8_summary_notify") is False
+    assert registry.capabilities_for(ids["alice"]) == []
+    import pytest
+    from src.km_control import ControlError
+    with pytest.raises(ControlError):
+        registry.grant_capability(admin.user_id, ids["alice"], "test", "wifi8_summary_notify")
+    monkeypatch.setenv("KM_CAPABILITIES_FILE", str(tmp_path / "missing.json"))
+    with pytest.raises(ControlError):
+        registry.grant_capability(admin.user_id, ids["alice"], "test", "wifi8_summary_notify")

@@ -81,6 +81,22 @@ def previous_metrics(zone: str, level: str, cases: str | None = None) -> dict | 
     return None
 
 
+SUMMARY_SETTING = "summary-notify.json"  # written by the WiFi zone page (src/wifi8/summary_notify.py); only an explicit true turns it on
+ZONE_ROOT = 'R="${KM_WIFI8_ROOT:-/app/data/wifi8}"'  # where the zone keeps its page switches
+
+
+def read_zone_setting(worker: str, name: str) -> dict | None:
+    """A page switch file of the zone, or None when it is missing or unreadable (callers treat that as off)."""
+    done = subprocess.run(["docker", "exec", worker, "sh", "-c", f'{ZONE_ROOT}; cat "$R/{name}"'], capture_output=True, text=True, timeout=60)
+    if done.returncode != 0:
+        return None
+    try:
+        data = json.loads(done.stdout)
+    except json.JSONDecodeError:
+        return None
+    return data if isinstance(data, dict) else None
+
+
 def run_golden(worker: str, run_id: str, level: str, out: Path, commit: str) -> dict:
     """Golden-set evaluation inside the zone's search worker; results copied to `out`."""
     remote = f"/tmp/km-quality/{run_id}"
@@ -259,8 +275,10 @@ def main() -> int:
 
     notify_on = (config.get("notify") or {}).get("on") or []
     always = args.trigger == "package_change" and (config.get("notify") or {}).get("on_package_change", True)
+    summary = [] if args.trigger != "schedule" or args.no_notify else _notify.summary_zones(
+        zones, lambda zone: read_zone_setting(config["zones"][zone]["search_worker"], SUMMARY_SETTING))
     report["notification"] = ("未通知（--no-notify）" if args.no_notify
-                              else _notify.notify_report(report, str(run_dir / "report.md"), notify_on, always=always))
+                              else _notify.notify_report(report, str(run_dir / "report.md"), notify_on, always=always, summary=summary))
     text = render(report) + f"\n- 通知：{report['notification']}\n"
     (run_dir / "report.json").write_text(json.dumps(report, ensure_ascii=False, indent=1), encoding="utf-8")
     (run_dir / "report.md").write_text(text, encoding="utf-8")

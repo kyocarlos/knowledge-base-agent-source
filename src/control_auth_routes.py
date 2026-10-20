@@ -25,6 +25,7 @@ from .km_control import (
     ControlRegistry,
     issue_control_session,
     issue_oidc_binding_session,
+    load_capability_catalog,
     verify_control_session,
     verify_oidc_binding_session,
 )
@@ -455,7 +456,13 @@ async def list_users(request: Request):
     _admin(request)
     registry = ControlRegistry.from_environment()
     enabled = _enabled_instance_ids()
-    return {"enabled_instances": sorted(enabled), "users": [{**user.__dict__, "instances": [grant for grant in registry.grants_for(user.user_id) if grant["instance_id"] in enabled]} for user in registry.list_users()]}
+    try:
+        catalog = list(load_capability_catalog().values())
+    except ControlError:
+        catalog = []  # the admin page stays usable without the capability column
+    return {"enabled_instances": sorted(enabled), "capability_catalog": catalog,
+            "users": [{**user.__dict__, "instances": [grant for grant in registry.grants_for(user.user_id) if grant["instance_id"] in enabled],
+                       "capabilities": [c for c in registry.capabilities_for(user.user_id) if c["instance_id"] in enabled]} for user in registry.list_users()]}
 
 
 @router.post("/admin/users", status_code=201)
@@ -500,6 +507,30 @@ async def grant(user_id: str, instance_id: str, payload: dict, request: Request)
     except ControlError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return {"user_id": user_id, "instances": _visible_grants(user_id)}
+
+
+@router.put("/admin/users/{user_id}/capabilities/{instance_id}/{capability}")
+async def grant_capability(user_id: str, instance_id: str, capability: str, request: Request):
+    admin = _admin(request)
+    if instance_id not in _enabled_instance_ids():
+        raise HTTPException(status_code=422, detail="KM instance is not enabled")
+    try:
+        ControlRegistry.from_environment().grant_capability(admin["sub"], user_id, instance_id, capability)
+    except ControlError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return {"user_id": user_id, "capabilities": ControlRegistry.from_environment().capabilities_for(user_id)}
+
+
+@router.delete("/admin/users/{user_id}/capabilities/{instance_id}/{capability}")
+async def revoke_capability(user_id: str, instance_id: str, capability: str, request: Request):
+    admin = _admin(request)
+    if instance_id not in _enabled_instance_ids():
+        raise HTTPException(status_code=422, detail="KM instance is not enabled")
+    try:
+        ControlRegistry.from_environment().revoke_capability(admin["sub"], user_id, instance_id, capability)
+    except ControlError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return {"user_id": user_id, "capabilities": ControlRegistry.from_environment().capabilities_for(user_id)}
 
 
 @router.delete("/admin/users/{user_id}/grants/{instance_id}")
