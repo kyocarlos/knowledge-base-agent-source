@@ -10,6 +10,10 @@ each title); the answer passes with the share of them it names (min_recall, defa
 answer must not contain (must_not_regex, e.g. invented prices or advice the documents do not give) and the tool the agent
 is expected to use (expect_tool).
 
+A case may also list support_regex (patterns that must all match in one cited chunk's text): a citation whose text carries the
+evidence counts as citing a source even when its document is not in gold, e.g. the same schedule table shown as a figure in a
+document whose body text does not repeat it (the answer is then also reported as cited_supporting).
+
 Figure questions also list gold figures (image ids; any one counts): search must return
 one of them and the answer should cite one. Every answer is checked for citations of the
 same place (page, slide …) that are not told apart by their part number.
@@ -39,6 +43,11 @@ def load_cases(path: str | Path) -> list[dict[str, Any]]:
             raise ValueError(f"case {case['id']} has an empty gold_figures list")
         if "list_gold" in case and not (isinstance(case["list_gold"], list) and case["list_gold"]):
             raise ValueError(f"case {case['id']} has an empty list_gold list")
+        if "support_regex" in case:
+            if not (isinstance(case["support_regex"], list) and case["support_regex"]):
+                raise ValueError(f"case {case['id']} has an empty support_regex list")
+            for pattern in case["support_regex"]:
+                re.compile(pattern)
         if "history" in case and not (isinstance(case["history"], list) and case["history"]
                                       and all(t.get("role") in {"user", "assistant"} and isinstance(t.get("content"), str) and t["content"]
                                               for t in case["history"])):
@@ -84,6 +93,19 @@ def unnumbered_repeats(citations: Iterable[dict[str, Any]]) -> int:
     return sum(1 for items in places.values() if len(items) > 1 for c in items if not c.get("part"))
 
 
+def _plain(text: str) -> str:
+    return re.sub(r"\s+", " ", str(text or "").translate(_DASHES)).strip()
+
+
+def supports(case: dict[str, Any], citation: dict[str, Any]) -> bool:
+    """The cited chunk itself carries the evidence the case describes (all support_regex patterns match its text)."""
+    patterns = case.get("support_regex") or []
+    if "supports_case" in citation:  # saved results keep this verdict instead of the chunk text
+        return bool(citation["supports_case"])
+    text = _plain(citation.get("content"))
+    return bool(patterns) and bool(text) and all(re.search(p, text) for p in patterns)
+
+
 def score_answer(case: dict[str, Any], output: dict[str, Any]) -> dict[str, Any]:
     answer = output.get("answer") or ""
     citations = output.get("citations") or []
@@ -103,6 +125,8 @@ def score_answer(case: dict[str, Any], output: dict[str, Any]) -> dict[str, Any]
     coverage = sum(hits) / len(hits) if hits else 1.0
     cited_gold = bool(cited & set(case["gold"])) if case["gold"] else None
     scored = {"fact_hits": hits, "fact_coverage": coverage, "cited_gold": cited_gold, "forbidden": forbidden, **checks}
+    if cited_gold is False and any(supports(case, c) for c in citations):
+        cited_gold, scored["cited_gold"], scored["cited_supporting"] = True, True, True
     listed_ok = True
     if case.get("list_gold"):
         named = [_norm(title) in _norm(answer) for title in case["list_gold"]]
@@ -132,6 +156,7 @@ def summarize(rows: list[dict[str, Any]]) -> dict[str, Any]:
             "answer_pass": _ratio(sum(a["passed"] for a in answers), len(answers)),
             "fact_coverage": _mean(coverage),
             "cited_gold": _ratio(sum(cited), len(cited)),
+            "cited_supporting_answers": sum(1 for a in answers if a.get("cited_supporting")),
             "figure_cases": len(figure_hits),
             "retrieval_figure_hit_at_k": _ratio(sum(figure_hits), len(figure_hits)),
             "cited_figure": _ratio(sum(cited_figure), len(cited_figure)),

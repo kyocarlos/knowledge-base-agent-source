@@ -24,9 +24,9 @@ sys.path.insert(0, str(Path.cwd()))
 # evaluation.py placed next to this script wins over the one inside the image.
 if (Path(__file__).resolve().parent / "evaluation.py").is_file():
     sys.path.insert(0, str(Path(__file__).resolve().parent))
-    from evaluation import load_cases, score_answer, score_retrieval, summarize  # type: ignore[no-redef]
+    from evaluation import load_cases, score_answer, score_retrieval, summarize, supports  # type: ignore[no-redef]
 else:
-    from src.wifi8.evaluation import load_cases, score_answer, score_retrieval, summarize
+    from src.wifi8.evaluation import load_cases, score_answer, score_retrieval, summarize, supports
 
 
 def build(retrieval_only: bool):
@@ -113,7 +113,8 @@ def main() -> int:
                                  "tools": [t.get("tool") for t in output.get("trace") or []],
                                  "citations": [{"ref": c.get("ref"), "revision_id": c.get("revision_id"), "source": c.get("source"),
                                                 "point_id": c.get("point_id"), "location_label": c.get("location_label"),
-                                                "part": c.get("part"), "image": ({"id": c["image"].get("id")} if c.get("image") else None)}
+                                                "part": c.get("part"), "image": ({"id": c["image"].get("id")} if c.get("image") else None),
+                                                **({"supports_case": supports(case, c)} if case.get("support_regex") else {})}
                                                for c in output.get("citations") or []],
                                  "grounding": output.get("grounding")}
         except Exception as exc:  # one failing case must not hide the rest
