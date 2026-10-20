@@ -31,6 +31,7 @@ from src.test_reports.auth import (
 )
 
 
+@pytest.mark.skipif(not SOURCE.exists(), reason="Patty 的 CSIT_KM_REST_API_v1.0.xlsx 為內部文件，不在公開版本庫；有檔案的環境才比對")
 def test_generated_contract_matches_patty_workbook():
     contract = load_contract(CONTRACT_PATH)
     generated = generate(SOURCE)

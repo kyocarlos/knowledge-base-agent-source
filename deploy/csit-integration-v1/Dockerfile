@@ -5,6 +5,7 @@ LABEL org.opencontainers.image.revision=$SOURCE_COMMIT
 COPY deploy/csit-integration-v1/requirements.txt deploy/csit-integration-v1/requirements.lock.txt /tmp/
 RUN pip install --no-cache-dir -r /tmp/requirements.lock.txt
 COPY src /app/src
+COPY km_credentials /app/km_credentials
 COPY contracts/csit-km-integration-v1 /app/contracts/csit-km-integration-v1
 COPY tests/csit_v1/fixtures/canonical-ingestion-request.json /app/fixtures/canonical-ingestion-request.json
 COPY app /app/app
