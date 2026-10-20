@@ -292,3 +292,38 @@ def test_history_must_alternate_known_roles(tmp_path):
     path.write_text(json.dumps(case) + "\n", encoding="utf-8")
     with pytest.raises(ValueError, match="invalid history"):
         load_cases(path)
+
+
+SCHEDULE_CASE = {"id": "S1", "question": "q", "gold": ["a"], "facts": [["63"]],
+                 "support_regex": [r"PF#?1\W+(\|\W*)?August 3", r"PF#?2\W+(\|\W*)?October 5"]}
+SCHEDULE_TEXT = "【圖中文字】 | PF/EE | Dates | PF#1 | August 3-14, 2026 | | PF#2 | October 5-16, 2026 |"
+
+
+def test_citation_whose_text_carries_the_evidence_counts_even_outside_gold():
+    out = {"answer": "63 天", "citations": [{"revision_id": "other", "content": SCHEDULE_TEXT}]}
+    scored = score_answer(SCHEDULE_CASE, out)
+    assert scored["cited_gold"] is True and scored["cited_supporting"] is True and scored["passed"]
+    assert summarize([{"category": "c", "answer": scored}])["overall"]["cited_supporting_answers"] == 1
+
+
+def test_citation_without_the_evidence_is_still_not_gold():
+    out = {"answer": "63 天", "citations": [{"revision_id": "other", "content": "PF#1 | August 3-14, 2026 only"}]}
+    scored = score_answer(SCHEDULE_CASE, out)
+    assert scored["cited_gold"] is False and not scored["passed"] and "cited_supporting" not in scored
+    plain = {k: v for k, v in SCHEDULE_CASE.items() if k != "support_regex"}
+    assert score_answer(plain, {"answer": "63", "citations": [{"revision_id": "other", "content": SCHEDULE_TEXT}]})["cited_gold"] is False
+
+
+def test_saved_verdict_is_used_when_rescoring_without_chunk_text():
+    out = {"answer": "63 天", "citations": [{"revision_id": "other", "supports_case": True}]}
+    assert score_answer(SCHEDULE_CASE, out)["passed"]
+
+
+def test_support_regex_must_be_valid(tmp_path):
+    bad = tmp_path / "c.jsonl"
+    bad.write_text(json.dumps({**SCHEDULE_CASE, "support_regex": []}) + "\n", encoding="utf-8")
+    with pytest.raises(ValueError):
+        load_cases(bad)
+    bad.write_text(json.dumps({**SCHEDULE_CASE, "support_regex": ["("]}) + "\n", encoding="utf-8")
+    with pytest.raises(Exception):
+        load_cases(bad)

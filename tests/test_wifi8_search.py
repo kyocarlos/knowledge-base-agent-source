@@ -268,3 +268,37 @@ def test_documents_rank_a_document_that_matches_on_many_chunks_above_one_with_a_
     by_title = {r["best"]["source"]: r for r in ranked}
     assert by_title["3GPP TS 38.300 NR Overall Description"]["matching_chunks"] > by_title["Mesh Network Design Guide"]["matching_chunks"]
     assert ranked[0]["best"]["source"] == "3GPP TS 38.300 NR Overall Description"
+
+
+AGENDAS = [doc("ag1", "WFA - TTG Agenda PF1", publisher="WFA"), doc("ag2", "WFA - TTG Agenda PF2", publisher="WFA"),
+           doc("ag3", "WFA - TTG Agenda PF3", publisher="WFA"), doc("res", "WFA - Ballot Package Results", publisher="WFA")]
+AGENDA_SEGS = ([seg(f"ag{n}", 1, "Blind Poll Questionnaire Review: Blind Poll will be launched on 4/6/2026") for n in (1, 2, 3)]
+               + [seg("res", 1, "Blind Poll Methodology: web survey fielded April 6-20, 2026; 24 companies responded to the survey")])
+
+
+@pytest.fixture
+def agendas(tmp_path):
+    client = QdrantClient(":memory:")
+    settings = Wifi8Settings(root=tmp_path / "wifi8", collection="wifi8_agendas", embed_batch_size=50, chunk_max_chars=300)
+    encoder = FakeEncoder()
+    importer = Wifi8Importer(settings, qdrant=client, encoder=encoder, embedding_model="fake")
+    path = tmp_path / "a.zip"
+    make_package(path, AGENDAS, AGENDA_SEGS)
+    assert run(importer, importer.submit(path, submitted_by="t"))["status"] == "completed"
+    return Wifi8Search.for_current(importer, qdrant=client, encoder=encoder, embedding_model="fake")
+
+
+def test_identical_text_repeated_across_versions_takes_one_slot(agendas):
+    result = agendas.search("Blind Poll launched questionnaire", SearchOptions(top_k=10))
+    repeated = [r for r in result["results"] if r["content"].startswith("Blind Poll Questionnaire")]
+    assert len(repeated) == 1
+    assert result["duplicates_hidden"] == 2
+    assert "res" in {r["revision_id"] for r in agendas.search("Blind Poll companies responded survey", SearchOptions(top_k=2))["results"]}
+
+
+def test_identical_text_is_kept_when_history_is_requested_or_the_document_is_named(agendas):
+    history = agendas.search("Blind Poll launched questionnaire", SearchOptions(top_k=10, include_history=True))
+    assert len([r for r in history["results"] if r["content"].startswith("Blind Poll Questionnaire")]) == 3
+    assert history["duplicates_hidden"] == 0
+    named = agendas.search("PF3 agenda Blind Poll launched questionnaire", SearchOptions(top_k=10))
+    assert "ag3" in {r["revision_id"] for r in named["results"]}

@@ -4,7 +4,7 @@
 * evidence 是（來源代號, 原文片段）；產生題目時逐一確認片段真的出現在該來源的目前版本文件中，找不到就中止；
 * 數值計算題另附 calc，算出的結果必須等於 facts 的第一個寫法；
 * 標準來源可用 gold_like 沿用題庫既有題目的 gold（例如口語改寫題沿用對應「功能定義」題），也可用 gold_titles 指定標題開頭，
-  或用 gold_where（一組 regex）取「內文同時符合全部 regex」的目前版本文件（同一份行程表會重複出現在許多議程裡時用）；
+  或用 gold_where（一組 regex）取「內文同時符合全部 regex」的目前版本文件（同一份行程表會重複出現在許多議程裡時用）；用了 gold_where 的題目同時帶 support_regex：回答引用的段落內文符合這組 regex，即使文件不在 gold（例如同一張時程表只出現在圖片裡）也算引用了標準佐證；
 * 多輪追問題的 history 是先前的問答（助理那句也要有 evidence 支持）；有 history 的題目不計檢索分數，因為追問本身不是自足的檢索問題。
 
 用法：
@@ -192,6 +192,8 @@ def coverage_cases(package_dir, golden_path):
         title_of = {d["revision_id"]: d["title"] for d in docs}
         case = {"id": spec["id"], "category": spec["category"], "question": spec["question"], "gold": gold, "facts": spec["facts"],
                 "expect_refusal": False, "gold_titles": [title_of[r] for r in gold]}
+        if spec.get("gold_where"):  # an answer citing a chunk that carries this evidence counts, whichever document it is in
+            case["support_regex"] = spec["gold_where"]
         if spec.get("history"):
             case["history"] = spec["history"]
         cases.append(case)
