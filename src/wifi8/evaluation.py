@@ -39,6 +39,10 @@ def load_cases(path: str | Path) -> list[dict[str, Any]]:
             raise ValueError(f"case {case['id']} has an empty gold_figures list")
         if "list_gold" in case and not (isinstance(case["list_gold"], list) and case["list_gold"]):
             raise ValueError(f"case {case['id']} has an empty list_gold list")
+        if "history" in case and not (isinstance(case["history"], list) and case["history"]
+                                      and all(t.get("role") in {"user", "assistant"} and isinstance(t.get("content"), str) and t["content"]
+                                              for t in case["history"])):
+            raise ValueError(f"case {case['id']} has an invalid history")
     return cases
 
 
@@ -59,7 +63,7 @@ def fact_hits(answer: str, facts: Iterable[Iterable[str]]) -> list[bool]:
 
 def score_retrieval(case: dict[str, Any], results: list[dict[str, Any]], k: int = RETRIEVAL_K) -> dict[str, Any]:
     gold = set(case["gold"])
-    if not gold:
+    if not gold or case.get("history"):  # a follow-up question is not a self-contained retrieval query
         return {"applicable": False}
     ranked = list(dict.fromkeys(r["revision_id"] for r in results))[:k]
     rank = next((i for i, rid in enumerate(ranked, 1) if rid in gold), None)

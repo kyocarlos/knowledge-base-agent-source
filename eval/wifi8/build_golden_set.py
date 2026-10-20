@@ -159,4 +159,12 @@ with open(out, "w", encoding="utf-8") as f:
         f.write(json.dumps(c, ensure_ascii=False) + "\n")
     for c in _figures:
         f.write(json.dumps(c, ensure_ascii=False) + "\n")
-print(len(cases) + len(_figures), "cases")
+# 覆蓋補強題（eval/wifi8/coverage_cases.py）：gold_like 要引用上面剛寫好的題目，所以最後才加
+_coverage = []
+if _os.path.exists(sys.argv[1].replace("documents.jsonl", "segments.jsonl")):
+    from coverage_cases import coverage_cases
+    _coverage = coverage_cases(_os.path.dirname(_os.path.abspath(sys.argv[1])), out)
+    with open(out, "a", encoding="utf-8") as f:
+        for c in _coverage:
+            f.write(json.dumps(c, ensure_ascii=False) + "\n")
+print(len(cases) + len(_figures) + len(_coverage), "cases")

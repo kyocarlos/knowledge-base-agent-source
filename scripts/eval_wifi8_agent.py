@@ -47,9 +47,9 @@ def build(retrieval_only: bool):
         raise SystemExit("primary LLM is not configured; use --retrieval-only")
     settings = AgentSettings.from_environment()
 
-    def agent(question: str) -> dict:
+    def agent(question: str, history: list[dict] | None = None) -> dict:
         return run_agent(question, llm=lambda **kw: client.chat.completions.create(**kw),
-                         tools=WifiTools(search, settings, CitationRegistry()), settings=settings)
+                         tools=WifiTools(search, settings, CitationRegistry()), settings=settings, history=history)
     return search, agent, {"model": label, "max_steps": settings.max_steps, "time_budget_seconds": settings.time_budget_seconds}
 
 
@@ -105,7 +105,7 @@ def main() -> int:
                                                     "tools": old["output"].get("tools")})
             elif agent:
                 started = time.monotonic()
-                output = agent(case["question"])
+                output = agent(case["question"], case.get("history"))
                 row["elapsed_ms"] = round((time.monotonic() - started) * 1000)
                 row["answer"] = score_answer(case, output)
                 row["output"] = {"answer": output.get("answer"), "stop_reason": output.get("stop_reason"),
