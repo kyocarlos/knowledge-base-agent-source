@@ -181,7 +181,7 @@ def test_admin_grants_and_revokes_a_capability_without_logging_the_account_out(m
     with TestClient(app, base_url="https://control.example.test") as client:
         assert client.post("/api/auth/login", json={"username": "admin", "password": "strong-password-123"}).status_code == 200
         listed = client.get("/api/auth/admin/users").json()
-        assert [c["id"] for c in listed["capability_catalog"]] == ["wifi8_summary_notify"]
+        assert [c["id"] for c in listed["capability_catalog"]] == ["wifi8_summary_notify", "wifi8_auto_check"]
         assert registry.has_capability(ids["alice"], "test", "wifi8_summary_notify") is False
         path = f"/api/auth/admin/users/{ids['alice']}/capabilities/test/wifi8_summary_notify"
         assert client.put(path).status_code == 200

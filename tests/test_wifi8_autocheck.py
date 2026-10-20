@@ -5,6 +5,7 @@ import pytest
 from fastapi import FastAPI, Request
 from fastapi.testclient import TestClient
 
+from src.km_control import ControlRegistry
 from src.web_api import wifi8_routes
 from src.wifi8 import autocheck
 
@@ -38,44 +39,84 @@ def test_view_reports_a_watcher_that_stopped_reporting(tmp_path):
     assert autocheck.view(tmp_path, NOW)["watcher_overdue"] is True
 
 
+HEADER = {"x-km-wifi8-setting": "1"}
+
+
 @pytest.fixture
 def client(tmp_path, monkeypatch):
-    monkeypatch.setattr(wifi8_routes, "_wifi8_root", lambda: tmp_path)
-    monkeypatch.setattr(wifi8_routes, "_account_name", lambda request: "km-clude1")
+    """Real KM Control registry (sqlite): alice holds the auto-check capability for the test zone, bob is a plain account of it."""
+    monkeypatch.setenv("KM_CONTROL_DB_URL", "sqlite:///" + str(tmp_path / "control.sqlite3"))
+    monkeypatch.setattr(wifi8_routes, "_wifi8_root", lambda: tmp_path / "wifi8")
+    monkeypatch.setattr(wifi8_routes, "_account_name", lambda request: request.state.km_identity["name"])
+    registry = ControlRegistry.from_environment()
+    admin = registry.bootstrap_admin("admin", "strong-password-123")
+    users = {n: registry.create_active_with_grant(admin.user_id, n, "strong-password-123", "user", "test").user_id for n in ("alice", "bob")}
+    registry.grant_capability(admin.user_id, users["alice"], "test", autocheck.CAPABILITY)
     app = FastAPI()
 
     @app.middleware("http")
     async def identity(request: Request, call_next):
-        if request.headers.get("x-test-anonymous") != "1":
-            request.state.km_identity = {"sub": "u1", "instance_id": "test"}
+        who = request.headers.get("x-test-user")
+        if who:
+            request.state.km_identity = {"sub": users[who], "instance_id": "test", "name": who}
         return await call_next(request)
 
     app.include_router(wifi8_routes.router)
-    return TestClient(app), tmp_path
+    return TestClient(app), tmp_path / "wifi8", registry, admin, users
+
+
+def as_(name):
+    return {"x-test-user": name}
 
 
 def test_the_switch_needs_a_login_and_a_same_origin_header(client):
-    http, root = client
-    anonymous = {"x-test-anonymous": "1"}
-    assert http.get("/api/wifi8/auto-check", headers=anonymous).status_code == 401
-    assert http.post("/api/wifi8/auto-check", json={"enabled": False}, headers={**anonymous, "x-km-wifi8-setting": "1"}).status_code == 401
-    assert http.post("/api/wifi8/auto-check", json={"enabled": False}).status_code == 403  # no header: a cross-site form cannot do it
+    http, root, *_ = client
+    assert http.get("/api/wifi8/auto-check").status_code == 401
+    assert http.post("/api/wifi8/auto-check", json={"enabled": False}, headers=HEADER).status_code == 401
+    assert http.post("/api/wifi8/auto-check", json={"enabled": False}, headers=as_("alice")).status_code == 403  # no header: a cross-site form cannot do it
     assert not (root / autocheck.SETTINGS_NAME).exists()
 
 
-def test_any_logged_in_account_can_switch_it_and_the_change_is_recorded(client):
-    http, root = client
-    assert http.get("/api/wifi8/auto-check").json()["enabled"] is True
-    off = http.post("/api/wifi8/auto-check", json={"enabled": False}, headers={"x-km-wifi8-setting": "1"})
-    assert off.status_code == 200 and off.json()["enabled"] is False and off.json()["changed_by"] == "km-clude1"
+def test_everyone_can_read_it_and_only_an_authorised_account_can_switch_it(client):
+    http, root, *_ = client
+    alice, bob = (http.get("/api/wifi8/auto-check", headers=as_(n)).json() for n in ("alice", "bob"))
+    assert alice["enabled"] is True and alice["can_change"] is True and bob["enabled"] is True and bob["can_change"] is False
+    refused = http.post("/api/wifi8/auto-check", json={"enabled": False}, headers={**as_("bob"), **HEADER})
+    assert refused.status_code == 403 and not (root / autocheck.SETTINGS_NAME).exists()
+    off = http.post("/api/wifi8/auto-check", json={"enabled": False}, headers={**as_("alice"), **HEADER})
+    assert off.status_code == 200 and off.json()["enabled"] is False and off.json()["changed_by"] == "alice" and off.json()["can_change"] is True
     assert json.loads((root / autocheck.SETTINGS_NAME).read_text())["enabled"] is False
-    assert http.get("/api/wifi8/auto-check").json()["enabled"] is False
-    on = http.post("/api/wifi8/auto-check", json={"enabled": True}, headers={"x-km-wifi8-setting": "1"})
-    assert on.json()["enabled"] is True
+    assert http.get("/api/wifi8/auto-check", headers=as_("bob")).json()["enabled"] is False  # everyone sees the state
+    assert http.post("/api/wifi8/auto-check", json={"enabled": True}, headers={**as_("alice"), **HEADER}).json()["enabled"] is True
+
+
+def test_the_two_switches_are_authorised_separately(client):
+    http, root, registry, admin, users = client
+    registry.grant_capability(admin.user_id, users["bob"], "test", "wifi8_summary_notify")
+    assert http.get("/api/wifi8/summary-notify", headers=as_("bob")).json()["can_change"] is True
+    assert http.get("/api/wifi8/auto-check", headers=as_("bob")).json()["can_change"] is False  # the other capability does not carry over
+    assert http.get("/api/wifi8/summary-notify", headers=as_("alice")).json()["can_change"] is False
+    assert http.post("/api/wifi8/auto-check", json={"enabled": False}, headers={**as_("bob"), **HEADER}).status_code == 403
+
+
+def test_a_revoked_grant_applies_on_the_next_request_and_leaves_the_state_alone(client):
+    http, root, registry, admin, users = client
+    assert http.post("/api/wifi8/auto-check", json={"enabled": False}, headers={**as_("alice"), **HEADER}).status_code == 200
+    registry.revoke_capability(admin.user_id, users["alice"], "test", autocheck.CAPABILITY)
+    assert http.get("/api/wifi8/auto-check", headers=as_("alice")).json()["can_change"] is False
+    assert http.post("/api/wifi8/auto-check", json={"enabled": True}, headers={**as_("alice"), **HEADER}).status_code == 403
+    assert autocheck.read_settings(root)["enabled"] is False
+
+
+def test_when_the_control_database_cannot_be_read_the_switch_is_locked(client, monkeypatch):
+    http, *_ = client
+    monkeypatch.setattr(ControlRegistry, "has_capability", lambda *a, **k: (_ for _ in ()).throw(RuntimeError("database down")))
+    assert http.get("/api/wifi8/auto-check", headers=as_("alice")).json()["can_change"] is False
+    assert http.post("/api/wifi8/auto-check", json={"enabled": False}, headers={**as_("alice"), **HEADER}).status_code == 403
 
 
 @pytest.mark.parametrize("body", [{"enabled": "false"}, {"enabled": 0}, {"enabled": None}, {}, {"enabled": [True]}])
 def test_only_a_real_boolean_is_accepted(client, body):
-    http, root = client
-    assert http.post("/api/wifi8/auto-check", json=body, headers={"x-km-wifi8-setting": "1"}).status_code == 422
+    http, root, *_ = client
+    assert http.post("/api/wifi8/auto-check", json=body, headers={**as_("alice"), **HEADER}).status_code == 422
     assert not (root / autocheck.SETTINGS_NAME).exists()

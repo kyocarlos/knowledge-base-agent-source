@@ -5,7 +5,19 @@
       "id": "wifi8_summary_notify",
       "label": "WiFi 專區：排程摘要通知開關",
       "description": "可在 WiFi 專區的匯入工作頁開啟或關閉「排程摘要通知」。未授權的帳號看得到開關但無法操作。",
-      "instances": ["test", "da40"]
+      "instances": [
+        "test",
+        "da40"
+      ]
+    },
+    {
+      "id": "wifi8_auto_check",
+      "label": "WiFi 專區：資料更新後自動檢查開關",
+      "description": "可在 WiFi 專區的匯入工作頁開啟或關閉「資料更新後自動檢查」。未授權的帳號看得到開關但無法操作。",
+      "instances": [
+        "test",
+        "da40"
+      ]
     }
   ]
 }
