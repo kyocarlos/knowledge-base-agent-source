@@ -5,3 +5,4 @@ select { color-scheme: dark; background-color: #0d2d37 !important; color: #e7fff
 select option, select optgroup { background-color: #0d2d37 !important; color: #e7ffff !important; }
 select option:checked, select option:hover { background-color: #1f6f80 !important; color: #ffffff !important; }
 select:disabled, select:disabled option { color: #a9c3c7 !important; }
+select:disabled option:checked, select:disabled option:hover { background-color: #0d2d37 !important; color: #a9c3c7 !important; }
