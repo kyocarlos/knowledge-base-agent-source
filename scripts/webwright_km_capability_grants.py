@@ -1,6 +1,6 @@
 """Webwright：KM Control 管理頁「能力授權」的使用者流程驗收（需要 Control 管理員帳號，不輸出密碼與 session）。
 
-用法：python scripts/webwright_km_capability_grants.py RUN_DIR ADMIN_USER PASS_KEY TARGET_USER ZONE [--end granted|revoked]
+用法：python scripts/webwright_km_capability_grants.py RUN_DIR ADMIN_USER PASS_KEY TARGET_USER ZONE [--end granted|revoked] [--label 能力名稱片段]
 環境變數見 webwright_wifi8_common.py（KM_TEST_ACCOUNTS_FILE 內要有 PASS_KEY）。
 
 流程：以管理員登入 → 開啟 /control-admin.html → 找到 TARGET_USER 那一列
@@ -26,6 +26,7 @@ def main() -> int:
     for name in ("run_dir", "admin", "pass_key", "target", "zone"):
         parser.add_argument(name)
     parser.add_argument("--end", choices=("granted", "revoked"))
+    parser.add_argument("--label", default=CAP_LABEL, help="按鈕上能力名稱的片段（預設為排程摘要通知開關；自動檢查用「自動檢查開關」）")
     args = parser.parse_args()
     run = Run(args.run_dir, args.zone, args.admin)
     zone = args.zone.upper()
@@ -49,7 +50,7 @@ def main() -> int:
                 return pg.locator("#users tr", has=pg.locator("td", has_text=args.target)).first.locator("td").nth(2).inner_text()
 
             def button(prefix):
-                return pg.locator("#users tr", has=pg.locator("td", has_text=args.target)).first.locator("button", has_text=f"{prefix} {zone} ").filter(has_text=CAP_LABEL)
+                return pg.locator("#users tr", has=pg.locator("td", has_text=args.target)).first.locator("button", has_text=f"{prefix} {zone} ").filter(has_text=args.label)
 
             held = original = f"能力 {zone}" in grants_text()
             wanted_end = original if args.end is None else (args.end == "granted")
