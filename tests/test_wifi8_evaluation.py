@@ -265,3 +265,30 @@ def test_behavior_cases_resolve_gold_and_compute_lists_from_the_package(tmp_path
     module.CASES = [dict(id="B2", category="議程規範", question="q", gold_titles=["No such title"], facts=[["x"]])]
     with pytest.raises(AssertionError):
         module.behavior_cases(tmp_path)  # a gold document that cannot be found is an error
+
+
+def test_coverage_cases_are_part_of_the_golden_set():
+    categories = {"多輪追問", "錯誤前提", "口語改寫", "跨文件比較", "數值計算"}
+    cases = [c for c in load_cases(GOLDEN) if c["category"] in categories]
+    by_category = {}
+    for case in cases:
+        by_category.setdefault(case["category"], []).append(case)
+        assert case["facts"] and all(group for group in case["facts"])
+        assert len(case["gold"]) == len(case["gold_titles"]) and case["gold"]
+    assert set(by_category) == {"多輪追問", "錯誤前提", "口語改寫", "跨文件比較", "數值計算"}
+    assert all(len(v) >= 5 for v in by_category.values())
+    assert all(c["history"][-1]["role"] == "assistant" for c in by_category["多輪追問"])
+    assert all(not c.get("history") for c in cases if c["category"] != "多輪追問")
+
+
+def test_follow_up_question_is_not_scored_as_retrieval():
+    case = {"gold": ["doc-a"], "history": [{"role": "user", "content": "x"}, {"role": "assistant", "content": "y"}]}
+    assert score_retrieval(case, [{"revision_id": "doc-a"}]) == {"applicable": False}
+
+
+def test_history_must_alternate_known_roles(tmp_path):
+    path = tmp_path / "cases.jsonl"
+    case = {"id": "H1", "category": "x", "question": "q", "gold": [], "facts": [["a"]], "history": [{"role": "system", "content": "no"}]}
+    path.write_text(json.dumps(case) + "\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="invalid history"):
+        load_cases(path)
