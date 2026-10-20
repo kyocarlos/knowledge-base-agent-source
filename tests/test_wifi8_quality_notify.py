@@ -103,10 +103,13 @@ def test_a_data_change_is_reported_even_when_everything_passes(monkeypatch):
     assert "資料更新：DA40" in sent[0] and "DA40 ①檢索：PASS" in sent[0]
 
 
-def test_a_passing_scheduled_check_is_not_reported_by_the_check_itself(monkeypatch):
-    """The daily summary is sent separately by the watcher at the time a zone's page asks for (scripts/wifi8_quality_summary.py)."""
-    report = {**copy.deepcopy(REPORT), "status": "PASS"}
+def test_a_scheduled_run_is_reported_whatever_its_status_and_says_which_levels_ran(monkeypatch):
+    report = {**copy.deepcopy(REPORT), "status": "PASS", "trigger": "schedule", "levels": ["retrieval", "trust"]}
+    for zone in report["zones"].values():
+        zone["agent"]["status"] = "PASS"
     sent = []
     monkeypatch.setattr(notify, "load_settings", lambda: {"KM_NOTIFY_CHANNEL": "telegram"})
     monkeypatch.setattr(notify, "send", lambda text, settings: sent.append(text) or ["telegram"])
-    assert notify.notify_report(report, "/r", ["WARN", "FAIL"]) == "未達通知條件" and not sent
+    assert notify.notify_report(report, "/r", ["WARN", "FAIL"]) == "未達通知條件" and not sent  # without `always` a PASS stays quiet
+    assert notify.notify_report(report, "/r", ["WARN", "FAIL"], always=True) == "已通知：telegram"
+    assert "排程檢查：①檢索、③可信度" in sent[0] and "DA40 ①檢索：PASS" in sent[0]

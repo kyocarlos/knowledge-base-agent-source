@@ -60,7 +60,7 @@ def main() -> int:
     with wifi_page(run) as pg:
         login_to_wifi(pg, args.zone, args.user, args.pass_key)
         pg.goto(BASE + "/wifi8/#/jobs")
-        pg.locator("#summary-notify-hour").wait_for(timeout=15000)
+        pg.locator("#quality-schedule-hour").wait_for(timeout=15000)
         check(run, pg, "wifi_jobs_time_selects")
         for route in ("documents", "research", "overview"):
             pg.goto(BASE + f"/wifi8/#/{route}")

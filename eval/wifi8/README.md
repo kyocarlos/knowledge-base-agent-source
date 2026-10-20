@@ -222,7 +222,8 @@ docker cp $C:/tmp/km-eval/out ./wifi8-eval-out
 - `scripts/wifi8_quality_watch.py`（cron 每 5 分鐘）：讀兩區 search worker 的 `current.json`（匯入的發布步驟切換）；資料包 ID 或 `switched_at` 變動、且連續 `settle_polls`（預設 2）次輪詢都沒再變，才啟動一次 `wifi8_quality_check.py --trigger package_change`（只含有變動的區）。第一次輪詢只記錄現況；與排程共用 `quality.lock`，忙碌就延到下次；連續 `max_attempts`（3）次無法執行會通知。狀態在 `<品質目錄>/package-state.json`。設定在 `quality-config.json` 的 `watch`。
 - 報告：標明「觸發原因：資料更新（TEST：A → B）」，與上一次同題庫的結果比較（也就是換資料包前的基準）。
 - 失敗分類：每個失敗題歸為「LLM／連線逾時（非資料問題）」「程式錯誤」「檢索沒找到標準來源」「回答內容不符」「略過（題目綁定舊資料版本）」。Agent 層遇到 LLM 閘道逾時的題目會自動重試一次，重試後仍失敗才算。
-- 通知：列出資料更新、WARN／FAIL 的指標，以及失敗題號與類型；資料更新後的檢查即使全部 PASS 也會通知（`notify.on_package_change`）。另有「每日摘要」：在各資料區 WiFi 專區的匯入工作頁開啟「排程摘要通知」並選時間（24 小時制，預設關閉、預設 09:00），只有 KM Control 管理頁授權的帳號能改；開啟的區，每天到該時間送一則各層最近一次檢查結果的摘要（含檢查時間、資料版本），並標示太久沒有新檢查的層（排程可能沒執行），用來確認排程有在跑。由監看程式每 5 分鐘輪詢時送出（`scripts/wifi8_quality_summary.py`，已送記錄在品質根目錄 `summary-state.json`，每個資料區每個日期只送一次）。
+- 通知：每一次「排程檢查」與「資料更新後的檢查」跑完都會通知（`notify.always_on`），不論 PASS、WARN、FAIL；排程檢查無法執行（當掉、逾時）時也會通知（重試最多 `schedule.max_attempts` 次，每次失敗都說）；手動執行只在 WARN／FAIL 時通知。訊息列出資料更新、各層狀態、未通過的指標與數值，以及失敗題號與類型，題號不含敏感內容。
+- **排程時間由使用者決定**：各資料區 WiFi 專區的匯入工作頁「品質檢查排程」可選每天幾點跑（24 小時制，預設 03:30，台北時間），只有 KM Control 管理頁授權（能力 `wifi8_quality_schedule`，每個帳號、每個資料區各自授權）的帳號能改。由監看程式每 5 分鐘輪詢時判斷（`scripts/wifi8_quality_schedule.py`，已跑紀錄在品質根目錄 `schedule-state.json`）：到時間且當天沒跑過就啟動，平常日跑檢索與可信度，週日（`schedule.weekly_day`）改跑三層（含把題庫逐題問 Agent）；主機錯過時間最晚補跑 `schedule.catchup_minutes` 分鐘。**取代**原本固定的 03:30／週日 04:00 cron（`wifi8_quality_cron.sh` 保留供手動使用）。
 - 限制：只看 `current.json` 的變動，不判斷匯入中途失敗（匯入失敗不會切換 current）；Agent 層全題約 10 分鐘，資料更新後的完整結果要等這麼久；題庫仍綁定特定文件版本，新版本進來時版本題會需要人工更新（下一步：標準來源過期偵測）。
 
 ## WiFi 專區頁面上的「資料更新後自動檢查」開關（2026-10-19）
