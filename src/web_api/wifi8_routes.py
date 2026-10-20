@@ -19,7 +19,7 @@ from fastapi import APIRouter, HTTPException, Query, Request, UploadFile
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field, StrictBool
 
-from ..wifi8 import autocheck, summary_notify
+from ..wifi8 import autocheck, quality_schedule
 from ..wifi8.importer import ImportConflict, Wifi8Importer, Wifi8Settings
 from ..wifi8.package import IMAGE_TYPES, PackageError
 from ..wifi8.search import SearchOptions, SearchUnavailable, Wifi8Search
@@ -162,9 +162,8 @@ class AutoCheckRequest(BaseModel):
     enabled: StrictBool
 
 
-class SummaryNotifyRequest(BaseModel):
-    enabled: StrictBool
-    time: str | None = Field(default=None, pattern=r"^([01]\d|2[0-3]):([0-5]\d)$")  # 24-hour HH:MM; omitted keeps the stored time
+class QualityScheduleRequest(BaseModel):
+    time: str = Field(pattern=r"^([01]\d|2[0-3]):([0-5]\d)$")  # 24-hour HH:MM
 
 
 def _may_change(request: Request, capability: str) -> bool:
@@ -207,24 +206,24 @@ async def set_auto_check(body: AutoCheckRequest, request: Request):
     return _auto_check_view(request)
 
 
-def _summary_notify_view(request: Request) -> dict[str, Any]:
-    return {**summary_notify.read_settings(_wifi8_root()), "can_change": _may_change(request, summary_notify.CAPABILITY)}
+def _quality_schedule_view(request: Request) -> dict[str, Any]:
+    return {**quality_schedule.read_settings(_wifi8_root()), "can_change": _may_change(request, quality_schedule.CAPABILITY)}
 
 
-@router.get("/summary-notify")
-async def summary_notify_state(request: Request):
-    """Scheduled-summary notification switch; any logged-in account of this zone may read it and learns whether it may change it."""
-    return _summary_notify_view(request)
+@router.get("/quality-schedule")
+async def quality_schedule_state(request: Request):
+    """When this zone's scheduled quality check runs. Any logged-in account of this zone may read it and learns whether it may change it."""
+    return _quality_schedule_view(request)
 
 
-@router.post("/summary-notify")
-async def set_summary_notify(body: SummaryNotifyRequest, request: Request):
-    """Only an account that KM Control admin authorised for this zone may switch it; the account is recorded."""
-    _require_switch_change(request, summary_notify.CAPABILITY)
+@router.post("/quality-schedule")
+async def set_quality_schedule(body: QualityScheduleRequest, request: Request):
+    """Only an account that a KM Control admin authorised for this zone may move the check; the account is recorded."""
+    _require_switch_change(request, quality_schedule.CAPABILITY)
     username = _account_name(request)
-    summary_notify.write_settings(_wifi8_root(), body.enabled, username, body.time)
-    logger.info("wifi8 summary-notify %s at %s by %s", "enabled" if body.enabled else "disabled", body.time or "(unchanged)", username)
-    return _summary_notify_view(request)
+    quality_schedule.write_settings(_wifi8_root(), username, body.time)
+    logger.info("wifi8 quality-schedule set to %s by %s", body.time, username)
+    return _quality_schedule_view(request)
 
 
 @router.get("/overview")

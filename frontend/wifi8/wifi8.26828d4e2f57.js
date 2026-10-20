@@ -334,50 +334,46 @@
       }
     });
   }
-  // Daily summary message: everybody sees the state and the time, only an account that a KM Control admin authorised for this zone can
-  // change them. The page mirrors can_change from GET /api/wifi8/summary-notify; the server checks again on every change.
+  // When the zone's scheduled quality check runs: everybody sees the time, only an account that a KM Control admin authorised for this zone
+  // can change it. The page mirrors can_change from GET /api/wifi8/quality-schedule; the server checks again on every change.
   // The time is picked on a 24-hour clock with two selects (a time input would show AM/PM on some systems); minutes are offered in
-  // steps of 5, the interval at which the host looks whether a summary is due.
-  function summaryNotifyPanel(info) {
-    const on = info.enabled === true; const can = info.can_change === true;
-    const [hour, minute] = String(info.time || '09:00').split(':');
+  // steps of 5, the interval at which the host looks whether a check is due.
+  function qualitySchedulePanel(info) {
+    const can = info.can_change === true;
+    const [hour, minute] = String(info.time || '03:30').split(':');
     const hours = Array.from({ length: 24 }, (_, h) => String(h).padStart(2, '0'));
     const minutes = Array.from({ length: 12 }, (_, i) => String(i * 5).padStart(2, '0'));
     if (!minutes.includes(minute)) { minutes.push(minute); minutes.sort(); }
     const options = (list, current) => list.map((v) => `<option value="${v}"${v === current ? ' selected' : ''}>${v}</option>`).join('');
     const clock = info.timezone === 'Asia/Taipei' ? '台北時間' : escapeHtml(info.timezone || '');
     const dis = can ? '' : 'disabled';
-    const locked = can ? '' : '<p id="summary-notify-locked" class="results-meta" role="note">您的帳號尚未獲得這個開關的授權，只能查看目前狀態與時間。需要使用時，請聯絡 KM 管理員，在「帳號與資料區授權管理」頁授權。</p>';
-    const body = `<div class="auto-check-row"><label class="switch${can ? '' : ' is-locked'}"><input id="summary-notify-toggle" type="checkbox" role="switch" ${on ? 'checked' : ''} ${dis} aria-describedby="summary-notify-note"><span class="switch-track" aria-hidden="true"></span><span id="summary-notify-state">${on ? '已開啟' : '已關閉'}</span></label>
-      <p id="summary-notify-note" class="results-meta">開啟後，每天在您選的時間通知這個資料區各層最近一次的檢查結果；若某層太久沒有新的檢查（排程可能沒執行）會特別標示，用來確認排程有在跑。關閉（預設）時只在發現問題或資料更新後通知。</p></div>
-      <div class="summary-time-row" role="group" aria-label="摘要通知時間（24 小時制）"><span>每天</span>
-        <select id="summary-notify-hour" aria-label="時（00 到 23）" ${dis}>${options(hours, hour)}</select><span aria-hidden="true">:</span>
-        <select id="summary-notify-minute" aria-label="分" ${dis}>${options(minutes, minute)}</select>
+    const locked = can ? '' : '<p id="quality-schedule-locked" class="results-meta" role="note">您的帳號尚未獲得這個設定的授權，只能查看目前時間。需要更改時，請聯絡 KM 管理員，在「帳號與資料區授權管理」頁授權。</p>';
+    const body = `<p id="quality-schedule-note" class="results-meta">每天在這個時間為這個資料區執行品質檢查：檢索與回答可信度；每週日另外加跑 Agent 回答檢查（會把題庫逐題問 Agent，使用語言模型，較久）。檢查跑完一律通知 Telegram，不論通過、警示、失敗或無法執行。預設 03:30。</p>
+      <div class="summary-time-row" role="group" aria-label="品質檢查時間（24 小時制）"><span>每天</span>
+        <select id="quality-schedule-hour" aria-label="時（00 到 23）" ${dis}>${options(hours, hour)}</select><span aria-hidden="true">:</span>
+        <select id="quality-schedule-minute" aria-label="分" ${dis}>${options(minutes, minute)}</select>
         <span class="results-meta">24 小時制・${clock}</span>
-        <button id="summary-notify-save-time" class="secondary-button" type="button" disabled>儲存時間</button></div>
-      ${locked}<dl class="auto-check-status"><dt>目前設定</dt><dd>${on ? `每天 ${escapeHtml(info.time || '09:00')}（${clock}）` : '已關閉'}</dd><dt>開關最後變更</dt><dd>${info.changed_at ? `${escapeHtml(info.changed_by || '—')}，${formatTime(info.changed_at)}` : '尚未變更（預設關閉）'}</dd></dl>
-      <p id="summary-notify-message" class="results-meta" role="status" aria-live="polite"></p>`;
-    return panel('排程摘要通知', body, on ? `已開啟・每天 ${escapeHtml(info.time || '09:00')}` : '已關閉');
+        <button id="quality-schedule-save" class="secondary-button" type="button" disabled>儲存時間</button></div>
+      ${locked}<dl class="auto-check-status"><dt>目前設定</dt><dd>每天 ${escapeHtml(info.time || '03:30')}（${clock}）</dd><dt>最後變更</dt><dd>${info.changed_at ? `${escapeHtml(info.changed_by || '—')}，${formatTime(info.changed_at)}` : '尚未變更（使用預設時間）'}</dd></dl>
+      <p id="quality-schedule-message" class="results-meta" role="status" aria-live="polite"></p>`;
+    return panel('品質檢查排程', body, `每天 ${escapeHtml(info.time || '03:30')}`);
   }
-  function bindSummaryNotify(host) {
-    const toggle = $('#summary-notify-toggle');
-    if (!toggle || toggle.disabled) return;
-    const hour = $('#summary-notify-hour'); const minute = $('#summary-notify-minute'); const save = $('#summary-notify-save-time');
+  function bindQualitySchedule(host) {
+    const hour = $('#quality-schedule-hour'); const minute = $('#quality-schedule-minute'); const save = $('#quality-schedule-save');
+    if (!hour || hour.disabled) return;
     const initial = `${hour.value}:${minute.value}`; const picked = () => `${hour.value}:${minute.value}`;
     const sync = () => { save.disabled = picked() === initial; };
     hour.addEventListener('change', sync); minute.addEventListener('change', sync);
-    const submit = async (enabled, doing, done) => {
-      const message = $('#summary-notify-message'); const controls = [toggle, hour, minute, save]; controls.forEach((c) => { c.disabled = true; }); message.textContent = '正在儲存…';
+    save.addEventListener('click', async () => {
+      const message = $('#quality-schedule-message'); const controls = [hour, minute, save]; controls.forEach((c) => { c.disabled = true; }); message.textContent = '正在儲存…';
       try {
-        const info = await api('/api/wifi8/summary-notify', { method: 'POST', headers: { 'x-km-wifi8-setting': '1', 'Content-Type': 'application/json' }, body: JSON.stringify({ enabled, time: picked() }) });
-        host.innerHTML = summaryNotifyPanel(info); bindSummaryNotify(host); $('#summary-notify-message').textContent = done(info);
+        const info = await api('/api/wifi8/quality-schedule', { method: 'POST', headers: { 'x-km-wifi8-setting': '1', 'Content-Type': 'application/json' }, body: JSON.stringify({ time: picked() }) });
+        host.innerHTML = qualitySchedulePanel(info); bindQualitySchedule(host); $('#quality-schedule-message').textContent = `已儲存：每天 ${info.time} 執行品質檢查，跑完會通知 Telegram。`;
       } catch (error) {
-        try { host.innerHTML = summaryNotifyPanel(await api('/api/wifi8/summary-notify')); bindSummaryNotify(host); $('#summary-notify-message').textContent = `儲存失敗：${error.message}`; }
+        try { host.innerHTML = qualitySchedulePanel(await api('/api/wifi8/quality-schedule')); bindQualitySchedule(host); $('#quality-schedule-message').textContent = `儲存失敗：${error.message}`; }
         catch (_) { controls.forEach((c) => { c.disabled = false; }); message.textContent = `儲存失敗：${error.message}`; }
       }
-    };
-    toggle.addEventListener('change', () => submit(toggle.checked, '', (info) => (info.enabled ? `已開啟排程摘要通知，每天 ${info.time} 送出。` : '已關閉排程摘要通知。')));
-    save.addEventListener('click', () => submit(toggle.checked, '', (info) => `已儲存：每天 ${info.time} 送出摘要${info.enabled ? '' : '（目前為關閉狀態，開啟後才會送出）'}。`));
+    });
   }
   async function renderJobs(token) {
     const data = await api('/api/wifi8/jobs');
@@ -386,11 +382,11 @@
     try { const status = await api('/api/wifi8/status'); if (status.upload_enabled) upload = `<div class="upload-box"><form id="upload-form" class="upload-row"><label>Wi-Fi8 匯出包 (.zip)<input name="file" type="file" accept=".zip" required></label><button class="primary-button" type="submit">上傳並匯入</button></form><p id="upload-status" class="results-meta">匯入完成前不會切換目前版本。</p></div>`; } catch (_) { /* jobs remain readable */ }
     let autoCheck = '<div id="auto-check-host"></div>';
     try { autoCheck = `<div id="auto-check-host">${autoCheckPanel(await api('/api/wifi8/auto-check'))}</div>`; } catch (_) { /* the jobs stay readable without the switch */ }
-    let summaryNotify = '<div id="summary-notify-host"></div>';
-    try { summaryNotify = `<div id="summary-notify-host">${summaryNotifyPanel(await api('/api/wifi8/summary-notify'))}</div>`; } catch (_) { /* the jobs stay readable without the switch */ }
-    content.innerHTML = panel('匯入工作', `${upload}<ul class="job-list">${(data.jobs || []).map(jobRow).join('') || '<li class="empty">尚無匯入工作</li>'}</ul>`, `${(data.jobs || []).length} 筆近期工作`) + autoCheck + summaryNotify;
+    let qualitySchedule = '<div id="quality-schedule-host"></div>';
+    try { qualitySchedule = `<div id="quality-schedule-host">${qualitySchedulePanel(await api('/api/wifi8/quality-schedule'))}</div>`; } catch (_) { /* the jobs stay readable without it */ }
+    content.innerHTML = panel('匯入工作', `${upload}<ul class="job-list">${(data.jobs || []).map(jobRow).join('') || '<li class="empty">尚無匯入工作</li>'}</ul>`, `${(data.jobs || []).length} 筆近期工作`) + autoCheck + qualitySchedule;
     if ($('#auto-check-host')?.firstElementChild) bindAutoCheck($('#auto-check-host'));
-    if ($('#summary-notify-host')?.firstElementChild) bindSummaryNotify($('#summary-notify-host'));
+    if ($('#quality-schedule-host')?.firstElementChild) bindQualitySchedule($('#quality-schedule-host'));
     $('#upload-form')?.addEventListener('submit', async (event) => { event.preventDefault(); const message = $('#upload-status'); message.textContent = '正在上傳…'; try { const result = await api('/api/wifi8/packages', { method:'POST', headers:{'x-km-wifi8-import':'1'}, body:new FormData(event.target) }); message.textContent = `已送出 ${result.job_id}`; setTimeout(() => renderRoute(), 1000); } catch (error) { message.textContent = error.message; } });
   }
 

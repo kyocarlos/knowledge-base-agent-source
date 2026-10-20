@@ -57,6 +57,8 @@ def build_message(report: dict, report_path: str = "", always: bool = False) -> 
     """WARN/FAIL levels with their failing metrics and questions; with ``always`` (a data change) every level, so a passing
     check of new data is reported too."""
     lines = [f"[KM WiFi 品質驗證] {report.get('status')}", f"時間 {report.get('created_utc')}・程式 {report.get('commit')}"]
+    if report.get("trigger") == "schedule":
+        lines.append("排程檢查：" + "、".join(LEVEL_NAMES.get(l, l) for l in report.get("levels") or []))
     if report.get("changes"):
         lines.append("資料更新：" + "；".join(report["changes"]))
     names = report.get("failure_class_names") or {}
@@ -115,8 +117,7 @@ def send(text: str, settings: dict[str, str]) -> list[str]:
 
 def notify_report(report: dict, report_path: str, notify_on: list[str], always: bool = False) -> str:
     """Called by wifi8_quality_check.py; never raises (the check result must still be written). ``always``: notify whatever the
-    status is (a data change is worth a message even when everything passes). The daily summary is separate
-    (scripts/wifi8_quality_summary.py, sent by the watcher at the time the zone's page asks for)."""
+    status is: data updates and scheduled runs are always reported, so the people watching know the check ran)."""
     if not always and report.get("status") not in notify_on:
         return "未達通知條件"
     try:

@@ -10,8 +10,8 @@ change, compares with the previous run of the same questions, and is sent even w
 A change is a new package id or the same package published again (`switched_at`): a re-publish can change what is served too.
 The first poll only records what is served. State: <quality root>/package-state.json. Silent unless something happens.
 
-The same run sends the daily summary message of each zone whose page asks for it, at the time chosen there
-(scripts/wifi8_quality_summary.py; state in <quality root>/summary-state.json).
+The same run also starts the scheduled quality checks that are due, at the time each zone's page asks for
+(scripts/wifi8_quality_schedule.py; state in <quality root>/schedule-state.json); they replace the fixed cron entries.
 
 A zone whose page switch is off (<zone wifi8 root>/auto-check.json, set on the WiFi zone page) is not polled; after it is
 switched on again, a change that happened meanwhile is checked then. Every run also writes auto-check-status.json into each
@@ -127,18 +127,59 @@ def _module(name: str):
     return module
 
 
-def send_summaries(config: dict) -> list[str]:
-    """Daily summary messages that are due (time chosen on each zone's page). A problem here must never stop the watching."""
+def run_schedules(config: dict) -> list[str]:
+    """Scheduled quality checks that are due: the time is chosen on each zone's page (scripts/wifi8_quality_schedule.py). The check
+    reports every scheduled run to Telegram itself; a run that cannot even start is reported here. Never stops the watching."""
     try:
-        summary, notify = _module("wifi8_quality_summary"), _module("wifi8_quality_notify")
-        sent = summary.send_due(config, lambda zone: read_zone_json(config["zones"][zone]["search_worker"], "summary-notify.json"),
-                                datetime.now(timezone.utc), ROOT / "history.jsonl", ROOT / "summary-state.json", ROOT,
-                                lambda text: notify.send(text, notify.load_settings()))
-        for zone in sent:
-            say(f"{zone}：已送出每日摘要")
-        return sent
-    except Exception as exc:  # noqa: BLE001
-        say(f"每日摘要失敗：{exc}")
+        sched, notify = _module("wifi8_quality_schedule"), _module("wifi8_quality_notify")
+        now = datetime.now(timezone.utc)
+        state_path = ROOT / "schedule-state.json"
+        state = sched.load_state(state_path)
+        items = sched.due_zones(config, lambda zone: read_zone_json(config["zones"][zone]["search_worker"], "quality-schedule.json"), now, state)
+        if not items:
+            return []
+        cfg = sched.settings(config)
+        ROOT.mkdir(parents=True, exist_ok=True)
+        ran: list[str] = []
+        with LOCK.open("w") as lock:
+            try:
+                fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError:
+                say("另一個品質驗證正在執行，排程檢查延到下次輪詢")
+                return []
+            for levels in sorted({i["levels"] for i in items}):
+                group = [i for i in items if i["levels"] == levels]
+                zones = ",".join(i["zone"] for i in group)
+                say(f"排程檢查：{zones}（{levels}）")
+                try:
+                    done = subprocess.run([sys.executable, str(REPO / "scripts/wifi8_quality_check.py"), "--trigger", "schedule", "--zones", zones, "--levels", levels],
+                                          capture_output=True, text=True, timeout=7200)
+                    code, detail = done.returncode, (done.stderr or done.stdout).strip()[-200:]
+                except subprocess.TimeoutExpired:
+                    code, detail = -1, "逾時（超過 7200 秒）"
+                say(f"排程檢查結束：{zones}，結束碼 {code}")
+                for item in group:
+                    if code in (0, 1, 3):  # PASS / FAIL / WARN: the check ran and reported
+                        sched.record_run(state, item, datetime.now(timezone.utc))
+                        ran.append(item["zone"])
+                    else:
+                        attempts = sched.record_failure(state, item, int(cfg["max_attempts"]))
+                        notify_text(f"[KM WiFi 品質驗證] 排程檢查執行失敗（{item['zone'].upper()}，{levels}，結束碼 {code}，第 {attempts}/{cfg['max_attempts']} 次）：{detail}")
+                sched.save_state(state_path, state)
+        return ran
+    except Exception as exc:  # noqa: BLE001 - a bug here must be seen, but once a day, not every poll
+        say(f"排程檢查失敗：{exc}")
+        try:
+            sched = _module("wifi8_quality_schedule")
+            state_path = ROOT / "schedule-state.json"
+            state = sched.load_state(state_path)
+            today = datetime.now(timezone.utc).date().isoformat()
+            if (state.get("_scheduler_error") or {}).get("date") != today:
+                state["_scheduler_error"] = {"date": today}
+                sched.save_state(state_path, state)
+                notify_text(f"[KM WiFi 品質驗證] 排程檢查的判斷程式出錯，今天的排程檢查可能沒有執行：{exc}")
+        except Exception:  # noqa: BLE001
+            pass
         return []
 
 
@@ -149,7 +190,7 @@ def main() -> int:
     config = json.loads(CONFIG.read_text(encoding="utf-8"))
     watch = {**DEFAULT_WATCH, **(config.get("watch") or {})}
     if not args.dry_run:
-        send_summaries(config)
+        run_schedules(config)
     state = load_state()
     triggered, statuses = [], {}
     for zone, settings in config["zones"].items():

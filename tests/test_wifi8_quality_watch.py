@@ -66,7 +66,7 @@ def sandbox(tmp_path, monkeypatch):
     sent, runs = [], []
     monkeypatch.setattr(watch, "notify_text", sent.append)
     summaries = []
-    monkeypatch.setattr(watch, "send_summaries", lambda config: summaries.append(1) or [])  # the daily summary has its own tests
+    monkeypatch.setattr(watch, "run_schedules", lambda config: summaries.append(1) or [])  # the scheduled checks have their own tests
     enabled = {"kb-celery-search": True, "km-da40-celery_search_worker-1": True}
     written = {}
     monkeypatch.setattr(watch, "read_enabled", lambda worker: enabled[worker])
@@ -165,37 +165,64 @@ def test_every_run_tells_each_zone_page_that_the_watcher_is_alive_and_what_it_la
     assert sandbox.written["km-da40-celery_search_worker-1"]["last_check"] is None  # the other zone did not change
 
 
-def test_due_summaries_are_sent_from_the_watch_run_and_a_failure_never_stops_the_watching(monkeypatch, tmp_path):
+class _Done:
+    def __init__(self, code, out=""):
+        self.returncode, self.stdout, self.stderr = code, out, ""
+
+
+@pytest.fixture
+def scheduled(tmp_path, monkeypatch):
+    """Watch with a real schedule module, one due zone ("test", default 03:30) and fakes for the check and the notifier."""
     from datetime import datetime, timezone
-    summary_calls = []
-
-    class Fake:
-        @staticmethod
-        def send_due(config, read_setting, now, history, state, root, send):
-            summary_calls.append((sorted(config["zones"]), read_setting("test"), history.name, state.name))
-            send("hello")
-            return ["test"]
-
-    sent = []
-
-    class FakeNotify:
-        @staticmethod
-        def load_settings():
-            return {"KM_NOTIFY_CHANNEL": "telegram"}
-
-        @staticmethod
-        def send(text, settings):
-            sent.append(text)
-            return ["telegram"]
-
-    monkeypatch.setattr(watch, "_module", lambda name: Fake if name == "wifi8_quality_summary" else FakeNotify)
-    monkeypatch.setattr(watch, "read_zone_json", lambda worker, name: {"enabled": True, "time": "09:00"} if name == "summary-notify.json" else None)
     monkeypatch.setattr(watch, "ROOT", tmp_path)
-    assert watch.send_summaries({"zones": {"test": {"search_worker": "w"}}}) == ["test"]
-    assert summary_calls == [(["test"], {"enabled": True, "time": "09:00"}, "history.jsonl", "summary-state.json")] and sent == ["hello"]
+    monkeypatch.setattr(watch, "LOCK", tmp_path / "quality.lock")
+    calls, notices = [], []
+    monkeypatch.setattr(watch, "read_zone_json", lambda worker, name: None)
+    monkeypatch.setattr(watch, "notify_text", notices.append)
+    monkeypatch.setattr(watch.subprocess, "run", lambda args, **kw: calls.append(args) or _Done(0))
+    monkeypatch.setattr(watch, "datetime", type("D", (datetime,), {"now": classmethod(lambda cls, tz=None: datetime(2026, 10, 20, 3, 40, tzinfo=timezone(__import__("datetime").timedelta(hours=8))).astimezone(tz or timezone.utc))}))
+    return {"zones": {"test": {"search_worker": "w"}}}, calls, notices, tmp_path
 
-    def broken(name):
-        raise RuntimeError("boom")
 
-    monkeypatch.setattr(watch, "_module", broken)
-    assert watch.send_summaries({"zones": {}}) == []  # logged, not raised
+def test_a_due_zone_is_checked_once_with_the_schedule_trigger_and_the_daily_levels(scheduled):
+    config, calls, notices, root = scheduled
+    assert watch.run_schedules(config) == ["test"]
+    assert len(calls) == 1 and calls[0][-6:] == ["--trigger", "schedule", "--zones", "test", "--levels", "retrieval,trust"][-6:] and not notices
+    assert watch.run_schedules(config) == [] and len(calls) == 1  # done for today
+    assert json.loads((root / "schedule-state.json").read_text())["test"]["last_run_date"] == "2026-10-20"
+
+
+def test_a_check_that_cannot_run_is_reported_each_time_then_given_up_for_the_day(scheduled, monkeypatch):
+    config, calls, notices, root = scheduled
+    monkeypatch.setattr(watch.subprocess, "run", lambda args, **kw: calls.append(args) or _Done(2, "boom"))
+    for _ in range(5):
+        watch.run_schedules(config)
+    assert len(calls) == 3 and len(notices) == 3  # max_attempts, every failure is told to the user
+    assert "執行失敗" in notices[0] and "第 1/3 次" in notices[0] and "第 3/3 次" in notices[2] and "boom" in notices[0]
+
+
+def test_a_timeout_counts_as_a_failure(scheduled, monkeypatch):
+    config, calls, notices, root = scheduled
+
+    def hang(args, **kw):
+        raise watch.subprocess.TimeoutExpired(args, 7200)
+
+    monkeypatch.setattr(watch.subprocess, "run", hang)
+    assert watch.run_schedules(config) == [] and "逾時" in notices[0]
+
+
+def test_a_check_that_is_running_delays_the_scheduled_one(scheduled):
+    import fcntl
+    config, calls, notices, root = scheduled
+    with (root / "quality.lock").open("w") as holder:
+        fcntl.flock(holder, fcntl.LOCK_EX)
+        assert watch.run_schedules(config) == [] and not calls
+    assert watch.run_schedules(config) == ["test"]  # the next poll gets it
+
+
+def test_a_bug_in_the_scheduler_is_told_once_a_day_and_never_stops_the_watching(scheduled, monkeypatch):
+    config, calls, notices, root = scheduled
+    real = watch._module
+    monkeypatch.setattr(watch, "_module", lambda name: (_ for _ in ()).throw(RuntimeError("boom")) if name == "wifi8_quality_notify" else real(name))
+    assert watch.run_schedules(config) == [] and watch.run_schedules(config) == []
+    assert len(notices) == 1 and "判斷程式出錯" in notices[0]

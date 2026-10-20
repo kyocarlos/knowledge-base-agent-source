@@ -90,12 +90,12 @@ def test_everyone_can_read_it_and_only_an_authorised_account_can_switch_it(clien
     assert http.post("/api/wifi8/auto-check", json={"enabled": True}, headers={**as_("alice"), **HEADER}).json()["enabled"] is True
 
 
-def test_the_two_switches_are_authorised_separately(client):
+def test_the_settings_are_authorised_separately(client):
     http, root, registry, admin, users = client
-    registry.grant_capability(admin.user_id, users["bob"], "test", "wifi8_summary_notify")
-    assert http.get("/api/wifi8/summary-notify", headers=as_("bob")).json()["can_change"] is True
+    registry.grant_capability(admin.user_id, users["bob"], "test", "wifi8_quality_schedule")
+    assert http.get("/api/wifi8/quality-schedule", headers=as_("bob")).json()["can_change"] is True
     assert http.get("/api/wifi8/auto-check", headers=as_("bob")).json()["can_change"] is False  # the other capability does not carry over
-    assert http.get("/api/wifi8/summary-notify", headers=as_("alice")).json()["can_change"] is False
+    assert http.get("/api/wifi8/quality-schedule", headers=as_("alice")).json()["can_change"] is False
     assert http.post("/api/wifi8/auto-check", json={"enabled": False}, headers={**as_("bob"), **HEADER}).status_code == 403
 
 
