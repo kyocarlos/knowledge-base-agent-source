@@ -126,7 +126,8 @@
       "WARN",
       "FAIL"
     ],
-    "_comment_summary": "排程摘要通知不在此設定：由各資料區 WiFi 專區頁面的開關決定（預設關閉），且只有 KM Control 管理頁授權的帳號能改。開啟的區，每次排程（每日、每週）都會通知該區各層狀態，即使全部 PASS。",
+    "_comment_summary": "每日摘要通知：在各資料區 WiFi 專區頁面的「排程摘要通知」開關開啟並選定時間（24 小時制）後，scripts/wifi8_quality_watch.py 每 5 分鐘輪詢時，到時間就送一則該區各層最近一次檢查結果的摘要；預設關閉，只有 KM Control 管理頁授權的帳號能改。default_time／default_timezone 是區端檔案缺值時的預設；catchup_minutes＝主機錯過整點時最晚補送的分鐘數（超過就等隔天）；stale_hours＝某層最近一筆檢查超過幾小時就標示「超時未更新」（每日兩層 36 小時，每週的 Agent 192 小時）。",
+    "summary": {"default_time": "09:00", "default_timezone": "Asia/Taipei", "catchup_minutes": 180, "stale_hours": {"retrieval": 36, "trust": 36, "agent": 192}},
     "_comment": "通知管道與 token 在 ~/.km-control/notify/wifi8-quality.env（0600，不進 git），見 scripts/wifi8_quality_notify.py"
   },
   "_comment_figures": "2026-10-19 新增圖片圖表題 9 題（F01～F09）：figure_hit_at_10＝檢索前 10 筆有標準圖片、cited_figure＝回答引用標準圖片；unnumbered_repeat_answers＝同一位置多筆引用卻沒標出第幾段的回答數，程式保證應為 0，1 則即警示。門檻依 2026-10-19 兩區基準訂定（figure_hit_at_10 88.9%、cited_figure 87.5～88.9%）：1 題約 11%，再多錯 2 題才警示，退步容許 1 題。",

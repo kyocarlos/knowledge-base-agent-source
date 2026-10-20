@@ -102,3 +102,47 @@ def test_a_corrupt_or_missing_file_means_off(tmp_path):
     assert summary_notify.read_settings(tmp_path)["enabled"] is False
     (tmp_path / summary_notify.SETTINGS_NAME).write_text('{"enabled": "yes"}')
     assert summary_notify.read_settings(tmp_path)["enabled"] is False  # only a real true turns it on
+
+
+def test_the_time_defaults_to_nine_and_is_chosen_on_a_24_hour_clock(env):
+    http, registry, admin, users, root = env
+    assert http.get("/api/wifi8/summary-notify", headers=as_("bob")).json()["time"] == "09:00"
+    saved = http.post("/api/wifi8/summary-notify", json={"enabled": True, "time": "21:30"}, headers={**as_("alice"), **HEADER}).json()
+    assert saved["enabled"] is True and saved["time"] == "21:30" and saved["timezone"] == "Asia/Taipei"
+    stored = json.loads((root / summary_notify.SETTINGS_NAME).read_text())
+    assert stored["time"] == "21:30" and stored["timezone"] == "Asia/Taipei"
+    assert http.get("/api/wifi8/summary-notify", headers=as_("bob")).json()["time"] == "21:30"  # everyone sees it
+    for edge in ("00:00", "23:59"):
+        assert http.post("/api/wifi8/summary-notify", json={"enabled": True, "time": edge}, headers={**as_("alice"), **HEADER}).json()["time"] == edge
+
+
+def test_switching_without_a_time_keeps_the_chosen_time(env):
+    http, *_ = env
+    http.post("/api/wifi8/summary-notify", json={"enabled": True, "time": "06:15"}, headers={**as_("alice"), **HEADER})
+    off = http.post("/api/wifi8/summary-notify", json={"enabled": False}, headers={**as_("alice"), **HEADER}).json()
+    assert off["enabled"] is False and off["time"] == "06:15"
+
+
+@pytest.mark.parametrize("bad", ["24:00", "9:00", "09:60", "12:00 PM", "9am", "", "0900", "09:00:00", 900, ["09:00"]])
+def test_a_time_that_is_not_hh_mm_on_a_24_hour_clock_is_refused_and_nothing_changes(env, bad):
+    http, registry, admin, users, root = env
+    refused = http.post("/api/wifi8/summary-notify", json={"enabled": True, "time": bad}, headers={**as_("alice"), **HEADER})
+    assert refused.status_code == 422
+    assert not (root / summary_notify.SETTINGS_NAME).exists()
+
+
+def test_a_user_without_the_grant_cannot_change_the_time_either(env):
+    http, registry, admin, users, root = env
+    assert http.post("/api/wifi8/summary-notify", json={"enabled": True, "time": "10:00"}, headers={**as_("bob"), **HEADER}).status_code == 403
+    assert not (root / summary_notify.SETTINGS_NAME).exists()
+
+
+def test_the_timezone_comes_from_the_deployment_and_a_corrupt_time_reads_as_the_default(env, monkeypatch, tmp_path):
+    http, registry, admin, users, root = env
+    monkeypatch.setenv("KM_WIFI8_SUMMARY_TIMEZONE", "UTC")
+    assert http.post("/api/wifi8/summary-notify", json={"enabled": True, "time": "08:00"}, headers={**as_("alice"), **HEADER}).json()["timezone"] == "UTC"
+    (tmp_path / "x").mkdir()
+    (tmp_path / "x" / summary_notify.SETTINGS_NAME).write_text('{"enabled": true, "time": "7pm"}')
+    assert summary_notify.read_settings(tmp_path / "x")["time"] == "09:00"
+    with pytest.raises(ValueError):
+        summary_notify.write_settings(tmp_path / "x", True, "someone", "24:01")
