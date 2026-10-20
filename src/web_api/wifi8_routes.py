@@ -19,7 +19,7 @@ from fastapi import APIRouter, HTTPException, Query, Request, UploadFile
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field, StrictBool
 
-from ..wifi8 import autocheck, quality_schedule
+from ..wifi8 import autocheck, overview as overview_stats, quality_schedule
 from ..wifi8.importer import ImportConflict, Wifi8Importer, Wifi8Settings
 from ..wifi8.package import IMAGE_TYPES, PackageError
 from ..wifi8.search import SearchOptions, SearchUnavailable, Wifi8Search
@@ -235,14 +235,20 @@ async def wifi8_overview(request: Request):
     current_documents = [doc for doc in documents if doc.get("analysis_eligible")]
     manifest = package.manifest()
     manifest_counts = manifest.get("counts") or {}
+    processing = _processing_state(documents, importer)
+    counts = {
+        **package.counts(),
+        "current_documents": len(current_documents),
+        "superseded_documents": len(documents) - len(current_documents),
+        "excluded": manifest_counts.get("excluded") or {},
+    }
     return {
         "current": importer.current(),
-        "counts": {
-            **package.counts(),
-            "current_documents": len(current_documents),
-            "superseded_documents": len(documents) - len(current_documents),
-            "excluded": manifest_counts.get("excluded") or {},
-        },
+        "counts": counts,
+        "by_category": overview_stats.category_stats(documents),
+        "qna_documents": sum(1 for doc in documents if doc.get("default_for_qna")),
+        "attention": overview_stats.attention_items(documents, counts, processing, importer.active_job(),
+                                                    autocheck.view(_wifi8_root())),
         "by_publisher": Counter(
             doc.get("publisher") or "未標示" for doc in current_documents
         ).most_common(),
@@ -252,7 +258,7 @@ async def wifi8_overview(request: Request):
         "top_topics": Counter(
             topic for doc in current_documents for topic in (doc.get("topics") or [])
         ).most_common(20),
-        "processing": _processing_state(documents, importer),
+        "processing": processing,
         "active_job": importer.active_job(),
         "upload_enabled": _can_import(request),
     }

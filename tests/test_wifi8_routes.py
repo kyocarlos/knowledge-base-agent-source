@@ -32,6 +32,16 @@ def test_overview_uses_real_import_counts(monkeypatch, engine):  # noqa: F811
     assert sum(count for _, count in body["by_document_role"]) == 4
 
 
+def test_overview_carries_the_classification_statistics_and_the_attention_list(monkeypatch, engine):  # noqa: F811
+    body = make_client(monkeypatch, engine).get("/api/wifi8/overview").json()
+    stats = body["by_category"]
+    assert stats["total"] == body["counts"]["documents"] == 5  # every document, history included
+    assert sum(r["total"] for r in stats["rows"]) == 5 and sum(r["current"] for r in stats["rows"]) == body["counts"]["current_documents"]
+    assert all(r["label"] and "share" in r for r in stats["rows"])
+    assert isinstance(body["qna_documents"], int) and isinstance(body["attention"], list)
+    assert all({"level", "title", "detail", "route"} <= set(item) for item in body["attention"])
+
+
 def test_documents_filter_history_and_pagination(monkeypatch, engine):  # noqa: F811
     client = make_client(monkeypatch, engine)
     current = client.get("/api/wifi8/documents", params={"query": "104438", "page_size": 1}).json()

@@ -1,0 +1,13 @@
+{
+  "_comment": "WiFi 專區「分類統計」的分類名稱與說明。folder 是文件 classification_path 的頂層資料夾（與原 Wi-Fi8 KM System 的 config.classification.json 一致）；順序即畫面順序。文件的頂層資料夾若不在這份清單，畫面仍會列出（以資料夾名稱顯示），不會被默默漏掉。匯出包日後若帶入分類標籤，改由匯出包提供。",
+  "categories": [
+    {"folder": "01_WFA", "id": "wfa", "label": "WFA", "description": "WFA 技術文件、成員提案、會議與認證資料。"},
+    {"folder": "02_Standards-Academia", "id": "standards-academia", "label": "標準與學術機構", "description": "依發布或明確註記的收錄機構歸檔。"},
+    {"folder": "03_Chipset-Components", "id": "chipset", "label": "晶片與零組件商", "description": "MediaTek、Qualcomm、Broadcom 等機構。"},
+    {"folder": "04_Test-Measurement-Vendors", "id": "measurement", "label": "測試與量測廠商", "description": "Keysight、R&S 等測試與量測來源。"},
+    {"folder": "05_Network-Brands", "id": "brands", "label": "網路產品品牌商", "description": "TP-Link、Huawei、ASUS 等產品品牌來源。"},
+    {"folder": "06_Media-Industry-Research", "id": "media", "label": "媒體與產業研究機構", "description": "新聞媒體及產業研究來源。"},
+    {"folder": "07_Internal", "id": "internal", "label": "內部資料", "description": "公司內部產出的文件。"},
+    {"folder": "08_Other-Sources", "id": "other", "label": "其他來源", "description": "僅包含已明確確認歸入此處的文件。"}
+  ]
+}

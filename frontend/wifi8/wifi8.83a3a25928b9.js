@@ -66,6 +66,34 @@
   function healthItem(icon, name, status, detail, tone = '') {
     return `<div class="health-item"><span class="health-icon">${icon}</span><div class="health-copy"><h3>${name}</h3><span class="health-state ${tone}">${escapeHtml(status)}</span><small>${escapeHtml(detail || '')}</small></div></div>`;
   }
+  // Classification statistics like the original Wi-Fi8 KM System: every document (history versions included) grouped by the category of its
+  // publishing organisation; names and descriptions come from the server (src/wifi8/categories.json), the current versions are shown next to the total.
+  function classificationRows(stats = {}, counts = {}) {
+    const rows = stats.rows || []; const total = Number(stats.total || 0);
+    const excluded = Object.entries(counts.excluded || {});
+    const note = excluded.length ? `<p class="results-meta classification-note">另有 ${escapeHtml(excluded.map(([reason, n]) => `${number(n)} 份（${reason}）`).join('、'))} 依匯入政策未匯入，不在以上合計內。</p>` : '';
+    return `<div class="classification-total"><span>合計</span><strong>${number(total)}</strong></div><div class="category-list">${rows.map((row) => `<div class="category-row classification-row">
+      <div class="category-name"><span>${escapeHtml(row.label)}</span><small>${escapeHtml(row.description || '')}</small></div>
+      <div class="classification-bar"><progress class="category-bar" max="${Math.max(1, total)}" value="${Number(row.total || 0)}" aria-label="${escapeHtml(row.label)} 占比 ${Number(row.share || 0).toFixed(1)}%"></progress><small>目前版本 ${number(row.current)}・歷史版本 ${number(row.history)}</small></div>
+      <div class="category-value"><strong>${number(row.total)}</strong><span>${Number(row.share || 0).toFixed(1)}%</span></div></div>`).join('') || '<p class="empty">尚無分類資料</p>'}</div>${note}`;
+  }
+  function overviewCards(data, counts) {
+    const excluded = Object.values(counts.excluded || {}).reduce((sum, n) => sum + Number(n || 0), 0);
+    const cards = [
+      ['▤', '知識庫文件', counts.documents, `目前版本 ${number(counts.current_documents)}／歷史版本 ${number(counts.superseded_documents)}`],
+      ['◈', '問答與研究採用文件', data.qna_documents, 'AI 問答與研究共用的預設範圍'],
+      ['⌕', '檢索單位', counts.chunks || counts.retrieval_units, `可用 ${number(counts.chunks_ready)}／處理中 ${number(counts.chunks_pending)}`],
+      ['⊘', '依政策未匯入', excluded, excluded ? '機密屬性不符，不進入 KM' : '沒有被排除的文件'],
+    ];
+    return `<div class="metric-grid">${cards.map(([icon, label, value, note]) => `<div class="metric"><span class="metric-icon">${icon}</span><div class="metric-copy"><span>${label}</span><strong>${number(value)}</strong><small>${escapeHtml(note)}</small></div></div>`).join('')}</div>`;
+  }
+  // Things that need a person's attention, computed by the server from the import and the zone's switches (src/wifi8/overview.py).
+  function attentionPanel(items = []) {
+    const body = items.length
+      ? `<div class="attention-list">${items.map((item) => `<a class="attention-task ${escapeHtml(item.level)}" href="#/${escapeHtml(item.route)}"><span><strong>${escapeHtml(item.title)}</strong><small>${escapeHtml(item.detail)}</small></span><span class="attention-go" aria-hidden="true">›</span></a>`).join('')}</div>`
+      : '<div class="alert-row success"><strong>目前沒有待處理事項</strong>匯入、版本關係與自動檢查都正常。</div>';
+    return `<div class="overview-grid single">${panel('待處理事項', body, items.length ? `${items.length} 項` : '一切正常')}</div>`;
+  }
   function categoryRows(items = []) {
     const max = Math.max(1, ...items.map((item) => Number(item[1] || 0)));
     return `<div class="category-list">${items.slice(0, 12).map(([name, count]) => `<div class="category-row"><span class="category-name" title="${escapeHtml(name)}">${escapeHtml(name)}</span><progress class="category-bar" max="${max}" value="${Number(count || 0)}"></progress><span class="category-value">${number(count)}</span></div>`).join('') || '<div class="empty">尚無分類資料</div>'}</div>`;
@@ -81,8 +109,10 @@
     content.innerHTML = `
       <section class="health-panel"><div class="section-intro"><div><span class="health-icon">⌑</span><div><h2>系統狀態</h2><p>目前資料版本與匯入進度</p></div></div><span class="inline-note">LIVE API</span></div>
         <div class="health-grid">${healthItem('◈','資料集','可用', current.package_id || current.version || current.import_id || '目前版本')}${healthItem('▤','文件','已索引',`${number(counts.current_documents)} 目前 / ${number(counts.superseded_documents)} 歷史`)}${healthItem('⌕','檢索單位','已就緒',`${number(counts.chunks || counts.retrieval_units)} 個`)}${healthItem('⇩','匯入工作',job ? (job.status || '執行中') : '無進行中工作',job?.job_id || '穩定',job ? 'warning' : '')}</div></section>
-      <div class="overview-grid">${panel('內容統計', `<div class="metric-grid">${[['▤','全部文件',counts.documents],['◈','目前版本',counts.current_documents],['◷','歷史版本',counts.superseded_documents],['⌕','檢索單位',counts.chunks || counts.retrieval_units]].map(([icon,label,value]) => `<div class="metric"><span class="metric-icon">${icon}</span><div class="metric-copy"><span>${label}</span><strong>${number(value)}</strong><small>來自目前匯入版本</small></div></div>`).join('')}</div>`, '僅顯示真實匯入統計')}${panel('發布者', categoryRows(data.by_publisher), '目前版本')}</div>
-      <div class="overview-grid">${panel('文件角色', categoryRows(data.by_document_role))}${panel('主題', `<div class="topic-list">${(data.top_topics || []).map(([name,count]) => `<span class="topic">${escapeHtml(name)} · ${number(count)}</span>`).join('') || '<span class="empty">尚無主題</span>'}</div>`)}</div>
+      ${attentionPanel(data.attention)}
+      <div class="overview-grid">${panel('分類統計', classificationRows(data.by_category, counts), '依來源機構類別統計（全部文件）')}${panel('文件概況', overviewCards(data, counts), '來自目前匯入版本')}</div>
+      <div class="overview-grid">${panel('發布者', categoryRows(data.by_publisher), '目前版本')}${panel('文件角色', categoryRows(data.by_document_role), '目前版本')}</div>
+      <div class="overview-grid single">${panel('主題', `<div class="topic-list">${(data.top_topics || []).map(([name,count]) => `<span class="topic">${escapeHtml(name)} · ${number(count)}</span>`).join('') || '<span class="empty">尚無主題</span>'}</div>`, '目前版本')}</div>
       ${processingPanel(data, counts)}`;
   }
 

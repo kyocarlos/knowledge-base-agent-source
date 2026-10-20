@@ -312,3 +312,22 @@ progress { width: 100%; height: 8px; margin-top: 9px; accent-color: var(--blue);
 .summary-time-row select { width: auto; min-width: 74px; margin-top: 0; }
 .summary-time-row select:disabled { opacity: .6; cursor: not-allowed; }
 .summary-time-row .secondary-button:disabled { opacity: .45; cursor: not-allowed; }
+
+/* Overview: classification statistics, overview cards, attention list */
+.overview-grid.single { grid-template-columns: minmax(0,1fr); }
+.classification-total { display: flex; align-items: baseline; justify-content: flex-end; gap: 8px; margin: 0 0 8px; color: var(--muted); font-size: .8rem; }
+.classification-total strong { color: var(--ink); font-size: 1.2rem; }
+.classification-row { grid-template-columns: minmax(150px,1.1fr) minmax(130px,1fr) 72px; }
+.classification-row .category-name { display: grid; gap: 3px; min-width: 0; }
+.classification-row .category-name small { color: var(--muted); font-size: .7rem; font-weight: 400; line-height: 1.35; }
+.classification-bar { display: grid; gap: 5px; min-width: 0; }
+.classification-bar small { color: var(--muted); font-size: .68rem; }
+.classification-note { margin: 12px 0 0; }
+.attention-list { display: grid; gap: 8px; margin-top: 6px; }
+.attention-task { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 11px 14px; border: 1px solid var(--line); border-left: 4px solid var(--blue); border-radius: 9px; color: var(--ink); text-decoration: none; background: rgba(255,255,255,.03); }
+.attention-task.warning { border-left-color: var(--amber); }
+.attention-task:hover { border-color: rgba(127,255,227,.45); background: rgba(127,255,227,.08); }
+.attention-task strong { display: block; font-size: .92rem; }
+.attention-task small { display: block; margin-top: 3px; color: var(--muted); font-size: .76rem; line-height: 1.4; }
+.attention-go { color: var(--muted); font-size: 1.4rem; }
+@media (max-width: 720px) { .classification-row { grid-template-columns: minmax(0,1fr) 64px; } .classification-bar { grid-column: 1 / -1; grid-row: 2; } }
