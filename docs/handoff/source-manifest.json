@@ -1273,7 +1273,7 @@
     },
     {
       "path": "scripts/webwright_km_capability_grants.py",
-      "sha256": "ca364db450eafdd31c5aa287c24cbdfa30c98cbe8bee422b4404caa5c082b051"
+      "sha256": "0bfda20ce1adb53d430796b3ab64608c37cc70d6ff9e934d9da2f72d68d5a36f"
     },
     {
       "path": "scripts/webwright_wifi8_accept.py",
