@@ -1,7 +1,8 @@
 """Switch and status of the automatic quality check that follows a data update.
 
 ``scripts/wifi8_quality_watch.py`` runs on the host every few minutes (cron) and starts the quality check when the zone serves
-a new package. People using the WiFi zone page can switch it off and on; the page cannot touch the host's crontab, so the
+a new package. Accounts that a KM Control admin authorised (capability ``wifi8_auto_check``) can switch it off and on from the
+WiFi zone page; everybody else sees the state but not the switch. The page cannot touch the host's crontab, so the
 switch is a file in the zone's data directory that the watcher reads on every run (the cron entry itself stays, and a
 switched-off run costs nothing). The watcher also writes a status file, so the page shows that it is alive and what it did last.
 
@@ -18,6 +19,7 @@ from pathlib import Path
 from typing import Any
 
 SETTINGS_NAME = "auto-check.json"
+CAPABILITY = "wifi8_auto_check"  # granted per account and zone on the KM Control admin page (config/km_capabilities.json)
 STATUS_NAME = "auto-check-status.json"
 DEFAULT_INTERVAL_MINUTES = 5
 OVERDUE_FACTOR = 3  # a watcher that has not reported for this many intervals is not running

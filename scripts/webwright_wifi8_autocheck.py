@@ -1,6 +1,7 @@
 """Webwright：WiFi 工作區「資料更新後自動檢查」開關（匯入工作頁）的使用者流程驗收（不輸出密碼與 session）。
 
-用法：python scripts/webwright_wifi8_autocheck.py RUN_DIR ZONE USER PASS_KEY
+用法：python scripts/webwright_wifi8_autocheck.py RUN_DIR ZONE USER PASS_KEY [EXPECT]
+  EXPECT=granted（預設）這個帳號已由 KM Control 管理員授權「自動檢查開關」；EXPECT=locked 未授權：開關反灰、說明原因、直接 POST 回 403
 環境變數見 webwright_wifi8_common.py。
 
 檢查項目：
@@ -37,12 +38,21 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     for name in ("run_dir", "zone", "user", "pass_key"):
         parser.add_argument(name)
+    parser.add_argument("expect", nargs="?", choices=("granted", "locked"), default="granted")
     args = parser.parse_args()
     run = Run(args.run_dir, args.zone, args.user)
     with wifi_page(run) as pg:
         login_to_wifi(pg, args.zone, args.user, args.pass_key)
         open_jobs(pg)
         original = state(pg)
+        if args.expect == "locked":
+            can = api_state(pg).get("can_change")
+            disabled = pg.locator("#auto-check-toggle").is_disabled()
+            notice = "尚未獲得" in (pg.locator("#auto-check-locked").inner_text() if pg.locator("#auto-check-locked").count() else "")
+            run.act(pg, "locked_ui", f"can_change={can}、開關 disabled={disabled}、未授權說明={'有' if notice else '沒有'}", can is False and disabled and notice, target=pg.locator("#auto-check-host"))
+            status = pg.evaluate("(enabled) => fetch('/api/wifi8/auto-check', {method: 'POST', credentials: 'same-origin', headers: {'Content-Type': 'application/json', 'x-km-wifi8-setting': '1'}, body: JSON.stringify({enabled})}).then(r => r.status)", not original)
+            run.act(pg, "api_refused", f"直接 POST 狀態碼={status}，開關狀態 {original}→{api_state(pg).get('enabled')}", status == 403 and api_state(pg).get("enabled") is original)
+            return run.finish(expected_failures=((403, "POST", "/api/wifi8/auto-check"),))
         try:
             text = pg.locator("#auto-check-host").inner_text()
             role = pg.locator("#auto-check-toggle").get_attribute("role")

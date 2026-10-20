@@ -162,38 +162,48 @@ class AutoCheckRequest(BaseModel):
     enabled: StrictBool
 
 
+def _may_change(request: Request, capability: str) -> bool:
+    """Whether the signed-in account holds ``capability`` for this zone. Looked up in KM Control on every call (a revoked grant
+    applies at once); any failure means no, so the switch stays locked."""
+    identity = _identity(request)
+    try:
+        from ..km_control import ControlRegistry
+        return ControlRegistry.from_environment().has_capability(str(identity.get("sub")), str(identity.get("instance_id")), capability)
+    except Exception:  # noqa: BLE001 - fail closed
+        logger.warning("wifi8 capability lookup failed (%s)", capability, exc_info=True)
+        return False
+
+
+def _require_switch_change(request: Request, capability: str) -> None:
+    if not _may_change(request, capability):
+        raise HTTPException(status_code=403, detail="This account is not authorised to change this setting")
+    if request.headers.get(SETTING_HEADER) != "1":
+        raise HTTPException(status_code=403, detail="Same-origin Wi-Fi8 setting request required")
+
+
+def _auto_check_view(request: Request) -> dict[str, Any]:
+    return {**autocheck.view(_wifi8_root()), "can_change": _may_change(request, autocheck.CAPABILITY)}
+
+
 @router.get("/auto-check")
 async def auto_check_state(request: Request):
-    """Switch and status of the quality check that follows a data update (any logged-in account of this zone may read it)."""
-    _identity(request)
-    return autocheck.view(_wifi8_root())
+    """Switch and status of the quality check that follows a data update. Any logged-in account of this zone may read it and
+    learns whether it may change it."""
+    return _auto_check_view(request)
 
 
 @router.post("/auto-check")
 async def set_auto_check(body: AutoCheckRequest, request: Request):
-    """Switch the automatic check on or off. Any logged-in account of this zone may; the account is recorded."""
-    _identity(request)
-    if request.headers.get(SETTING_HEADER) != "1":
-        raise HTTPException(status_code=403, detail="Same-origin Wi-Fi8 setting request required")
+    """Switch the automatic check on or off. Only an account that a KM Control admin authorised for this zone may; the account is recorded."""
+    _require_switch_change(request, autocheck.CAPABILITY)
     username = _account_name(request)
     autocheck.write_settings(_wifi8_root(), body.enabled, username)
     logger.info("wifi8 auto-check %s by %s", "enabled" if body.enabled else "disabled", username)
-    return autocheck.view(_wifi8_root())
-
-
-def _may_change_summary_notify(request: Request) -> bool:
-    """Looked up in KM Control on every call (a revoked grant applies at once); any failure means no."""
-    identity = _identity(request)
-    try:
-        from ..km_control import ControlRegistry
-        return ControlRegistry.from_environment().has_capability(str(identity.get("sub")), str(identity.get("instance_id")), summary_notify.CAPABILITY)
-    except Exception:  # noqa: BLE001 - fail closed: the switch stays locked
-        logger.warning("wifi8 summary-notify capability lookup failed", exc_info=True)
-        return False
+    return _auto_check_view(request)
 
 
 def _summary_notify_view(request: Request) -> dict[str, Any]:
-    return {**summary_notify.read_settings(_wifi8_root()), "can_change": _may_change_summary_notify(request)}
+    return {**summary_notify.read_settings(_wifi8_root()), "can_change": _may_change(request, summary_notify.CAPABILITY)}
 
 
 @router.get("/summary-notify")
@@ -205,10 +215,7 @@ async def summary_notify_state(request: Request):
 @router.post("/summary-notify")
 async def set_summary_notify(body: AutoCheckRequest, request: Request):
     """Only an account that KM Control admin authorised for this zone may switch it; the account is recorded."""
-    if not _may_change_summary_notify(request):
-        raise HTTPException(status_code=403, detail="This account is not authorised to change the summary notification")
-    if request.headers.get(SETTING_HEADER) != "1":
-        raise HTTPException(status_code=403, detail="Same-origin Wi-Fi8 setting request required")
+    _require_switch_change(request, summary_notify.CAPABILITY)
     username = _account_name(request)
     summary_notify.write_settings(_wifi8_root(), body.enabled, username)
     logger.info("wifi8 summary-notify %s by %s", "enabled" if body.enabled else "disabled", username)
