@@ -65,6 +65,8 @@ def sandbox(tmp_path, monkeypatch):
     monkeypatch.setattr(watch, "read_current", lambda worker: served[worker])
     sent, runs = [], []
     monkeypatch.setattr(watch, "notify_text", sent.append)
+    summaries = []
+    monkeypatch.setattr(watch, "send_summaries", lambda config: summaries.append(1) or [])  # the daily summary has its own tests
     enabled = {"kb-celery-search": True, "km-da40-celery_search_worker-1": True}
     written = {}
     monkeypatch.setattr(watch, "read_enabled", lambda worker: enabled[worker])
@@ -161,3 +163,39 @@ def test_every_run_tells_each_zone_page_that_the_watcher_is_alive_and_what_it_la
     last = sandbox.written["kb-celery-search"]["last_check"]
     assert last == {"at": "2026-10-19T09:00:00+00:00", "status": "PASS", "package_id": "wifi8-b", "trigger": "package_change"}
     assert sandbox.written["km-da40-celery_search_worker-1"]["last_check"] is None  # the other zone did not change
+
+
+def test_due_summaries_are_sent_from_the_watch_run_and_a_failure_never_stops_the_watching(monkeypatch, tmp_path):
+    from datetime import datetime, timezone
+    summary_calls = []
+
+    class Fake:
+        @staticmethod
+        def send_due(config, read_setting, now, history, state, root, send):
+            summary_calls.append((sorted(config["zones"]), read_setting("test"), history.name, state.name))
+            send("hello")
+            return ["test"]
+
+    sent = []
+
+    class FakeNotify:
+        @staticmethod
+        def load_settings():
+            return {"KM_NOTIFY_CHANNEL": "telegram"}
+
+        @staticmethod
+        def send(text, settings):
+            sent.append(text)
+            return ["telegram"]
+
+    monkeypatch.setattr(watch, "_module", lambda name: Fake if name == "wifi8_quality_summary" else FakeNotify)
+    monkeypatch.setattr(watch, "read_zone_json", lambda worker, name: {"enabled": True, "time": "09:00"} if name == "summary-notify.json" else None)
+    monkeypatch.setattr(watch, "ROOT", tmp_path)
+    assert watch.send_summaries({"zones": {"test": {"search_worker": "w"}}}) == ["test"]
+    assert summary_calls == [(["test"], {"enabled": True, "time": "09:00"}, "history.jsonl", "summary-state.json")] and sent == ["hello"]
+
+    def broken(name):
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(watch, "_module", broken)
+    assert watch.send_summaries({"zones": {}}) == []  # logged, not raised

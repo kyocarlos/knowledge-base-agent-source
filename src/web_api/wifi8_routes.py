@@ -162,6 +162,11 @@ class AutoCheckRequest(BaseModel):
     enabled: StrictBool
 
 
+class SummaryNotifyRequest(BaseModel):
+    enabled: StrictBool
+    time: str | None = Field(default=None, pattern=r"^([01]\d|2[0-3]):([0-5]\d)$")  # 24-hour HH:MM; omitted keeps the stored time
+
+
 def _may_change(request: Request, capability: str) -> bool:
     """Whether the signed-in account holds ``capability`` for this zone. Looked up in KM Control on every call (a revoked grant
     applies at once); any failure means no, so the switch stays locked."""
@@ -213,12 +218,12 @@ async def summary_notify_state(request: Request):
 
 
 @router.post("/summary-notify")
-async def set_summary_notify(body: AutoCheckRequest, request: Request):
+async def set_summary_notify(body: SummaryNotifyRequest, request: Request):
     """Only an account that KM Control admin authorised for this zone may switch it; the account is recorded."""
     _require_switch_change(request, summary_notify.CAPABILITY)
     username = _account_name(request)
-    summary_notify.write_settings(_wifi8_root(), body.enabled, username)
-    logger.info("wifi8 summary-notify %s by %s", "enabled" if body.enabled else "disabled", username)
+    summary_notify.write_settings(_wifi8_root(), body.enabled, username, body.time)
+    logger.info("wifi8 summary-notify %s at %s by %s", "enabled" if body.enabled else "disabled", body.time or "(unchanged)", username)
     return _summary_notify_view(request)
 
 

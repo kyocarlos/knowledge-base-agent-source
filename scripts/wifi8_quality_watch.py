@@ -10,6 +10,9 @@ change, compares with the previous run of the same questions, and is sent even w
 A change is a new package id or the same package published again (`switched_at`): a re-publish can change what is served too.
 The first poll only records what is served. State: <quality root>/package-state.json. Silent unless something happens.
 
+The same run sends the daily summary message of each zone whose page asks for it, at the time chosen there
+(scripts/wifi8_quality_summary.py; state in <quality root>/summary-state.json).
+
 A zone whose page switch is off (<zone wifi8 root>/auto-check.json, set on the WiFi zone page) is not polled; after it is
 switched on again, a change that happened meanwhile is checked then. Every run also writes auto-check-status.json into each
 zone, which the page shows (last poll, what is watched, the last check).
@@ -117,12 +120,36 @@ def notify_text(text: str) -> None:
         say(f"通知失敗：{exc}")
 
 
+def _module(name: str):
+    spec = importlib.util.spec_from_file_location(name, REPO / f"scripts/{name}.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def send_summaries(config: dict) -> list[str]:
+    """Daily summary messages that are due (time chosen on each zone's page). A problem here must never stop the watching."""
+    try:
+        summary, notify = _module("wifi8_quality_summary"), _module("wifi8_quality_notify")
+        sent = summary.send_due(config, lambda zone: read_zone_json(config["zones"][zone]["search_worker"], "summary-notify.json"),
+                                datetime.now(timezone.utc), ROOT / "history.jsonl", ROOT / "summary-state.json", ROOT,
+                                lambda text: notify.send(text, notify.load_settings()))
+        for zone in sent:
+            say(f"{zone}：已送出每日摘要")
+        return sent
+    except Exception as exc:  # noqa: BLE001
+        say(f"每日摘要失敗：{exc}")
+        return []
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--dry-run", action="store_true", help="report what would run, change nothing")
     args = parser.parse_args()
     config = json.loads(CONFIG.read_text(encoding="utf-8"))
     watch = {**DEFAULT_WATCH, **(config.get("watch") or {})}
+    if not args.dry_run:
+        send_summaries(config)
     state = load_state()
     triggered, statuses = [], {}
     for zone, settings in config["zones"].items():
