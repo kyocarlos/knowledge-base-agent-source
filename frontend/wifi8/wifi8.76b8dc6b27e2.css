@@ -331,3 +331,6 @@ progress { width: 100%; height: 8px; margin-top: 9px; accent-color: var(--blue);
 .attention-task small { display: block; margin-top: 3px; color: var(--muted); font-size: .76rem; line-height: 1.4; }
 .attention-go { color: var(--muted); font-size: 1.4rem; }
 @media (max-width: 720px) { .classification-row { grid-template-columns: minmax(0,1fr) 64px; } .classification-bar { grid-column: 1 / -1; grid-row: 2; } }
+.classification-row .category-value { display: grid; justify-items: end; gap: 2px; }
+.classification-row .category-value strong { font-size: 1rem; line-height: 1.1; }
+.classification-row .category-value span { color: var(--muted); font-size: .72rem; }
