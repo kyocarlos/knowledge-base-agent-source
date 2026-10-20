@@ -113,6 +113,16 @@ def send(text: str, settings: dict[str, str]) -> list[str]:
     return sent
 
 
+def notify_always(notify_config: dict, trigger: str) -> bool:
+    """Whether a run is reported whatever its status: a data change (on_package_change, default on) and, when switched on,
+    every scheduled run as a daily summary (on_schedule, default off). Manual runs are never reported unless WARN/FAIL."""
+    if trigger == "package_change":
+        return bool(notify_config.get("on_package_change", True))
+    if trigger == "schedule":
+        return bool(notify_config.get("on_schedule", False))
+    return False
+
+
 def notify_report(report: dict, report_path: str, notify_on: list[str], always: bool = False) -> str:
     """Called by wifi8_quality_check.py; never raises (the check result must still be written). ``always``: notify whatever the
     status is (a data change is worth a message even when everything passes)."""

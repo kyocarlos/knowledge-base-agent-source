@@ -258,7 +258,7 @@ def main() -> int:
     report["status"] = overall_status([c for z in report["zones"].values() for lv in levels for c in z[lv]["checks"]])
 
     notify_on = (config.get("notify") or {}).get("on") or []
-    always = args.trigger == "package_change" and (config.get("notify") or {}).get("on_package_change", True)
+    always = _notify.notify_always(config.get("notify") or {}, args.trigger)
     report["notification"] = ("未通知（--no-notify）" if args.no_notify
                               else _notify.notify_report(report, str(run_dir / "report.md"), notify_on, always=always))
     text = render(report) + f"\n- 通知：{report['notification']}\n"

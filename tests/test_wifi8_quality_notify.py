@@ -101,3 +101,13 @@ def test_a_data_change_is_reported_even_when_everything_passes(monkeypatch):
     monkeypatch.setattr(notify, "send", lambda text, settings: sent.append(text) or ["telegram"])
     assert notify.notify_report(report, "/r", ["WARN", "FAIL"], always=True) == "已通知：telegram"
     assert "資料更新：DA40" in sent[0] and "DA40 ①檢索：PASS" in sent[0]
+
+
+def test_scheduled_summary_is_off_by_default_and_never_applies_to_manual_runs():
+    assert notify.notify_always({}, "schedule") is False
+    assert notify.notify_always({"on_schedule": False}, "schedule") is False
+    assert notify.notify_always({"on_schedule": True}, "schedule") is True
+    assert notify.notify_always({"on_schedule": True}, "manual") is False
+    assert notify.notify_always({"on_schedule": True}, "package_change") is True  # a data change keeps its own switch
+    assert notify.notify_always({"on_package_change": False, "on_schedule": True}, "package_change") is False
+    assert notify.notify_always({}, "package_change") is True
