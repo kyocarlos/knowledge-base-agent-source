@@ -60,6 +60,10 @@ LEXICAL_CHUNK_BONUS = 0.003
 CANDIDATE_MARGIN = 25
 
 
+def _norm_text(text: str) -> str:
+    return re.sub(r"\s+", " ", str(text or "")).strip().casefold()
+
+
 def _ranked(points, limit: int | None = None) -> list[str]:
     """Point ids by score; equal scores (frequent in BM25) are ordered by id, so every call and every data zone
     returns them in the same order instead of whatever order the segments happened to yield."""
@@ -209,11 +213,21 @@ class Wifi8Search:
         if rerank_scores:
             ordered = sorted(rerank_scores, key=lambda pid: -rerank_scores[pid]) + [pid for pid in ordered if pid not in rerank_scores]
         per_doc: dict[str, int] = {}
+        seen_text: set[str] = set()
+        duplicates = 0
         results = []
         for point_id in ordered:
             chunk = chunks.get(point_id)
             if not chunk or per_doc.get(chunk["revision_id"], 0) >= options.per_document:
                 continue
+            # The same slide or paragraph repeated across document versions would fill the top results with identical text;
+            # keep the best-ranked copy. Versions are compared on purpose with include_history, and a named document stays.
+            if not options.include_history and chunk["revision_id"] not in named:
+                key = _norm_text(chunk["content"])
+                if key in seen_text:
+                    duplicates += 1
+                    continue
+                seen_text.add(key)
             per_doc[chunk["revision_id"]] = per_doc.get(chunk["revision_id"], 0) + 1
             results.append({**chunk, "score": round(scores[point_id], 6),
                             **({"rerank_score": round(rerank_scores[point_id], 4)} if point_id in rerank_scores else {}),
@@ -223,7 +237,7 @@ class Wifi8Search:
         return {"query": query, "package_id": self.package_id, "terms": query_terms(query), "figure_focus": focus,
                 "filters": {"publishers": list(options.publishers), "document_roles": list(options.document_roles),
                             "revision_ids": list(options.revision_ids)[:20], "include_history": options.include_history},
-                "results": results}
+                "duplicates_hidden": duplicates, "results": results}
 
     def documents(self, query: str, options: SearchOptions | None = None, *, limit: int = 15, candidates: int = 200) -> dict[str, Any]:
         """Documents ranked by how much of them the query matches: the hybrid retrieval over a wide candidate pool, grouped per

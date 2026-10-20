@@ -10,8 +10,11 @@ and CJK character bigrams, which match 2-character words and longer phrases alik
 from __future__ import annotations
 
 import hashlib
+import json
+import os
 import re
 from collections import Counter
+from pathlib import Path
 
 _TOKEN = re.compile(r"[A-Za-z0-9][A-Za-z0-9.+/_-]*|[㐀-鿿]+")
 _CJK = re.compile(r"[㐀-鿿]+")
@@ -85,6 +88,33 @@ def document_vector(text: str, title: str = "", *, avg_tokens: float, title_weig
     return indices, [weights[i] for i in indices]
 
 
+EXPANSIONS_FILE_ENV = "KM_WIFI8_QUERY_EXPANSIONS_FILE"
+DEFAULT_EXPANSIONS_FILE = Path(__file__).with_name("query_expansions.json")
+
+
+def load_expansions() -> list[tuple[list[str], list[str]]]:
+    """(when, add) rules; a missing or broken file means no expansion, never a failed search."""
+    path = Path(os.getenv(EXPANSIONS_FILE_ENV) or DEFAULT_EXPANSIONS_FILE)
+    try:
+        rules = json.loads(path.read_text(encoding="utf-8"))["expansions"]
+        return [([str(w).casefold() for w in r["when"]], [str(a) for a in r["add"]]) for r in rules]
+    except (OSError, ValueError, KeyError, TypeError):
+        return []
+
+
+def _mentions(text: str, word: str) -> bool:
+    if _CJK.search(word):
+        return word in text
+    return re.search(rf"(?<![A-Za-z0-9]){re.escape(word)}(?![A-Za-z0-9])", text) is not None
+
+
+def expanded_terms(query: str) -> list[str]:
+    """Terms added to the full-text query for a question phrased differently from the documents (see query_expansions.json)."""
+    text = (query or "").casefold()
+    added = [a for when, add in load_expansions() if any(_mentions(text, w) for w in when) for a in add]
+    return list(dict.fromkeys(t for a in added for t in tokens(a) if t not in STOPWORDS))
+
+
 def query_vector(query: str) -> tuple[list[int], list[float]]:
-    indices = sorted({term_index(t) for t in query_terms(query)})
+    indices = sorted({term_index(t) for t in [*query_terms(query), *expanded_terms(query)]})
     return indices, [1.0] * len(indices)
