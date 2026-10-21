@@ -98,7 +98,7 @@ writeJsonAtomic(stateFile, {
 const tempDir = fs.mkdtempSync(path.join(outputRoot, '.round_robin_'));
 const tempScheduleFile = path.join(tempDir, 'schedule.json');
 const schedule = {
-  base_url: baseUrlOverride || catalog.base_url || 'https://127.0.0.1:3030/chat.html',
+  base_url: baseUrlOverride || catalog.base_url || 'https://61.216.9.52:3030/chat.html',
   headless: headlessOverride ? headlessOverride !== 'false' : (catalog.headless !== undefined ? Boolean(catalog.headless) : true),
   timeout_seconds: toNumberOrUndefined(timeoutOverride) || Number(catalog.timeout_seconds) || 120,
   retry_count: toNumberOrUndefined(retryOverride) || Number(catalog.retry_count) || 2,

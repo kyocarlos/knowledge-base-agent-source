@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 class QACache:
     """Q&A 知識庫管理器"""
 
-    def __init__(self, cache_folder: str = "<project-root>/knowledge-base/data/cleaned"):
+    def __init__(self, cache_folder: str = "/home/da40_ai_gb10/knowledge-base/data/cleaned"):
         self.cache_folder = Path(cache_folder)
         self.cache_folder.mkdir(parents=True, exist_ok=True)
         

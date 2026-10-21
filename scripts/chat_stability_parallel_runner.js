@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Two-session parallel runner for https://127.0.0.1:3030/chat.html
+ * Two-session parallel runner for https://61.216.9.52:3030/chat.html
  *
  * Usage:
  *   node scripts/chat_stability_parallel_runner.js --pair-file scripts/chat_stability_parallel_catalog.json
@@ -18,9 +18,9 @@ const path = require('path');
 const { firefox } = require('playwright');
 const { classifyConsoleEntries } = require('./chat_stability_console_rules');
 
-const DEFAULT_BASE_URL = 'https://127.0.0.1:3030/chat.html';
-const DEFAULT_OUTPUT_ROOT = path.resolve('<project-root>/knowledge-base/final_runs/chat_stability_parallel');
-const DEFAULT_PAIR_FILE = path.resolve('<project-root>/knowledge-base/scripts/chat_stability_parallel_catalog.json');
+const DEFAULT_BASE_URL = 'https://61.216.9.52:3030/chat.html';
+const DEFAULT_OUTPUT_ROOT = path.resolve('/home/da40_ai_gb10/knowledge-base/final_runs/chat_stability_parallel');
+const DEFAULT_PAIR_FILE = path.resolve('/home/da40_ai_gb10/knowledge-base/scripts/chat_stability_parallel_catalog.json');
 
 function parseArgs(argv) {
   const args = {

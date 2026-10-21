@@ -1,0 +1,44 @@
+# TEST plane = WiFi 知識專區（2026-10-16 使用者決策：清空後只放 Wi-Fi8 文件）。
+# 1) /app/data 改掛主機目錄：映像內建的舊範例檔與 processed/*.source.json 不再於重建時復原，
+#    Wi-Fi8 匯入資料（/app/data/wifi8）也能保存。uploads 仍由 base compose 另行掛載。
+# 2) 嵌入模型快取持久化，worker 重建時不必再連 HuggingFace 下載。
+# 3) KM_WIFI8_IMPORT_USERS：可上傳 Wi-Fi8 匯出包的帳號（逗號分隔）；*＝所有已登入帳號；空值＝關閉上傳。
+# 不含任何 secret。
+x-km-test-app-data: &app_data ${KM_TEST_APP_DATA_DIR:-/home/da40_ai_gb10/.km-control/test-zone-data/app-data}:/app/data
+x-km-test-hf-cache: &hf_cache ${KM_TEST_HF_CACHE_DIR:-/home/da40_ai_gb10/.km-control/test-zone-data/hf-cache}:/root/.cache/huggingface
+# 圖片轉文字（2026-10-18 使用者決策：匯出包附上圖片，由 KM 以 Sub2API 的看圖模型轉成文字）：web 收件時決定是否先轉圖，
+# ingest worker 實際執行，兩者設定必須相同。模型、端點與金鑰變數名稱沿用 KM_LLM_PRIMARY_*；off＝只匯入文字。
+# 圖片說明快取由兩區共用（2026-10-18 使用者決策）：兩區匯入同一份 Wi-Fi8 匯出包，模型對同一張圖的回答不完全穩定，
+# 共用後先完成的說明為準，兩區內容一致，且每張圖只描述一次。只存圖片與其轉出的文字，不含其他區資料。
+# Hugging Face 模型（嵌入模型 BAAI/bge-base-zh-v1.5）只從本區的主機快取載入、不連網（2026-10-18 使用者決策）：
+# 容器重建不再重新下載，huggingface.co 無法連線時也能啟動。更換模型時先把新模型下載到快取目錄。
+x-km-hf-offline: &hf_offline
+  HF_HUB_OFFLINE: "1"
+  TRANSFORMERS_OFFLINE: "1"
+x-km-wifi8-images: &wifi8_images
+  KM_WIFI8_IMAGE_DESCRIBER: ${KM_WIFI8_IMAGE_DESCRIBER:-openai}
+  KM_WIFI8_IMAGE_REASONING_EFFORT: ${KM_WIFI8_IMAGE_REASONING_EFFORT:-low}
+  KM_WIFI8_IMAGE_CACHE_ROOT: /app/wifi8-image-cache
+x-km-wifi8-image-cache: &wifi8_image_cache ${KM_WIFI8_IMAGE_CACHE_DIR:-/home/da40_ai_gb10/.km-control/wifi8-image-cache}:/app/wifi8-image-cache
+services:
+  web:
+    environment:
+      KM_WIFI8_IMPORT_USERS: ${KM_WIFI8_IMPORT_USERS:-}
+      <<: [*wifi8_images, *hf_offline]
+    volumes:
+      - *wifi8_image_cache
+      - *app_data
+      - *hf_cache
+  celery_ingest_worker:
+    environment:
+      <<: [*wifi8_images, *hf_offline]
+    volumes:
+      - *wifi8_image_cache
+      - *app_data
+      - *hf_cache
+  celery_search_worker:
+    environment:
+      <<: *hf_offline
+    volumes:
+      - *app_data
+      - *hf_cache

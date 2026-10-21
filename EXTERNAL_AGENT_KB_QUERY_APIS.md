@@ -5,7 +5,7 @@
 預設主要入口：
 
 ```text
-https://127.0.0.1:3030
+https://61.216.9.52:3030
 ```
 
 外部 agent 應只透過本文件列出的 API 查詢 KB。不要直接連線 Neo4j、Qdrant、Redis 或主機檔案系統。
@@ -48,7 +48,7 @@ maximum_top_k: 30
 用途：確認 KB API 是否在線。
 
 ```bash
-curl -k "https://127.0.0.1:3030/health"
+curl -k "https://61.216.9.52:3030/health"
 ```
 
 成功回應：
@@ -66,7 +66,7 @@ curl -k "https://127.0.0.1:3030/health"
 用途：取得 API 基本資訊。
 
 ```bash
-curl -k "https://127.0.0.1:3030/"
+curl -k "https://61.216.9.52:3030/"
 ```
 
 成功回應：
@@ -119,7 +119,7 @@ Request body：
 curl 範例：
 
 ```bash
-curl -k -X POST "https://127.0.0.1:3030/search" \
+curl -k -X POST "https://61.216.9.52:3030/search" \
   -H "Content-Type: application/json" \
   -d '{
     "query": "請查詢 SCE2200 的 Handover 測試結果",
@@ -159,7 +159,7 @@ curl -k -X POST "https://127.0.0.1:3030/search" \
 用途：取得 `/search` 任務狀態與結果。
 
 ```bash
-curl -k "https://127.0.0.1:3030/tasks/8f8d1c2e-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+curl -k "https://61.216.9.52:3030/tasks/8f8d1c2e-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
 ```
 
 Pending 回應：
@@ -241,7 +241,7 @@ Request body：
 curl 範例：
 
 ```bash
-curl -k -X POST "https://127.0.0.1:3030/category-relevance" \
+curl -k -X POST "https://61.216.9.52:3030/category-relevance" \
   -H "Content-Type: application/json" \
   -d '{"query":"NCQ2200B2V-D294 的 WiFi throughput 結果是什麼？","top_k":20}'
 ```
@@ -278,7 +278,7 @@ Request body：
 curl 範例：
 
 ```bash
-curl -k -X POST "https://127.0.0.1:3030/analyze-question" \
+curl -k -X POST "https://61.216.9.52:3030/analyze-question" \
   -H "Content-Type: application/json" \
   -d '{"query":"請比較 SCU2140 和 SCU2060 的下載速度差異"}'
 ```
@@ -319,7 +319,7 @@ Request body：
 curl 範例：
 
 ```bash
-curl -k -X POST "https://127.0.0.1:3030/api/source-categories" \
+curl -k -X POST "https://61.216.9.52:3030/api/source-categories" \
   -H "Content-Type: application/json" \
   -d '{
     "sources": [
@@ -356,7 +356,7 @@ curl -k -X POST "https://127.0.0.1:3030/api/source-categories" \
 用途：列出 `data/raw` 內的原始文件。這是檔案盤點 API，不會回傳完整內容。
 
 ```bash
-curl -k "https://127.0.0.1:3030/api/files"
+curl -k "https://61.216.9.52:3030/api/files"
 ```
 
 回應：
@@ -382,7 +382,7 @@ curl -k "https://127.0.0.1:3030/api/files"
 用途：取得各分類的搜尋統計與狀態。適合 agent 了解 KB 目前分類概況。
 
 ```bash
-curl -k "https://127.0.0.1:3030/api/category-stats"
+curl -k "https://61.216.9.52:3030/api/category-stats"
 ```
 
 回應：
@@ -421,9 +421,9 @@ Automation
 curl 範例：
 
 ```bash
-curl -k "https://127.0.0.1:3030/api/category-files?category=4G%2F5G"
-curl -k "https://127.0.0.1:3030/api/category-files?category=WiFi"
-curl -k "https://127.0.0.1:3030/api/category-files?category=Automation"
+curl -k "https://61.216.9.52:3030/api/category-files?category=4G%2F5G"
+curl -k "https://61.216.9.52:3030/api/category-files?category=WiFi"
+curl -k "https://61.216.9.52:3030/api/category-files?category=Automation"
 ```
 
 回應：
@@ -458,7 +458,7 @@ curl -k "https://127.0.0.1:3030/api/category-files?category=Automation"
 curl 範例：
 
 ```bash
-curl -k "https://127.0.0.1:3030/api/document?category=4G%2F5G&doc_name=type6_NR-Handover-SCE2200-n79-EV-V13.8"
+curl -k "https://61.216.9.52:3030/api/document?category=4G%2F5G&doc_name=type6_NR-Handover-SCE2200-n79-EV-V13.8"
 ```
 
 回應：
@@ -467,7 +467,7 @@ curl -k "https://127.0.0.1:3030/api/document?category=4G%2F5G&doc_name=type6_NR-
 {
   "category": "4G/5G",
   "doc_name": "type6_NR-Handover-SCE2200-n79-EV-V13.8",
-  "full_path": "<project-root>/knowledge-base/data/processed/4G_5G/type6_NR-Handover-SCE2200-n79-EV-V13.8.md",
+  "full_path": "/home/da40_ai_gb10/knowledge-base/data/processed/4G_5G/type6_NR-Handover-SCE2200-n79-EV-V13.8.md",
   "content": "# ...",
   "content_length": 123456,
   "modified": "2026-05-20 10:00"
@@ -483,7 +483,7 @@ curl -k "https://127.0.0.1:3030/api/document?category=4G%2F5G&doc_name=type6_NR-
 用途：取得簡易系統查詢狀態，例如 worker 數量與快取狀態。
 
 ```bash
-curl -k "https://127.0.0.1:3030/stats"
+curl -k "https://61.216.9.52:3030/stats"
 ```
 
 回應：
@@ -503,7 +503,7 @@ curl -k "https://127.0.0.1:3030/stats"
 用途：確認 hybrid 查詢目前是否忙碌。外部 agent 若要發送 `mode: "hybrid"`，可先查這個端點。
 
 ```bash
-curl -k "https://127.0.0.1:3030/hybrid-status"
+curl -k "https://61.216.9.52:3030/hybrid-status"
 ```
 
 回應：
@@ -524,7 +524,7 @@ curl -k "https://127.0.0.1:3030/hybrid-status"
 用途：列出 KB 支援的資料萃取模式。這主要給 ingest 使用，但外部 agent 可用它理解 KB 分類與模式名稱。
 
 ```bash
-curl -k "https://127.0.0.1:3030/extraction-modes"
+curl -k "https://61.216.9.52:3030/extraction-modes"
 ```
 
 回應：
@@ -546,13 +546,13 @@ curl -k "https://127.0.0.1:3030/extraction-modes"
 ### Example A: Ask KB For An Answer
 
 ```bash
-TASK_ID=$(curl -sk -X POST "https://127.0.0.1:3030/search" \
+TASK_ID=$(curl -sk -X POST "https://61.216.9.52:3030/search" \
   -H "Content-Type: application/json" \
   -d '{"query":"請整理 SCE2200 的 Handover 測試內容與結果","mode":"auto","top_k":10,"user_id":"external-agent-01"}' \
   | jq -r '.task_id')
 
 for i in $(seq 1 60); do
-  RESULT=$(curl -sk "https://127.0.0.1:3030/tasks/${TASK_ID}")
+  RESULT=$(curl -sk "https://61.216.9.52:3030/tasks/${TASK_ID}")
   STATUS=$(echo "$RESULT" | jq -r '.status')
   if [ "$STATUS" = "completed" ]; then
     echo "$RESULT" | jq .
@@ -569,23 +569,23 @@ done
 ### Example B: List All Categories Then Read Documents
 
 ```bash
-curl -sk "https://127.0.0.1:3030/api/category-files?category=4G%2F5G" | jq .
-curl -sk "https://127.0.0.1:3030/api/category-files?category=WiFi" | jq .
-curl -sk "https://127.0.0.1:3030/api/category-files?category=Lab" | jq .
-curl -sk "https://127.0.0.1:3030/api/category-files?category=Project" | jq .
-curl -sk "https://127.0.0.1:3030/api/category-files?category=Automation" | jq .
+curl -sk "https://61.216.9.52:3030/api/category-files?category=4G%2F5G" | jq .
+curl -sk "https://61.216.9.52:3030/api/category-files?category=WiFi" | jq .
+curl -sk "https://61.216.9.52:3030/api/category-files?category=Lab" | jq .
+curl -sk "https://61.216.9.52:3030/api/category-files?category=Project" | jq .
+curl -sk "https://61.216.9.52:3030/api/category-files?category=Automation" | jq .
 ```
 
 Then read a document:
 
 ```bash
-curl -sk "https://127.0.0.1:3030/api/document?category=WiFi&doc_name=type2_wifi_SIT-TR-WL-Throughput-NCQ2200B2V-D294-DV-V10" | jq -r '.content'
+curl -sk "https://61.216.9.52:3030/api/document?category=WiFi&doc_name=type2_wifi_SIT-TR-WL-Throughput-NCQ2200B2V-D294-DV-V10" | jq -r '.content'
 ```
 
 ### Example C: Retrieve Sources Only
 
 ```bash
-curl -k -X POST "https://127.0.0.1:3030/search" \
+curl -k -X POST "https://61.216.9.52:3030/search" \
   -H "Content-Type: application/json" \
   -d '{
     "query": "SCU2140 throughput latency BLER",
@@ -628,7 +628,7 @@ curl -k -X POST "https://127.0.0.1:3030/search" \
 
 ```json
 {
-  "base_url": "https://127.0.0.1:3030",
+  "base_url": "https://61.216.9.52:3030",
   "query_endpoint": "POST /search",
   "task_endpoint": "GET /tasks/{task_id}",
   "document_list_endpoint": "GET /api/category-files?category={category}",

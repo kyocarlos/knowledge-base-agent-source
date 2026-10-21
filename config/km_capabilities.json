@@ -1,0 +1,23 @@
+{
+  "_comment": "Control 管理頁可授權給個別帳號的能力。id 由各 KM 資料區的程式引用；instances 限制可授權的資料區。新增能力只改這個檔案（並在使用處檢查），不需要資料庫遷移。",
+  "capabilities": [
+    {
+      "id": "wifi8_quality_schedule",
+      "label": "WiFi 專區：品質檢查排程時間",
+      "description": "可在 WiFi 專區的匯入工作頁決定每天幾點跑品質檢查（24 小時制）。檢查會使用語言模型與主機資源，跑完一律通知 Telegram。未授權的帳號看得到時間但無法更改。",
+      "instances": [
+        "test",
+        "da40"
+      ]
+    },
+    {
+      "id": "wifi8_auto_check",
+      "label": "WiFi 專區：資料更新後自動檢查開關",
+      "description": "可在 WiFi 專區的匯入工作頁開啟或關閉「資料更新後自動檢查」。未授權的帳號看得到開關但無法操作。",
+      "instances": [
+        "test",
+        "da40"
+      ]
+    }
+  ]
+}

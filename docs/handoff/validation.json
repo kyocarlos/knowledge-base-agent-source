@@ -1,0 +1,52 @@
+{
+  "date": "2026-10-14",
+  "architecture_tested": "linux/arm64",
+  "tests": {
+    "passed": 240,
+    "failed": 0,
+    "warnings": 1,
+    "scope": [
+      "tests/csit_v1",
+      "tests/control_v1"
+    ]
+  },
+  "api_sandbox": {
+    "startup": "PASS",
+    "health": "PASS",
+    "integrationEnabled": false,
+    "worker_started": false,
+    "host_bind": "127.0.0.1, dynamic port"
+  },
+  "control": {
+    "public_base_build": "PASS",
+    "health_entrypoint": "PASS"
+  },
+  "worker": {
+    "public_cpu_base_build": "PASS",
+    "module_import_no_network": "PASS",
+    "model_download_or_live_writers_tested": false
+  },
+  "production_modified": false,
+  "live_job_created": false,
+  "live_business_requests": false,
+  "processing_fix_deployed_to_existing_runtime": false,
+  "failed_timestamp_follow_up": true,
+  "python_base": "python:3.12-slim-bookworm@sha256:34386ef0cb081344d7ec1c103ba398e6e9f64e9ab3a1509accc92a4e24a07258",
+  "database_images": [
+    "timescale/timescaledb:2.17.2-pg16",
+    "neo4j:5.26-community"
+  ],
+  "validated_source_commit": "8454c58433e0683230a5ad8e1618b9384bf46463",
+  "clean_git_archive_rebuild": {
+    "regression_exit": 0,
+    "control_build_exit": 0,
+    "worker_build_exit": 0,
+    "worker_import_exit": 0
+  },
+  "source_vs_existing_dgx_runtime": "MISMATCH: Processing startedAt source fix is published but not deployed",
+  "original_dgx_head_unchanged": "ebcc9de00861d4e6a83641e3fbb7a8b853a684f1",
+  "built_images": {
+    "control": "sha256:17831a11b5870b36ea9f1bf2a905218f9853c8f051a8adc59b788a3a91156feb",
+    "worker": "sha256:260d2c2ae8c296b54b2a6ebbb043104c7ae9b20312843c01920b3605dd9c0870"
+  }
+}

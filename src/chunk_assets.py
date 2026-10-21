@@ -30,7 +30,7 @@ def resolve_assets_root() -> Path:
 
     candidates.extend(
         [
-            Path("<project-root>/knowledge-base/data/assets"),
+            Path("/home/da40_ai_gb10/knowledge-base/data/assets"),
             PROJECT_ROOT / "data" / "assets",
             Path("/app/data/assets"),
         ]

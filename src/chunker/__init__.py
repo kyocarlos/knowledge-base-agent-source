@@ -4,10 +4,13 @@
 
 import re
 import logging
+import json
+import hashlib
 from typing import List, Dict
 from pathlib import Path
 
 from ..image_refs import extract_image_refs_from_text, merge_image_refs
+from ..knowledge_package import build_chunk_id, build_package_metadata, resolve_document_version
 
 logger = logging.getLogger(__name__)
 
@@ -210,12 +213,36 @@ def chunk_document(file_path: str) -> List[Dict]:
     path = Path(file_path)
     doc_name = path.stem
     content = path.read_text(encoding="utf-8")
+    source_metadata_path = path.with_name(f"{path.stem}.source.json")
+    source_metadata = {}
+    if source_metadata_path.exists():
+        source_metadata = json.loads(source_metadata_path.read_text(encoding="utf-8"))
+    document_id = str(source_metadata.get("document_id") or source_metadata.get("documentId") or doc_name)
+    document_version = resolve_document_version(source_metadata)
+    document_content_hash = hashlib.sha256(content.encode("utf-8")).hexdigest()
     source_path = str(path.resolve())
 
     chunker = TextChunker(max_chunk_size=500, overlap=50)
     chunks = chunker.chunk_markdown(content, doc_name)
-    for chunk in chunks:
+    for chunk_index, chunk in enumerate(chunks):
         metadata = chunk.setdefault("metadata", {})
+        chunk["chunk_index"] = chunk_index
+        chunk["id"] = build_chunk_id(document_id, document_version, chunk_index, str(chunk.get("content") or ""))
+        metadata.update(build_package_metadata(
+            document_id=document_id,
+            document_version=document_version,
+            content_hash=str(source_metadata.get("content_hash") or document_content_hash),
+            publish_status=str(source_metadata.get("publish_status") or "draft"),
+            is_current=source_metadata.get("is_current", False),
+        ))
+        metadata["chunk_id"] = chunk["id"]
+        for provenance_key in (
+            "source_locator",
+            "document_route",
+            "normalization_provenance",
+        ):
+            if source_metadata.get(provenance_key) is not None:
+                metadata[provenance_key] = source_metadata[provenance_key]
         chunk_image_refs = extract_image_refs_from_text(chunk.get("content", ""))
         existing_image_refs = metadata.get("image_refs", [])
         merged_image_refs = merge_image_refs(existing_image_refs, chunk_image_refs)

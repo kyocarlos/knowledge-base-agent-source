@@ -1,0 +1,28 @@
+{
+  "eventId": "538a9cbf-1361-4475-867e-d8db7dcf57d1",
+  "eventType": "TestReportCommitted",
+  "sourceSystem": "CSIT",
+  "documentId": "4e805899-97a8-44b0-a6e0-8b1779da931d",
+  "version": 3,
+  "project": {
+    "id": "1c1706c1-4ea4-4130-a267-091f2a90c380",
+    "number": "PROJECT-17",
+    "name": "Project Alpha"
+  },
+  "case": {
+    "id": "07e69fc4-a75e-45ed-9b45-637688cf9ef5",
+    "number": "CASE-42",
+    "name": "Case Beta"
+  },
+  "task": {
+    "id": "f03e84e0-5112-49d3-9ff5-41a1f0a3f049",
+    "number": "TASK-9",
+    "name": "Task Gamma"
+  },
+  "document": {
+    "fileName": "report.txt",
+    "contentType": "text/plain",
+    "sizeBytes": 12
+  },
+  "committedAt": "2026-10-07T08:30:00+08:00"
+}

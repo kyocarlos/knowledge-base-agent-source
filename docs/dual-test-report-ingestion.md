@@ -41,7 +41,7 @@ flowchart LR
 
 1. 複製 `config/report-ingest.env.example` 的設定到部署環境，不要提交真實 token。
 2. Agent 與 Reviewer token 只保存 SHA-256；兩套 Agent 使用不同 token，且 token 綁定 environment。
-3. 執行 `docker compose config` 確認變數完整，再依專案既有 `restart_kb.sh` 啟動。
+3. 先以 `./restart_kb.sh --status` 觀察；需要重啟時使用 `./restart_kb.sh --restart --env-file <受控環境檔>`，部署新版則依 `docs/wp01-lifecycle-runbook.md` 執行帶 checkpoint 與 Gate 的 `--deploy`，不得用無驗證的 Compose 指令直接覆蓋正式服務。
 4. Reviewer UI 位於 `/admin/report-reviews`，token 只保存在瀏覽器 `sessionStorage`。
 
 正式環境必須使用可信任 CA 或指定 `KB_CA_CERT`，不得停用 TLS 驗證。
@@ -51,7 +51,7 @@ flowchart LR
 測試電腦安裝相同 Python 相依套件與 `scripts/kb_report_uploader.py`，設定：
 
 ```bash
-export KB_BASE_URL=https://127.0.0.1:3030
+export KB_BASE_URL=https://61.216.9.52:3030
 export KB_AGENT_ID=anritsu-agent-01
 export KB_INGEST_TOKEN='<agent-token>'
 export KB_CA_CERT=/path/to/ca.pem

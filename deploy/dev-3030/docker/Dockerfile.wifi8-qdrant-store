@@ -1,0 +1,13 @@
+ARG BASE_IMAGE
+FROM ${BASE_IMAGE}
+ARG BASE_IMAGE
+ARG SOURCE_COMMIT
+LABEL io.km.wifi8-qdrant-store-source-commit=${SOURCE_COMMIT} \
+      io.km.wifi8-qdrant-store-base-image=${BASE_IMAGE}
+
+# WiFi zone data moves from per-package SQLite files to the data zone's Qdrant
+# (wifi8_chunks + wifi8_documents). Web and worker images both take the same two
+# paths; every other deployment backport in the base image stays intact.
+RUN rm -rf /app/src/wifi8
+COPY src/wifi8 /app/src/wifi8
+COPY src/web_api/wifi8_routes.py /app/src/web_api/wifi8_routes.py

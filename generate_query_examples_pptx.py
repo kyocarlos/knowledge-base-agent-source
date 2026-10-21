@@ -7,7 +7,7 @@ from pptx.dml.color import RGBColor
 from pptx.util import Inches, Pt
 
 
-OUT = Path("<project-root>/knowledge-base/query_examples_slide.pptx")
+OUT = Path("/home/da40_ai_gb10/knowledge-base/query_examples_slide.pptx")
 
 
 def rgb(hex_value: str) -> RGBColor:

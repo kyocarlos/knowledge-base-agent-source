@@ -1,0 +1,15 @@
+ARG BASE_IMAGE
+FROM ${BASE_IMAGE}
+ARG BASE_IMAGE
+ARG SOURCE_COMMIT
+ARG TARGET
+ARG EXPECTED_BASE_SHA256
+LABEL io.km.verified-file-source-commit=${SOURCE_COMMIT} \
+      io.km.verified-file-base-image=${BASE_IMAGE} \
+      io.km.verified-file-target=${TARGET}
+
+# Replace one file of the image with its version from SOURCE_COMMIT. The base image must still carry the expected
+# previous version, so a file with other backports in that image is never silently overwritten.
+RUN test -n "${TARGET}" && test -n "${EXPECTED_BASE_SHA256}" \
+ && echo "${EXPECTED_BASE_SHA256}  /app/${TARGET}" | sha256sum -c -
+COPY ${TARGET} /app/${TARGET}

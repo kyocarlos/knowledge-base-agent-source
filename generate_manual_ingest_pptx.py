@@ -7,7 +7,7 @@ from pptx.enum.text import MSO_AUTO_SIZE, PP_ALIGN
 from pptx.util import Inches, Pt
 
 
-OUT = Path("<project-root>/knowledge-base/manual_ingest_customer_intro.pptx")
+OUT = Path("/home/da40_ai_gb10/knowledge-base/manual_ingest_customer_intro.pptx")
 
 
 def rgb(value: str) -> RGBColor:

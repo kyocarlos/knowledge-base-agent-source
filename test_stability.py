@@ -332,7 +332,7 @@ def main():
     print(f"\n    Total: {time.time()-start:.1f}s")
     
     # ===== 寫入 Excel =====
-    output_path = "<project-root>/knowledge-base/系統穩定性測試報告.xlsx"
+    output_path = "/home/da40_ai_gb10/knowledge-base/系統穩定性測試報告.xlsx"
     stats = write_to_excel(results, output_path)
     
     # ===== 打印摘要 =====

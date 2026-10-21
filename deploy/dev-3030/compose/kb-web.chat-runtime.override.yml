@@ -1,0 +1,14 @@
+# Reconstructed 2026-10-15 from the running kb-web container. Replaces three
+# lost /tmp overlays (km-ui-upload-image, chat-runtime, km-chat-image) that
+# changed only: image, OPENCLAW_CHAT_CONFIG_PATH, and the ~/.openclaw mount
+# swapped for the read-only TEST chat runtime file. No secrets in this file.
+services:
+  web:
+    image: km-chat-v2-secure:418610dc-llm-ba82d79-wifi8-c01693c-workspace-b67c223-qstore-3a85eab-table-a29835b-img-7c1d2fd
+    environment:
+      OPENCLAW_CHAT_CONFIG_PATH: /run/secrets/km-chat/runtime.json
+    volumes: !override
+      - ${KB_CONFIG_ROOT:-./config}:/app/config:ro
+      - ${KB_DATA_ROOT:-./data}:/home/da40_ai_gb10/knowledge-base/data
+      - ${KB_UPLOAD_ROOT:-./data/uploads}:/app/data/uploads
+      - /home/da40_ai_gb10/.km-control/chat-runtime/test/runtime.json:/run/secrets/km-chat/runtime.json:ro

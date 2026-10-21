@@ -1,0 +1,11 @@
+{
+  "repository": "https://github.com/pattymou/CSIT-System.git",
+  "commit": "3a9ae52f04625aeee5fd01e7a3565f5972fc9122",
+  "path": "contracts/csit-km-integration-v1",
+  "schemas": {
+    "ingestion-request.schema.json": "cdbcde1923eccb26dbe03cd072a6a08cae37cc6459666081b0b6820a8eaf61cd",
+    "callback-processing.schema.json": "9133196844d556fab22314bfded3c6803c4f709fd78ed93b3ac90949c4d7a137",
+    "callback-completed.schema.json": "aa6f6986181bd60aa27cf06ec2bce8c77196db8ab97aa7602819135a951dfacb",
+    "callback-failed.schema.json": "79f5b2f0bd6441a31371287ffbc5250a690daf9fc2dfea4a7af8f96415931d0a"
+  }
+}

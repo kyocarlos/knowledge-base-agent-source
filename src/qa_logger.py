@@ -64,7 +64,7 @@ class QALogger:
     - 每日摘要
     """
 
-    def __init__(self, logs_folder: str = "<project-root>/knowledge-base/data/cleaned/logs"):
+    def __init__(self, logs_folder: str = "/home/da40_ai_gb10/knowledge-base/data/cleaned/logs"):
         self.logs_folder = Path(logs_folder)
         self.logs_folder.mkdir(parents=True, exist_ok=True)
         
@@ -358,7 +358,7 @@ class QACacheWithLogger:
     
     def __init__(
         self,
-        cache_folder: str = "<project-root>/knowledge-base/data/cleaned",
+        cache_folder: str = "/home/da40_ai_gb10/knowledge-base/data/cleaned",
         logs_folder: str = None
     ):
         if logs_folder is None:

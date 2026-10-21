@@ -1,9 +1,9 @@
 #!/bin/bash
 # n8n 啟動腳本（直接安裝版本）
-# 位置：<project-root>/knowledge-base/n8n-workflow/start-n8n.sh
+# 位置：/home/da40_ai_gb10/knowledge-base/n8n-workflow/start-n8n.sh
 
 # n8n 設定
-export N8N_DATA_DIR=<project-root>/n8n
+export N8N_DATA_DIR=/home/da40_ai_gb10/n8n
 export N8N_BASIC_AUTH_ACTIVE=true
 export N8N_BASIC_AUTH_USER=admin
 export N8N_BASIC_AUTH_PASSWORD=n8n_admin123
@@ -17,7 +17,7 @@ export EXECUTIONS_DATA_PRUNE=true
 export EXECUTIONS_DATA_MAX_AGE=7
 
 # 日誌目錄
-LOG_DIR=<project-root>/knowledge-base/logs
+LOG_DIR=/home/da40_ai_gb10/knowledge-base/logs
 mkdir -p $LOG_DIR
 
 # 啟動 n8n

@@ -5,7 +5,7 @@
 預設主要入口：
 
 ```text
-https://127.0.0.1:3030
+https://61.216.9.52:3030
 ```
 
 外部 agent 不應直接連線 Neo4j、Qdrant、Redis 或主機檔案系統。外部 agent 只需要把標準化檔案 artifact 上傳到 KB API；轉檔、去重、寫入 Neo4j、寫入 Qdrant、更新索引都由 KB 後端統一執行。
@@ -26,12 +26,15 @@ External agent
   -> POST /api/upload/ingest?extraction_mode=<mode>
   -> KB web receives multipart file
   -> save original file under data/uploads/<category>/<task_id>/original/
+  -> validate KM_Metadata + identity headers + SHA-256
+  -> register unique idempotencyKey/documentId in persistent registry
   -> create Redis ingest task state
   -> dispatch Celery ingest_file_task
   -> convert file to Markdown under converted/
   -> write .source.json metadata
   -> ingest_document()
-  -> cleanup old same-name document data
+  -> acquire document lock by documentId
+  -> cleanup only the same logical documentId
   -> write Neo4j graph/document nodes
   -> write Qdrant vector points
   -> refresh index.md
@@ -42,10 +45,10 @@ External agent
 
 1. 外部 agent 只呼叫 `/api/upload/ingest` 與 `/api/upload/tasks/{task_id}` 這類受控 API。
 2. 外部 agent 不直接寫 Neo4j / Qdrant。
-3. 每個上傳檔案應有穩定、可讀、低碰撞的檔名。
+3. 每個上傳檔案必須包含 `KM_Metadata`，並提供完整衝突保護 headers；檔名不是唯一鍵。
 4. 測試結果、log、截圖摘要等建議先整理成 Markdown、JSON、HTML、PDF 或 XLSX。
 5. 每次上傳後必須輪詢 task 狀態，只有 `completed` 才代表已寫入 KB。
-6. 若收到 `duplicate: true`，代表 KB 已偵測到相同檔案內容，不需要重送。
+6. 若收到 `duplicate: true`，代表相同 `idempotencyKey` 已有原 task；外部 agent 應沿用原 task，不建立新 task。
 7. 大量上傳時要限速，避免 ingest queue 堆積。
 
 建議輪詢設定：
@@ -76,7 +79,7 @@ default_extraction_mode: automation
 用途：列出 KB 支援的資料萃取模式。
 
 ```bash
-curl -k "https://127.0.0.1:3030/extraction-modes"
+curl -k "https://61.216.9.52:3030/extraction-modes"
 ```
 
 外部 agent 上傳時主要使用以下模式：
@@ -98,7 +101,7 @@ curl -k "https://127.0.0.1:3030/extraction-modes"
 用途：確認 KB API 是否在線。
 
 ```bash
-curl -k "https://127.0.0.1:3030/health"
+curl -k "https://61.216.9.52:3030/health"
 ```
 
 成功回應：
@@ -127,19 +130,50 @@ Multipart form：
 |---|---:|---|
 | `file` | yes | 要上傳攝入的檔案 |
 
+必要 headers：
+
+| Header | Required | Description |
+|---|---:|---|
+| `Authorization` | yes | `Bearer <ingest-token>`；只驗證存在，實際 token policy 依部署設定 |
+| `X-Agent-ID` | conditional | 當 `KB_INGEST_REQUIRE_AGENT_AUTH=true` 時必須提供，且 agent environment 必須與 `sourceSystem` 一致 |
+| `Idempotency-Key` | yes | SHA-256(`sourceSystem` + newline + `environmentId` + newline + `runId` + newline + `artifactType` + newline + `sourceFileHash`) |
+| `X-KB-Source-System` | yes | `anritsu`、`amarisoft` 或其他受控來源 |
+| `X-KB-Environment-Id` | yes | 實際測試環境唯一 ID |
+| `X-KB-Run-Id` | yes | 該次 iperf 測試唯一 run ID |
+| `X-KB-Artifact-Type` | yes | `single` 或 `batch` |
+| `X-KB-Document-Id` | yes | `<extractionMode>:<sourceSystem>:<environmentId>:<runId>:<artifactType>` |
+
+Excel 必須有 `KM_Metadata` 工作表，至少包含：
+
+```text
+sourceSystem, environmentId, projectId, runId, artifactType,
+reportSchema, originalFileName, sourceFileHash,
+documentId, idempotencyKey, generatedAt
+```
+
+`KM_Metadata` 與 headers 不一致回 `422 metadata_mismatch`。`sourceFileHash` 是正式 Excel bytes 的 hash；`ingestFileHash` 不再要求由 producer 寫回同一份 Excel，KM 收到完整 bytes 後自行計算並回傳/保存。若 producer 額外提供 `KM_Metadata.ingestFileHash`，KM 仍會比對實際 bytes，不一致回 `422 hash_mismatch`。
+
 curl 範例：上傳外部 agent 測試結果
 
 ```bash
 curl -k -X POST \
-  "https://127.0.0.1:3030/api/upload/ingest?extraction_mode=automation" \
-  -F "file=@test-result-run-20260721-001.md"
+  "https://61.216.9.52:3030/api/upload/ingest?extraction_mode=automation" \
+  -H "Authorization: Bearer ${KB_INGEST_TOKEN}" \
+  -H "X-Agent-ID: anritsu-agent-01" \
+  -H "Idempotency-Key: <computed-idempotency-key>" \
+  -H "X-KB-Source-System: anritsu" \
+  -H "X-KB-Environment-Id: anritsu-lab-a" \
+  -H "X-KB-Run-Id: run-20260803-001" \
+  -H "X-KB-Artifact-Type: single" \
+  -H "X-KB-Document-Id: automation:anritsu:anritsu-lab-a:run-20260803-001:single" \
+  -F "file=@test-result-run-20260721-001.xlsx"
 ```
 
 curl 範例：上傳 WiFi 報告
 
 ```bash
 curl -k -X POST \
-  "https://127.0.0.1:3030/api/upload/ingest?extraction_mode=wifi" \
+  "https://61.216.9.52:3030/api/upload/ingest?extraction_mode=wifi" \
   -F "file=@type2_wifi_SIT-TR-WL-Throughput-NCQ2200B2V-D294-DV-V10.xlsx"
 ```
 
@@ -147,7 +181,7 @@ curl 範例：上傳 4G/5G 報告
 
 ```bash
 curl -k -X POST \
-  "https://127.0.0.1:3030/api/upload/ingest?extraction_mode=4g5g" \
+  "https://61.216.9.52:3030/api/upload/ingest?extraction_mode=4g5g" \
   -F "file=@type6_NR-Handover-SCE2200-n79-EV-V13.8.xlsx"
 ```
 
@@ -163,9 +197,27 @@ curl -k -X POST \
   "extraction_mode": "automation",
   "extraction_mode_name": "Automation",
   "queue_position": 1,
+  "document_id": "automation:anritsu:anritsu-lab-a:run-20260803-001:single",
+  "idempotency_key": "sha256...",
+  "duplicate": false,
   "message": "已加入攝入佇列"
 }
 ```
+
+衝突回應：
+
+```json
+{
+  "detail": {
+    "code": "document_conflict",
+    "message": "documentId 已存在不同內容，不允許覆蓋",
+    "document_id": "4g5g:anritsu:anritsu-lab-a:run-1:single",
+    "idempotency_key": "sha256..."
+  }
+}
+```
+
+HTTP `409` 時不要重試同一個檔案並期待覆蓋；應建立新的 `runId` 或走明確 revision 流程。未提供衝突保護欄位時，預設回 `422`，不會再以檔名或單純檔案 hash 代替邏輯身份。
 
 重複檔案且已攝入時可能回應：
 
@@ -204,7 +256,7 @@ curl -k -X POST \
 用途：查詢單一 ingest 任務狀態。
 
 ```bash
-curl -k "https://127.0.0.1:3030/api/upload/tasks/ingest_20260721_103000_ab12cd34"
+curl -k "https://61.216.9.52:3030/api/upload/tasks/ingest_20260721_103000_ab12cd34"
 ```
 
 常見回應：
@@ -263,7 +315,7 @@ else:
 用途：列出目前與近期 ingest 任務。適合外部 agent 做批次上傳後的總覽。
 
 ```bash
-curl -k "https://127.0.0.1:3030/api/upload/tasks"
+curl -k "https://61.216.9.52:3030/api/upload/tasks"
 ```
 
 回應格式：
@@ -291,7 +343,7 @@ curl -k "https://127.0.0.1:3030/api/upload/tasks"
 範例：
 
 ```bash
-curl -k -X POST "https://127.0.0.1:3030/search" \
+curl -k -X POST "https://61.216.9.52:3030/search" \
   -H "Content-Type: application/json" \
   -d '{
     "query": "請查詢 test-result-run-20260721-001 的測試結果摘要",
@@ -304,8 +356,8 @@ curl -k -X POST "https://127.0.0.1:3030/search" \
 或直接依分類讀取文件：
 
 ```bash
-curl -k "https://127.0.0.1:3030/api/category-files?category=Automation"
-curl -k "https://127.0.0.1:3030/api/document?category=Automation&doc_name=test-result-run-20260721-001"
+curl -k "https://61.216.9.52:3030/api/category-files?category=Automation"
+curl -k "https://61.216.9.52:3030/api/document?category=Automation&doc_name=test-result-run-20260721-001"
 ```
 
 ## Recommended External Agent Artifact Format
@@ -373,12 +425,12 @@ else:
 
 ```bash
 TASK_ID=$(curl -sk -X POST \
-  "https://127.0.0.1:3030/api/upload/ingest?extraction_mode=automation" \
+  "https://61.216.9.52:3030/api/upload/ingest?extraction_mode=automation" \
   -F "file=@test-result-run-20260721-001.md" \
   | jq -r '.task_id')
 
 for i in $(seq 1 300); do
-  RESULT=$(curl -sk "https://127.0.0.1:3030/api/upload/tasks/${TASK_ID}")
+  RESULT=$(curl -sk "https://61.216.9.52:3030/api/upload/tasks/${TASK_ID}")
   STATUS=$(echo "$RESULT" | jq -r '.status')
   if [ "$STATUS" = "completed" ]; then
     echo "$RESULT" | jq .
@@ -442,7 +494,7 @@ External agent
 
 ```json
 {
-  "base_url": "https://127.0.0.1:3030",
+  "base_url": "https://61.216.9.52:3030",
   "health_endpoint": "GET /health",
   "ingest_endpoint": "POST /api/upload/ingest?extraction_mode={mode}",
   "task_endpoint": "GET /api/upload/tasks/{task_id}",
@@ -455,4 +507,3 @@ External agent
   "must_not_connect_to_databases_directly": true
 }
 ```
-

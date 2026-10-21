@@ -7,6 +7,13 @@ build/
 
 # Virtual environment
 .venv/
+.env
+.env.*
+!.env.example
+*.clixml
+*.age
+.anritsu-a2a-*-token
+.km-a2a-*-token
 
 # Logs
 *.log
@@ -19,9 +26,11 @@ data/markdown/
 *.xlsx
 *.xls
 config/report-ingest.env
+config/wp01-deployment.env
 data/cleaned/
 data/watch/
 data/uploads/*/ingest_*/
+data/ingestion-registry.sqlite3*
 release/.build/
 release/dist/
 
@@ -45,7 +54,6 @@ backups/
 final_runs/
 tmp_upload_check.txt
 upload_check*.png
-
 chat_stability_question_types.pptx
 confluence-api-doc.html
 kb_architecture_slide.pptx
@@ -53,3 +61,20 @@ manual_ingest_customer_intro.pptx
 neo4j_customer_intro.pptx
 qdrant_customer_intro.pptx
 query_examples_slide.pptx
+/8080
+/kb_*_state.png
+/kb_test_*.png
+/qa_*_latest.png
+
+# Local runtime state and secrets, never handoff source
+.env
+.env.*
+*.env
+!*.env.example
+secrets/
+outputs/
+config/config.yaml
+data/
+*.db
+*.sqlite*
+celerybeat-schedule*

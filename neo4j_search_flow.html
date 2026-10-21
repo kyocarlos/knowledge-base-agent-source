@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Neo4j 搜尋流程架構圖</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Segoe UI', 'Microsoft JhengHei', sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            min-height: 100vh;
+            padding: 40px 20px;
+        }
+        h1 {
+            text-align: center;
+            color: #00d4ff;
+            margin-bottom: 40px;
+            font-size: 28px;
+        }
+        .flow-container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .flow-row {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        .flow-box {
+            background: linear-gradient(145deg, #1e2a4a, #2a3f5f);
+            border: 2px solid #00d4ff;
+            border-radius: 12px;
+            padding: 20px 30px;
+            color: #fff;
+            text-align: center;
+            box-shadow: 0 4px 20px rgba(0, 212, 255, 0.3);
+            min-width: 280px;
+            max-width: 400px;
+        }
+        .flow-box.highlight {
+            border-color: #ffcc00;
+            background: linear-gradient(145deg, #2a2a1e, #3f3f2a);
+            box-shadow: 0 4px 20px rgba(255, 204, 0, 0.3);
+        }
+        .flow-box.title {
+            font-size: 20px;
+            font-weight: bold;
+        }
+        .flow-box .step {
+            font-size: 12px;
+            color: #00d4ff;
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+        .flow-box h3 {
+            color: #00d4ff;
+            margin-bottom: 10px;
+            font-size: 18px;
+        }
+        .flow-box p {
+            font-size: 14px;
+            color: #b0b0b0;
+            line-height: 1.5;
+        }
+        .flow-box code {
+            background: #0a0a1a;
+            padding: 10px 15px;
+            border-radius: 8px;
+            display: block;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 12px;
+            color: #00ff88;
+            margin-top: 10px;
+            text-align: left;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+        .arrow {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin: 15px 0;
+        }
+        .arrow-down {
+            width: 0;
+            height: 0;
+            border-left: 20px solid transparent;
+            border-right: 20px solid transparent;
+            border-top: 30px solid #00d4ff;
+        }
+        .arrow-label {
+            color: #00d4ff;
+            font-size: 14px;
+            margin: 5px 0;
+        }
+        .section-title {
+            color: #ffcc00;
+            font-size: 16px;
+            margin: 30px 0 15px 0;
+            text-align: center;
+            text-transform: uppercase;
+            letter-spacing: 3px;
+        }
+        .flow-row-split {
+            display: flex;
+            justify-content: center;
+            gap: 30px;
+            flex-wrap: wrap;
+        }
+        .sub-box {
+            background: linear-gradient(145deg, #1a2a3a, #1e3a4a);
+            border: 1px solid #4a90a4;
+            border-radius: 10px;
+            padding: 15px 20px;
+            color: #fff;
+            min-width: 200px;
+            max-width: 280px;
+        }
+        .sub-box h4 {
+            color: #4a90a4;
+            margin-bottom: 8px;
+            font-size: 14px;
+        }
+        .sub-box p {
+            font-size: 12px;
+            color: #888;
+        }
+        .legend {
+            display: flex;
+            justify-content: center;
+            gap: 30px;
+            margin: 40px 0;
+            flex-wrap: wrap;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            color: #fff;
+            font-size: 14px;
+        }
+        .legend-color {
+            width: 20px;
+            height: 20px;
+            border-radius: 4px;
+        }
+        .legend-color.blue { background: #00d4ff; }
+        .legend-color.yellow { background: #ffcc00; }
+        .legend-color.green { background: #00ff88; }
+        .legend-color.purple { background: #a855f7; }
+        .footer {
+            text-align: center;
+            margin-top: 50px;
+            color: #666;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔍 Neo4j 搜尋流程架構圖</h1>
+    
+    <div class="flow-container">
+        
+        <!-- 第一階段：輸入 -->
+        <div class="section-title">階段一：輸入</div>
+        <div class="flow-row">
+            <div class="flow-box title">
+                <div class="step">Step 1</div>
+                <h3>📥 使用者輸入搜尋問題</h3>
+                <p>「列出所有NR基站設備」</p>
+            </div>
+        </div>
+        
+        <div class="arrow">
+            <div class="arrow-down"></div>
+        </div>
+        <div class="arrow-label">↓</div>
+        
+        <!-- 第二階段：萃取關鍵字 -->
+        <div class="section-title">階段二：關鍵字萃取</div>
+        <div class="flow-row">
+            <div class="flow-box">
+                <div class="step">Step 2</div>
+                <h3>🔎 extract_keywords()</h3>
+                <p>使用 LLM 萃取關鍵字</p>
+                <code>keywords = ["NR", "基站", "設備"]</code>
+            </div>
+        </div>
+        
+        <div class="arrow">
+            <div class="arrow-down"></div>
+        </div>
+        <div class="arrow-label">↓</div>
+        
+        <!-- 第三階段：組裝 Cypher -->
+        <div class="section-title">階段三：Cypher 指令生成</div>
+        <div class="flow-row">
+            <div class="flow-box highlight">
+                <div class="step">Step 3</div>
+                <h3>⚙️ 組裝 Cypher 查詢</h3>
+                <p>Basic Mode 關鍵字搜尋</p>
+                <code>MATCH (d:Document)
+WHERE d.content CONTAINS 'NR' 
+   OR d.name CONTAINS 'NR'
+   OR d.content CONTAINS '基站'
+   OR d.name CONTAINS '基站'
+   OR d.content CONTAINS '設備'
+   OR d.name CONTAINS '設備'
+RETURN d.name, d.content
+LIMIT 10</code>
+            </div>
+        </div>
+        
+        <div class="arrow">
+            <div class="arrow-down"></div>
+        </div>
+        <div class="arrow-label">↓</div>
+        
+        <!-- 第四階段：發送到 Neo4j -->
+        <div class="section-title">階段四：發送到 Neo4j</div>
+        <div class="flow-row">
+            <div class="flow-box">
+                <div class="step">Step 4</div>
+                <h3>📡 session.run(cypher)</h3>
+                <p>使用 Neo4j Python Driver 發送 Cypher 指令</p>
+                <code>result = session.run(
+    "MATCH (d:Document) WHERE ...",
+    limit=10
+)</code>
+            </div>
+        </div>
+        
+        <div class="arrow">
+            <div class="arrow-down"></div>
+        </div>
+        <div class="arrow-label">↓</div>
+        
+        <!-- 第五階段：Neo4j 執行 -->
+        <div class="section-title">階段五：Neo4j 執行引擎</div>
+        <div class="flow-row-split">
+            <div class="sub-box">
+                <h4>① 解析 Cypher</h4>
+                <p>解析指令語法與語意</p>
+            </div>
+            <div class="sub-box">
+                <h4>② 使用索引加速</h4>
+                <p>document_name / entity_type_index</p>
+            </div>
+            <div class="sub-box">
+                <h4>③ 遍歷圖結構</h4>
+                <p>根據 WHERE 條件找符合節點</p>
+            </div>
+            <div class="sub-box">
+                <h4>④ 返回結果集</h4>
+                <p>符合條件的 Document 節點</p>
+            </div>
+        </div>
+        
+        <div class="arrow">
+            <div class="arrow-down"></div>
+        </div>
+        <div class="arrow-label">↓</div>
+        
+        <!-- 第六階段：接收結果 -->
+        <div class="section-title">階段六：接收與處理結果</div>
+        <div class="flow-row">
+            <div class="flow-box">
+                <div class="step">Step 6</div>
+                <h3>📤 接收查詢結果</h3>
+                <p>Python 接收 Neo4j 回傳的 Record</p>
+                <code>docs = [dict(record) for record in result]
+
+# Output:
+# [{"name": "NR基站_A1", 
+#   "content": "..."}]</code>
+            </div>
+        </div>
+        
+        <div class="arrow">
+            <div class="arrow-down"></div>
+        </div>
+        <div class="arrow-label">↓</div>
+        
+        <!-- 第七階段：LLM 生成答案 -->
+        <div class="section-title">階段七：LLM 生成答案</div>
+        <div class="flow-row">
+            <div class="flow-box">
+                <div class="step">Step 7</div>
+                <h3>🤖 _generate_answer()</h3>
+                <p>將文件內容送給 LLM 生成答案</p>
+                <code>context = """
+文件：NR基站_A1
+內容：華為設備，NSA模式...
+"""
+
+answer = llm.chat([
+  {"role": "system", 
+   "content": "根據上下文回答..."},
+  {"role": "user", 
+   "content": f"問題：{query}\n\n{context}"}
+])</code>
+            </div>
+        </div>
+        
+        <div class="arrow">
+            <div class="arrow-down"></div>
+        </div>
+        <div class="arrow-label">↓</div>
+        
+        <!-- 最終結果 -->
+        <div class="flow-row">
+            <div class="flow-box title">
+                <div class="step">Result</div>
+                <h3>✅ 回傳搜尋結果</h3>
+                <p>答案 + 來源文件列表</p>
+            </div>
+        </div>
+        
+        <!-- Deep Mode 特別說明 -->
+        <div class="section-title" style="margin-top: 60px;">🔬 Deep Mode 額外流程</div>
+        <div class="flow-row">
+            <div class="flow-box" style="border-color: #a855f7; background: linear-gradient(145deg, #2a1a3a, #3a2a4a);">
+                <div class="step" style="color: #a855f7;">Deep Mode</div>
+                <h3 style="color: #a855f7;">圖遍歷 + 關係擴展</h3>
+                <code>MATCH (e:Entity)
+WHERE e.name CONTAINS 'NR'
+WITH e LIMIT 5
+
+OPTIONAL MATCH (e)-[r]-(related)
+RETURN e.name, e.type,
+       collect(related.name) as connections</code>
+                <p style="margin-top: 10px; color: #c0c0c0;">
+                    Deep Mode 會擴展到 Entity 的鄰居節點，<br>
+                    而 Basic Mode 只返回直接匹配的 Document
+                </p>
+            </div>
+        </div>
+        
+        <!-- 圖示說明 -->
+        <div class="legend">
+            <div class="legend-item">
+                <div class="legend-color blue"></div>
+                <span>標準流程</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color yellow"></div>
+                <span>Cypher 查詢生成</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color green"></div>
+                <span>系統輸出</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color purple"></div>
+                <span>Deep Mode 特殊處理</span>
+            </div>
+        </div>
+        
+        <div class="footer">
+            Neo4j 搜尋流程架構圖 | GraphRAG + Vector RAG 混合系統
+        </div>
+    </div>
+</body>
+</html>

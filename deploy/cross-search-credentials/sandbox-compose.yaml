@@ -1,0 +1,112 @@
+# Isolated CrossSearch per-user credential sandbox (mock Confluence/Jira/TestRail).
+# internal network, no published ports, throwaway Postgres/Redis, generated keys.
+# Run through scripts/test-cross-search-credentials-sandbox.sh only.
+x-env: &common
+  KM_CONTROL_DB_URL: postgresql://km_control_app:${SANDBOX_DB_PASSWORD:?}@control-db:5432/km_control
+  KM_CONTROL_SESSION_SIGNING_KEY: ${SANDBOX_CONTROL_KEY:?}
+  KM_ENTRY_SESSION_SIGNING_KEY: ${SANDBOX_ENTRY_KEY:?}
+  KM_CROSS_SEARCH_BRIDGE_SECRET: ${SANDBOX_BRIDGE_SECRET:?}
+
+networks:
+  sandbox:
+    internal: true
+
+services:
+  control-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: km_control
+      POSTGRES_USER: km_control_app
+      POSTGRES_PASSWORD: ${SANDBOX_DB_PASSWORD:?}
+    networks: [sandbox]
+    healthcheck:
+      test: [CMD-SHELL, pg_isready -U km_control_app -d km_control]
+      interval: 2s
+      retries: 30
+
+  redis:
+    image: redis:7-alpine
+    networks: [sandbox]
+    healthcheck:
+      test: [CMD, redis-cli, ping]
+      interval: 2s
+      retries: 30
+
+  mock-sources:
+    image: ${SANDBOX_TEST_IMAGE:?}
+    working_dir: /work/tests
+    command: [uvicorn, mocks.external_sources_mock:app, --host, 0.0.0.0, --port, "8443",
+              --ssl-keyfile, /certs/mock.key, --ssl-certfile, /certs/mock.crt]
+    environment:
+      MOCK_LATENCY_SECONDS: ${SANDBOX_MOCK_LATENCY:-1}
+    volumes: [../..:/work:ro, "${SANDBOX_CERT_DIR:?}:/certs:ro"]
+    networks:
+      sandbox:
+        aliases: [mock-sources.sandbox.test]
+
+  control:
+    image: ${SANDBOX_TEST_IMAGE:?}
+    working_dir: /work
+    command: [uvicorn, app.control_main:app, --host, 0.0.0.0, --port, "8000"]
+    environment:
+      <<: *common
+      PYTHONPATH: /work
+      KM_ENABLED_INSTANCE_IDS: test
+      KM_TEST_PUBLIC_ORIGIN: https://km-test.sandbox.test
+      KM_SOURCE_CREDENTIAL_KEY_ID: sandbox1
+      KM_SOURCE_CREDENTIAL_PUBLIC_KEY_FILE: /keys/public/sandbox1.pem
+    volumes: [../..:/work:ro, "${SANDBOX_KEY_DIR:?}/public:/keys/public:ro"]
+    networks: [sandbox]
+    depends_on: {control-db: {condition: service_healthy}}
+
+  bridge:
+    image: ${SANDBOX_BRIDGE_IMAGE:?}
+    environment:
+      <<: *common
+      KM_INSTANCE_ID: test
+      REDIS_URL: redis://redis:6379/1
+      CELERY_BROKER_URL: redis://redis:6379/1
+    networks: [sandbox]
+    depends_on: {control-db: {condition: service_healthy}, redis: {condition: service_healthy}}
+
+  cross-api:
+    image: ${SANDBOX_CROSS_IMAGE:?}
+    environment: &cross
+      KM_CROSS_SEARCH_ZONE: test
+      KM_CROSS_SEARCH_REDIS_URL: redis://redis:6379/2
+      KM_CROSS_SEARCH_BRIDGE_URL: http://bridge:8000
+      KM_CROSS_SEARCH_BRIDGE_SECRET: ${SANDBOX_BRIDGE_SECRET:?}
+      KM_CROSS_SEARCH_SOURCES: confluence,jira,testrail
+      KM_CROSS_SEARCH_CONFLUENCE_BASE_URL: https://mock-sources.sandbox.test:8443/confluence
+      KM_CROSS_SEARCH_JIRA_BASE_URL: https://mock-sources.sandbox.test:8443/jira
+      KM_CROSS_SEARCH_TESTRAIL_BASE_URL: https://mock-sources.sandbox.test:8443/testrail
+      KM_CROSS_SEARCH_TESTRAIL_SCOPES: "1"
+      KM_CROSS_SEARCH_CONFLUENCE_CA_FILE: /certs/ca.crt
+      KM_CROSS_SEARCH_JIRA_CA_FILE: /certs/ca.crt
+      KM_CROSS_SEARCH_TESTRAIL_CA_FILE: /certs/ca.crt
+      KM_SOURCE_CREDENTIAL_PRIVATE_KEY_DIR: /keys/private
+    volumes: ["${SANDBOX_CERT_DIR:?}/ca.crt:/certs/ca.crt:ro"]
+    networks: [sandbox]
+    depends_on: {redis: {condition: service_healthy}}
+
+  cross-worker:
+    image: ${SANDBOX_CROSS_IMAGE:?}
+    command: [celery, -A, cross_search.service.celery, worker, --loglevel=warning, "--concurrency=${SANDBOX_WORKER_CONCURRENCY:-2}", -Q, celery]
+    environment: *cross
+    volumes: ["${SANDBOX_CERT_DIR:?}/ca.crt:/certs/ca.crt:ro", "${SANDBOX_KEY_DIR:?}/private:/keys/private:ro"]
+    networks: [sandbox]
+    depends_on: {redis: {condition: service_healthy}}
+
+  driver:
+    image: ${SANDBOX_TEST_IMAGE:?}
+    profiles: [driver]
+    working_dir: /work
+    command: [python, scripts/cross_search_credentials_sandbox_driver.py]
+    environment:
+      <<: *common
+      PYTHONPATH: /work
+      PYTHONDONTWRITEBYTECODE: "1"
+      SANDBOX_USERS: ${SANDBOX_USERS:-5}
+      SANDBOX_ROUNDS: ${SANDBOX_ROUNDS:-3}
+    volumes: [../..:/work:ro, "${SANDBOX_CERT_DIR:?}/ca.crt:/certs/ca.crt:ro"]
+    networks: [sandbox]

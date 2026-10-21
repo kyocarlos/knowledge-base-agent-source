@@ -8,6 +8,15 @@
 4. 每次產生最後方案後，將 LLM 的說明與結論完整寫入專案記憶，方便下次直接接續。
 5. 無論進行任何修改，預設都要避免硬編碼，優先採用可擴充、可配置、資料驅動或共用規則的做法；只有在使用者明確指定要硬編碼時，才可採用硬編碼方案。
 6. GitHub 上的 Phase、WP、KM 與部署狀態必須能由真實系統唯讀驗證與對帳；不得只依人工文件或手動標記宣稱完成。狀態應保留 approved source commit、實際 image/container identity、runtime validation、deployment/rollback evidence 與目前系統快照的可追溯關聯；若 GitHub 與真實系統不一致，必須顯性標示 `MISMATCH` 或 `STALE`，不得宣稱同步或 PASS。
+7. 討論與開發過程全程使用繁體中文（zh-TW），沒有例外：回覆、進度回報、工作中的狀態更新、最後報告、計畫與設計文件、提問（含 AskUserQuestion 的問題與選項）、工具呼叫描述、交給 subagent 的任務說明與其回報、專案記憶、對話壓縮摘要、commit 訊息、PR 標題與說明，以及程式產生給人看的報告與通知文字；不得使用簡體中文。程式碼、指令、檔名、識別字、API 欄位與錯誤訊息原文保持原樣，程式註解沿用該檔案既有語言慣例。若誤用英文或簡體中文，立即改用繁體中文重新說明。
+
+## 服務意外終止處置準則
+
+1. 若 container 出現 `exit=137`，不得直接判定為 OOM。必須同時檢查 `State.OOMKilled`、container memory limit、Docker restart policy、kernel OOM 記錄，以及可取得的 Docker/systemd/audit 時間窗證據。
+2. 若 `OOMKilled=false` 且沒有 kernel OOM 證據，狀態應記為「SIGKILL/強制終止來源未確定」，不得臆測終止者；優先恢復服務可用性，再補充 root-level 事件證據。
+3. 對需要持續提供服務的 stateless ingress/container（例如 Nginx），Compose 應優先採用可配置的 `restart: unless-stopped`，並配置不含 secrets 的 healthcheck；healthcheck 用於辨識與告警，不得誤認為會自動重啟 container。
+4. Read-only status broker/collector 不得取得 Docker socket、讀取 production secrets、執行 `docker exec` 或自行 restart/recreate/down/up。自動恢復應由受控的 Docker restart policy 或另經核准的 privileged service 負責。
+5. 修正後必須在實際 runtime 驗證：restart policy、healthcheck、服務狀態、正式 health endpoint 與主要使用者入口均正常；不得只以 Compose source、unit test 或 `docker compose config` 輸出宣稱已套用 Production。
 
 ## 網頁測試原則
 
@@ -62,3 +71,7 @@
 10. 長時間多步驟任務要設檢查點，每一步都要能說清已做、已驗證、待完成事項。
 11. 約定優先於個人新意，既有命名、架構、風格與模式優先維持一致。
 12. 要顯性失敗，不要靜默失敗；不確定成功就明說，不要包裝成完成。
+
+## KM Control Auth / OIDC Phase 1 順序
+
+依序驗收：WP0 Config + DEV HTTPS、WP1 OIDC Login（state/nonce/PKCE S256）、WP2 Callback + Authorization Code/Token Exchange（client_secret_basic）、WP3 Token Validation、WP4 Configurable Claim Mapping、WP5 `(iss, sub)` Identity Binding + manual approval、WP6 保留 Local grants 的 Control DB Authorization、WP7 KM Local Logout、WP8 Audit + Metrics、WP9 Integration/CI/Evidence。Shared Identity 尚未正式建立 KM Client 前，OIDC 必須維持 disabled，禁止寫入 provisional client id、secret 或 callback；`private_key_jwt`、UserInfo 與 RP-Initiated Logout 不得阻塞此 Phase。

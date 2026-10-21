@@ -1,0 +1,37 @@
+# New-machine sandbox. Not the existing DGX deployment; no external networks or volumes.
+services:
+  db:
+    image: timescale/timescaledb:2.17.2-pg16
+    environment:
+      POSTGRES_HOST_AUTH_METHOD: trust
+      POSTGRES_USER: km_dev
+      POSTGRES_DB: km_dev
+    volumes:
+      - sandbox-db:/var/lib/postgresql/data
+      - ../../migrations/20261007_csit_integration_v1.sql:/docker-entrypoint-initdb.d/01-integration.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL","pg_isready -U km_dev -d km_dev"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+  api:
+    build:
+      context: ../..
+      dockerfile: deploy/csit-integration-v1/Dockerfile
+      target: api
+    environment:
+      KM_CSIT_ENABLED: "false"
+      KM_CSIT_DB_URL: postgresql://km_dev@db/km_dev
+    ports:
+      - "127.0.0.1:${KM_HANDOFF_API_PORT:-0}:8000"
+    depends_on:
+      db: {condition: service_healthy}
+    healthcheck:
+      test: ["CMD","python","-c","import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health',timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+
+volumes:
+  sandbox-db:
+  sandbox-storage:

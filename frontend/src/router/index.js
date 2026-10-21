@@ -32,6 +32,11 @@ const routes = [
     component: () => import('../views/UploadView.vue')
   },
   {
+    path: '/csit',
+    name: 'csit-browser',
+    component: () => import('../views/CsitBrowserView.vue')
+  },
+  {
     path: '/skills',
     name: 'skills',
     component: () => import('../views/SkillManagementView.vue')

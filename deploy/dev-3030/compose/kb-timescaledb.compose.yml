@@ -1,0 +1,26 @@
+# Extracted 2026-10-15 from knowledge-base commit 3e2c64aa ("add independent
+# time-series metrics path"), the source of kb-timescaledb. It was created with
+# the lost /tmp/phase1-timescaledb-infrastructure-override.yml on top of
+# /srv/knowledge-base-production-rebaseline-20260829-v3/docker-compose.yml,
+# which has no timescaledb service. Kept byte-for-byte so the compose
+# config-hash matches the running container. Data lives in the named volume.
+# TIMESCALEDB_PASSWORD comes from the protected deployment env file.
+services:
+  timescaledb:
+    image: timescale/timescaledb:2.17.2-pg16
+    container_name: kb-timescaledb
+    restart: unless-stopped
+    environment:
+      - POSTGRES_DB=kb_timeseries
+      - POSTGRES_USER=kb_timeseries
+      - POSTGRES_PASSWORD=${TIMESCALEDB_PASSWORD:?TIMESCALEDB_PASSWORD must be set}
+    volumes:
+      - timescaledb_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U kb_timeseries -d kb_timeseries"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  timescaledb_data:

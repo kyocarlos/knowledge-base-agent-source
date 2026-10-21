@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Chat stability runner for https://127.0.0.1:3030/chat.html
+ * Chat stability runner for https://61.216.9.52:3030/chat.html
  *
  * Usage:
  *   node scripts/chat_stability_runner.js --schedule-file scripts/chat_stability_schedule.example.json
@@ -18,9 +18,9 @@ const fs = require('fs');
 const path = require('path');
 const { firefox } = require('playwright');
 
-const DEFAULT_BASE_URL = 'https://127.0.0.1:3030/chat.html';
-const DEFAULT_OUTPUT_ROOT = path.resolve('<project-root>/knowledge-base/final_runs/chat_stability');
-const DEFAULT_SCHEDULE_FILE = path.resolve('<project-root>/knowledge-base/scripts/chat_stability_schedule.example.json');
+const DEFAULT_BASE_URL = 'https://61.216.9.52:3030/chat.html';
+const DEFAULT_OUTPUT_ROOT = path.resolve('/home/da40_ai_gb10/knowledge-base/final_runs/chat_stability');
+const DEFAULT_SCHEDULE_FILE = path.resolve('/home/da40_ai_gb10/knowledge-base/scripts/chat_stability_schedule.example.json');
 
 function parseArgs(argv) {
   const args = {

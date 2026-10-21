@@ -7,7 +7,7 @@ from pptx.enum.text import MSO_AUTO_SIZE, PP_ALIGN
 from pptx.util import Inches, Pt
 
 
-OUT = Path("<project-root>/knowledge-base/onprem_post_install_connection_guide.pptx")
+OUT = Path("/home/da40_ai_gb10/knowledge-base/onprem_post_install_connection_guide.pptx")
 
 
 def rgb(value: str) -> RGBColor:
@@ -255,7 +255,7 @@ def add_data_slide(slide):
         "047857",
     )
 
-    card(slide, Inches(0.72), Inches(1.78), Inches(4.25), Inches(1.15), "原始文件放哪裡", "<onprem-root>/knowledge-base-onprem/app/data/raw", "2563EB")
+    card(slide, Inches(0.72), Inches(1.78), Inches(4.25), Inches(1.15), "原始文件放哪裡", "/home/da40_ai_gb10_2/knowledge-base-onprem/app/data/raw", "2563EB")
     card(slide, Inches(0.72), Inches(3.08), Inches(4.25), Inches(1.15), "處理後內容", "系統會自動產生 processed、assets、uploads。", "16A34A")
     card(slide, Inches(0.72), Inches(4.38), Inches(4.25), Inches(1.15), "上傳後會做什麼", "轉文字、切段、寫 Neo4j、寫 Qdrant。", "D97706")
 
