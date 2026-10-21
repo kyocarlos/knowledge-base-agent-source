@@ -3,8 +3,7 @@ import json
 from fastapi import FastAPI, Request
 from fastapi.testclient import TestClient
 
-from src.csit import assistants
-from src.web_api import csit_assistant_routes
+from src.web_api import csit_assistant_routes, csit_assistants as assistants
 
 CATALOGUE = {"assistants": [{
     "id": "report_query", "name": "報告查詢助手", "purpose": "查報告", "engine": "report_query", "examples": ["問題一"],

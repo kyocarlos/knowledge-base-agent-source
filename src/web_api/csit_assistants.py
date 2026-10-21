@@ -1,5 +1,7 @@
 """CSIT zone AI assistants: a data-driven catalogue plus real readiness probes.
 
+Lives in web_api, not in the csit package: the deployed image carries an incomplete src/csit (its __init__ cannot be imported there).
+
 An assistant whose requirements are not met stays visible but is marked pending and says what is missing; it never answers
 from invented data. The report query engine is not implemented yet, so ``query_engine`` stays unmet until it is.
 """
@@ -18,7 +20,7 @@ logger = logging.getLogger(__name__)
 REGISTRY_ENV = "KM_CSIT_ASSISTANTS_FILE"
 # The catalogue ships next to the code: a data zone mounts its own /app/config over the image, so a file there would be hidden.
 # KM_CSIT_ASSISTANTS_FILE overrides it, and config/csit_assistants.json (when present) overrides the packaged default.
-DEFAULT_REGISTRY = Path(__file__).with_name("assistants.json")
+DEFAULT_REGISTRY = Path(__file__).with_name("csit_assistants.json")
 CONFIG_REGISTRY = Path(__file__).resolve().parents[2] / "config" / "csit_assistants.json"
 PROBE_TIMEOUT_SECONDS = 3
 READINESS_TTL_SECONDS = 30.0

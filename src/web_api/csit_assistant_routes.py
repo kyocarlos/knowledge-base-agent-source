@@ -7,7 +7,7 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel, Field
 
-from ..csit import assistants
+from . import csit_assistants as assistants
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/csit-assistants", tags=["CSIT assistants"])

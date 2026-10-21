@@ -1,5 +1,5 @@
 {
-  "_comment": "CSIT 知識專區的 AI 助手目錄。每個助手一筆；requires 是就緒條件，由程式實際探測，未滿足時助手顯示「待銜接」並說明缺什麼，不顯示假資料。新增助手只改這個檔案（並在 src/csit/assistants.py 登記對應的查詢引擎）。資料區若掛載了自己的 /app/config，可放 config/csit_assistants.json 覆蓋這份預設。",
+  "_comment": "CSIT 知識專區的 AI 助手目錄。每個助手一筆；requires 是就緒條件，由程式實際探測，未滿足時助手顯示「待銜接」並說明缺什麼，不顯示假資料。新增助手只改這個檔案（並在 src/web_api/csit_assistants.py 登記對應的查詢引擎）。資料區若掛載了自己的 /app/config，可放 config/csit_assistants.json 覆蓋這份預設。",
   "assistants": [
     {
       "id": "report_query",

@@ -6,8 +6,8 @@ LABEL io.km.csit-assistants-source-commit=${SOURCE_COMMIT} \
       io.km.csit-assistants-base-image=${BASE_IMAGE}
 
 # CSIT zone AI assistants (web only). The catalogue ships next to the code because a data zone may mount its own /app/config.
+# They live in web_api: the deployed src/csit package is incomplete and cannot be imported.
 # The deployed web __init__.py diverges from git, so it is patched (one anchor, two lines), never replaced.
-COPY src/csit/assistants.py src/csit/assistants.json /app/src/csit/
-COPY src/web_api/csit_assistant_routes.py /app/src/web_api/csit_assistant_routes.py
+COPY src/web_api/csit_assistants.py src/web_api/csit_assistants.json src/web_api/csit_assistant_routes.py /app/src/web_api/
 COPY deploy/dev-3030/backports/register-csit-assistants.py /tmp/register-csit-assistants.py
 RUN python3 /tmp/register-csit-assistants.py && rm /tmp/register-csit-assistants.py
