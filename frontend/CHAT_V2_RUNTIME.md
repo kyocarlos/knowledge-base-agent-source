@@ -11,3 +11,4 @@
 
 修改執行檔後請同步更新此副本，否則標示為 STALE。
 - 2026-10-21 CSIT 知識專區新增「AI 助手選擇列」與「報告查詢助手」（分支 `codex/csit-report-assistant-20261021`，**尚未部署**）：助手清單來自後端 `src/web_api/csit_assistants.json`（`GET /api/csit-assistants`），選到助手時改呼叫 `POST /api/csit-assistants/{id}/query`，不需要 OpenClaw 聊天連線；其他專區與「一般問答」流程不變。部署時須把 `frontend/chat-v2.html` 同步到 Nginx 網頁目錄，並備份部署前的檔案；同步後再更新此說明，否則標示為 STALE。
+- 2026-10-21 一般問答新增「知識庫實體檢查」（`checkEntitiesInKnowledgeBase`）：問題點名特定設備／專案代號（2 個以上字母接 3 個以上數字，如 NCQ2200B2V-D294、SCU5050），但最相近的 12 筆知識庫來源都沒有提到它時，直接回覆「查無此項目」，不呼叫聊天模型、不列出無關來源；WiFi 專區（走 `/api/wifi8/agent`）與選了 CSIT 助手時不受影響；檢查本身失敗時照原流程繼續。僅前端（Nginx 靜態檔，兩區共用），部署前備份 `~/.km-control/csit-assistants-deploy-20261021/chat-v2.html.pre-entity-guard`。
