@@ -72,6 +72,17 @@ def test_bad_arguments_and_unknown_tools_are_reported_to_the_model(tools):
     assert "未知的工具" in summaries[1] and "參數錯誤" in summaries[2]
 
 
+def test_a_tool_argument_of_the_wrong_type_is_reported_to_the_model_not_raised(tools):
+    llm = ScriptedLlm(reply(calls=[call("search_wifi", {"query": {"text": "ELR"}})]), reply("ok"))
+    out = run_agent("q", llm=llm, tools=tools, settings=AgentSettings())
+    assert out["answer"] == "ok" and "參數錯誤" in out["trace"][0]["result_summary"]
+
+
+def test_prompt_keeps_wifi8_scope_and_constraint_rules():
+    from src.wifi8.agent import SYSTEM_PROMPT
+    assert "以 Wi-Fi 8" in SYSTEM_PROMPT and "不要自行假設" in SYSTEM_PROMPT and "逐項列出各來源明確寫出的限制" in SYSTEM_PROMPT
+
+
 def test_document_tools(tools):
     versions = tools.list_versions("elr2")["versions"]
     assert {v["revision_id"] for v in versions} == {"elr1", "elr2"}
