@@ -1190,6 +1190,8 @@ app = FastAPI(
 from .report_routes import router as report_router
 app.include_router(report_router)
 app.include_router(csit_router)
+from .csit_assistant_routes import router as csit_assistant_router
+app.include_router(csit_assistant_router)
 from .e2e_cleanup_routes import router as e2e_cleanup_router
 app.include_router(e2e_cleanup_router)
 from .wifi8_routes import router as wifi8_router

@@ -1,0 +1,31 @@
+{
+  "_comment": "CSIT 知識專區的 AI 助手目錄。每個助手一筆；requires 是就緒條件，由程式實際探測，未滿足時助手顯示「待銜接」並說明缺什麼，不顯示假資料。新增助手只改這個檔案（並在 src/csit/assistants.py 登記對應的查詢引擎）。資料區若掛載了自己的 /app/config，可放 config/csit_assistants.json 覆蓋這份預設。",
+  "assistants": [
+    {
+      "id": "report_query",
+      "name": "報告查詢助手",
+      "purpose": "查詢測試報告的數值與判定，並比較不同設備、頻段與韌體的結果",
+      "engine": "report_query",
+      "examples": [
+        "NCQ2200B2V-D294 在 5GHz 80MHz 的上行吞吐量是多少？",
+        "哪些設備在 5GHz 20MHz 有未通過的通道？",
+        "比較 TP-Link Archer BE800 與 BE805 的 6GHz 下行吞吐量"
+      ],
+      "requires": [
+        {
+          "id": "numeric_store",
+          "label": "測試報告數值資料庫（km_test.test_run）",
+          "type": "postgres_table",
+          "dsn_env": "KM_TEST_NUMERIC_URL",
+          "table": "km_test.test_run",
+          "min_rows": 1
+        },
+        {
+          "id": "query_engine",
+          "label": "報告數值查詢引擎",
+          "type": "engine_flag"
+        }
+      ]
+    }
+  ]
+}
