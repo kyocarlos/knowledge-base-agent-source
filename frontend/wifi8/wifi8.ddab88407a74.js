@@ -210,7 +210,8 @@
       ? `<code>${part.slice(1, -1)}</code>`
       : part.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
         .replace(/(^|[^*\w])\*(?!\s)([^*\n]+?)\*(?!\w)/g, '$1<em>$2</em>')
-        .replace(/\[(S\d+)\]/g, '<span class="cite-ref">[$1]</span>')).join('');
+        .replace(/\[(S\d+)\]/g, '<span class="cite-ref">[$1]</span>')
+        .replace(/\[(G\d+)\]/g, '<span class="cite-ref graph-ref" title="知識圖譜關聯（LLM 抽取，未逐句驗證）">[$1]</span>')).join('');
   }
   const markdownList = /^\s*([-*+]|\d+[.)])\s+(.*)$/;
   const markdownBlock = /^\s*(```|#{1,6}\s|[-*+]\s|\d+[.)]\s|&gt;|\|)/;
@@ -296,11 +297,27 @@
     const items = flagged.map((f) => `<li><p>${escapeHtml(f.text)}${(f.refs || []).length ? ` <span class="cite-ref">[${escapeHtml(f.refs.join('][')) }]</span>` : ''}</p><div>${(f.reasons || []).map((r) => `<span class="g-reason ${r}">${escapeHtml(groundingReasons[r] || r)}</span>`).join('')}${(f.values || []).map((v) => `<code class="${v.status}" title="${v.status === 'not_found' ? '在 Agent 取得的資料中找不到' : v.status === 'not_in_cited' ? '不在本句引用的段落' : '出現在其他引用，不在本句引用的段落'}">${escapeHtml(v.value)}</code>`).join('')}${(f.names || []).map((n) => `<code class="not_in_cited" title="本句提到的文件，引用的段落不是這份文件">${escapeHtml(n)}</code>`).join('')}${f.similarity != null && (f.reasons || []).includes('low_similarity') ? `<small>相似度 ${Number(f.similarity).toFixed(2)}</small>` : ''}</div></li>`).join('');
     return `<section class="grounding" aria-label="依據檢核"><div class="grounding-head"><strong>依據檢核</strong><div class="g-chips">${chips}</div></div><p class="grounding-note">由程式比對 Agent 取得的原文段落與文件資料：檢查每句是否有引用，以及數字、版本、型號是否真的出現在資料中${s.similarity_enabled ? '；相似度只代表用詞接近程度，不代表內容正確' : ''}。這是輔助檢核，不保證內容正確。</p>${flagged.length ? `<details><summary>需留意的句子（${flagged.length}）</summary><ul class="g-flags">${items}</ul></details>` : '<p class="grounding-note ok">所有句子都有依據，數值皆可在資料中找到。</p>'}</section>`;
   }
+  // Extension of an answer: related knowledge (graph/documents), labelled general knowledge, follow-up questions. Only present when the zone enables it.
+  function graphCitationItem(item) {
+    const kind = item.kind === 'topic' ? '主題' : '文件';
+    const detail = [item.document_role, item.publisher, item.lifecycle].filter(Boolean).join('・');
+    return `<li><strong>[${escapeHtml(item.ref)}]</strong> ${kind}：${escapeHtml(item.title || item.key)}${detail ? `<small>${escapeHtml(detail)}</small>` : ''}</li>`;
+  }
+  function extensionPanel(value) {
+    const ext = value.extension; if (!ext) return '';
+    const graph = (value.graph_citations || []).map(graphCitationItem).join('');
+    const parts = [
+      ext.related ? `<section class="ext-section"><h4>相關主題與文件<small>來自專區文件與知識圖譜（圖譜關聯由 LLM 抽取，未逐句驗證）</small></h4><div class="markdown">${renderMarkdown(ext.related)}</div>${graph ? `<ul class="citation-list graph-list">${graph}</ul>` : ''}</section>` : '',
+      ext.general ? `<section class="ext-section ext-general"><h4>一般知識補充<small>模型的一般知識，未經專區文件驗證</small></h4><div class="markdown">${renderMarkdown(ext.general)}</div></section>` : '',
+      (ext.followups || []).length ? `<section class="ext-section"><h4>你可能還想問</h4><div class="followups">${ext.followups.map((q) => `<button type="button" class="followup" data-question="${escapeHtml(q)}">${escapeHtml(q)}</button>`).join('')}</div></section>` : '',
+    ].filter(Boolean).join('');
+    return parts ? `<div class="extension" aria-label="延伸知識"><strong class="ext-title">延伸知識</strong>${parts}</div>` : '';
+  }
   function agentOutput(value) {
-    const answer = value.answer || value.result || value.message || '未回傳回答';
+    const answer = value.answer_main || value.answer || value.result || value.message || '未回傳回答';
     const citations = value.citations || value.sources || [];
     const trace = value.steps || value.tool_steps || value.trace || [];
-    return `<div class="message assistant markdown">${renderMarkdown(answer)}</div>${groundingPanel(value.grounding)}<ul class="citation-list">${citations.map(citationItem).join('')}</ul><details><summary>Agent 工具步驟與停止原因</summary><ul class="trace-list">${trace.map((item) => `<li>${escapeHtml(typeof item === 'string' ? item : item.tool || item.name || JSON.stringify(item))}</li>`).join('') || '<li>無工具步驟</li>'}</ul><p class="results-meta">${escapeHtml(value.stop_reason || value.status || '')}</p></details>`;
+    return `<div class="message assistant markdown">${renderMarkdown(answer)}</div>${extensionPanel(value)}${groundingPanel(value.grounding)}<ul class="citation-list">${citations.map(citationItem).join('')}</ul><details><summary>Agent 工具步驟與停止原因</summary><ul class="trace-list">${trace.map((item) => `<li>${escapeHtml(typeof item === 'string' ? item : item.tool || item.name || JSON.stringify(item))}</li>`).join('') || '<li>無工具步驟</li>'}</ul><p class="results-meta">${escapeHtml(value.stop_reason || value.status || '')}</p></details>`;
   }
   async function pollAgent(taskId) {
     for (let attempt = 0; attempt < 120; attempt += 1) {
@@ -318,13 +335,18 @@
     try {
       const submitted = await api('/api/wifi8/agent', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ question, history:state.conversation.slice(-12) }) });
       const result = await pollAgent(submitted.task_id); $('#agent-wait').outerHTML = agentOutput(result);
-      state.conversation.push({role:'user',content:question},{role:'assistant',content:result.answer || result.result || ''});
+      state.conversation.push({role:'user',content:question},{role:'assistant',content:result.answer_main || result.answer || result.result || ''});
     } catch (error) { $('#agent-wait').outerHTML = `<div class="message error">${escapeHtml(error.message)}</div>`; }
     finally { button.disabled = false; }
   }
   async function renderAgent() {
     content.innerHTML = `<div class="ai-layout">${panel('AI research assistant', `<div id="conversation" class="conversation"><div class="message assistant">我會使用 WiFi 專區的文件與版本關係回答，並保留引用與工具步驟。</div></div><label>問題<textarea id="agent-question" maxlength="2000" placeholder="例如：ELR 的規格重點是什麼？"></textarea></label><div class="ai-actions"><small class="results-meta">回答以目前匯入資料為準</small><button id="agent-submit" class="primary-button" type="button">送出問題</button></div>`)}${panel('可追溯輸出', '<p>每次回答會同時顯示：</p><ul><li>引用文件</li><li>Agent 工具步驟</li><li>停止原因與錯誤狀態</li></ul>', 'EXISTING KM PIPELINE')}</div>`;
     $('#agent-submit').addEventListener('click', askAgent);
+    // A suggested follow-up fills the question box; the user decides whether to send it.
+    $('#conversation').addEventListener('click', (event) => {
+      const button = event.target.closest('.followup'); if (!button) return;
+      const input = $('#agent-question'); input.value = button.dataset.question || ''; input.focus();
+    });
   }
 
   function imageProgress(job) {

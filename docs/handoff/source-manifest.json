@@ -344,6 +344,10 @@
       "sha256": "a3203b26106d8e24fab7d92d69d702426c40db1999e5e846b5680cf53c8eb075"
     },
     {
+      "path": "deploy/dev-3030/backports/register-csit-assistants.py",
+      "sha256": "5bcfe7b877aebeaa353a4741dee67d1ea2baa5727ab2f436bef4e9db6d75bab9"
+    },
+    {
       "path": "deploy/dev-3030/backports/sources-only-no-llm.patch",
       "sha256": "cd133f3ece7d38d75e0972616f382d4314cd042fa987661982d1e5fb45314443"
     },
@@ -382,6 +386,10 @@
     {
       "path": "deploy/dev-3030/docker/Dockerfile.control-capability",
       "sha256": "7cc8ce4b131263edaafb39c00df0a0633dd3527c09e2c9558b2610a4ea9b581a"
+    },
+    {
+      "path": "deploy/dev-3030/docker/Dockerfile.csit-assistants",
+      "sha256": "00cd2f9e74d316691c451816695f1f141219d81b3b082f1e51c494439cea4cf5"
     },
     {
       "path": "deploy/dev-3030/docker/Dockerfile.verified-file",
@@ -462,6 +470,10 @@
     {
       "path": "docs/anritsu_amarisoft_kb_architecture.md",
       "sha256": "7a014078cfe5350a6eff442f35578ce3c18f9ff469a79da9bce273735e097f50"
+    },
+    {
+      "path": "docs/codex-frontend-style-brief.md",
+      "sha256": "db8a6eee9c27dbafa41a8ea786e7f9d07a962caa4dc10714ed317e8d95c1455a"
     },
     {
       "path": "docs/cross-search-credentials-deployment-plan.md",
@@ -641,11 +653,11 @@
     },
     {
       "path": "frontend/CHAT_V2_RUNTIME.md",
-      "sha256": "9ecb7c1b0eef9ef9907b08cf41a5acf1533ed0633c2fc72e3ea90e1dd9736ffb"
+      "sha256": "432f9994767a3940bd9ae7a702c6ec43092ae5311cf68da096b39e10f21797b2"
     },
     {
       "path": "frontend/chat-v2.html",
-      "sha256": "337e946276d625aa44e423cc7b0f7f14bc2c0889b0af2b6a0227e540192534be"
+      "sha256": "ae216c701cc9c5067464a99e75b64ec42e1e7bb56d331a43601032b3da31ceeb"
     },
     {
       "path": "frontend/chat.html",
@@ -765,15 +777,15 @@
     },
     {
       "path": "frontend/wifi8/index.html",
-      "sha256": "079302e5ec48556f6e5f23a657d314825cbd04f014a663282e966671ecbcb337"
+      "sha256": "460db6c53ac4db2b927863459fd601e247ee9390694c18731cc57302b2aedbf6"
     },
     {
-      "path": "frontend/wifi8/wifi8.76b8dc6b27e2.css",
-      "sha256": "76b8dc6b27e2bb23adc5298610975ebb8dff7aeb8dddce40ac0fa0557969d2bc"
+      "path": "frontend/wifi8/wifi8.ddab88407a74.js",
+      "sha256": "ddab88407a746cb1a8e24bf30d7f09d0a18e2b8c421d9fd0d36f5383561344f5"
     },
     {
-      "path": "frontend/wifi8/wifi8.83a3a25928b9.js",
-      "sha256": "83a3a25928b963ae72b2f1ede0960772d3e41a3673aa9b5ee3b619f4b6a3a053"
+      "path": "frontend/wifi8/wifi8.fb63684bb30c.css",
+      "sha256": "fb63684bb30c48ba8fac6848f89ef86391d04a3b683ff6b5af60331180911096"
     },
     {
       "path": "frontend/ws-chat-probe.cjs",
@@ -1653,7 +1665,7 @@
     },
     {
       "path": "src/web_api/__init__.py",
-      "sha256": "e7e5012087a1c5b4f7026d600530f2045cb6bde0f2ae2e38ee952d264e705e9d"
+      "sha256": "18f1376850eeb3eda46f1817820a7c014cc44a1b1a65f5eea7bfa3e37b3bf1f3"
     },
     {
       "path": "src/web_api/cache.py",
@@ -1666,6 +1678,18 @@
     {
       "path": "src/web_api/cross_search_bridge.py",
       "sha256": "3a5eccaccb962aff8bbcc15366a7e4f20f03f5e2ece6f817c99447f1537ab3ae"
+    },
+    {
+      "path": "src/web_api/csit_assistant_routes.py",
+      "sha256": "796a770bc3a379378b4c1fdb45d4d201bc0d2e49ec5b84dddd8d7b0289f6bb8e"
+    },
+    {
+      "path": "src/web_api/csit_assistants.json",
+      "sha256": "62f6f33834ff6936f3ad742e4ddcb36176582a7e5b28884fc0ac02b4774854e7"
+    },
+    {
+      "path": "src/web_api/csit_assistants.py",
+      "sha256": "f8d963d8d7999a311dfa553483dddd7fd88c16ed2f0b518d783fab0680b2a0fe"
     },
     {
       "path": "src/web_api/csit_routes.py",
@@ -1697,7 +1721,7 @@
     },
     {
       "path": "src/web_api/tasks.py",
-      "sha256": "4a37bb22a56a56ce1f0201dfdff1482799548ddbc12f4b35f13761a6d79679cf"
+      "sha256": "bd03f7e8266e1b517c9589501841d0a08079a65bfee96894d4d5ea2e33828ece"
     },
     {
       "path": "src/web_api/wifi8_routes.py",
@@ -1713,7 +1737,7 @@
     },
     {
       "path": "src/wifi8/agent.py",
-      "sha256": "437f8f3aebdfe52ab1625eafec1e8c522a35a56b4818e75db74e79e6363b5d4e"
+      "sha256": "05f68f42e95471579d7aaf818554fe7ceb0f4960d688259019f4d079d026f2ce"
     },
     {
       "path": "src/wifi8/autocheck.py",
@@ -1734,6 +1758,14 @@
     {
       "path": "src/wifi8/excerpt.py",
       "sha256": "940ac05ccc9fa43242b267e7e955dbc9e98dc8ffabfbc61af490100151382a14"
+    },
+    {
+      "path": "src/wifi8/extension.py",
+      "sha256": "4b75df3465c8d5512c223a88c6f97ef7a053ad6761dd974abc828826b5bc74eb"
+    },
+    {
+      "path": "src/wifi8/graph.py",
+      "sha256": "ebf39ed5c5298efd752ded5f25caf1cc67e72fce494f00998e25d937989a5900"
     },
     {
       "path": "src/wifi8/grounding.py",
@@ -1922,6 +1954,10 @@
     {
       "path": "tests/test_cross_search_external_sources.py",
       "sha256": "c06e1bc993bc668e753cc1c22b71995d4f9c552a750571058243418724421c67"
+    },
+    {
+      "path": "tests/test_csit_assistants.py",
+      "sha256": "dd6c784c562645953163216459c34afaa9153f0f60b39f12ec3245f102dfea68"
     },
     {
       "path": "tests/test_csit_contract.py",
@@ -2150,6 +2186,10 @@
     {
       "path": "tests/test_wifi8_evaluation.py",
       "sha256": "d8dcf124f81a33b8c705a6878849a50bd40839b868ce2222561b7494253d41af"
+    },
+    {
+      "path": "tests/test_wifi8_extension.py",
+      "sha256": "97b4ab2652f72006ed7d7c6a6bcb72f958ce607fcb71099a6b725855363b7d0b"
     },
     {
       "path": "tests/test_wifi8_grounding.py",

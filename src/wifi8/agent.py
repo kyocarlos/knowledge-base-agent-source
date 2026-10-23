@@ -16,6 +16,8 @@ from dataclasses import dataclass
 from typing import Any, Callable
 
 from .excerpt import excerpt, table_excerpt
+from .extension import extended_prompt, split_answer
+from .graph import Wifi8Graph
 from .quality import QUALITY_LOG_PREFIX
 from .search import SearchOptions, Wifi8Search, figure_intent
 from .store import match, scroll_all
@@ -86,6 +88,34 @@ TOOLS = [
 ]
 
 
+GRAPH_TOOLS = [
+    {"type": "function", "function": {
+        "name": "graph_related",
+        "description": "知識圖譜：由主題或某份文件找相關主題與相關文件（共用主題的其他文件）。回傳 [G#] 編號，供「延伸知識」引用。",
+        "parameters": {"type": "object", "properties": {
+            "topic": {"type": "string", "description": "主題名稱，例如 NPCA、MAPC、ELR"},
+            "revision_id": {"type": "string", "description": "文件 revision_id（由搜尋或文件資料取得）"}}}}},
+    {"type": "function", "function": {
+        "name": "graph_timeline",
+        "description": "知識圖譜：某份文件同一系列的版本沿革（新舊版本與取代關係）。",
+        "parameters": {"type": "object", "properties": {"revision_id": {"type": "string"}}, "required": ["revision_id"]}}},
+]
+
+
+class GraphCitations:
+    """[G#] references to graph nodes. Their content is not text to ground against: the panel shows what the graph said and where it points."""
+    def __init__(self) -> None:
+        self.items: dict[str, dict[str, Any]] = {}
+        self._by_key: dict[str, str] = {}
+
+    def add(self, kind: str, key: str, **fields: Any) -> str:
+        if (kind, key) not in self._by_key:
+            ref = f"G{len(self._by_key) + 1}"
+            self._by_key[(kind, key)] = ref
+            self.items[ref] = {"ref": ref, "kind": kind, "key": key, "origin": "graph", **{k: v for k, v in fields.items() if v not in (None, "", [])}}
+        return self._by_key[(kind, key)]
+
+
 def _text_fields(item: dict[str, Any], query: str, limit: int) -> dict[str, Any]:
     """Text shown to the model: tables as Markdown (header always kept), other chunks as query-focused excerpts."""
     text = item.get("content") or ""
@@ -103,6 +133,7 @@ class AgentSettings:
     snippet_chars: int = 1000
     read_chars: int = 3000
     grounding: bool = True
+    extension: bool = False  # related knowledge + labelled general knowledge + follow-up questions (off = behaviour unchanged)
 
     @classmethod
     def from_environment(cls) -> "AgentSettings":
@@ -111,7 +142,8 @@ class AgentSettings:
                    time_budget_seconds=float(os.getenv("KM_WIFI8_AGENT_TIME_BUDGET_SECONDS", "90")),
                    snippet_chars=int(os.getenv("KM_WIFI8_AGENT_SNIPPET_CHARS", "1000")),
                    read_chars=int(os.getenv("KM_WIFI8_AGENT_READ_CHARS", "3000")),
-                   grounding=os.getenv("KM_WIFI8_AGENT_GROUNDING", "1").strip().lower() not in {"0", "false", "no", "off"})
+                   grounding=os.getenv("KM_WIFI8_AGENT_GROUNDING", "1").strip().lower() not in {"0", "false", "no", "off"},
+                   extension=os.getenv("KM_WIFI8_AGENT_EXTENSION", "0").strip().lower() in {"1", "true", "yes", "on"})
 
 
 class CitationRegistry:
@@ -143,7 +175,9 @@ class CitationRegistry:
 
 
 class WifiTools:
-    def __init__(self, search: Wifi8Search, settings: AgentSettings, citations: CitationRegistry):
+    def __init__(self, search: Wifi8Search, settings: AgentSettings, citations: CitationRegistry, graph: Wifi8Graph | None = None):
+        self.graph = graph
+        self.graph_citations = GraphCitations()
         self.search_engine = search
         self.settings = settings
         self.citations = citations
@@ -298,6 +332,30 @@ class WifiTools:
                    and (not key or key in (d.get("title") or "").casefold() or any(key in str(t).casefold() for t in d.get("topics") or []))]
         return {"total": len(matched), "documents": [self._summary(d) for d in matched[:limit]]}
 
+    def _graph_doc(self, row: dict[str, Any]) -> dict[str, Any]:
+        ref = self.graph_citations.add("document", row["revision_id"], title=row.get("title"), document_role=row.get("document_role"), publisher=row.get("publisher"),
+                                       lifecycle=row.get("lifecycle"), revision_id=row["revision_id"], document_date=row.get("document_date"), shared_topics=row.get("shared_topics"))
+        return {"ref": ref, **{k: v for k, v in row.items() if v not in (None, "", [])}}
+
+    def graph_related(self, topic: str = "", revision_id: str = ""):
+        if self.graph is None:
+            return {"error": "知識圖譜目前不可用"}
+        if revision_id:
+            rows = self.graph.related_documents(revision_id)
+            return {"basis": "共用主題的其他文件（目前版本）", "documents": [self._graph_doc(r) for r in rows]}
+        if topic:
+            neighbours = self.graph.topic_neighbours(topic)
+            documents = self.graph.topic_documents(topic)
+            return {"basis": f"主題 {topic}", "related_topics": [
+                {"ref": self.graph_citations.add("topic", n["topic"], title=n["topic"], documents=n["documents"]), **n} for n in neighbours],
+                "documents": [self._graph_doc(r) for r in documents]}
+        return {"error": "請提供 topic 或 revision_id"}
+
+    def graph_timeline(self, revision_id: str):
+        if self.graph is None:
+            return {"error": "知識圖譜目前不可用"}
+        return {"versions": [self._graph_doc(r) for r in self.graph.timeline(revision_id)]}
+
     def zone_overview(self):
         rows = self._doc_rows()
         current = [d for d in rows if d.get("analysis_eligible")]
@@ -314,7 +372,7 @@ class WifiTools:
     def call(self, name: str, arguments: dict[str, Any]) -> dict[str, Any]:
         handler = {"search_wifi": self.search_wifi, "find_documents": self.find_documents, "get_document": self.get_document, "list_versions": self.list_versions,
                    "read_document": self.read_document, "list_documents": self.list_documents,
-                   "zone_overview": self.zone_overview}.get(name)
+                   "zone_overview": self.zone_overview, **({"graph_related": self.graph_related, "graph_timeline": self.graph_timeline} if self.graph else {})}.get(name)
         if handler is None:
             return {"error": f"未知的工具：{name}"}
         try:
@@ -339,7 +397,10 @@ def run_agent(question: str, *, llm: Llm, tools: WifiTools, settings: AgentSetti
               history: list[dict[str, str]] | None = None, clock: Callable[[], float] = time.monotonic) -> dict[str, Any]:
     started = clock()
     tools.question = question
-    messages: list[dict[str, Any]] = [{"role": "system", "content": SYSTEM_PROMPT}]
+    extension_on = settings.extension
+    prompt = extended_prompt(SYSTEM_PROMPT) if extension_on else SYSTEM_PROMPT
+    tool_schema = TOOLS + (GRAPH_TOOLS if extension_on and tools.graph else [])
+    messages: list[dict[str, Any]] = [{"role": "system", "content": prompt}]
     for turn in (history or [])[-6:]:
         if turn.get("role") in {"user", "assistant"} and isinstance(turn.get("content"), str):
             messages.append({"role": turn["role"], "content": turn["content"][:2000]})
@@ -352,7 +413,7 @@ def run_agent(question: str, *, llm: Llm, tools: WifiTools, settings: AgentSetti
         if final_round:
             stop_reason = "time_budget" if out_of_budget else "max_steps"
             messages.append({"role": "user", "content": "請停止查詢，只根據目前已取得的工具結果作答，並說明尚未查證的部分。"})
-        message = _message(llm(messages=messages, tools=TOOLS, tool_choice="none" if final_round else "auto"))
+        message = _message(llm(messages=messages, tools=tool_schema, tool_choice="none" if final_round else "auto"))
         calls = [] if final_round else list(getattr(message, "tool_calls", None) or [])
         if not calls:
             answer = message.content or ""
@@ -369,12 +430,19 @@ def run_agent(question: str, *, llm: Llm, tools: WifiTools, settings: AgentSetti
             trace.append({"step": step + 1, "tool": name, "arguments": arguments,
                           "result_summary": _summarize(result), "ms": round((clock() - t0) * 1000)})
             messages.append({"role": "tool", "tool_call_id": call.get("id", ""), "content": json.dumps(result, ensure_ascii=False)[:12000]})
+    extension = None
+    main_answer = answer
+    if extension_on:
+        main_answer, extension = split_answer(answer)  # the grounding check only sees the main answer; the extension is labelled, not verified
     cited = sorted(set(re.findall(r"\[(S\d+)\]", answer)), key=lambda r: int(r[1:]))
     citations = [tools.citations.items[r] for r in cited if r in tools.citations.items]
     result = {"answer": answer, "citations": citations, "trace": trace, "stop_reason": stop_reason,
               "evidence_count": len(tools.citations.items)}
+    if extension_on:
+        graph_cited = sorted(set(re.findall(r"\[(G\d+)\]", answer)), key=lambda r: int(r[1:]))
+        result.update(answer_main=main_answer, extension=extension, graph_citations=[tools.graph_citations.items[r] for r in graph_cited if r in tools.graph_citations.items])
     if settings.grounding and answer:
-        result["grounding"] = ground(result, tools, getattr(tools.search_engine, "encoder", None), question)
+        result["grounding"] = ground({**result, "answer": main_answer}, tools, getattr(tools.search_engine, "encoder", None), question)
     result["elapsed_ms"] = round((clock() - started) * 1000)
     log_quality(result, tools)
     return result

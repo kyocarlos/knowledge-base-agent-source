@@ -957,6 +957,17 @@ def wifi8_import_task(self, job_id: str):
     return {"job_id": job_id, "status": job.get("status"), "phase": job.get("phase")}
 
 
+_wifi8_graph_cache: dict = {}
+
+
+def _wifi8_graph():
+    """One read-only Neo4j driver per worker process (None when the graph is not configured or unreachable)."""
+    if "graph" not in _wifi8_graph_cache:
+        from ..wifi8.graph import Wifi8Graph
+        _wifi8_graph_cache["graph"] = Wifi8Graph.from_environment()
+    return _wifi8_graph_cache["graph"]
+
+
 @celery_app.task(name="tasks.wifi8_agent_task", bind=True)
 def wifi8_agent_task(self, question: str, history: list | None = None, owner: dict | None = None):
     """WiFi zone agent: the LLM picks read-only WiFi tools; limits and citations stay in code."""
@@ -980,7 +991,7 @@ def wifi8_agent_task(self, question: str, history: list | None = None, owner: di
         return {**base, "status": "failed", "error": "WiFi agent 需要主要 LLM（支援工具呼叫），目前未設定或無法建立"}
     settings = AgentSettings.from_environment()
     result = run_agent(question, llm=lambda **kw: client.chat.completions.create(**kw),
-                       tools=WifiTools(search, settings, CitationRegistry()), settings=settings, history=history)
+                       tools=WifiTools(search, settings, CitationRegistry(), _wifi8_graph() if settings.extension else None), settings=settings, history=history)
     return {**base, "status": "completed", "model": label, "package_id": search.package_id, **result}
 
 
