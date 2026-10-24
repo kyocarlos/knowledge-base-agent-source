@@ -93,7 +93,7 @@
     },
     {
       "path": "PROJECT_MEMORY.md",
-      "sha256": "4cd762c826325cb460d908713ea7c814899fbed898daecf17129a4fbe4f2ccf0"
+      "sha256": "a999833dd2020e7487ce4bb4ab8115ca7885632ff90340b746e121f19347fcce"
     },
     {
       "path": "README.md",
@@ -657,7 +657,7 @@
     },
     {
       "path": "frontend/chat-v2.html",
-      "sha256": "ae216c701cc9c5067464a99e75b64ec42e1e7bb56d331a43601032b3da31ceeb"
+      "sha256": "c95ed250a1e0734750be5da39f3f64a921b7f4912c137d225977c7c40311e9d5"
     },
     {
       "path": "frontend/chat.html",

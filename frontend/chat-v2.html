@@ -478,6 +478,10 @@
       .km-v2-nav a { display:flex; align-items:center; gap:10px; padding:12px; border-radius:12px; color:#829ba1; text-decoration:none; font-size:12px; font-weight:800; }
       .km-v2-nav a:hover, .km-v2-nav a.active { color:var(--v2-ink); background:#f5ffff; }
       .km-v2-nav a:focus-visible { outline:2px solid var(--v2-cyan); outline-offset:2px; }
+      .km-v2-nav-group { display:grid; gap:4px; }
+      .km-v2-nav-sub { display:grid; gap:4px; margin-left:14px; padding-left:8px; border-left:1px solid var(--v2-border); }
+      .km-v2-nav-sub a { padding:9px 10px; font-size:11px; }
+      .km-v2-nav a.contains-active { color:#b7d7db; }
       .km-v2-zone { margin:12px 0 2px; color:#9dc0c5; font-size:11px; }
       .km-v2-zone strong { color:var(--v2-mint); }
       .km-v2-nav .count { margin-left:auto; padding:2px 6px; border-radius:99px; color:#ffd36e; background:rgba(255,190,64,.15); font-size:9px; }
@@ -589,7 +593,22 @@
       .km-v2-shell > .header, .km-v2-shell > .sub-header, .km-v2-shell > .main-content, .km-v2-shell > .footer, body.km-v2 > .chat-fab, body.km-v2 > .chat-version-badge { display:none !important; }
       #connectionBadge { display:flex !important; }
       @media (max-width: 1100px) { .km-v2-shell { grid-template-columns:190px minmax(0,1fr); } .km-v2-evidence { display:none; } }
-      @media (max-width: 720px) { .km-v2-shell { display:block; } .km-v2-sidebar { position:static; border-right:0; border-bottom:1px solid var(--v2-border); } .km-v2-nav { grid-template-columns:repeat(2,minmax(0,1fr)); } .km-v2-label, .km-v2-system { display:none; } .km-v2-main { padding:22px 16px; } .km-v2-top { display:block; } .km-v2-health { margin-top:16px; } .km-v2-metrics, .km-v2-timeseries { grid-template-columns:1fr; } }
+      @media (max-width: 720px) {
+        .km-v2-shell { display:block; }
+        .km-v2-sidebar { position:static; border-right:0; border-bottom:1px solid var(--v2-border); }
+        .km-v2-nav { grid-template-columns:repeat(2,minmax(0,1fr)); }
+        .km-v2-nav-group { grid-column:1 / -1; }
+        .km-v2-label, .km-v2-system { display:none; }
+        .km-v2-main { padding:22px 16px; }
+        .km-v2-top { display:block; }
+        .km-v2-health { margin-top:16px; }
+        .km-v2-metrics, .km-v2-timeseries { grid-template-columns:1fr; }
+        .km-v2-chat-window { min-width:0 !important; max-width:100% !important; }
+        .km-v2-chat-window .message-content { min-width:0; }
+        .km-v2-chat-window .message-bubble { overflow-wrap:anywhere; }
+        .km-v2-chat-window .chat-input-area { box-sizing:border-box; min-width:0; }
+        .km-v2-chat-window .chat-input { min-width:0; }
+      }
     </style>
 <style id="wifi-agent-style">
 .wifi-agent-answer{line-height:1.7}
@@ -623,10 +642,17 @@
       <div class="km-v2-brand"><div class="km-v2-brand-mark">K</div><div><div class="km-v2-brand-name">KM</div><div class="km-v2-brand-sub">research platform</div></div></div>
       <div class="km-v2-label">Knowledge zones</div>
       <nav class="km-v2-nav" aria-label="知識專區">
-        <a class="active" href="#knowledge-assistant" data-knowledge-zone="csit" aria-current="page"><span>◈</span> CSIT 知識專區</a>
+        <a class="active" href="#knowledge-assistant" data-knowledge-zone="csit" aria-current="page"><span>◈</span> CSIT雜項專區</a>
         <a href="#knowledge-assistant" data-knowledge-zone="wifi"><span>⌁</span> WiFi 知識專區</a>
-        <a href="#knowledge-assistant" data-knowledge-zone="mobile"><span>◌</span> 4G/5G 知識專區</a>
+        <div class="km-v2-nav-group">
+          <a href="#knowledge-assistant" data-knowledge-zone="mobile"><span>◌</span> 4G/5G 知識專區</a>
+          <div class="km-v2-nav-sub" role="group" aria-label="4G/5G 子專區">
+            <a href="#knowledge-assistant" data-knowledge-zone="cpe" data-knowledge-parent="mobile"><span>›</span> CPE知識專區</a>
+            <a href="#knowledge-assistant" data-knowledge-zone="smallcell" data-knowledge-parent="mobile"><span>›</span> Smallcell知識專區</a>
+          </div>
+        </div>
         <a href="#knowledge-assistant" data-knowledge-zone="technical"><span>⌘</span> 技術知識專區</a>
+        <a href="#knowledge-assistant" data-knowledge-zone="equipment"><span>▣</span> 設備預約知識專區</a>
       </nav>
     </aside>
 
@@ -640,7 +666,7 @@
 
       <section class="km-v2-card km-v2-assistant" id="knowledge-assistant">
         <div class="km-v2-assistant-head"><span>♙</span><span class="km-v2-kicker">AI research assistant</span><span class="badge">EXISTING KM PIPELINE</span></div>
-        <p class="km-v2-zone" id="knowledgeZoneStatus" aria-live="polite">目前查詢範圍：<strong>CSIT 知識專區</strong></p>
+        <p class="km-v2-zone" id="knowledgeZoneStatus" aria-live="polite">目前查詢範圍：<strong>CSIT雜項專區</strong></p>
         <div class="csit-assistants" id="csitAssistantBar" role="group" aria-label="CSIT 助手" hidden></div>
         <div class="csit-assistant-note" id="csitAssistantNote" aria-live="polite" hidden></div>
         <div class="km-v2-chat-window chat-window show" id="chatWindow">
@@ -808,10 +834,13 @@
     window.analyzingInProgress = false;
 
     const knowledgeZones = {
-      csit: { label: 'CSIT 知識專區', context: '請聚焦 CSIT 測試報告、測試案例、Project／Case／Task 與相關結果。' },
+      csit: { label: 'CSIT雜項專區', context: '請聚焦 CSIT 測試報告、測試案例、Project／Case／Task 與相關結果。' },
       wifi: { label: 'WiFi 知識專區', context: '請聚焦 WiFi、WLAN、無線網路與其測試結果。' },
       mobile: { label: '4G/5G 知識專區', context: '請聚焦 4G、LTE、5G、NR、RAN、handover 與行動通訊測試資料。' },
+      cpe: { label: 'CPE知識專區', parent: 'mobile', context: '請聚焦 CPE、Customer Premises Equipment、用戶端設備、路由器、閘道器與相關 4G/5G 測試資料。' },
+      smallcell: { label: 'Smallcell知識專區', parent: 'mobile', context: '請聚焦 Small Cell、小型基地台、企業室內涵蓋、部署、設定與相關 4G/5G 測試資料。' },
       technical: { label: '技術知識專區', context: '請聚焦技術設計、系統架構、操作流程、除錯與工程文件。' },
+      equipment: { label: '設備預約知識專區', context: '請聚焦設備預約、借用與歸還流程、可用時段、設備清單及預約規範。' },
     };
     let activeKnowledgeZone = 'csit';
     // CSIT 助手狀態：放在這裡，避免連線狀態函式早於後面的宣告被呼叫（暫時性死區）。
@@ -825,12 +854,22 @@
       document.querySelectorAll('[data-knowledge-zone]').forEach((item) => {
         const selected = item.dataset.knowledgeZone === activeKnowledgeZone;
         item.classList.toggle('active', selected);
+        item.classList.toggle('contains-active', item.dataset.knowledgeZone === zone.parent);
         item.toggleAttribute('aria-current', selected);
       });
       const status = document.getElementById('knowledgeZoneStatus');
       if (status) status.innerHTML = `目前查詢範圍：<strong>${zone.label}</strong>`;
       const input = document.getElementById('chatInput');
-      if (input) input.placeholder = `在${zone.label}中提問，例如：${zoneId === 'wifi' ? 'WiFi 6 測試結果？' : zoneId === 'mobile' ? 'NR Handover 測試結果？' : zoneId === 'technical' ? '如何排查系統問題？' : 'CSIT Project 測試結果？'}`;
+      const examples = {
+        wifi: 'WiFi 6 測試結果？',
+        mobile: 'NR Handover 測試結果？',
+        cpe: 'CPE 路由器的 5G 測試結果？',
+        smallcell: 'Smallcell 部署與測試資料？',
+        technical: '如何排查系統問題？',
+        equipment: '如何查詢設備預約與可用時段？',
+        csit: 'CSIT Project 測試結果？',
+      };
+      if (input) input.placeholder = `在${zone.label}中提問，例如：${examples[activeKnowledgeZone] || examples.csit}`;
       if (typeof renderCsitAssistants === 'function') renderCsitAssistants();
       if (typeof updateInputState === 'function') updateInputState();
     }
@@ -2479,7 +2518,7 @@
         renderCsitAssistants();
         const input = document.getElementById('chatInput');
         const picked = csitAssistants.find((item) => item.id === activeCsitAssistant);
-        if (input) input.placeholder = picked ? `向${picked.name}提問，例如：${(picked.examples || [])[0] || ''}` : '在 CSIT 知識專區中提問，例如：SCU2050 的 NR Handover 測試結果？';
+        if (input) input.placeholder = picked ? `向${picked.name}提問，例如：${(picked.examples || [])[0] || ''}` : '在 CSIT雜項專區中提問，例如：SCU2050 的 NR Handover 測試結果？';
         if (typeof updateInputState === 'function') updateInputState();
         input?.focus();
       }));
@@ -2493,7 +2532,7 @@
 
     async function runCsitAssistant(text) {
       const assistant = csitAssistants.find((item) => item.id === activeCsitAssistant);
-      const meta = { sourceLabel: assistant ? assistant.name : 'CSIT 助手', sourceHint: 'CSIT 知識專區 · 唯讀查詢' };
+      const meta = { sourceLabel: assistant ? assistant.name : 'CSIT 助手', sourceHint: 'CSIT雜項專區 · 唯讀查詢' };
       const botSeq = addMessage('bot', `${meta.sourceLabel}查詢中…`, false, meta);
       const startedAt = performance.now();
       isLoading = true;
