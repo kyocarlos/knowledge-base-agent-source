@@ -54,3 +54,6 @@ The four new negative tests exposed malformed internal Failed error fields befor
 依使用者確認的深色網格、薄荷綠／青色方向，建立 `codex/wifi8-ui-polish-20261026`，以 `codex/wifi8-ui-20261026` 為基礎，調整 WiFi 專區共用樣式、窄螢幕導覽與 AI 面板繁中標籤。只修改 `frontend/wifi8/` 的 index、JS、CSS；`frontend/chat-v2.html` 與後端未變更。串流、回饋、新對話、分頁 sessionStorage 還原、LaTeX 轉純文字、引用與圖片縮圖程式及 `/api/wifi8/*` 路由均保留。新資產名稱為 `wifi8.267a4eaaedb8.js`、`wifi8.cf74a2f34cff.css`，雜湊按 Git blob bytes 計算，`index.html` 已更新。
 
 驗證：`node --check` 通過；新檔名 SHA-256 前 12 碼與 Git blob 相符；API 路由字串和基線一致；既有功能標記齊全；`git diff --check` 通過。GitHub 分支已建立並推送，程式碼提交 `c49eaa543fbea8556c6679e9c79ca48988793cf1`。未部署至 TEST／DA40；後續由使用者部署並進行瀏覽器實測。
+### 2026-10-26 後續：移除研發中樞左側技術知識專區
+
+使用者要求移除截圖紅框中的左側導覽項目。已在 `frontend/chat-v2.html` 移除 `data-knowledge-zone="technical"` 導覽連結一行，其餘 CSIT、WiFi、4G/5G 子專區與設備預約入口未動。檢視差異確認只有該導覽連結被移除；`git diff --check` 通過。待提交並推送至 `codex/wifi8-ui-polish-20261026`，不觸及 TEST／DA40 部署。
