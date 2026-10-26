@@ -52,8 +52,8 @@
   }
 
   function setHeader(route) {
-    const [title, subtitle] = routeInfo[route];
-    $('#page-section').textContent = `WiFi knowledge zone / ${subtitle}`;
+    const [title] = routeInfo[route];
+    $('#page-section').textContent = 'WiFi 知識專區';
     $('#page-title').textContent = title;
     $('#page-updated').textContent = new Date().toLocaleString('zh-TW', { hour12: false });
     document.title = `${title} · WiFi 知識專區`;
