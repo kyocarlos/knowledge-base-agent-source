@@ -2,14 +2,14 @@
   'use strict';
 
   const navGroups = [
-    { label: 'Knowledge zone', items: [
+    { label: '知識專區', items: [
       ['overview', '◈', '總覽', true], ['documents', '▤', '文件瀏覽', true], ['ai', '♙', 'AI Agent', true],
     ]},
-    { label: 'Operations', items: [
+    { label: '作業管理', items: [
       ['jobs', '◷', '匯入與進度', true], ['research', '⌕', '研究主題', false], ['wfa-downloads', '⇩', 'WFA 下載', false],
       ['web-collection', '◎', '網頁收集', false], ['review', '✓', '內容審核', false],
     ]},
-    { label: 'Administration', items: [['ai-usage', '◌', 'AI 用量', false], ['settings', '⚙', '設定', false]] },
+    { label: '管理設定', items: [['ai-usage', '◌', 'AI 用量', false], ['settings', '⚙', '設定', false]] },
   ];
   const routeInfo = {
     overview: ['總覽', '即時資料集、分類與版本狀態'],
@@ -420,7 +420,7 @@
   async function renderAgent() {
     if (!state.conversation.length) state.conversation = loadConversation();
     const restored = state.conversation.length ? `<div class="message assistant restored-note">已還原本分頁先前的對話（${Math.ceil(state.conversation.length / 2)} 輪）；關閉分頁後不會保留。</div>${restoredTurns(state.conversation)}` : '';
-    content.innerHTML = `<div class="ai-layout">${panel('AI research assistant', `<div id="conversation" class="conversation"><div class="message assistant">我會使用 WiFi 專區的文件與版本關係回答，並保留引用與工具步驟。</div>${restored}</div><label>問題<textarea id="agent-question" maxlength="2000" placeholder="例如：ELR 的規格重點是什麼？"></textarea></label><div class="ai-actions"><small class="results-meta">回答以目前匯入資料為準</small><button id="agent-new" class="secondary-button" type="button">新對話</button><button id="agent-submit" class="primary-button" type="button">送出問題</button></div>`)}${panel('可追溯輸出', '<p>每次回答會同時顯示：</p><ul><li>引用文件</li><li>Agent 工具步驟</li><li>停止原因與錯誤狀態</li></ul>', 'EXISTING KM PIPELINE')}</div>`;
+    content.innerHTML = `<div class="ai-layout">${panel('WiFi AI 助理', `<div id="conversation" class="conversation"><div class="message assistant">我會使用 WiFi 專區的文件與版本關係回答，並保留引用與工具步驟。</div>${restored}</div><label>問題<textarea id="agent-question" maxlength="2000" placeholder="例如：ELR 的規格重點是什麼？"></textarea></label><div class="ai-actions"><small class="results-meta">回答以目前匯入資料為準</small><button id="agent-new" class="secondary-button" type="button">新對話</button><button id="agent-submit" class="primary-button" type="button">送出問題</button></div>`)}${panel('回答依據', '<p>每次回答會同時顯示：</p><ul><li>引用文件</li><li>Agent 工具步驟</li><li>停止原因與錯誤狀態</li></ul>', 'KM 知識流程')}</div>`;
     $('#agent-submit').addEventListener('click', askAgent);
     $('#agent-new').addEventListener('click', () => {
       state.conversation = []; saveConversation();
