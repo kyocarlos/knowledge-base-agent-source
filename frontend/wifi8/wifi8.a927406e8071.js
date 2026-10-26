@@ -210,14 +210,37 @@
       ? `<code>${part.slice(1, -1)}</code>`
       : part.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
         .replace(/(^|[^*\w])\*(?!\s)([^*\n]+?)\*(?!\w)/g, '$1<em>$2</em>')
-        .replace(/\[(S\d+)\]/g, '<span class="cite-ref">[$1]</span>')).join('');
+        .replace(/\[(S\d+)\]/g, '<span class="cite-ref">[$1]</span>')
+        .replace(/\[(G\d+)\]/g, '<span class="cite-ref graph-ref" title="知識圖譜關聯（LLM 抽取，未逐句驗證）">[$1]</span>')).join('');
   }
   const markdownList = /^\s*([-*+]|\d+[.)])\s+(.*)$/;
   const markdownBlock = /^\s*(```|#{1,6}\s|[-*+]\s|\d+[.)]\s|&gt;|\|)/;
   const tableRow = (line) => /^\s*\|.*\|\s*$/.test(line);
   const tableCells = (line) => line.trim().replace(/^\||\|$/g, '').split('|').map((cell) => inlineMarkdown(cell.trim()));
+  // The model sometimes writes formulas as LaTeX (\( 10^{23/10} \)). The page has no math typesetting, so the common forms are turned into readable
+  // plain text before rendering; anything not understood is left as the model wrote it. Code blocks are never touched.
+  const TEX_SYMBOLS = { times: '×', div: '÷', cdot: '·', approx: '≈', leq: '≤', le: '≤', geq: '≥', ge: '≥', neq: '≠', ne: '≠', pm: '±', infty: '∞', Delta: 'Δ', mu: 'μ', alpha: 'α', beta: 'β', lambda: 'λ', pi: 'π', sigma: 'σ', rightarrow: '→', to: '→', Rightarrow: '⇒', Longrightarrow: '⇒', log: 'log', ln: 'ln', min: 'min', max: 'max', sum: 'Σ', ldots: '…', dots: '…' };
+  function texToText(tex) {
+    let s = String(tex);
+    for (let n = 0; n < 6; n += 1) {  // innermost groups first, so nested \frac / \text resolve from the inside out
+      const before = s;
+      s = s.replace(/\\(?:text|textbf|mathrm|mathbf|mathit|operatorname)\s*\{([^{}]*)\}/g, '$1')
+        .replace(/\\[dt]?frac\s*\{([^{}]*)\}\s*\{([^{}]*)\}/g, (m, a, b) => { const w = (x) => (/^[\w.]+$/.test(x.trim()) ? x.trim() : `(${x.trim()})`); return `${w(a)}/${w(b)}`; })
+        .replace(/_\{([^{}]*)\}/g, '_$1')
+        .replace(/\^\{([^{}]*)\}/g, (m, e) => (/^[\w.]+$/.test(e) ? `^${e}` : `^(${e})`))
+        .replace(/\\sqrt\s*\{([^{}]*)\}/g, '√($1)');
+      if (s === before) break;
+    }
+    return s.replace(/\\(?:left|right|big|Big)\b\s*/g, '').replace(/\\[,;:! ]|\\quad|\\qquad/g, ' ').replace(/\\%/g, '%')
+      .replace(/\\([A-Za-z]+)/g, (m, name) => (name in TEX_SYMBOLS ? TEX_SYMBOLS[name] : name))
+      .replace(/[{}]/g, '').replace(/[ \t]{2,}/g, ' ').trim();
+  }
+  function plainMath(source) {
+    return String(source ?? '').split(/(```[\s\S]*?```)/g).map((part, index) => (index % 2 ? part
+      : part.replace(/\\\[([\s\S]+?)\\\]/g, (m, tex) => `\n${texToText(tex)}\n`).replace(/\\\(([\s\S]+?)\\\)/g, (m, tex) => texToText(tex)))).join('');
+  }
   function renderMarkdown(source) {
-    const lines = escapeHtml(source).replace(/\r\n?/g, '\n').split('\n');
+    const lines = escapeHtml(plainMath(source)).replace(/\r\n?/g, '\n').split('\n');
     const html = [];
     let i = 0;
     while (i < lines.length) {
@@ -296,11 +319,27 @@
     const items = flagged.map((f) => `<li><p>${escapeHtml(f.text)}${(f.refs || []).length ? ` <span class="cite-ref">[${escapeHtml(f.refs.join('][')) }]</span>` : ''}</p><div>${(f.reasons || []).map((r) => `<span class="g-reason ${r}">${escapeHtml(groundingReasons[r] || r)}</span>`).join('')}${(f.values || []).map((v) => `<code class="${v.status}" title="${v.status === 'not_found' ? '在 Agent 取得的資料中找不到' : v.status === 'not_in_cited' ? '不在本句引用的段落' : '出現在其他引用，不在本句引用的段落'}">${escapeHtml(v.value)}</code>`).join('')}${(f.names || []).map((n) => `<code class="not_in_cited" title="本句提到的文件，引用的段落不是這份文件">${escapeHtml(n)}</code>`).join('')}${f.similarity != null && (f.reasons || []).includes('low_similarity') ? `<small>相似度 ${Number(f.similarity).toFixed(2)}</small>` : ''}</div></li>`).join('');
     return `<section class="grounding" aria-label="依據檢核"><div class="grounding-head"><strong>依據檢核</strong><div class="g-chips">${chips}</div></div><p class="grounding-note">由程式比對 Agent 取得的原文段落與文件資料：檢查每句是否有引用，以及數字、版本、型號是否真的出現在資料中${s.similarity_enabled ? '；相似度只代表用詞接近程度，不代表內容正確' : ''}。這是輔助檢核，不保證內容正確。</p>${flagged.length ? `<details><summary>需留意的句子（${flagged.length}）</summary><ul class="g-flags">${items}</ul></details>` : '<p class="grounding-note ok">所有句子都有依據，數值皆可在資料中找到。</p>'}</section>`;
   }
+  // Extension of an answer: related knowledge (graph/documents), labelled general knowledge, follow-up questions. Only present when the zone enables it.
+  function graphCitationItem(item) {
+    const kind = item.kind === 'topic' ? '主題' : '文件';
+    const detail = [item.document_role, item.publisher, item.lifecycle].filter(Boolean).join('・');
+    return `<li><strong>[${escapeHtml(item.ref)}]</strong> ${kind}：${escapeHtml(item.title || item.key)}${detail ? `<small>${escapeHtml(detail)}</small>` : ''}</li>`;
+  }
+  function extensionPanel(value) {
+    const ext = value.extension; if (!ext) return '';
+    const graph = (value.graph_citations || []).map(graphCitationItem).join('');
+    const parts = [
+      ext.related ? `<section class="ext-section"><h4>相關主題與文件<small>來自專區文件與知識圖譜（圖譜關聯由 LLM 抽取，未逐句驗證）</small></h4><div class="markdown">${renderMarkdown(ext.related)}</div>${graph ? `<ul class="citation-list graph-list">${graph}</ul>` : ''}</section>` : '',
+      ext.general ? `<section class="ext-section ext-general"><h4>一般知識補充<small>模型的一般知識，未經專區文件驗證</small></h4><div class="markdown">${renderMarkdown(ext.general)}</div></section>` : '',
+      (ext.followups || []).length ? `<section class="ext-section"><h4>你可能還想問</h4><div class="followups">${ext.followups.map((q) => `<button type="button" class="followup" data-question="${escapeHtml(q)}">${escapeHtml(q)}</button>`).join('')}</div></section>` : '',
+    ].filter(Boolean).join('');
+    return parts ? `<div class="extension" aria-label="延伸知識"><strong class="ext-title">延伸知識</strong>${parts}</div>` : '';
+  }
   function agentOutput(value) {
-    const answer = value.answer || value.result || value.message || '未回傳回答';
+    const answer = value.answer_main || value.answer || value.result || value.message || '未回傳回答';
     const citations = value.citations || value.sources || [];
     const trace = value.steps || value.tool_steps || value.trace || [];
-    return `<div class="message assistant markdown">${renderMarkdown(answer)}</div>${groundingPanel(value.grounding)}<ul class="citation-list">${citations.map(citationItem).join('')}</ul><details><summary>Agent 工具步驟與停止原因</summary><ul class="trace-list">${trace.map((item) => `<li>${escapeHtml(typeof item === 'string' ? item : item.tool || item.name || JSON.stringify(item))}</li>`).join('') || '<li>無工具步驟</li>'}</ul><p class="results-meta">${escapeHtml(value.stop_reason || value.status || '')}</p></details>`;
+    return `<div class="message assistant markdown">${renderMarkdown(answer)}</div>${extensionPanel(value)}${groundingPanel(value.grounding)}<ul class="citation-list">${citations.map(citationItem).join('')}</ul><details><summary>Agent 工具步驟與停止原因</summary><ul class="trace-list">${trace.map((item) => `<li>${escapeHtml(typeof item === 'string' ? item : item.tool || item.name || JSON.stringify(item))}</li>`).join('') || '<li>無工具步驟</li>'}</ul><p class="results-meta">${escapeHtml(value.stop_reason || value.status || '')}</p></details>`;
   }
   async function pollAgent(taskId) {
     for (let attempt = 0; attempt < 120; attempt += 1) {
@@ -310,21 +349,95 @@
     }
     throw new Error('Agent 等待逾時，請稍後重試');
   }
+  // Conversation memory: kept for the browser tab (sessionStorage), sent with every question; older turns are condensed by the server.
+  const CONVERSATION_KEY = 'wifi8.conversation.v1';
+  const MAX_TURNS = 60;
+  function saveConversation() { try { sessionStorage.setItem(CONVERSATION_KEY, JSON.stringify(state.conversation.slice(-MAX_TURNS))); } catch (_) { /* private mode: the conversation just does not survive a reload */ } }
+  function loadConversation() {
+    try {
+      const turns = JSON.parse(sessionStorage.getItem(CONVERSATION_KEY) || '[]');
+      return Array.isArray(turns) ? turns.filter((t) => t && (t.role === 'user' || t.role === 'assistant') && typeof t.content === 'string').slice(-MAX_TURNS) : [];
+    } catch (_) { return []; }
+  }
+  function restoredTurns(turns) {
+    return turns.map((t) => (t.role === 'user' ? `<div class="message user">${escapeHtml(t.content)}</div>` : `<div class="message assistant markdown">${renderMarkdown(t.content)}</div>`)).join('');
+  }
+  // Progress and streamed text arrive as events the server keeps for a few minutes; if they cannot be read the ordinary poll still delivers the answer.
+  async function streamAgent(taskId, live) {
+    const status = live.querySelector('.live-status'); const body = live.querySelector('.live-text');
+    let next = 0; let raw = ''; let painted = 0;
+    const paint = (force) => { const now = Date.now(); if (force || now - painted > 120) { body.innerHTML = renderMarkdown(raw); painted = now; } };
+    for (let attempt = 0; attempt < 600; attempt += 1) {
+      let data;
+      try { data = await api(`/api/wifi8/agent/${encodeURIComponent(taskId)}/events?after=${next}`); } catch (_) { return; }
+      for (const event of data.events) {
+        if (event.type === 'tool') { status.textContent = `正在${event.label}…`; }
+        else if (event.type === 'delta') { raw += event.text; status.textContent = '正在撰寫回答…'; }
+        else if (event.type === 'reset') { raw = ''; body.innerHTML = ''; }
+      }
+      next = data.next; paint(false);
+      if (data.done) { paint(true); return; }
+      if (attempt % 6 === 5) {  // a worker that does not report progress must not keep the page waiting for events
+        const result = await api(`/api/wifi8/agent/${encodeURIComponent(taskId)}`).catch(() => null);
+        if (result && result.status !== 'pending' && result.status !== 'submitted') return;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 400));
+    }
+  }
+  function citedTitles(result) { return [...new Set((result.citations || []).map((c) => c.source || c.title).filter(Boolean))].slice(0, 5); }
   async function askAgent() {
     const input = $('#agent-question'); const question = input.value.trim(); if (!question) return;
     const button = $('#agent-submit'); button.disabled = true;
-    $('#conversation').insertAdjacentHTML('beforeend', `<div class="message user">${escapeHtml(question)}</div><div id="agent-wait" class="message assistant">正在調用 WiFi Agent…</div>`);
+    $('#conversation').insertAdjacentHTML('beforeend', `<div class="message user">${escapeHtml(question)}</div><div id="agent-wait" class="message assistant"><div class="live-status" role="status">正在調用 WiFi Agent…</div><div class="live-text markdown"></div></div>`);
     input.value = '';
     try {
-      const submitted = await api('/api/wifi8/agent', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ question, history:state.conversation.slice(-12) }) });
-      const result = await pollAgent(submitted.task_id); $('#agent-wait').outerHTML = agentOutput(result);
-      state.conversation.push({role:'user',content:question},{role:'assistant',content:result.answer || result.result || ''});
+      const submitted = await api('/api/wifi8/agent', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ question, history:state.conversation.slice(-MAX_TURNS) }) });
+      if (submitted.stream) await streamAgent(submitted.task_id, $('#agent-wait'));
+      const result = await pollAgent(submitted.task_id); $('#agent-wait').outerHTML = agentOutput(result) + (submitted.feedback ? feedbackBar(result) : '');
+      state.conversation.push({role:'user',content:question},{role:'assistant',content:result.answer_main || result.answer || result.result || '', sources:citedTitles(result)});
+      saveConversation();
     } catch (error) { $('#agent-wait').outerHTML = `<div class="message error">${escapeHtml(error.message)}</div>`; }
     finally { button.disabled = false; }
   }
+  // Rating an answer: a thumb, and for a thumbs-down the reasons (the list comes from the server) and an optional note.
+  function feedbackBar(value) {
+    if (!value.task_id || value.status !== 'completed') return '';
+    return `<div class="feedback" data-task="${escapeHtml(value.task_id)}"><span class="feedback-ask">這個回答有幫助嗎？</span><button type="button" class="secondary-button fb-up">有幫助</button><button type="button" class="secondary-button fb-down">沒幫助</button><span class="fb-state" role="status"></span></div>`;
+  }
+  async function sendFeedback(bar, rating, reasons, comment) {
+    const state_ = bar.querySelector('.fb-state');
+    try {
+      await api(`/api/wifi8/agent/${encodeURIComponent(bar.dataset.task)}/feedback`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ rating, reasons, comment }) });
+      bar.querySelector('.fb-form')?.remove(); state_.textContent = rating === 'up' ? '已記錄，謝謝回饋' : '已記錄，謝謝你的說明';
+    } catch (error) { state_.textContent = `回饋未送出：${error.message}`; }
+  }
+  async function openFeedbackForm(bar) {
+    if (bar.querySelector('.fb-form')) return;
+    state.feedbackReasons = state.feedbackReasons || (await api('/api/wifi8/agent-feedback/options').then((data) => data.reasons).catch(() => []));
+    const boxes = state.feedbackReasons.map((r) => `<label class="checkbox-label"><input type="checkbox" value="${escapeHtml(r.key)}">${escapeHtml(r.label)}</label>`).join('');
+    bar.insertAdjacentHTML('beforeend', `<div class="fb-form"><div class="fb-reasons">${boxes}</div><textarea class="fb-comment" maxlength="500" placeholder="補充說明（選填，最多 500 字）" aria-label="補充說明"></textarea><button type="button" class="primary-button fb-send">送出回饋</button></div>`);
+  }
   async function renderAgent() {
-    content.innerHTML = `<div class="ai-layout">${panel('AI research assistant', `<div id="conversation" class="conversation"><div class="message assistant">我會使用 WiFi 專區的文件與版本關係回答，並保留引用與工具步驟。</div></div><label>問題<textarea id="agent-question" maxlength="2000" placeholder="例如：ELR 的規格重點是什麼？"></textarea></label><div class="ai-actions"><small class="results-meta">回答以目前匯入資料為準</small><button id="agent-submit" class="primary-button" type="button">送出問題</button></div>`)}${panel('可追溯輸出', '<p>每次回答會同時顯示：</p><ul><li>引用文件</li><li>Agent 工具步驟</li><li>停止原因與錯誤狀態</li></ul>', 'EXISTING KM PIPELINE')}</div>`;
+    if (!state.conversation.length) state.conversation = loadConversation();
+    const restored = state.conversation.length ? `<div class="message assistant restored-note">已還原本分頁先前的對話（${Math.ceil(state.conversation.length / 2)} 輪）；關閉分頁後不會保留。</div>${restoredTurns(state.conversation)}` : '';
+    content.innerHTML = `<div class="ai-layout">${panel('AI research assistant', `<div id="conversation" class="conversation"><div class="message assistant">我會使用 WiFi 專區的文件與版本關係回答，並保留引用與工具步驟。</div>${restored}</div><label>問題<textarea id="agent-question" maxlength="2000" placeholder="例如：ELR 的規格重點是什麼？"></textarea></label><div class="ai-actions"><small class="results-meta">回答以目前匯入資料為準</small><button id="agent-new" class="secondary-button" type="button">新對話</button><button id="agent-submit" class="primary-button" type="button">送出問題</button></div>`)}${panel('可追溯輸出', '<p>每次回答會同時顯示：</p><ul><li>引用文件</li><li>Agent 工具步驟</li><li>停止原因與錯誤狀態</li></ul>', 'EXISTING KM PIPELINE')}</div>`;
     $('#agent-submit').addEventListener('click', askAgent);
+    $('#agent-new').addEventListener('click', () => {
+      state.conversation = []; saveConversation();
+      $('#conversation').innerHTML = '<div class="message assistant">已開始新對話。</div>';
+    });
+    $('#conversation').addEventListener('click', (event) => {
+      // A suggested follow-up fills the question box; the user decides whether to send it.
+      const followup = event.target.closest('.followup');
+      if (followup) { const input = $('#agent-question'); input.value = followup.dataset.question || ''; input.focus(); return; }
+      const bar = event.target.closest('.feedback'); if (!bar) return;
+      if (event.target.closest('.fb-up')) sendFeedback(bar, 'up', [], '');
+      else if (event.target.closest('.fb-down')) openFeedbackForm(bar);
+      else if (event.target.closest('.fb-send')) {
+        const reasons = [...bar.querySelectorAll('.fb-reasons input:checked')].map((box) => box.value);
+        sendFeedback(bar, 'down', reasons, bar.querySelector('.fb-comment').value);
+      }
+    });
   }
 
   function imageProgress(job) {

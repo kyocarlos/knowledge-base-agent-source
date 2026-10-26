@@ -478,6 +478,10 @@
       .km-v2-nav a { display:flex; align-items:center; gap:10px; padding:12px; border-radius:12px; color:#829ba1; text-decoration:none; font-size:12px; font-weight:800; }
       .km-v2-nav a:hover, .km-v2-nav a.active { color:var(--v2-ink); background:#f5ffff; }
       .km-v2-nav a:focus-visible { outline:2px solid var(--v2-cyan); outline-offset:2px; }
+      .km-v2-nav-group { display:grid; gap:4px; }
+      .km-v2-nav-sub { display:grid; gap:4px; margin-left:14px; padding-left:8px; border-left:1px solid var(--v2-border); }
+      .km-v2-nav-sub a { padding:9px 10px; font-size:11px; }
+      .km-v2-nav a.contains-active { color:#b7d7db; }
       .km-v2-zone { margin:12px 0 2px; color:#9dc0c5; font-size:11px; }
       .km-v2-zone strong { color:var(--v2-mint); }
       .km-v2-nav .count { margin-left:auto; padding:2px 6px; border-radius:99px; color:#ffd36e; background:rgba(255,190,64,.15); font-size:9px; }
@@ -589,7 +593,22 @@
       .km-v2-shell > .header, .km-v2-shell > .sub-header, .km-v2-shell > .main-content, .km-v2-shell > .footer, body.km-v2 > .chat-fab, body.km-v2 > .chat-version-badge { display:none !important; }
       #connectionBadge { display:flex !important; }
       @media (max-width: 1100px) { .km-v2-shell { grid-template-columns:190px minmax(0,1fr); } .km-v2-evidence { display:none; } }
-      @media (max-width: 720px) { .km-v2-shell { display:block; } .km-v2-sidebar { position:static; border-right:0; border-bottom:1px solid var(--v2-border); } .km-v2-nav { grid-template-columns:repeat(2,minmax(0,1fr)); } .km-v2-label, .km-v2-system { display:none; } .km-v2-main { padding:22px 16px; } .km-v2-top { display:block; } .km-v2-health { margin-top:16px; } .km-v2-metrics, .km-v2-timeseries { grid-template-columns:1fr; } }
+      @media (max-width: 720px) {
+        .km-v2-shell { display:block; }
+        .km-v2-sidebar { position:static; border-right:0; border-bottom:1px solid var(--v2-border); }
+        .km-v2-nav { grid-template-columns:repeat(2,minmax(0,1fr)); }
+        .km-v2-nav-group { grid-column:1 / -1; }
+        .km-v2-label, .km-v2-system { display:none; }
+        .km-v2-main { padding:22px 16px; }
+        .km-v2-top { display:block; }
+        .km-v2-health { margin-top:16px; }
+        .km-v2-metrics, .km-v2-timeseries { grid-template-columns:1fr; }
+        .km-v2-chat-window { min-width:0 !important; max-width:100% !important; }
+        .km-v2-chat-window .message-content { min-width:0; }
+        .km-v2-chat-window .message-bubble { overflow-wrap:anywhere; }
+        .km-v2-chat-window .chat-input-area { box-sizing:border-box; min-width:0; }
+        .km-v2-chat-window .chat-input { min-width:0; }
+      }
     </style>
 <style id="wifi-agent-style">
 .wifi-agent-answer{line-height:1.7}
@@ -606,6 +625,15 @@
 .wifi-agent-trace summary{cursor:pointer;color:#7fffe3}
 .wifi-agent-trace ol{margin:6px 0 0;padding-left:20px}
 .wifi-agent-meta{margin-top:6px;font-size:11px;color:#617f87}
+.csit-assistants{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0 4px}
+.csit-assistants[hidden]{display:none}
+.csit-assistants button{background:rgba(127,255,227,.06);border:1px solid rgba(127,255,227,.3);color:#cfeff0;border-radius:999px;padding:6px 14px;font-size:13px;cursor:pointer}
+.csit-assistants button[aria-pressed="true"]{background:rgba(127,255,227,.18);border-color:#7fffe3;color:#e7ffff}
+.csit-assistants button .state{margin-left:8px;font-size:11px;color:#ffd9a8}
+.csit-assistants button .state.ready{color:#7fffe3}
+.csit-assistant-note{margin:4px 0 6px;font-size:12px;color:#9dc0c5}
+.csit-assistant-note[hidden]{display:none}
+.csit-assistant-note ul{margin:4px 0 0;padding-left:18px}
 </style>
 </head>
 <body class="km-v2">
@@ -614,10 +642,17 @@
       <div class="km-v2-brand"><div class="km-v2-brand-mark">K</div><div><div class="km-v2-brand-name">KM</div><div class="km-v2-brand-sub">research platform</div></div></div>
       <div class="km-v2-label">Knowledge zones</div>
       <nav class="km-v2-nav" aria-label="知識專區">
-        <a class="active" href="#knowledge-assistant" data-knowledge-zone="csit" aria-current="page"><span>◈</span> CSIT 知識專區</a>
+        <a class="active" href="#knowledge-assistant" data-knowledge-zone="csit" aria-current="page"><span>◈</span> CSIT雜項專區</a>
         <a href="#knowledge-assistant" data-knowledge-zone="wifi"><span>⌁</span> WiFi 知識專區</a>
-        <a href="#knowledge-assistant" data-knowledge-zone="mobile"><span>◌</span> 4G/5G 知識專區</a>
+        <div class="km-v2-nav-group">
+          <a href="#knowledge-assistant" data-knowledge-zone="mobile"><span>◌</span> 4G/5G 知識專區</a>
+          <div class="km-v2-nav-sub" role="group" aria-label="4G/5G 子專區">
+            <a href="#knowledge-assistant" data-knowledge-zone="cpe" data-knowledge-parent="mobile"><span>›</span> CPE知識專區</a>
+            <a href="#knowledge-assistant" data-knowledge-zone="smallcell" data-knowledge-parent="mobile"><span>›</span> Smallcell知識專區</a>
+          </div>
+        </div>
         <a href="#knowledge-assistant" data-knowledge-zone="technical"><span>⌘</span> 技術知識專區</a>
+        <a href="#knowledge-assistant" data-knowledge-zone="equipment"><span>▣</span> 設備預約知識專區</a>
       </nav>
     </aside>
 
@@ -631,7 +666,9 @@
 
       <section class="km-v2-card km-v2-assistant" id="knowledge-assistant">
         <div class="km-v2-assistant-head"><span>♙</span><span class="km-v2-kicker">AI research assistant</span><span class="badge">EXISTING KM PIPELINE</span></div>
-        <p class="km-v2-zone" id="knowledgeZoneStatus" aria-live="polite">目前查詢範圍：<strong>CSIT 知識專區</strong></p>
+        <p class="km-v2-zone" id="knowledgeZoneStatus" aria-live="polite">目前查詢範圍：<strong>CSIT雜項專區</strong></p>
+        <div class="csit-assistants" id="csitAssistantBar" role="group" aria-label="CSIT 助手" hidden></div>
+        <div class="csit-assistant-note" id="csitAssistantNote" aria-live="polite" hidden></div>
         <div class="km-v2-chat-window chat-window show" id="chatWindow">
           <div class="chat-header"><div class="chat-header-info"><p id="chatStatus">連線中...</p><p id="queueStatus" style="display:none">排隊中: 前方 <span id="queueCount">0</span> 人</p><p id="stageStatus" style="display:none">等待中</p></div></div>
           <div class="chat-messages" id="chatMessages"><div class="message bot"><div class="message-avatar">🦾</div><div class="message-content"><div class="message-role-label">KM 助理</div><div class="message-bubble">嗨！我是 KM 研究助理。請查詢測試報告、跨文件關聯或系統指標；回答會保留既有來源與 provenance。</div></div></div></div>
@@ -797,12 +834,19 @@
     window.analyzingInProgress = false;
 
     const knowledgeZones = {
-      csit: { label: 'CSIT 知識專區', context: '請聚焦 CSIT 測試報告、測試案例、Project／Case／Task 與相關結果。' },
+      csit: { label: 'CSIT雜項專區', context: '請聚焦 CSIT 測試報告、測試案例、Project／Case／Task 與相關結果。' },
       wifi: { label: 'WiFi 知識專區', context: '請聚焦 WiFi、WLAN、無線網路與其測試結果。' },
       mobile: { label: '4G/5G 知識專區', context: '請聚焦 4G、LTE、5G、NR、RAN、handover 與行動通訊測試資料。' },
+      cpe: { label: 'CPE知識專區', parent: 'mobile', context: '請聚焦 CPE、Customer Premises Equipment、用戶端設備、路由器、閘道器與相關 4G/5G 測試資料。' },
+      smallcell: { label: 'Smallcell知識專區', parent: 'mobile', context: '請聚焦 Small Cell、小型基地台、企業室內涵蓋、部署、設定與相關 4G/5G 測試資料。' },
       technical: { label: '技術知識專區', context: '請聚焦技術設計、系統架構、操作流程、除錯與工程文件。' },
+      equipment: { label: '設備預約知識專區', context: '請聚焦設備預約、借用與歸還流程、可用時段、設備清單及預約規範。' },
     };
     let activeKnowledgeZone = 'csit';
+    // CSIT 助手狀態：放在這裡，避免連線狀態函式早於後面的宣告被呼叫（暫時性死區）。
+    let csitAssistants = [];
+    let activeCsitAssistant = '';
+    let csitAssistantsLoaded = false;
 
     function selectKnowledgeZone(zoneId) {
       const zone = knowledgeZones[zoneId] || knowledgeZones.csit;
@@ -810,12 +854,23 @@
       document.querySelectorAll('[data-knowledge-zone]').forEach((item) => {
         const selected = item.dataset.knowledgeZone === activeKnowledgeZone;
         item.classList.toggle('active', selected);
+        item.classList.toggle('contains-active', item.dataset.knowledgeZone === zone.parent);
         item.toggleAttribute('aria-current', selected);
       });
       const status = document.getElementById('knowledgeZoneStatus');
       if (status) status.innerHTML = `目前查詢範圍：<strong>${zone.label}</strong>`;
       const input = document.getElementById('chatInput');
-      if (input) input.placeholder = `在${zone.label}中提問，例如：${zoneId === 'wifi' ? 'WiFi 6 測試結果？' : zoneId === 'mobile' ? 'NR Handover 測試結果？' : zoneId === 'technical' ? '如何排查系統問題？' : 'CSIT Project 測試結果？'}`;
+      const examples = {
+        wifi: 'WiFi 6 測試結果？',
+        mobile: 'NR Handover 測試結果？',
+        cpe: 'CPE 路由器的 5G 測試結果？',
+        smallcell: 'Smallcell 部署與測試資料？',
+        technical: '如何排查系統問題？',
+        equipment: '如何查詢設備預約與可用時段？',
+        csit: 'CSIT Project 測試結果？',
+      };
+      if (input) input.placeholder = `在${zone.label}中提問，例如：${examples[activeKnowledgeZone] || examples.csit}`;
+      if (typeof renderCsitAssistants === 'function') renderCsitAssistants();
       if (typeof updateInputState === 'function') updateInputState();
     }
 
@@ -2389,14 +2444,130 @@
       return { result: null };
     }
 
+    // ===== 知識庫實體檢查（2026-10-21）=====
+    // 問題點名了特定設備／專案代號（例如 NCQ2200B2V-D294、SCU5050），但最相近的知識庫來源完全沒有提到它時，
+    // 不能拿其他設備的資料回答：直接說明查無資料，不呼叫聊天模型。代號格式：2 個以上字母接 3 個以上數字，可帶連字號片段。
+    const ENTITY_GUARD_ENABLED = true;
+    const ENTITY_CODE_PATTERN = /\b[A-Za-z]{2,}\d{3,}[A-Za-z0-9]*(?:-[A-Za-z0-9]+)*\b/g;
+    const ENTITY_GUARD_TOP_K = 12;
+
+    function extractEntityCodes(text) {
+      return [...new Set((String(text || '').match(ENTITY_CODE_PATTERN) || []).map((code) => code.toUpperCase()))];
+    }
+
+    function entityMentioned(code, haystack) {
+      if (haystack.includes(code)) return true;
+      const main = code.split('-')[0];
+      return main.length >= 5 && haystack.includes(main);  // 文件只寫主型號（沒有後面的版本片段）也算有提到
+    }
+
+    async function checkEntitiesInKnowledgeBase(codes, query) {
+      const searchRes = await fetch(apiUrl('/search'), {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query, mode: 'vector', top_k: ENTITY_GUARD_TOP_K, sources_only: true }),
+      });
+      if (!searchRes.ok) return null;
+      const { task_id: taskId } = await searchRes.json();
+      if (!taskId) return null;
+      const result = await waitForSearchResult(taskId, 90000);
+      if (!result || !Array.isArray(result.sources)) return null;
+      const haystack = result.sources.map((s) => `${getSourceDocName(s) || ''} ${getSourceRawText(s) || ''}`).join('\n').toUpperCase();
+      return { checked: result.sources.length, found: codes.filter((c) => entityMentioned(c, haystack)), missing: codes.filter((c) => !entityMentioned(c, haystack)) };
+    }
+
+    function buildEntityMissingMessage(verdict) {
+      const missing = verdict.missing.map((c) => `「${c}」`).join('、');
+      const found = verdict.found.length ? `\n知識庫有提到：${verdict.found.map((c) => `「${c}」`).join('、')}。可以改為單獨查詢這些項目。` : '';
+      return `知識庫目前找不到 ${missing} 的資料（已檢查最相近的 ${verdict.checked} 筆來源，沒有任何一筆提到它）。`
+        + `為避免拿其他設備或專案的數據回答，這次不產生答案。${found}\n\n可以確認：型號是否拼對、這份報告是否已匯入知識庫。`;
+    }
+
     // ===== Send Message with Knowledge Base Integration =====
+    // ===== CSIT 知識專區 AI 助手（2026-10-21）=====
+    // 助手清單來自後端目錄（/api/csit-assistants）；條件未滿足時只顯示「待銜接」與缺少的項目，不回答推測的數字。
+    const CSIT_REASON_TEXT = { not_configured: '尚未設定連線', unreachable: '無法連線', no_rows: '資料表沒有資料', not_implemented: '尚未實作' };
+
+    async function loadCsitAssistants() {
+      try {
+        const response = await fetch('/api/csit-assistants', { credentials: 'same-origin', cache: 'no-store' });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        csitAssistants = (await response.json()).assistants || [];
+      } catch (error) {
+        console.warn('[CSIT assistants]', error);
+        csitAssistants = [];
+      }
+      csitAssistantsLoaded = true;
+      renderCsitAssistants();
+    }
+
+    function renderCsitAssistants() {
+      const bar = document.getElementById('csitAssistantBar');
+      const note = document.getElementById('csitAssistantNote');
+      if (!bar || !note) return;
+      if (activeKnowledgeZone !== 'csit') { activeCsitAssistant = ''; bar.hidden = true; note.hidden = true; return; }
+      if (!csitAssistantsLoaded) { loadCsitAssistants(); return; }
+      if (!csitAssistants.length) { activeCsitAssistant = ''; bar.hidden = true; note.hidden = true; return; }
+      bar.hidden = false;
+      const chips = [{ id: '', name: '一般問答', status: 'ready' }, ...csitAssistants];
+      bar.innerHTML = chips.map((item) => {
+        const pending = item.status !== 'ready';
+        return `<button type="button" data-csit-assistant="${escapeHtml(item.id)}" aria-pressed="${item.id === activeCsitAssistant}">${escapeHtml(item.name)}${item.id ? `<span class="state${pending ? '' : ' ready'}">${pending ? '待銜接' : '可用'}</span>` : ''}</button>`;
+      }).join('');
+      bar.querySelectorAll('button').forEach((button) => button.addEventListener('click', () => {
+        activeCsitAssistant = button.dataset.csitAssistant || '';
+        renderCsitAssistants();
+        const input = document.getElementById('chatInput');
+        const picked = csitAssistants.find((item) => item.id === activeCsitAssistant);
+        if (input) input.placeholder = picked ? `向${picked.name}提問，例如：${(picked.examples || [])[0] || ''}` : '在 CSIT雜項專區中提問，例如：SCU2050 的 NR Handover 測試結果？';
+        if (typeof updateInputState === 'function') updateInputState();
+        input?.focus();
+      }));
+      const picked = csitAssistants.find((item) => item.id === activeCsitAssistant);
+      if (picked) {
+        const missing = (picked.requirements || []).filter((r) => !r.ok).map((r) => `<li>${escapeHtml(r.label)}：${escapeHtml(CSIT_REASON_TEXT[r.reason] || r.reason)}</li>`).join('');
+        note.innerHTML = `<strong>${escapeHtml(picked.name)}</strong>：${escapeHtml(picked.purpose || '')}` + (missing ? `<br>尚未滿足的條件：<ul>${missing}</ul>` : '');
+        note.hidden = false;
+      } else { note.hidden = true; }
+    }
+
+    async function runCsitAssistant(text) {
+      const assistant = csitAssistants.find((item) => item.id === activeCsitAssistant);
+      const meta = { sourceLabel: assistant ? assistant.name : 'CSIT 助手', sourceHint: 'CSIT雜項專區 · 唯讀查詢' };
+      const botSeq = addMessage('bot', `${meta.sourceLabel}查詢中…`, false, meta);
+      const startedAt = performance.now();
+      isLoading = true;
+      clearQueueState();
+      updateInputState();
+      try {
+        const response = await fetch(`/api/csit-assistants/${encodeURIComponent(activeCsitAssistant)}/query`, {
+          method: 'POST', credentials: 'same-origin', cache: 'no-store',
+          headers: { 'content-type': 'application/json' }, body: JSON.stringify({ question: text }),
+        });
+        if (response.status === 401) throw new Error('登入已逾時，請重新登入');
+        if (!response.ok) throw new Error(`助手無法受理查詢（HTTP ${response.status}）`);
+        const data = await response.json();
+        const safeMarkdown = String(data.answer || '').replace(/&/g, '&amp;').replace(/</g, '&lt;');
+        const html = (typeof marked !== 'undefined' && typeof marked.parse === 'function')
+          ? marked.parse(safeMarkdown, { breaks: true, gfm: true }) : escapeHtml(String(data.answer || '')).replace(/\n/g, '<br>');
+        setBotHtmlBySeq(botSeq, `<div class="wifi-agent-answer">${html}</div>`, { ...meta, latencyText: `回覆耗時 ${formatLatencyMs(performance.now() - startedAt)}` });
+        if (data.readiness) { const known = csitAssistants.find((item) => item.id === activeCsitAssistant); if (known) { known.status = data.readiness.status; known.requirements = data.readiness.requirements; renderCsitAssistants(); } }
+      } catch (error) {
+        console.warn('[CSIT assistant]', error);
+        setBotHtmlBySeq(botSeq, `抱歉，${escapeHtml(meta.sourceLabel)}查詢失敗：${escapeHtml(String(error.message || error))}`, meta);
+      } finally {
+        isLoading = false;
+        clearQueueState();
+        updateInputState();
+      }
+    }
+
     // ===== WiFi 知識專區 Agent（2026-10-16）=====
     // WiFi 專區提問改由後端 agent 以固定唯讀工具查詢 Wi-Fi8 匯入資料；其他專區流程不變。
     const wifiAgentHistory = [];
 
     // WiFi 專區走 /api/wifi8/agent（一般 HTTPS API），不需要 OpenClaw 聊天連線。
     function canSendWithoutGateway() {
-      return activeKnowledgeZone === 'wifi';
+      return activeKnowledgeZone === 'wifi' || (activeKnowledgeZone === 'csit' && !!activeCsitAssistant);
     }
     const WIFI_AGENT_POLL_MS = 1500;
     const WIFI_AGENT_TIMEOUT_MS = 180000;
@@ -2489,6 +2660,11 @@
       window.lastQuery = text;
       pendingAgentBotSeq = null;
       
+      if (activeKnowledgeZone === 'csit' && activeCsitAssistant) {
+        runCsitAssistant(text);
+        return;
+      }
+
       if (isNeo4jMetaQuestion(text)) {
         const botSeq = addMessage('bot', '正在查詢 Neo4j 實際連線與資料狀態...', true, {});
         isLoading = true;
@@ -2522,6 +2698,27 @@
       if (activeKnowledgeZone === 'wifi') {
         runWifiAgent(text);
         return;
+      }
+
+      const entityCodes = ENTITY_GUARD_ENABLED ? extractEntityCodes(text) : [];
+      if (entityCodes.length) {
+        isLoading = true;
+        clearQueueState();
+        updateInputState();
+        let verdict = null;
+        try {
+          verdict = await checkEntitiesInKnowledgeBase(entityCodes, knowledgeSearchQuery);
+        } catch (error) {
+          console.warn('[KB] Entity check failed; continuing normally:', error);
+        }
+        if (verdict && verdict.missing.length) {
+          addMessage('bot', buildEntityMissingMessage(verdict), false, { sourceLabel: 'KB 參考', sourceHint: '來源檢查：查無此項目' });
+          isLoading = false;
+          clearQueueState();
+          updateInputState();
+          return;
+        }
+        isLoading = false;  // 後面的流程會自行設定載入狀態
       }
 
       const compareLikeQuery = isCompareLikeQuery(text);
