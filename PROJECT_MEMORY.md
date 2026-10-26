@@ -57,3 +57,6 @@ The four new negative tests exposed malformed internal Failed error fields befor
 ### 2026-10-26 後續：移除研發中樞左側技術知識專區
 
 使用者要求移除截圖紅框中的左側導覽項目。已在 `frontend/chat-v2.html` 移除 `data-knowledge-zone="technical"` 導覽連結一行，其餘 CSIT、WiFi、4G/5G 子專區與設備預約入口未動。檢視差異確認只有該導覽連結被移除；`git diff --check` 通過。待提交並推送至 `codex/wifi8-ui-polish-20261026`，不觸及 TEST／DA40 部署。
+### 2026-10-26 後續：新增 Confluence／Jira／TestRail 查詢專區
+
+使用者要求在 chat-v2 左側 Knowledge zones 主功能列表加入「Confluence / Jira / TestRail 查詢專區」。已新增可點選入口、專區查詢上下文與 TestRail 範例提問；選取機制沿用既有 `data-knowledge-zone` 事件處理，既有聊天請求會包含該專區的名稱與 context。未改後端或新增外部連線，實際可查資料仍取決於既有 KM 助理與知識庫來源。靜態程式檢查確認入口、設定與上下文流程接通，`git diff --check` 通過。待推送至既有 `codex/wifi8-ui-polish-20261026` 分支；尚未部署。
