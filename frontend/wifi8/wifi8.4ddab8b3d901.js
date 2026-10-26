@@ -224,7 +224,7 @@
     let s = String(tex);
     for (let n = 0; n < 6; n += 1) {  // innermost groups first, so nested \frac / \text resolve from the inside out
       const before = s;
-      s = s.replace(/\\(?:text|textbf|mathrm|mathbf|mathit|operatorname)\s*\{([^{}]*)\}/g, '$1')
+      s = s.replace(/\\(?:text|textbf|mathrm|mathbf|mathit|operatorname|boxed)\s*\{([^{}]*)\}/g, '$1')
         .replace(/\\[dt]?frac\s*\{([^{}]*)\}\s*\{([^{}]*)\}/g, (m, a, b) => { const w = (x) => (/^[\w.]+$/.test(x.trim()) ? x.trim() : `(${x.trim()})`); return `${w(a)}/${w(b)}`; })
         .replace(/_\{([^{}]*)\}/g, '_$1')
         .replace(/\^\{([^{}]*)\}/g, (m, e) => (/^[\w.]+$/.test(e) ? `^${e}` : `^(${e})`))
