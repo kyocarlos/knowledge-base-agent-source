@@ -56,8 +56,8 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .sidebar-footer small i { display: inline-block; width: 7px; height: 7px; margin-right: 6px; border-radius: 50%; background: #c8f86a; box-shadow:0 0 12px #c8f86a; }
 .workspace { min-width: 0; display: flex; flex-direction: column; min-height: 100vh; }
 .topbar { min-height: 104px; display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 20px clamp(24px,4vw,48px); border-bottom: 1px solid var(--line); background: rgba(5,25,32,.64); backdrop-filter:blur(12px); }
-.page-title p { margin: 0 0 8px; color: var(--green); font-size: .62rem; font-weight: 900; letter-spacing:.16em; text-transform:uppercase; }
-.page-title h1 { margin: 0; color:#f2ffff; font-size: 1.85rem; line-height: 1.1; letter-spacing: -.035em; }
+.page-title p { margin: 8px 0 0; color: var(--green); font-size: .62rem; font-weight: 900; letter-spacing:.16em; text-transform:none; }
+.page-title h1 { margin: 0; color:#f2ffff; font-size: clamp(28px, 3vw, 40px); line-height: 1.1; letter-spacing: -.035em; }
 .topbar-actions { display: flex; align-items: center; gap: 16px; }
 .snapshot-time { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: .78rem; line-height: 1.45; }
 .snapshot-time strong, .snapshot-time time { display: block; }
@@ -264,7 +264,7 @@ progress { width: 100%; height: 8px; margin-top: 9px; accent-color: var(--blue);
   .primary-nav.open { display: grid; }
   .sidebar-footer { display: none; }
   .topbar { min-height: auto; padding: 18px; }
-  .page-title h1 { font-size: 1.55rem; }
+  .page-title h1 { font-size: clamp(28px, 3vw, 40px); }
   .snapshot-time { display: none; }
   main { padding: 18px 14px 34px; }
   .filters, .upload-row, .detail-grid { grid-template-columns: 1fr; }
@@ -412,7 +412,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   border-bottom-color: rgba(127,255,227,.15);
 }
 .page-title p { color: #81d8c6; font-size: .68rem; letter-spacing: .1em; }
-.page-title h1 { font-size: clamp(1.55rem,2vw,2rem); letter-spacing: -.025em; }
+.page-title h1 { font-size: clamp(28px, 3vw, 40px); letter-spacing: -.025em; }
 .topbar-actions { gap: 10px; }
 .snapshot-time { padding: 7px 10px; border: 1px solid var(--line-soft); border-radius: 11px; background: rgba(0,0,0,.14); }
 .refresh-button, .primary-button, .secondary-button, .back-link {

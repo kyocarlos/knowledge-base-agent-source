@@ -53,8 +53,8 @@
 
   function setHeader(route) {
     const [title] = routeInfo[route];
-    $('#page-section').textContent = 'WiFi 知識專區';
-    $('#page-title').textContent = title;
+    $('#page-section').textContent = title;
+    $('#page-title').textContent = 'WiFi 知識專區';
     $('#page-updated').textContent = new Date().toLocaleString('zh-TW', { hour12: false });
     document.title = `${title} · WiFi 知識專區`;
   }
