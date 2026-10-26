@@ -657,7 +657,7 @@
     </aside>
 
     <section class="km-v2-main">
-      <header class="km-v2-top"><div><div class="km-v2-kicker">KM / intelligence layer</div><h1>研發知識中樞</h1><p>讓每一次決策，都有可追溯的證據。</p></div><div class="km-v2-health"><span class="dot"></span><span id="connectionBadge"><span id="connectionText">檢查系統連線中</span></span><span class="km-v2-avatar">A</span></div></header>
+      <header class="km-v2-top"><div><div class="km-v2-kicker">KM / intelligence layer</div><h1 id="knowledgePageTitle" aria-live="polite">研發知識中樞</h1><p>讓每一次決策，都有可追溯的證據。</p></div><div class="km-v2-health"><span class="dot"></span><span id="connectionBadge"><span id="connectionText">檢查系統連線中</span></span><span class="km-v2-avatar">A</span></div></header>
       <div class="km-v2-metrics">
         <div class="km-v2-card km-v2-metric"><div class="icon">⌁</div><strong>—</strong><span><span>Indexed documents</span><em>live API</em></span></div>
         <div class="km-v2-card km-v2-metric"><div class="icon">◌</div><strong>—</strong><span><span>Avg. relevance</span><em>query based</em></span></div>
@@ -858,6 +858,8 @@
         item.classList.toggle('contains-active', item.dataset.knowledgeZone === zone.parent);
         item.toggleAttribute('aria-current', selected);
       });
+      const pageTitle = document.getElementById('knowledgePageTitle');
+      if (pageTitle) pageTitle.textContent = zone.label;
       const status = document.getElementById('knowledgeZoneStatus');
       if (status) status.innerHTML = `目前查詢範圍：<strong>${zone.label}</strong>`;
       const input = document.getElementById('chatInput');

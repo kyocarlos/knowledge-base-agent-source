@@ -60,3 +60,6 @@ The four new negative tests exposed malformed internal Failed error fields befor
 ### 2026-10-26 後續：新增 Confluence／Jira／TestRail 查詢專區
 
 使用者要求在 chat-v2 左側 Knowledge zones 主功能列表加入「Confluence / Jira / TestRail 查詢專區」。已新增可點選入口、專區查詢上下文與 TestRail 範例提問；選取機制沿用既有 `data-knowledge-zone` 事件處理，既有聊天請求會包含該專區的名稱與 context。未改後端或新增外部連線，實際可查資料仍取決於既有 KM 助理與知識庫來源。靜態程式檢查確認入口、設定與上下文流程接通，`git diff --check` 通過。待推送至既有 `codex/wifi8-ui-polish-20261026` 分支；尚未部署。
+### 2026-10-26 後續：頁首標題同步目前知識專區
+
+使用者指出頁首仍顯示「研發知識中樞」，希望隨左側 Knowledge zones 選擇同步。已為 h1 加入 `knowledgePageTitle`，並在既有 `selectKnowledgeZone` 中以所選 zone 的 label 更新 textContent；DOMContentLoaded 的初始 CSIT 選取也會設定為「CSIT雜項專區」。因此其他使用既有知識區切換流程的專區同樣會顯示各自名稱，WiFi 入口仍依既有流程導向 WiFi SPA。靜態檢查確認所有 zone label 與頁首更新接點存在，`git diff --check` 通過。待推送至 `codex/wifi8-ui-polish-20261026`；未部署。
