@@ -515,6 +515,69 @@
   $('#nav-toggle').addEventListener('click', () => { const open = $('#primary-nav').classList.toggle('open'); $('#nav-toggle').setAttribute('aria-expanded', String(open)); });
   $('#refresh-page').addEventListener('click', async (event) => { event.currentTarget.classList.add('is-loading'); event.currentTarget.disabled = true; await renderRoute(); event.currentTarget.classList.remove('is-loading'); event.currentTarget.disabled = false; });
   $('#close-dialog').addEventListener('click', () => $('#document-dialog').close());
+  // Wi-Fi 8 feed: the right-hand column of every page of this zone. The weekly outside digest is written by the host's cron run and the document
+  // changes are found by comparing the zone's packages (src/wifi8/digest.py); both come from GET /api/wifi8/feed. Every text from outside is escaped
+  // and only https links are made clickable.
+  const feedState = { tab: 'digest', data: null, failed: false };
+  const FEED_EVENT = { new_document: ['新增', ''], superseded: ['被新版取代', 'warn'], removed: ['已移除', 'gone'] };
+  const feedDate = (value) => { const d = value ? new Date(value) : null; return d && !Number.isNaN(d.getTime()) ? d.toLocaleDateString('zh-TW', { month: 'numeric', day: 'numeric' }) : ''; };
+  const feedHttps = (value) => { try { const u = new URL(value); return u.protocol === 'https:' ? u.href : ''; } catch (_) { return ''; } };
+  const feedCard = (meta, title, text, link) => `<article class="feed-card"><div class="feed-meta">${meta}</div><h3>${link ? `<a href="${escapeHtml(link)}" target="_blank" rel="noopener noreferrer">${escapeHtml(title)}</a>` : escapeHtml(title)}</h3>${text ? `<p>${escapeHtml(text)}</p>` : ''}</article>`;
+
+  function feedDigestHtml(digest) {
+    if (!digest) return '<p class="feed-empty">週報尚未產生。每週排程執行後會顯示在這裡。</p>';
+    const parts = [];
+    if ((digest.highlights || []).length) parts.push(`<div class="feed-card"><div class="feed-section">本週重點</div><ul class="feed-highlights">${digest.highlights.map((h) => `<li>${escapeHtml(h)}</li>`).join('')}</ul></div>`);
+    const t = digest.timeline;
+    if (t && t.last_done) parts.push(`<div class="feed-card"><div class="feed-section">IEEE 802.11bn (UHR) 進度</div><p class="feed-timeline">已完成 ${escapeHtml(t.done)}／${escapeHtml(t.total)} 個里程碑；最近完成 ${escapeHtml(t.last_done.name)}（${escapeHtml(t.last_done.current)}）${t.next ? `；下一步 ${escapeHtml(t.next.name)}，預計 ${escapeHtml(t.next.projected)}` : ''}</p></div>`);
+    const items = digest.items || [];
+    parts.push(...items.map((item) => feedCard(
+      `<span class="feed-badge">${escapeHtml(item.source_name)}</span>${feedDate(item.published) ? `<span>${feedDate(item.published)}</span>` : ''}${item.summary ? '<span>AI 摘要</span>' : ''}${item.older ? '<span class="feed-badge warn">較早</span>' : ''}`,
+      item.title, item.summary || item.excerpt || '', feedHttps(item.url))));
+    if (!items.length) parts.push('<p class="feed-empty">本週沒有符合 Wi-Fi 的新動態。</p>');
+    const bad = (digest.sources || []).filter((s) => s.status !== 'ok');
+    parts.push(`<p class="feed-note">${escapeHtml(digest.note || '')}</p>${bad.length ? `<p class="feed-note feed-fail">讀取失敗的來源：${bad.map((s) => escapeHtml(s.name)).join('、')}（顯示的是其餘來源）</p>` : ''}`);
+    return parts.join('');
+  }
+
+  function feedUpdatesHtml(updates) {
+    const events = (updates && updates.events) || []; const recent = (updates && updates.recent) || [];
+    const cards = events.map((e) => {
+      const [label, tone] = FEED_EVENT[e.type] || [e.type, ''];
+      return feedCard(`<span class="feed-badge ${tone}">${escapeHtml(label)}</span><span>${feedDate(e.at)}</span>${e.publisher ? `<span>${escapeHtml(e.publisher)}</span>` : ''}`,
+        e.title || e.revision_id, [e.document_role, e.version_label].filter(Boolean).join(' · '), '');
+    });
+    if (!cards.length) cards.push('<p class="feed-empty">資料包尚無新的變動。下次匯入新資料包後，新增、被取代或移除的文件會列在這裡。</p>');
+    if (recent.length) cards.push('<div class="feed-section">近期文件（依文件日期）</div>', ...recent.slice(0, 8).map((d) => feedCard(
+      `<span class="feed-badge">${escapeHtml(d.publisher || '')}</span><span>${escapeHtml(d.document_date || '')}</span>`, d.title, [d.document_role, d.version_label].filter(Boolean).join(' · '), '')));
+    return cards.join('');
+  }
+
+  function renderFeed() {
+    const body = $('#feed-body'); if (!body) return;
+    document.querySelectorAll('[data-feed-tab]').forEach((b) => { const on = b.dataset.feedTab === feedState.tab; b.classList.toggle('active', on); b.setAttribute('aria-selected', String(on)); });
+    if (feedState.failed && !feedState.data) body.innerHTML = '<p class="feed-empty">暫時無法讀取動態，稍後按「重新整理」。</p>';
+    else if (!feedState.data) body.innerHTML = '<p class="feed-empty">讀取中…</p>';
+    else body.innerHTML = feedState.tab === 'digest' ? feedDigestHtml(feedState.data.digest) : feedUpdatesHtml(feedState.data.updates);
+    const made = feedState.data && feedState.data.digest && feedState.data.digest.generated_at;
+    $('#feed-stamp').textContent = made ? `週報更新 ${new Date(made).toLocaleString('zh-TW', { hour12: false })}` : '';
+  }
+
+  async function loadFeed() {
+    try { feedState.data = await api('/api/wifi8/feed'); feedState.failed = false; } catch (_) { feedState.failed = true; }
+    renderFeed();
+  }
+
+  function initFeed() {
+    const column = $('#feed-column'); if (!column) return;
+    column.innerHTML = `<div class="feed-head"><div><span class="feed-kicker">Wi-Fi 8 Watch</span><h2>Wi-Fi 8 動態</h2></div><button id="feed-refresh" class="feed-refresh" type="button">重新整理</button></div><div class="feed-tabs" role="tablist" aria-label="動態類型"><button type="button" role="tab" data-feed-tab="digest">每週週報</button><button type="button" role="tab" data-feed-tab="updates">文件更新</button></div><div id="feed-body" class="feed-body" aria-live="polite"></div><p id="feed-stamp" class="feed-stamp"></p>`;
+    column.querySelectorAll('[data-feed-tab]').forEach((b) => b.addEventListener('click', () => { feedState.tab = b.dataset.feedTab; renderFeed(); }));
+    $('#feed-refresh').addEventListener('click', loadFeed);
+    renderFeed(); loadFeed();
+    setInterval(loadFeed, 10 * 60 * 1000);
+  }
+  initFeed();
+
   window.addEventListener('hashchange', renderRoute);
 
   // A tab opened before a deploy keeps running the old code; tell the user when the server serves another build.

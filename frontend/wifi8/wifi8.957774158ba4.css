@@ -563,3 +563,38 @@ tbody tr:hover { background: rgba(127,255,227,.055); }
 .message-files { margin-top: 6px; font-size: .76rem; opacity: .85; }
 #agent-question.drag-over { outline: 2px dashed var(--green); outline-offset: 2px; }
 .cite-ref.cite-mine { color: #ffd479; background: rgba(255,212,121,.13); }
+
+/* Wi-Fi 8 feed: right-hand column of every page */
+.workspace-body { width: min(100%, 1900px); margin: 0 auto; padding: 0 clamp(25px,3vw,48px); display: grid; grid-template-columns: minmax(0,1fr) 340px; gap: 22px; align-items: start; }
+.workspace-body > main { width: auto; margin: 0; padding-left: 0; padding-right: 0; min-width: 0; }
+.feed-column { position: sticky; top: 14px; max-height: calc(100vh - 28px); overflow-y: auto; margin-top: 30px; padding: 18px; border: 1px solid var(--line); border-radius: 18px; background: linear-gradient(145deg,rgba(14,60,70,.55),rgba(5,28,36,.78)); }
+.feed-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 10px; }
+.feed-kicker { color: #81d8c6; font-size: .62rem; font-weight: 800; letter-spacing: .16em; text-transform: uppercase; }
+.feed-head h2 { margin: 6px 0 0; color: #f2ffff; font-size: 1.02rem; }
+.feed-refresh { border: 0; background: none; color: var(--green); font-size: .72rem; cursor: pointer; padding: 0; }
+.feed-tabs { display: flex; gap: 6px; margin-top: 14px; }
+.feed-tabs button { flex: 1; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; background: rgba(127,255,227,.05); color: #9fc2c8; font-size: .75rem; cursor: pointer; }
+.feed-tabs button.active { background: rgba(127,255,227,.14); border-color: rgba(127,255,227,.45); color: #f2ffff; }
+.feed-body { display: grid; gap: 10px; margin-top: 14px; }
+.feed-empty, .feed-note, .feed-stamp { margin: 0; color: #7f9da3; font-size: .7rem; line-height: 1.7; }
+.feed-stamp { margin-top: 12px; text-align: center; font-size: .62rem; }
+.feed-card { padding: 13px 14px; border: 1px solid var(--line); border-radius: 14px; background: rgba(4,26,33,.55); }
+.feed-card h3 { margin: 6px 0 0; color: #f2ffff; font-size: .82rem; line-height: 1.45; font-weight: 700; }
+.feed-card h3 a { color: inherit; text-decoration: none; }
+.feed-card h3 a:hover { color: var(--green); text-decoration: underline; }
+.feed-card p { margin: 6px 0 0; color: #a9c5ca; font-size: .74rem; line-height: 1.65; }
+.feed-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; color: #7f9da3; font-size: .66rem; }
+.feed-badge { padding: 2px 8px; border-radius: 999px; background: rgba(127,255,227,.12); color: #bff7ea; }
+.feed-badge.warn { background: rgba(255,212,121,.14); color: #ffd479; }
+.feed-badge.gone { background: rgba(255,155,155,.14); color: #ffb4b4; }
+.feed-highlights { margin: 6px 0 0; padding-left: 18px; color: #dff; font-size: .76rem; line-height: 1.75; }
+.feed-section { color: #7f9da3; font-size: .64rem; letter-spacing: .12em; text-transform: uppercase; }
+.feed-timeline { color: #bff7ea !important; }
+.feed-fail { color: #ffd479; }
+/* the assistant page keeps its explanation card under the chat now that the right side belongs to the feed */
+.ai-layout { grid-template-columns: minmax(0,1fr); }
+@media (max-width: 1280px) {
+  .workspace-body { grid-template-columns: minmax(0,1fr); }
+  .feed-column { position: static; max-height: none; margin: 0 0 40px; }
+}
+@media (max-width: 760px) { .workspace-body { padding: 0 16px; } }

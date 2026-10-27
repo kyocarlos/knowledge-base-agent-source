@@ -578,7 +578,6 @@
       .km-v2-evidence h2 { margin:8px 0 0; color:#f2ffff; font-size:18px; }
       .km-v2-evidence .view-all { color:var(--v2-mint); font-size:11px; }
       .km-v2-evidence #cardGrid { display:grid; gap:12px; margin-top:20px; }
-      .km-v2-evidence #cardGrid[hidden] { display:none; }
       .km-v2-evidence #cardGrid .card { min-height:0; padding:16px; border:1px solid var(--v2-border); border-radius:16px; background:linear-gradient(145deg,rgba(24,78,88,.72),rgba(7,35,43,.8)); box-shadow:none; color:#dff; }
       .km-v2-evidence #cardGrid .card:hover { transform:none; border-color:rgba(127,255,227,.45); }
       .km-v2-evidence #cardGrid .card::before { display:none; }
@@ -590,25 +589,6 @@
       .km-v2-knowledge-path strong { color:#efffff; font-size:12px; }
       .km-v2-knowledge-path p { margin:12px 0 0; color:#8ba7ad; font-size:10px; line-height:2; }
       .km-v2-preview { margin-top:28px; color:#58757b; font-size:9px; letter-spacing:.18em; text-align:center; text-transform:uppercase; }
-      .km-v2-evidence .view-all { background:none; border:0; cursor:pointer; padding:0; }
-      .feed-tabs { display:flex; gap:6px; margin-top:16px; }
-      .feed-tabs button { flex:1; padding:8px 10px; border:1px solid var(--v2-border); border-radius:10px; background:rgba(127,255,227,.05); color:#9fc2c8; font-size:12px; cursor:pointer; }
-      .feed-tabs button.active { background:rgba(127,255,227,.14); border-color:rgba(127,255,227,.45); color:#f2ffff; }
-      .feed-body { display:grid; gap:10px; margin-top:14px; }
-      .feed-empty, .feed-note { margin:0; color:#7f9da3; font-size:11px; line-height:1.7; }
-      .feed-card { padding:13px 14px; border:1px solid var(--v2-border); border-radius:14px; background:linear-gradient(145deg,rgba(24,78,88,.62),rgba(7,35,43,.78)); }
-      .feed-card h3 { margin:6px 0 0; color:#f2ffff; font-size:13px; line-height:1.45; font-weight:700; }
-      .feed-card h3 a { color:inherit; text-decoration:none; }
-      .feed-card h3 a:hover { color:var(--v2-mint); text-decoration:underline; }
-      .feed-card p { margin:6px 0 0; color:#a9c5ca; font-size:11.5px; line-height:1.65; }
-      .feed-meta { display:flex; flex-wrap:wrap; align-items:center; gap:6px; color:#7f9da3; font-size:10.5px; }
-      .feed-badge { padding:2px 8px; border-radius:999px; background:rgba(127,255,227,.12); color:#bff7ea; font-size:10.5px; }
-      .feed-badge.warn { background:rgba(255,212,121,.14); color:#ffd479; }
-      .feed-badge.gone { background:rgba(255,155,155,.14); color:#ffb4b4; }
-      .feed-highlights { margin:0; padding-left:18px; color:#dff; font-size:12px; line-height:1.75; }
-      .feed-section { margin:4px 0 0; color:#7f9da3; font-size:10.5px; letter-spacing:.12em; text-transform:uppercase; }
-      .feed-timeline { color:#bff7ea; font-size:11.5px; line-height:1.7; }
-      .feed-fail { color:#ffd479; }
       .km-v2-compat { display:none !important; }
       .km-v2-shell > .header, .km-v2-shell > .sub-header, .km-v2-shell > .main-content, .km-v2-shell > .footer, body.km-v2 > .chat-fab, body.km-v2 > .chat-version-badge { display:none !important; }
       #connectionBadge { display:flex !important; }
@@ -701,7 +681,7 @@
       <div class="km-v2-compat"><div id="citationSummary">尚未查詢</div><span id="strongCount">0</span><span id="mediumCount">0</span><span id="weakCount">0</span><span id="noneCount">0</span><button id="chatFab" type="button">chat</button></div>
     </section>
 
-    <aside class="km-v2-evidence" id="wifiFeed" aria-label="Wi-Fi 8 動態"><div class="km-v2-evidence-head"><div><div class="km-v2-kicker">Wi-Fi 8 Watch</div><h2>Wi-Fi 8 動態</h2></div><button id="feedRefresh" class="view-all" type="button">重新整理</button></div><div class="feed-tabs" role="tablist" aria-label="動態類型"><button type="button" role="tab" class="active" aria-selected="true" data-feed-tab="digest">每週週報</button><button type="button" role="tab" aria-selected="false" data-feed-tab="updates">文件更新</button></div><div id="feedBody" class="feed-body" aria-live="polite"><p class="feed-empty">讀取中…</p></div><div id="cardGrid" hidden></div><div class="km-v2-preview" id="feedStamp"></div></aside>
+    <aside class="km-v2-evidence"><div class="km-v2-evidence-head"><div><div class="km-v2-kicker">Evidence stream</div><h2>關聯檔案</h2></div><span class="view-all">View all</span></div><div id="cardGrid"></div><div class="km-v2-card km-v2-knowledge-path"><strong>⑂ Knowledge path</strong><p>● Project / SCU2050<br>│<br>● Test Plan / NR Handover<br>│<br>● 由既有 KM query 回傳 linked reports</p></div><div class="km-v2-preview">KM v2.6 · chat-v2 preview</div></aside>
   </main>
   
   <script>
@@ -1343,66 +1323,6 @@
       updateQualitySummary(Array.isArray(pendingKbSourceItems) ? pendingKbSourceItems : [], latencyText);
     }
     
-    // ===== Wi-Fi 8 feed (right column): the weekly outside digest and the changes to the zone's own documents =====
-    const feedState = { tab: 'digest', data: null, failed: false };
-    const feedEsc = (value) => String(value ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-    const feedDate = (value) => { const d = value ? new Date(value) : null; return d && !Number.isNaN(d.getTime()) ? d.toLocaleDateString('zh-TW', { month: 'numeric', day: 'numeric' }) : ''; };
-    const feedSafeUrl = (value) => { try { const u = new URL(value); return u.protocol === 'https:' ? u.href : ''; } catch (_) { return ''; } };
-    const FEED_EVENT = { new_document: ['新增', ''], superseded: ['被新版取代', 'warn'], removed: ['已移除', 'gone'] };
-
-    function feedDigestHtml(digest) {
-      if (!digest) return '<p class="feed-empty">週報尚未產生。每週排程執行後會顯示在這裡。</p>';
-      const parts = [];
-      if ((digest.highlights || []).length) parts.push(`<div class="feed-card"><div class="feed-section">本週重點</div><ul class="feed-highlights">${digest.highlights.map((h) => `<li>${feedEsc(h)}</li>`).join('')}</ul></div>`);
-      const t = digest.timeline;
-      if (t && t.last_done) parts.push(`<div class="feed-card"><div class="feed-section">IEEE 802.11bn (UHR) 進度</div><p class="feed-timeline">已完成 ${feedEsc(t.done)}／${feedEsc(t.total)} 個里程碑；最近完成 ${feedEsc(t.last_done.name)}（${feedEsc(t.last_done.current)}）${t.next ? `；下一步 ${feedEsc(t.next.name)}，預計 ${feedEsc(t.next.projected)}` : ''}</p></div>`);
-      const items = digest.items || [];
-      parts.push(...items.map((item) => {
-        const url = feedSafeUrl(item.url); const when = feedDate(item.published);
-        const text = item.summary ? feedEsc(item.summary) : feedEsc(item.excerpt || '');
-        return `<article class="feed-card"><div class="feed-meta"><span class="feed-badge">${feedEsc(item.source_name)}</span>${when ? `<span>${when}</span>` : ''}${item.summary ? '<span>AI 摘要</span>' : ''}${item.older ? '<span class="feed-badge warn">較早</span>' : ''}</div><h3>${url ? `<a href="${feedEsc(url)}" target="_blank" rel="noopener noreferrer">${feedEsc(item.title)}</a>` : feedEsc(item.title)}</h3>${text ? `<p>${text}</p>` : ''}</article>`;
-      }));
-      if (!items.length) parts.push('<p class="feed-empty">本週沒有符合 Wi-Fi 的新動態。</p>');
-      const bad = (digest.sources || []).filter((s) => s.status !== 'ok');
-      parts.push(`<p class="feed-note">${feedEsc(digest.note || '')}</p>${bad.length ? `<p class="feed-note feed-fail">讀取失敗的來源：${bad.map((s) => feedEsc(s.name)).join('、')}（顯示的是其餘來源）</p>` : ''}`);
-      return parts.join('');
-    }
-
-    function feedUpdatesHtml(updates) {
-      const events = (updates && updates.events) || []; const recent = (updates && updates.recent) || [];
-      const cards = events.map((e) => {
-        const [label, tone] = FEED_EVENT[e.type] || [e.type, ''];
-        return `<article class="feed-card"><div class="feed-meta"><span class="feed-badge ${tone}">${feedEsc(label)}</span><span>${feedDate(e.at)}</span>${e.publisher ? `<span>${feedEsc(e.publisher)}</span>` : ''}</div><h3>${feedEsc(e.title || e.revision_id)}</h3><p>${[e.document_role, e.version_label].filter(Boolean).map(feedEsc).join(' · ')}</p></article>`;
-      });
-      if (!cards.length) cards.push('<p class="feed-empty">資料包尚無新的變動。下次匯入新資料包後，新增、被取代或移除的文件會列在這裡。</p>');
-      if (recent.length) cards.push(`<div class="feed-section">近期文件（依文件日期）</div>`, ...recent.slice(0, 8).map((d) => `<article class="feed-card"><div class="feed-meta"><span class="feed-badge">${feedEsc(d.publisher || '')}</span><span>${feedEsc(d.document_date || '')}</span></div><h3>${feedEsc(d.title)}</h3><p>${[d.document_role, d.version_label].filter(Boolean).map(feedEsc).join(' · ')}</p></article>`));
-      return cards.join('');
-    }
-
-    function renderFeed() {
-      const body = document.getElementById('feedBody'); if (!body) return;
-      document.querySelectorAll('[data-feed-tab]').forEach((b) => { const on = b.dataset.feedTab === feedState.tab; b.classList.toggle('active', on); b.setAttribute('aria-selected', String(on)); });
-      if (feedState.failed && !feedState.data) body.innerHTML = '<p class="feed-empty">暫時無法讀取動態。請確認已登入，稍後按「重新整理」。</p>';
-      else if (!feedState.data) body.innerHTML = '<p class="feed-empty">讀取中…</p>';
-      else body.innerHTML = feedState.tab === 'digest' ? feedDigestHtml(feedState.data.digest) : feedUpdatesHtml(feedState.data.updates);
-      const stamp = document.getElementById('feedStamp'); const made = feedState.data && feedState.data.digest && feedState.data.digest.generated_at;
-      if (stamp) stamp.textContent = made ? `週報更新 ${new Date(made).toLocaleString('zh-TW', { hour12: false })}` : '';
-    }
-
-    async function loadFeed() {
-      try {
-        const response = await fetch('/api/wifi8/feed', { credentials: 'same-origin', headers: { Accept: 'application/json' } });
-        if (!response.ok) throw new Error(String(response.status));
-        feedState.data = await response.json(); feedState.failed = false;
-      } catch (_) { feedState.failed = true; }
-      renderFeed();
-    }
-
-    document.querySelectorAll('[data-feed-tab]').forEach((b) => b.addEventListener('click', () => { feedState.tab = b.dataset.feedTab; renderFeed(); }));
-    document.getElementById('feedRefresh')?.addEventListener('click', loadFeed);
-    loadFeed();
-    setInterval(loadFeed, 10 * 60 * 1000);
-
     // ===== Render Cards =====
     function renderCards() {
       const grid = document.getElementById('cardGrid');
