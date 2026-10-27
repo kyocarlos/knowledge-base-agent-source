@@ -99,7 +99,7 @@ def test_rescore_reuses_saved_answers_without_llm(tmp_path, monkeypatch):
             return {"results": [{"revision_id": "g1"}]}
 
     built = []
-    monkeypatch.setattr(runner, "build", lambda retrieval_only: built.append(retrieval_only) or (FakeSearch(), None, None))
+    monkeypatch.setattr(runner, "build", lambda retrieval_only, graph=False, concepts=None: built.append(retrieval_only) or (FakeSearch(), None, None))
     cases = tmp_path / "cases.jsonl"
     cases.write_text("\n".join(json.dumps(c, ensure_ascii=False) for c in [
         {"id": "A", "category": "c", "question": "q1", "gold": ["g1"], "facts": [["PF2"]]},

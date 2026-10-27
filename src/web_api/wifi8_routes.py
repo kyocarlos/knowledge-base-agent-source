@@ -13,13 +13,13 @@ import tempfile
 from collections import Counter
 from functools import lru_cache
 from pathlib import Path
-from typing import Any
+from typing import Annotated, Any
 
 from fastapi import APIRouter, HTTPException, Query, Request, UploadFile
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field, StrictBool
 
-from ..wifi8 import autocheck, overview as overview_stats, quality_schedule
+from ..wifi8 import autocheck, feedback, overview as overview_stats, progress, quality_schedule
 from ..wifi8.importer import ImportConflict, Wifi8Importer, Wifi8Settings
 from ..wifi8.package import IMAGE_TYPES, PackageError
 from ..wifi8.search import SearchOptions, SearchUnavailable, Wifi8Search
@@ -519,11 +519,12 @@ def _enqueue(job_id: str) -> None:
 class AgentTurn(BaseModel):
     role: str = Field(pattern="^(user|assistant)$")
     content: str = Field(max_length=4000)
+    sources: list[Annotated[str, Field(max_length=300)]] = Field(default_factory=list, max_length=5)  # titles an assistant turn relied on (for the condensed memory)
 
 
 class AgentRequest(BaseModel):
     question: str = Field(min_length=1, max_length=2000)
-    history: list[AgentTurn] = Field(default_factory=list, max_length=12)
+    history: list[AgentTurn] = Field(default_factory=list, max_length=60)
 
 
 def _owner(identity: dict) -> dict:
@@ -536,7 +537,84 @@ async def ask_wifi8_agent(body: AgentRequest, request: Request):
     from .tasks import celery_app
     task = celery_app.send_task(AGENT_TASK, args=[body.question.strip(), [t.model_dump() for t in body.history], owner],
                                 queue="search")
-    return {"task_id": task.id, "status": "submitted"}
+    stream = _stream_enabled()
+    if stream:
+        try:  # the owner is recorded before the worker starts, so the first poll of the events is already owner-checked
+            from . import tasks
+            progress.register(tasks.get_redis_client(), task.id, owner)
+        except Exception:  # noqa: BLE001 - the answer still arrives through the result poll
+            logger.warning("wifi8 progress owner not recorded", exc_info=True)
+            stream = False
+    return {"task_id": task.id, "status": "submitted", "stream": stream, "feedback": _feedback_enabled()}
+
+
+class FeedbackRequest(BaseModel):
+    rating: str = Field(pattern="^(up|down)$")
+    reasons: list[str] = Field(default_factory=list, max_length=6)
+    comment: str = Field(default="", max_length=500)
+
+
+@router.get("/agent-feedback/options")
+async def wifi8_feedback_options(request: Request):
+    _identity(request)
+    _require_feedback()
+    return {"reasons": [{"key": k, "label": v} for k, v in feedback.REASONS.items()]}
+
+
+@router.get("/agent-feedback/summary")
+async def wifi8_feedback_summary(request: Request, days: int = Query(30, ge=1, le=365)):
+    """Counts of thumbs up/down and the reasons given; no text. Any logged-in account of this zone may read it."""
+    _identity(request)
+    _require_feedback()
+    return feedback.summarize(_wifi8_root(), days)
+
+
+@router.post("/agent/{task_id}/feedback")
+async def wifi8_agent_feedback(task_id: str, body: FeedbackRequest, request: Request):
+    """Rate an answer. Only the account that asked can, and only while the finished task is still known."""
+    owner = _owner(_identity(request))
+    _require_feedback()
+    from celery.result import AsyncResult
+    from .tasks import celery_app
+    result = AsyncResult(task_id, app=celery_app)
+    value = result.result if result.ready() and isinstance(result.result, dict) else None
+    if not value or value.get("owner") != owner or value.get("status") != "completed":
+        raise HTTPException(status_code=404, detail="task not found")
+    try:
+        saved = feedback.save(_wifi8_root(), task_id, owner, body.rating, body.reasons, body.comment, value)
+    except feedback.FeedbackError as exc:
+        raise HTTPException(status_code=422, detail=f"invalid {exc}") from exc
+    except OSError as exc:
+        logger.warning("wifi8 feedback not saved: %s", type(exc).__name__)
+        raise HTTPException(status_code=503, detail="feedback could not be saved") from exc
+    return saved
+
+
+def _feedback_enabled() -> bool:
+    return os.getenv("KM_WIFI8_FEEDBACK", "0").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _require_feedback() -> None:
+    if not _feedback_enabled():
+        raise HTTPException(status_code=404, detail="feedback is not enabled")
+
+
+def _stream_enabled() -> bool:
+    return os.getenv("KM_WIFI8_STREAM", "0").strip().lower() in {"1", "true", "yes", "on"}
+
+
+@router.get("/agent/{task_id}/events")
+async def wifi8_agent_events(task_id: str, request: Request, after: int = 0):
+    owner = _owner(_identity(request))
+    from . import tasks
+    try:
+        value = progress.read(tasks.get_redis_client(), task_id, owner, after)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("wifi8 progress read failed: %s", type(exc).__name__)
+        raise HTTPException(status_code=503, detail="progress unavailable") from exc
+    if value is None:
+        raise HTTPException(status_code=404, detail="task not found")
+    return value
 
 
 @router.get("/agent/{task_id}")

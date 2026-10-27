@@ -29,11 +29,12 @@ else:
     from src.wifi8.evaluation import load_cases, score_answer, score_retrieval, summarize, supports
 
 
-def build(retrieval_only: bool):
+def build(retrieval_only: bool, graph: bool = False, concepts: bool | None = None):
     from src.main import load_config
     from src.vector_store import VectorStore
     from src.web_api.ollama_client import _build_primary_client
     from src.wifi8.agent import AgentSettings, CitationRegistry, WifiTools, run_agent
+    from src.wifi8.graph import Wifi8Graph
     from src.wifi8.importer import Wifi8Importer, Wifi8Settings
     from src.wifi8.search import Wifi8Search
 
@@ -46,11 +47,16 @@ def build(retrieval_only: bool):
     if client is None:
         raise SystemExit("primary LLM is not configured; use --retrieval-only")
     settings = AgentSettings.from_environment()
+    if concepts is not None:  # explicit arm of a comparison; None keeps what the environment says
+        from dataclasses import replace
+        settings = replace(settings, concepts=concepts)
+    wifi_graph = Wifi8Graph.from_environment() if (graph or settings.concepts) else None  # the production worker has the graph connection
 
     def agent(question: str, history: list[dict] | None = None) -> dict:
         return run_agent(question, llm=lambda **kw: client.chat.completions.create(**kw),
-                         tools=WifiTools(search, settings, CitationRegistry()), settings=settings, history=history)
-    return search, agent, {"model": label, "max_steps": settings.max_steps, "time_budget_seconds": settings.time_budget_seconds}
+                         tools=WifiTools(search, settings, CitationRegistry(), wifi_graph), settings=settings, history=history)
+    return search, agent, {"model": label, "max_steps": settings.max_steps, "time_budget_seconds": settings.time_budget_seconds,
+                           "extension": settings.extension, "concepts": settings.concepts, "graph": wifi_graph is not None}
 
 
 def main() -> int:
@@ -59,6 +65,8 @@ def main() -> int:
     parser.add_argument("--out", required=True)
     parser.add_argument("--ids", default="", help="comma separated case ids")
     parser.add_argument("--retrieval-only", action="store_true")
+    parser.add_argument("--graph", action="store_true", help="give the agent the Neo4j graph connection (as the production worker has)")
+    parser.add_argument("--concepts", choices=["0", "1"], default=None, help="force the concept tools off/on for this run (default: environment)")
     parser.add_argument("--source-commit", default="")
     parser.add_argument("--candidate-wifi8", default="", help="directory with a candidate src/wifi8 package to evaluate before deploying")
     parser.add_argument("--rerank-model", default=None, help="override KM_WIFI8_RERANK_MODEL for this run ('' disables)")
@@ -83,7 +91,7 @@ def main() -> int:
     if args.rescore:
         saved = json.loads(Path(args.rescore).read_text(encoding="utf-8"))
         previous = {row["id"]: row for row in saved["cases"] if row.get("output")}
-    search, agent, agent_info = build(args.retrieval_only or bool(args.rescore))
+    search, agent, agent_info = build(args.retrieval_only or bool(args.rescore), args.graph, None if args.concepts is None else args.concepts == "1")
     if args.rescore:
         agent_info = {**(saved.get("agent") or {}), "rescored_from": saved.get("created_utc")}
     rows = []

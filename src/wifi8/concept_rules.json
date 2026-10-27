@@ -1,0 +1,152 @@
+{
+  "_comment": "Concept graph rules (data, not code). Keys are compared after normalisation (case, punctuation, plural, trailing field/element/frame words). Edit here to tune; see docs/wifi8-concept-pilot-report-20261022.md.",
+  "never_concepts": [
+    "security",
+    "mrd",
+    "test cases",
+    "test plan",
+    "legacy approach",
+    "out of band mechanism",
+    "ieee draft",
+    "wi-fi channels",
+    "data",
+    "device",
+    "network",
+    "ttg",
+    "mtg",
+    "bod",
+    "board of directors",
+    "wfa",
+    "wi-fi alliance",
+    "security ttg",
+    "security mtg",
+    "passpoint ttg",
+    "tcvs",
+    "tcv",
+    "802.11"
+  ],
+  "organization_names": [
+    "canon",
+    "apple",
+    "qualcomm",
+    "maxlinear",
+    "broadcom",
+    "mediatek",
+    "intel",
+    "nokia",
+    "huawei",
+    "cisco",
+    "samsung",
+    "sony",
+    "lg",
+    "tp-link",
+    "keysight",
+    "litepoint",
+    "rohde & schwarz"
+  ],
+  "no_related_to": [
+    "wi-fi 8",
+    "wi-fi 7",
+    "wifi 8",
+    "uhr",
+    "ieee 802.11bn",
+    "802.11bn",
+    "11bn",
+    "wpa3",
+    "mrd"
+  ],
+  "evidence_mentions_both": [
+    "RELATED_TO",
+    "INTRODUCED_IN"
+  ],
+  "strip_suffix_tokens": [
+    "field",
+    "element",
+    "frame",
+    "bit",
+    "subfield"
+  ],
+  "min_evidence_chars": 12,
+  "weak_support_threshold": 2,
+  "aliases": {
+    "IEEE 802.11bn D1.3": [
+      "802.11bn draft 1.3",
+      "ieee 802.11bn draft 1.3",
+      "802.11bn d1.3",
+      "11bn d1.3"
+    ],
+    "IEEE 802.11bn D1.2": [
+      "11bn/d1.2",
+      "802.11bn d1.2",
+      "ieee 802.11bn draft 1.2"
+    ],
+    "IEEE 802.11bn": [
+      "802.11bn",
+      "11bn",
+      "ieee 802.11bn"
+    ],
+    "latency": [
+      "latencies",
+      "transmission latency"
+    ],
+    "power consumption": [
+      "power usage"
+    ],
+    "MAPC discovery": [
+      "mapc capability discovery",
+      "mapc ap and capability discovery"
+    ],
+    "OMP update procedure": [
+      "operating mode and parameter update",
+      "uhr operating mode and parameters update",
+      "uhr operating mode and parameters (omp) update"
+    ],
+    "PPDU bandwidth": [
+      "ppdu bw"
+    ],
+    "Enhanced Long Range": [
+      "enhanced long range (elr)",
+      "enhanced long range (elr) operation",
+      "enhanced long range operation"
+    ]
+  },
+  "relevance": {
+    "_comment": "文件／視窗與 Wi-Fi 的相關度過濾。只套用在 roles 內的文件類型；密度＝關鍵字命中數 / 千字。",
+    "roles": [
+      "Research Paper",
+      "Research or Technical Paper"
+    ],
+    "pattern": "wi-?fi|802\\.11|wlan|ieee 802|access point|\\bAP\\b|\\bSTA\\b|OFDMA|MU-MIMO|\\bMLO\\b|multi-link|beamforming|\\bTWT\\b|CSMA|\\bMAC\\b|\\bPHY\\b|spectrum|unlicensed",
+    "min_doc_density": 2.0,
+    "title_pattern": "wi-?fi|802\\.11|wlan",
+    "min_window_hits": 2,
+    "scope_instruction": "範圍限制：只抽 Wi-Fi／IEEE 802.11 及其直接相鄰技術（MAC、PHY、多連結、多 AP 協調、TSN、功耗、延遲與可靠度）的概念。與 Wi-Fi 無關的演算法、數學推導、機器學習網路結構、感測應用、資料集與應用情境一律不抽；整段都與 Wi-Fi 無關就輸出空陣列。\n"
+  },
+  "merge": {
+    "_comment": "跨文件概念合併的候選條件（程式只提出候選，是否同一概念由 LLM 判斷並留下紀錄）。",
+    "name_ratio": 0.88,
+    "vector_similarity": 0.9,
+    "max_candidates": 5000,
+    "distinguishing_tokens": [
+      "ul",
+      "dl",
+      "uplink",
+      "downlink",
+      "2.4",
+      "5",
+      "6",
+      "ghz",
+      "mhz",
+      "20",
+      "40",
+      "80",
+      "160",
+      "320"
+    ]
+  },
+  "relation_target_types": {
+    "TESTED_BY": [
+      "TestItem"
+    ]
+  }
+}

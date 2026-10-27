@@ -16,6 +16,12 @@ from dataclasses import dataclass
 from typing import Any, Callable
 
 from .excerpt import excerpt, table_excerpt
+from .calculator import CALC_PROMPT, CALC_TOOL, calculate as run_calculation
+from .concept_tools import CONCEPT_PROMPT, CONCEPT_TOOLS, ConceptTools
+from .extension import extended_prompt, split_answer
+from .graph import Wifi8Graph
+from .listing import LIST_PROMPT, discusses_threshold, hints as list_hints, infer_filters
+from .memory import history_messages
 from .quality import QUALITY_LOG_PREFIX
 from .search import SearchOptions, Wifi8Search, figure_intent
 from .store import match, scroll_all
@@ -56,6 +62,7 @@ TOOLS = [
             "include_history": {"type": "boolean", "description": "是否包含已被取代的舊版本"},
             "publisher": {"type": "string", "description": "限定發布者，例如 arXiv、WFA、Qualcomm"},
             "document_role": {"type": "string", "description": "限定文件角色，例如 Research Paper、Meeting Minutes"},
+            "all_documents": {"type": "boolean", "description": "題目提到的發布者或文件類型只是舉例、不想限定時設 true（程式預設會依題目套用它們）"},
         }, "required": ["query"]}}},
     {"type": "function", "function": {
         "name": "get_document",
@@ -86,6 +93,34 @@ TOOLS = [
 ]
 
 
+GRAPH_TOOLS = [
+    {"type": "function", "function": {
+        "name": "graph_related",
+        "description": "知識圖譜：由主題或某份文件找相關主題與相關文件（共用主題的其他文件）。回傳 [G#] 編號，供「延伸知識」引用。",
+        "parameters": {"type": "object", "properties": {
+            "topic": {"type": "string", "description": "主題名稱，例如 NPCA、MAPC、ELR"},
+            "revision_id": {"type": "string", "description": "文件 revision_id（由搜尋或文件資料取得）"}}}}},
+    {"type": "function", "function": {
+        "name": "graph_timeline",
+        "description": "知識圖譜：某份文件同一系列的版本沿革（新舊版本與取代關係）。",
+        "parameters": {"type": "object", "properties": {"revision_id": {"type": "string"}}, "required": ["revision_id"]}}},
+]
+
+
+class GraphCitations:
+    """[G#] references to graph nodes. Their content is not text to ground against: the panel shows what the graph said and where it points."""
+    def __init__(self) -> None:
+        self.items: dict[str, dict[str, Any]] = {}
+        self._by_key: dict[str, str] = {}
+
+    def add(self, kind: str, key: str, **fields: Any) -> str:
+        if (kind, key) not in self._by_key:
+            ref = f"G{len(self._by_key) + 1}"
+            self._by_key[(kind, key)] = ref
+            self.items[ref] = {"ref": ref, "kind": kind, "key": key, "origin": "graph", **{k: v for k, v in fields.items() if v not in (None, "", [])}}
+        return self._by_key[(kind, key)]
+
+
 def _text_fields(item: dict[str, Any], query: str, limit: int) -> dict[str, Any]:
     """Text shown to the model: tables as Markdown (header always kept), other chunks as query-focused excerpts."""
     text = item.get("content") or ""
@@ -103,6 +138,12 @@ class AgentSettings:
     snippet_chars: int = 1000
     read_chars: int = 3000
     grounding: bool = True
+    list_assist: bool = False  # list questions: filters the question names are applied by code, more results, a prompt that asks for the whole list
+    memory: bool = False  # long conversations: older turns condensed by code and kept (off = only the last 6 turns, as before)
+    calc: bool = False  # the calculate tool (safe arithmetic and Wi-Fi unit conversion); off = behaviour unchanged
+    stream: bool = False  # progress events + streamed answer text (the web process must have the same flag so the page knows to listen)
+    concepts: bool = False  # relation questions over the concept graph (needs Neo4j with the concept graph loaded; off = behaviour unchanged)
+    extension: bool = False  # related knowledge + labelled general knowledge + follow-up questions (off = behaviour unchanged)
 
     @classmethod
     def from_environment(cls) -> "AgentSettings":
@@ -111,7 +152,13 @@ class AgentSettings:
                    time_budget_seconds=float(os.getenv("KM_WIFI8_AGENT_TIME_BUDGET_SECONDS", "90")),
                    snippet_chars=int(os.getenv("KM_WIFI8_AGENT_SNIPPET_CHARS", "1000")),
                    read_chars=int(os.getenv("KM_WIFI8_AGENT_READ_CHARS", "3000")),
-                   grounding=os.getenv("KM_WIFI8_AGENT_GROUNDING", "1").strip().lower() not in {"0", "false", "no", "off"})
+                   grounding=os.getenv("KM_WIFI8_AGENT_GROUNDING", "1").strip().lower() not in {"0", "false", "no", "off"},
+                   list_assist=os.getenv("KM_WIFI8_LIST_ASSIST", "0").strip().lower() in {"1", "true", "yes", "on"},
+                   memory=os.getenv("KM_WIFI8_MEMORY", "0").strip().lower() in {"1", "true", "yes", "on"},
+                   calc=os.getenv("KM_WIFI8_CALC", "0").strip().lower() in {"1", "true", "yes", "on"},
+                   stream=os.getenv("KM_WIFI8_STREAM", "0").strip().lower() in {"1", "true", "yes", "on"},
+                   concepts=os.getenv("KM_WIFI8_CONCEPTS", "0").strip().lower() in {"1", "true", "yes", "on"},
+                   extension=os.getenv("KM_WIFI8_AGENT_EXTENSION", "0").strip().lower() in {"1", "true", "yes", "on"})
 
 
 class CitationRegistry:
@@ -143,7 +190,10 @@ class CitationRegistry:
 
 
 class WifiTools:
-    def __init__(self, search: Wifi8Search, settings: AgentSettings, citations: CitationRegistry):
+    def __init__(self, search: Wifi8Search, settings: AgentSettings, citations: CitationRegistry, graph: Wifi8Graph | None = None):
+        self.graph = graph
+        self.concepts = ConceptTools(self) if settings.concepts and graph is not None else None
+        self.graph_citations = GraphCitations()
         self.search_engine = search
         self.settings = settings
         self.citations = citations
@@ -218,14 +268,28 @@ class WifiTools:
                 **({"named_documents_in_question": sorted(set(asked.values())), "note": "is_named_document=false 的結果不是題目指名的文件，不可當作該文件的內容"} if asked else {}),
                 **({"ignored_filters": ignored, "note_filters": "這些篩選值不是專區裡有的值，已忽略；文件角色與發布者可用 zone_overview 查詢"} if ignored else {})}
 
-    def find_documents(self, query: str, limit: int = 15, include_history: bool = False, publisher: str = "", document_role: str = ""):
-        known = {"publisher": {str(d.get("publisher") or "").casefold() for d in self.store.documents()},
-                 "document_role": {str(d.get("document_role") or "").casefold() for d in self.store.documents()}}
+    def find_documents(self, query: str, limit: int | None = None, include_history: bool = False, publisher: str = "", document_role: str = "",
+                       all_documents: bool = False):
+        documents = self.store.documents()
+        known = {"publisher": {str(d.get("publisher") or "").casefold() for d in documents},
+                 "document_role": {str(d.get("document_role") or "").casefold() for d in documents}}
         ignored = {k: v for k, v in (("publisher", publisher), ("document_role", document_role)) if v and str(v).casefold() not in known[k]}
-        options = SearchOptions(include_history=bool(include_history),
-                                publishers=(publisher,) if publisher and "publisher" not in ignored else (),
-                                document_roles=(document_role,) if document_role and "document_role" not in ignored else ())
-        found = self.search_engine.documents(query, options, limit=max(1, min(int(limit or 15), 30)))
+        publisher = "" if "publisher" in ignored else publisher
+        document_role = "" if "document_role" in ignored else document_role
+        inferred: dict[str, Any] = {}
+        if self.settings.list_assist and not all_documents and not (publisher and document_role):
+            # What the question itself names is applied when the model passed nothing: its choice decided the recall of list answers.
+            inferred = infer_filters(self.question, {str(d.get("publisher")) for d in documents if d.get("publisher")},
+                                     {str(d.get("document_role")) for d in documents if d.get("document_role")})
+            if publisher:
+                inferred.pop("publisher", None)
+            if document_role:
+                inferred.pop("document_roles", None)
+        roles = tuple([document_role] if document_role else inferred.get("document_roles", ()))
+        publishers = (publisher,) if publisher else ((inferred["publisher"],) if inferred.get("publisher") else ())
+        options = SearchOptions(include_history=bool(include_history), publishers=publishers, document_roles=roles)
+        default = int(list_hints().get("default_limit", 20)) if self.settings.list_assist else 15
+        found = self.search_engine.documents(query, options, limit=max(1, min(int(limit or default), 30)))
         rows = []
         for entry in found["results"]:
             item = entry["best"]
@@ -235,8 +299,16 @@ class WifiTools:
                          "current_version": item["analysis_eligible"], "matching_chunks": entry["matching_chunks"],
                          "best_location": item["location_label"], **({"figure": True} if item.get("image") else {}),
                          **_text_fields(item, query, min(self.settings.snippet_chars, 400))})
+        if self.settings.list_assist and rows:
+            threshold = discusses_threshold(max(r["matching_chunks"] for r in rows))
+            for row in rows:
+                row["discusses"] = row["matching_chunks"] >= threshold
+        more = self.settings.list_assist and found["documents_found"] > len(rows)
         return {"filters": found["filters"], "documents": rows, "count": len(rows), "documents_found": found["documents_found"],
                 "note": "依相關度排序；清單是檢索結果，不保證涵蓋專區所有相關文件（matching_chunks 低的文件可能只是順帶提到）",
+                **({"inferred_filters": {k: v for k, v in inferred.items() if (k == "publisher" and not publisher) or (k == "document_roles" and not document_role)},
+                    "inferred_note": "程式依題目套用了這些篩選；要搜尋全部文件請設 all_documents=true"} if inferred else {}),
+                **({"more_available": True, "more_note": f"還有 {found['documents_found'] - len(rows)} 份相關度較低的文件未列出；可提高 limit（最多 30）或加上更精確的條件"} if more else {}),
                 **({"ignored_filters": ignored} if ignored else {})}
 
     def get_document(self, revision_id: str = "", wfa_document_id: str = ""):
@@ -298,6 +370,33 @@ class WifiTools:
                    and (not key or key in (d.get("title") or "").casefold() or any(key in str(t).casefold() for t in d.get("topics") or []))]
         return {"total": len(matched), "documents": [self._summary(d) for d in matched[:limit]]}
 
+    def _graph_doc(self, row: dict[str, Any]) -> dict[str, Any]:
+        ref = self.graph_citations.add("document", row["revision_id"], title=row.get("title"), document_role=row.get("document_role"), publisher=row.get("publisher"),
+                                       lifecycle=row.get("lifecycle"), revision_id=row["revision_id"], document_date=row.get("document_date"), shared_topics=row.get("shared_topics"))
+        return {"ref": ref, **{k: v for k, v in row.items() if v not in (None, "", [])}}
+
+    def graph_related(self, topic: str = "", revision_id: str = ""):
+        if self.graph is None:
+            return {"error": "知識圖譜目前不可用"}
+        if revision_id:
+            rows = self.graph.related_documents(revision_id)
+            return {"basis": "共用主題的其他文件（目前版本）", "documents": [self._graph_doc(r) for r in rows]}
+        if topic:
+            neighbours = self.graph.topic_neighbours(topic)
+            documents = self.graph.topic_documents(topic)
+            return {"basis": f"主題 {topic}", "related_topics": [
+                {"ref": self.graph_citations.add("topic", n["topic"], title=n["topic"], documents=n["documents"]), **n} for n in neighbours],
+                "documents": [self._graph_doc(r) for r in documents]}
+        return {"error": "請提供 topic 或 revision_id"}
+
+    def graph_timeline(self, revision_id: str):
+        if self.graph is None:
+            return {"error": "知識圖譜目前不可用"}
+        return {"versions": [self._graph_doc(r) for r in self.graph.timeline(revision_id)]}
+
+    def calculate(self, expression: str, digits: int = 6):
+        return run_calculation(expression, digits)
+
     def zone_overview(self):
         rows = self._doc_rows()
         current = [d for d in rows if d.get("analysis_eligible")]
@@ -314,7 +413,9 @@ class WifiTools:
     def call(self, name: str, arguments: dict[str, Any]) -> dict[str, Any]:
         handler = {"search_wifi": self.search_wifi, "find_documents": self.find_documents, "get_document": self.get_document, "list_versions": self.list_versions,
                    "read_document": self.read_document, "list_documents": self.list_documents,
-                   "zone_overview": self.zone_overview}.get(name)
+                   "zone_overview": self.zone_overview, **({"graph_related": self.graph_related, "graph_timeline": self.graph_timeline} if self.graph else {}),
+                   **({"calculate": self.calculate} if self.settings.calc else {}),
+                   **({"concept_relations": self.concepts.concept_relations, "concept_compare": self.concepts.concept_compare} if self.concepts else {})}.get(name)
         if handler is None:
             return {"error": f"未知的工具：{name}"}
         try:
@@ -335,14 +436,52 @@ def _message(response: Any) -> Any:
     return response.choices[0].message
 
 
+# What the user sees while a tool runs (data, not logic): tool name -> label. Unknown tools show their name.
+TOOL_LABELS = {
+    "search_wifi": "檢索文件段落", "find_documents": "彙整相關文件", "get_document": "查看文件資料", "list_versions": "查看版本沿革",
+    "read_document": "閱讀文件內容", "list_documents": "列出文件", "zone_overview": "查看專區總覽",
+    "graph_related": "查詢相關主題與文件", "graph_timeline": "查詢版本關係",
+    "concept_relations": "查詢概念關係", "concept_compare": "比較兩個概念", "calculate": "計算",
+}
+
+
+def _safe_emit(emit: Callable[[dict[str, Any]], None] | None) -> Callable[[dict[str, Any]], None]:
+    """Progress reporting must never break an answer."""
+    def send(event: dict[str, Any]) -> None:
+        if emit is None:
+            return
+        try:
+            emit(event)
+        except Exception:  # noqa: BLE001
+            logger.warning("WiFi agent progress event dropped", exc_info=True)
+    return send
+
+
 def run_agent(question: str, *, llm: Llm, tools: WifiTools, settings: AgentSettings,
-              history: list[dict[str, str]] | None = None, clock: Callable[[], float] = time.monotonic) -> dict[str, Any]:
+              history: list[dict[str, str]] | None = None, clock: Callable[[], float] = time.monotonic,
+              emit: Callable[[dict[str, Any]], None] | None = None) -> dict[str, Any]:
+    """emit(event): optional progress events -- {"type": "tool", ...} before a tool runs, {"type": "delta", "text"} while the answer is
+    written, {"type": "reset"} when a streamed round turned out to be a tool round (the text so far is dropped). The returned result is complete either way."""
+    send = _safe_emit(emit)
     started = clock()
     tools.question = question
-    messages: list[dict[str, Any]] = [{"role": "system", "content": SYSTEM_PROMPT}]
-    for turn in (history or [])[-6:]:
-        if turn.get("role") in {"user", "assistant"} and isinstance(turn.get("content"), str):
-            messages.append({"role": turn["role"], "content": turn["content"][:2000]})
+    extension_on = settings.extension
+    prompt = extended_prompt(SYSTEM_PROMPT) if extension_on else SYSTEM_PROMPT
+    concepts_on = tools.concepts is not None
+    if concepts_on:
+        prompt += CONCEPT_PROMPT
+    if settings.calc:
+        prompt += CALC_PROMPT
+    if settings.list_assist:
+        prompt += LIST_PROMPT
+    tool_schema = TOOLS + (GRAPH_TOOLS if extension_on and tools.graph else []) + (CONCEPT_TOOLS if concepts_on else []) + ([CALC_TOOL] if settings.calc else [])
+    messages: list[dict[str, Any]] = [{"role": "system", "content": prompt}]
+    if settings.memory:  # older turns condensed by code instead of dropped
+        messages += history_messages(history)
+    else:
+        for turn in (history or [])[-6:]:
+            if turn.get("role") in {"user", "assistant"} and isinstance(turn.get("content"), str):
+                messages.append({"role": turn["role"], "content": turn["content"][:2000]})
     messages.append({"role": "user", "content": question})
     trace: list[dict[str, Any]] = []
     answer, stop_reason = "", "answered"
@@ -352,8 +491,11 @@ def run_agent(question: str, *, llm: Llm, tools: WifiTools, settings: AgentSetti
         if final_round:
             stop_reason = "time_budget" if out_of_budget else "max_steps"
             messages.append({"role": "user", "content": "請停止查詢，只根據目前已取得的工具結果作答，並說明尚未查證的部分。"})
-        message = _message(llm(messages=messages, tools=TOOLS, tool_choice="none" if final_round else "auto"))
+        extra = {"on_delta": lambda text: send({"type": "delta", "text": text})} if emit is not None else {}
+        message = _message(llm(messages=messages, tools=tool_schema, tool_choice="none" if final_round else "auto", **extra))
         calls = [] if final_round else list(getattr(message, "tool_calls", None) or [])
+        if calls and emit is not None and (getattr(message, "content", "") or ""):
+            send({"type": "reset"})  # the text streamed in this round was a preamble to tool calls, not the answer
         if not calls:
             answer = message.content or ""
             break
@@ -361,6 +503,7 @@ def run_agent(question: str, *, llm: Llm, tools: WifiTools, settings: AgentSetti
         for call in calls:
             name = call["function"]["name"]
             t0 = clock()
+            send({"type": "tool", "tool": name, "label": TOOL_LABELS.get(name, name), "step": step + 1})
             try:
                 arguments = json.loads(call["function"].get("arguments") or "{}")
                 result = tools.call(name, arguments if isinstance(arguments, dict) else {})
@@ -369,12 +512,19 @@ def run_agent(question: str, *, llm: Llm, tools: WifiTools, settings: AgentSetti
             trace.append({"step": step + 1, "tool": name, "arguments": arguments,
                           "result_summary": _summarize(result), "ms": round((clock() - t0) * 1000)})
             messages.append({"role": "tool", "tool_call_id": call.get("id", ""), "content": json.dumps(result, ensure_ascii=False)[:12000]})
+    extension = None
+    main_answer = answer
+    if extension_on:
+        main_answer, extension = split_answer(answer)  # the grounding check only sees the main answer; the extension is labelled, not verified
     cited = sorted(set(re.findall(r"\[(S\d+)\]", answer)), key=lambda r: int(r[1:]))
     citations = [tools.citations.items[r] for r in cited if r in tools.citations.items]
     result = {"answer": answer, "citations": citations, "trace": trace, "stop_reason": stop_reason,
               "evidence_count": len(tools.citations.items)}
+    if extension_on:
+        graph_cited = sorted(set(re.findall(r"\[(G\d+)\]", answer)), key=lambda r: int(r[1:]))
+        result.update(answer_main=main_answer, extension=extension, graph_citations=[tools.graph_citations.items[r] for r in graph_cited if r in tools.graph_citations.items])
     if settings.grounding and answer:
-        result["grounding"] = ground(result, tools, getattr(tools.search_engine, "encoder", None), question)
+        result["grounding"] = ground({**result, "answer": main_answer}, tools, getattr(tools.search_engine, "encoder", None), question)
     result["elapsed_ms"] = round((clock() - started) * 1000)
     log_quality(result, tools)
     return result

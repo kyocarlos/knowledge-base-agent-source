@@ -1,0 +1,16 @@
+{
+  "_comment": "指標字典（v0.3 草案的入庫版）。higher_is_better 與合理範圍：領域人員尚未定義（2026-10-21），所以維持空白：比較只輸出數值差異，不使用較佳／較差。BLER、封包遺失率單位未確認，不入庫。",
+  "metrics": [
+    {"metric_name": "throughput", "unit": "Mbps", "kind": "measured", "description": "吞吐量；方向看 direction（STA 視角：Tx＝上行 ul、Rx＝下行 dl；total＝Tx＋Rx）"},
+    {"metric_name": "rssi", "unit": "dBm", "kind": "measured", "description": "STA 端記錄的訊號強度，只做診斷；報告標籤寫 dB，實際為 dBm"},
+    {"metric_name": "pass_count", "unit": "count", "kind": "reported_derived", "description": "報告提供的通過筆數"},
+    {"metric_name": "fail_count", "unit": "count", "kind": "reported_derived", "description": "報告提供的失敗筆數"},
+    {"metric_name": "total_count", "unit": "count", "kind": "reported_derived", "description": "報告提供的總筆數"},
+    {"metric_name": "pass_rate", "unit": "ratio", "kind": "reported_derived", "description": "報告提供的通過率（0～1），門檻 0.8"},
+    {"metric_name": "latency_rtt", "unit": "ms", "kind": "measured", "description": "蜂巢式 RTT 延遲（statistic：min、average、max）"},
+    {"metric_name": "rsrp", "unit": "dBm", "kind": "measured", "description": "蜂巢式 RSRP"},
+    {"metric_name": "rsrq", "unit": "dB", "kind": "measured", "description": "蜂巢式 RSRQ"},
+    {"metric_name": "sinr", "unit": "dB", "kind": "measured", "description": "蜂巢式 SINR"},
+    {"metric_name": "udp_lost_ratio", "unit": "unitless", "kind": "measured", "description": "UDP Lost，維持報告原值、沒有單位（領域人員決定）"}
+  ]
+}

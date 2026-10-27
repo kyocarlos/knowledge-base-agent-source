@@ -1,0 +1,56 @@
+{
+  "_comment": "列舉題輔助（find_documents）的資料：文件角色的中英文說法 → 專區的 document_role 值（只套用專區實際有的值）。新增說法只改這個檔。",
+  "default_limit": 20,
+  "role_aliases": {
+    "會議紀錄": [
+      "Meeting Minutes"
+    ],
+    "meeting minutes": [
+      "Meeting Minutes"
+    ],
+    "minutes": [
+      "Meeting Minutes"
+    ],
+    "議程": [
+      "Meeting Agenda"
+    ],
+    "meeting agenda": [
+      "Meeting Agenda"
+    ],
+    "論文": [
+      "Research Paper",
+      "Research or Technical Paper"
+    ],
+    "research paper": [
+      "Research Paper",
+      "Research or Technical Paper"
+    ],
+    "測試案例": [
+      "Certification Test Case",
+      "Certification Test Case Overview"
+    ],
+    "test case": [
+      "Certification Test Case",
+      "Certification Test Case Overview"
+    ],
+    "測試計畫": [
+      "Certification Test Plan",
+      "Certification Test Plan Comments"
+    ],
+    "test plan": [
+      "Certification Test Plan",
+      "Certification Test Plan Comments"
+    ],
+    "白皮書": [
+      "Industry White Paper"
+    ],
+    "white paper": [
+      "Industry White Paper"
+    ]
+  },
+  "discusses": {
+    "_comment": "內容在討論該主題的判斷（依 matching_chunks）：至少 min_chunks 段，且不少於最高者的 ratio 倍。",
+    "min_chunks": 3,
+    "ratio": 0.05
+  }
+}

@@ -957,6 +957,17 @@ def wifi8_import_task(self, job_id: str):
     return {"job_id": job_id, "status": job.get("status"), "phase": job.get("phase")}
 
 
+_wifi8_graph_cache: dict = {}
+
+
+def _wifi8_graph():
+    """One read-only Neo4j driver per worker process (None when the graph is not configured or unreachable)."""
+    if "graph" not in _wifi8_graph_cache:
+        from ..wifi8.graph import Wifi8Graph
+        _wifi8_graph_cache["graph"] = Wifi8Graph.from_environment()
+    return _wifi8_graph_cache["graph"]
+
+
 @celery_app.task(name="tasks.wifi8_agent_task", bind=True)
 def wifi8_agent_task(self, question: str, history: list | None = None, owner: dict | None = None):
     """WiFi zone agent: the LLM picks read-only WiFi tools; limits and citations stay in code."""
@@ -968,20 +979,40 @@ def wifi8_agent_task(self, question: str, history: list | None = None, owner: di
     from .ollama_client import _build_primary_client
 
     base = {"owner": owner or {}, "question": question}
+    settings = AgentSettings.from_environment()
+    emitter = None
+    if settings.stream:
+        from ..wifi8.progress import Emitter
+        try:
+            emitter = Emitter(get_redis_client(), self.request.id)
+        except Exception:  # noqa: BLE001 - without Redis the answer still arrives the ordinary way
+            logger.warning("WiFi agent progress channel unavailable", exc_info=True)
+
+    def finish(value: dict) -> dict:
+        if emitter is not None:
+            try:
+                emitter.done(value.get("status", "completed"))
+            except Exception:  # noqa: BLE001
+                logger.warning("WiFi agent progress end marker not written", exc_info=True)
+        return value
     try:
         vector_store = _preloaded_vector_store or VectorStore()
         search = Wifi8Search.for_current(Wifi8Importer(Wifi8Settings.from_environment()), qdrant=vector_store.client,
                                          encoder=vector_store.encode, embedding_model=vector_store.model_name)
     except SearchUnavailable as exc:
-        return {**base, "status": "failed", "error": str(exc)}
+        return finish({**base, "status": "failed", "error": str(exc)})
     client, label = _build_primary_client(load_config())
     if client is None:
         # The agent needs tool calling; the Ollama fallback is not used for it.
-        return {**base, "status": "failed", "error": "WiFi agent 需要主要 LLM（支援工具呼叫），目前未設定或無法建立"}
-    settings = AgentSettings.from_environment()
-    result = run_agent(question, llm=lambda **kw: client.chat.completions.create(**kw),
-                       tools=WifiTools(search, settings, CitationRegistry()), settings=settings, history=history)
-    return {**base, "status": "completed", "model": label, "package_id": search.package_id, **result}
+        return finish({**base, "status": "failed", "error": "WiFi agent 需要主要 LLM（支援工具呼叫），目前未設定或無法建立"})
+    try:
+        result = run_agent(question, llm=lambda **kw: client.chat.completions.create(**kw),
+                           tools=WifiTools(search, settings, CitationRegistry(), _wifi8_graph() if (settings.extension or settings.concepts) else None), settings=settings,
+                           history=history, emit=emitter)
+    except Exception as exc:  # noqa: BLE001 - tell the page now instead of letting it wait for its timeout
+        finish({**base, "status": "failed", "error": f"{type(exc).__name__}"})
+        raise
+    return finish({**base, "status": "completed", "model": label, "package_id": search.package_id, **result})
 
 
 @celery_app.task(name="tasks.search_task", bind=True, max_retries=JOB_CONFIG.max_retries)
