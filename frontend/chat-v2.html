@@ -2,6 +2,8 @@
 <html lang="zh-TW">
 <head>
   <meta charset="UTF-8">
+  <!-- 預設先到新的知識中樞首頁（/hub/）；舊版首頁（OpenClaw 問答）用 /chat-v2.html?legacy=1 開啟。 -->
+  <script>if (!/[?&]legacy=1/.test(location.search)) location.replace('/hub/');</script>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>KM · Research Intelligence Platform · chat-v2</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">

@@ -1,0 +1,35 @@
+/* Home page of the knowledge zones: only what the zone pages' style sheet does not already have. */
+.hub-section { margin-top: 16px; }
+.hub-summary { padding: 6px 10px; }
+.hub-metrics { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.hub-metrics .metric { border-top: 0; border-left: 1px solid var(--line-soft); }
+.hub-metrics .metric:first-child { border-left: 0; }
+.hub-metrics .metric:nth-child(2) .metric-icon { color: var(--purple); background: var(--purple-soft); }
+.hub-metrics .metric:nth-child(3) .metric-icon { color: var(--amber); background: var(--amber-soft); }
+.hub-metrics .metric:nth-child(4) .metric-icon { color: var(--green); background: var(--green-soft); }
+.hub-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 14px; margin-top: 14px; }
+.hub-card { display: flex; flex-direction: column; gap: 13px; padding: 16px; border: 1px solid var(--line); border-radius: 14px; background: rgba(4, 26, 33, .55); }
+.hub-card:hover { border-color: rgba(127, 255, 227, .4); }
+.hub-card-head { display: grid; grid-template-columns: 40px minmax(0, 1fr) auto; align-items: start; gap: 11px; }
+.hub-icon { width: 40px; height: 40px; display: grid; place-items: center; border-radius: 10px; color: var(--blue); background: var(--blue-soft); font-size: 1.15rem; }
+.hub-card h3 { margin: 0; color: #f2ffff; font-size: .95rem; line-height: 1.35; }
+.hub-card-head p { margin: 4px 0 0; color: var(--muted); font-size: .72rem; line-height: 1.55; }
+.hub-tag { padding: 2px 9px; border-radius: 999px; font-size: .64rem; font-weight: 700; white-space: nowrap; }
+.hub-tag.live { color: #bff7ea; background: rgba(127, 255, 227, .14); }
+.hub-tag.demo { color: var(--amber); background: var(--amber-soft); }
+.hub-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; padding: 10px 0; border-top: 1px solid var(--line-soft); border-bottom: 1px solid var(--line-soft); }
+.hub-stat { text-align: center; }
+.hub-stat strong { display: block; color: #f2ffff; font-size: 1.15rem; line-height: 1.2; }
+.hub-stat small { display: block; margin-top: 3px; color: var(--muted); font-size: .64rem; }
+.hub-stat.warn strong { color: var(--amber); }
+.hub-latest { margin: 0; min-height: 2.6em; color: #a9c5ca; font-size: .74rem; line-height: 1.6; }
+.hub-actions { display: flex; gap: 8px; margin-top: auto; }
+.hub-actions a { flex: 1; display: inline-flex; align-items: center; justify-content: center; text-decoration: none; }
+.hub-link { color: var(--green); text-decoration: none; }
+.hub-link:hover { text-decoration: underline; }
+a.attention-task { text-decoration: none; color: inherit; }
+.hub-more { margin-top: 10px; }
+.hub-more summary { cursor: pointer; color: var(--green); font-size: .78rem; padding: 6px 2px; }
+.hub-more .attention-list { margin-top: 8px; }
+@media (max-width: 1100px) { .hub-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); } .hub-metrics .metric:nth-child(3) { border-left: 0; } .hub-metrics .metric:nth-child(n+3) { border-top: 1px solid var(--line-soft); } }
+@media (max-width: 560px) { .hub-metrics { grid-template-columns: minmax(0, 1fr); } .hub-metrics .metric { border-left: 0; border-top: 1px solid var(--line-soft); } .hub-metrics .metric:first-child { border-top: 0; } }

@@ -93,12 +93,24 @@ const indexRules = (z) => [
   ['aria-label="Wi-Fi 8 動態"', `aria-label="${z.feedTitle}"`],
   ['<span>WiFi Knowledge Zone · KM DEV</span><span>內容依目前匯入版本提供</span>', `<span>${z.brandTitle} · KM DEV</span><span>示範資料 · 內容依目前匯入版本提供</span>`],
   ['WiFi 知識專區需要 JavaScript 才能顯示。', `${z.label}需要 JavaScript 才能顯示。`],
+  ['<a class="back-link" href="/chat-v2.html">返回知識中樞</a>', '<a class="back-link" href="/hub/">返回知識中樞</a>'],
   [`<script src="/wifi8/${jsName}" defer></script>`, `<script src="/zones/${dataFile}" defer></script>\n  <script src="/zones/${mockFile}" defer></script>\n  <script src="/zones/${zoneJsFile}" defer></script>`],
 ];
 if (!read(path.join(wifi, 'index.html')).includes('/wifi8/wifi8.957774158ba4.css')) throw new Error('WiFi index.html no longer uses the expected style sheet');
 
 // Clean earlier output, then write.
-for (const f of fs.readdirSync(out)) if (/^(zone|zones-mock|zones-data)\.[0-9a-f]{12}\.(js|css)$/.test(f)) fs.unlinkSync(path.join(out, f));
+// The home page (/hub/): its own script and style sheet, the zones' sample data and the WiFi style sheet.
+const hubJs = `(() => {\n'use strict';\n${fs.readdirSync(src).filter((f) => /^hub-\d+-.*\.js$/.test(f)).sort().map((f) => read(path.join(src, f))).join('\n')}})();\n`;
+const hubJsFile = `hub.${blobHash(Buffer.from(hubJs))}.js`;
+const hubCss = read(path.join(src, 'hub.css'));
+const hubCssFile = `hub.${blobHash(Buffer.from(hubCss))}.css`;
+const hubHtml = replaceAll(read(path.join(src, 'hub-template.html')), [['{{BASECSS}}', zoneCssFile], ['{{HUBCSS}}', hubCssFile], ['{{DATA}}', dataFile], ['{{HUBJS}}', hubJsFile]], 'hub index');
+
+for (const f of fs.readdirSync(out)) if (/^(zone|zones-mock|zones-data|hub)\.[0-9a-f]{12}\.(js|css)$/.test(f)) fs.unlinkSync(path.join(out, f));
+fs.writeFileSync(path.join(out, hubJsFile), hubJs);
+fs.writeFileSync(path.join(out, hubCssFile), hubCss);
+fs.mkdirSync(path.join(root, 'hub'), { recursive: true });
+fs.writeFileSync(path.join(root, 'hub', 'index.html'), hubHtml);
 fs.writeFileSync(path.join(out, zoneJsFile), zoneJs);
 fs.writeFileSync(path.join(out, zoneCssFile), cssBuffer);
 fs.writeFileSync(path.join(out, mockFile), mockJs);
