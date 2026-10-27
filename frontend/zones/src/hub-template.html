@@ -34,7 +34,13 @@
         </div>
       </header>
       <div class="workspace-body">
-        <main id="page-content" tabindex="-1"><div class="loading-card">正在讀取各專區資料…</div></main>
+        <main id="page-content" tabindex="-1">
+          <section class="panel hub-assistant" aria-label="全專區知識助理">
+            <div class="panel-heading"><div><h2>全專區知識助理</h2><span>跨所有專區提問，回答會標明資料來自哪個專區</span></div></div>
+            <iframe class="hub-assistant-frame" title="全專區知識助理" src="/chat-v2.html?legacy=1&amp;embed=1&amp;zone=all"></iframe>
+          </section>
+          <div id="hub-body"><div class="loading-card">正在讀取各專區資料…</div></div>
+        </main>
         <aside id="feed-column" class="feed-column" aria-label="跨專區動態"></aside>
       </div>
       <footer class="page-footer"><span>KM Research Platform · KM DEV</span><span>除 WiFi 專區外，其餘專區為示範資料</span></footer>

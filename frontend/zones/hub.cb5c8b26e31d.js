@@ -96,7 +96,7 @@ function renderPage() {
   const attention = all.flatMap((s) => s.attention).sort((a, b) => (b.level === 'warning') - (a.level === 'warning'));
   const metrics = [['▦', '知識專區', all.length, `${all.filter((s) => s.ok).length} 個專區資料可用`], ['▤', '目前版本文件', sum('current'), `另有 ${num(sum('history'))} 份歷史版本`], ['⌁', '本週更新', sum('week'), '近 7 天各專區的文件變動'], ['⚑', '待處理事項', attention.length, `${attention.filter((a) => a.level === 'warning').length} 項需要留意`]];
   const recent = all.flatMap((s) => s.recent).sort((a, b) => String(b.date).localeCompare(String(a.date))).slice(0, 10);
-  $('#page-content').innerHTML = `
+  $('#hub-body').innerHTML = `
     <div class="panel hub-section hub-summary"><div class="metric-grid hub-metrics">${metrics.map(([icon, name, value, note]) => `<div class="metric"><span class="metric-icon">${icon}</span><div class="metric-copy"><span>${name}</span><strong>${num(value)}</strong><small>${esc(note)}</small></div></div>`).join('')}</div></div>
     ${GROUPS.map((g) => panel(g.label, `<div class="hub-grid">${g.ids.map((id) => card(id, hub.data[id])).join('')}</div>`, `${g.ids.length} 個專區`)).join('')}
     ${panel('待處理事項', attention.length ? `<div class="attention-list">${attention.slice(0, 6).map(attentionRow).join('')}</div>${attention.length > 6 ? `<details class="hub-more"><summary>顯示其餘 ${attention.length - 6} 項</summary><div class="attention-list">${attention.slice(6).map(attentionRow).join('')}</div></details>` : ''}` : '<div class="alert-row success"><strong>目前沒有待處理事項</strong>各專區狀態正常。</div>', `${attention.length} 項，彙整自各專區，需留意的排在前面`)}
@@ -129,7 +129,7 @@ function initFeed() {
 }
 async function refresh() {
   try { hub.data = await loadAll(); renderPage(); renderFeed(); }
-  catch (error) { $('#page-content').innerHTML = `<div class="error-card" role="alert"><strong>載入失敗</strong><p>${esc(error.message)}</p></div>`; }
+  catch (error) { $('#hub-body').innerHTML = `<div class="error-card" role="alert"><strong>載入失敗</strong><p>${esc(error.message)}</p></div>`; }
   $('#app').setAttribute('aria-busy', 'false');
 }
 renderNav(); initFeed();

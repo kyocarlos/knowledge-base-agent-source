@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <!-- 預設先到新的知識中樞首頁（/hub/）；舊版首頁（OpenClaw 問答）用 /chat-v2.html?legacy=1 開啟。 -->
   <script>if (!/[?&]legacy=1/.test(location.search)) location.replace('/hub/');</script>
+  <script>if (/[?&]embed=1/.test(location.search)) document.documentElement.classList.add('km-embed');</script>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>KM · Research Intelligence Platform · chat-v2</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -594,6 +595,11 @@
       .km-v2-compat { display:none !important; }
       .km-v2-shell > .header, .km-v2-shell > .sub-header, .km-v2-shell > .main-content, .km-v2-shell > .footer, body.km-v2 > .chat-fab, body.km-v2 > .chat-version-badge { display:none !important; }
       #connectionBadge { display:flex !important; }
+      /* 嵌入新首頁（?embed=1）時只顯示助理本身 */
+      html.km-embed .km-v2-sidebar, html.km-embed .km-v2-evidence, html.km-embed .km-v2-top, html.km-embed .km-v2-metrics, html.km-embed .km-v2-quality-summary { display:none !important; }
+      html.km-embed .km-v2-shell { display:block; min-height:0; }
+      html.km-embed .km-v2-main { padding:0; }
+      html.km-embed .km-v2-assistant { margin-top:0; }
       @media (max-width: 1100px) { .km-v2-shell { grid-template-columns:190px minmax(0,1fr); } .km-v2-evidence { display:none; } }
       @media (max-width: 720px) {
         .km-v2-shell { display:block; }
@@ -853,8 +859,9 @@
       lab: { label: '實驗室與測試環境知識專區', context: '請聚焦實驗室規劃、建置與測試環境介紹。' },
       broadband: { label: '固網寬頻知識專區', context: '請聚焦 PON、Cable、Broadband Forum 規範與寬頻設備測試。' },
       admin: { label: '部門與公司文管專區', context: '請聚焦部門週報、工時、人事行政與採購請款相關文件。' },
+      all: { label: '全部專區', context: '請跨所有知識專區（WiFi、4G/5G、CPE、Smallcell、固網寬頻、技術、CSIT雜項、認證與法規、設備預約、實驗室與測試環境、部門與公司文管、Confluence／Jira／TestRail）回答；回答時標明資料來自哪個專區，並說明找不到的部分。' },
     };
-    let activeKnowledgeZone = 'csit';
+    let activeKnowledgeZone = new URLSearchParams(location.search).get('zone') === 'all' ? 'all' : 'csit';
     // 這些專區改開專區頁面（版面與 WiFi 知識專區相同，資料為示範資料）；WiFi 知識專區維持原本的連結。
     const demoKnowledgeZones = ['csit', 'mobile', 'cpe', 'smallcell', 'integrations', 'technical', 'equipment', 'cert', 'lab', 'broadband', 'admin'];
     // CSIT 助手狀態：放在這裡，避免連線狀態函式早於後面的宣告被呼叫（暫時性死區）。
@@ -884,9 +891,14 @@
         integrations: 'TestRail 中這個版本的測試案例與執行結果是什麼？',
         technical: '如何排查系統問題？',
         equipment: '如何查詢設備預約與可用時段？',
+        all: '各專區目前有哪些待處理事項？',
         csit: 'CSIT Project 測試結果？',
       };
       if (input) input.placeholder = `在${zone.label}中提問，例如：${examples[activeKnowledgeZone] || examples.csit}`;
+      if (activeKnowledgeZone === 'all') {
+        const quick = document.querySelector('.km-v2-quick');
+        if (quick) quick.innerHTML = ['找出 throughput 相關指標', '比較兩份測試報告', '各專區有哪些文件與 Handover 相關'].map((q) => `<button type="button" onclick="document.getElementById('chatInput').value='${q}'; document.getElementById('chatInput').focus()">${q}</button>`).join('');
+      }
       if (typeof renderCsitAssistants === 'function') renderCsitAssistants();
       if (typeof updateInputState === 'function') updateInputState();
     }
@@ -2672,7 +2684,7 @@
       const text = input.value.trim();
       if (!text || isLoading || (!isConnected && !canSendWithoutGateway())) return;
       const zone = knowledgeZones[activeKnowledgeZone] || knowledgeZones.csit;
-      const knowledgeSearchQuery = `${zone.label} ${text}`;
+      const knowledgeSearchQuery = activeKnowledgeZone === 'all' ? text : `${zone.label} ${text}`;
 
       input.value = '';
       addMessage('user', text);

@@ -33,3 +33,6 @@ a.attention-task { text-decoration: none; color: inherit; }
 .hub-more .attention-list { margin-top: 8px; }
 @media (max-width: 1100px) { .hub-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); } .hub-metrics .metric:nth-child(3) { border-left: 0; } .hub-metrics .metric:nth-child(n+3) { border-top: 1px solid var(--line-soft); } }
 @media (max-width: 560px) { .hub-metrics { grid-template-columns: minmax(0, 1fr); } .hub-metrics .metric { border-left: 0; border-top: 1px solid var(--line-soft); } .hub-metrics .metric:first-child { border-top: 0; } }
+.hub-assistant { padding: 18px; }
+.hub-assistant-frame { display: block; width: 100%; height: 640px; margin-top: 12px; border: 0; border-radius: 12px; background: transparent; }
+@media (max-width: 760px) { .hub-assistant-frame { height: 560px; } }
