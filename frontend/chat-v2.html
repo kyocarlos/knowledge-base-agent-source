@@ -651,8 +651,13 @@
             <a href="#knowledge-assistant" data-knowledge-zone="smallcell" data-knowledge-parent="mobile"><span>›</span> Smallcell知識專區</a>
           </div>
         </div>
+        <a href="#knowledge-assistant" data-knowledge-zone="technical"><span>⌬</span> 技術知識專區</a>
         <a href="#knowledge-assistant" data-knowledge-zone="equipment"><span>▣</span> 設備預約知識專區</a>
         <a href="#knowledge-assistant" data-knowledge-zone="integrations"><span>⌕</span> Confluence / Jira / TestRail 查詢專區</a>
+        <a href="#knowledge-assistant" data-knowledge-zone="cert"><span>✦</span> 認證與法規知識專區</a>
+        <a href="#knowledge-assistant" data-knowledge-zone="lab"><span>⚗</span> 實驗室與測試環境知識專區</a>
+        <a href="#knowledge-assistant" data-knowledge-zone="broadband"><span>≋</span> 固網寬頻知識專區</a>
+        <a href="#knowledge-assistant" data-knowledge-zone="admin"><span>▤</span> 部門與公司文管專區</a>
       </nav>
     </aside>
 
@@ -842,8 +847,14 @@
       integrations: { label: 'Confluence / Jira / TestRail 查詢專區', context: '請聚焦 Confluence、Jira 與 TestRail 的知識文件、需求、議題、測試計畫與測試執行結果；回答時標明可取得的來源，不推測未提供的資料。' },
       technical: { label: '技術知識專區', context: '請聚焦技術設計、系統架構、操作流程、除錯與工程文件。' },
       equipment: { label: '設備預約知識專區', context: '請聚焦設備預約、借用與歸還流程、可用時段、設備清單及預約規範。' },
+      cert: { label: '認證與法規知識專區', context: '請聚焦 Wi-Fi、藍牙、GCF、PTCRB 等認證項目、送測流程與各地區法規。' },
+      lab: { label: '實驗室與測試環境知識專區', context: '請聚焦實驗室規劃、建置與測試環境介紹。' },
+      broadband: { label: '固網寬頻知識專區', context: '請聚焦 PON、Cable、Broadband Forum 規範與寬頻設備測試。' },
+      admin: { label: '部門與公司文管專區', context: '請聚焦部門週報、工時、人事行政與採購請款相關文件。' },
     };
     let activeKnowledgeZone = 'csit';
+    // 這些專區改開專區頁面（版面與 WiFi 知識專區相同，資料為示範資料）；WiFi 知識專區維持原本的連結。
+    const demoKnowledgeZones = ['csit', 'mobile', 'cpe', 'smallcell', 'integrations', 'technical', 'equipment', 'cert', 'lab', 'broadband', 'admin'];
     // CSIT 助手狀態：放在這裡，避免連線狀態函式早於後面的宣告被呼叫（暫時性死區）。
     let csitAssistants = [];
     let activeCsitAssistant = '';
@@ -882,6 +893,10 @@
       document.querySelectorAll('[data-knowledge-zone]').forEach((item) => {
         item.addEventListener('click', (event) => {
           event.preventDefault();
+          if (demoKnowledgeZones.includes(item.dataset.knowledgeZone)) {
+            window.location.assign('/zones/' + item.dataset.knowledgeZone + '/#/overview');
+            return;
+          }
           if (item.dataset.knowledgeZone === 'wifi') {
             window.location.assign('/wifi8/#/overview');
             return;

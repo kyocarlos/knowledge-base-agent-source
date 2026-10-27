@@ -1,0 +1,604 @@
+(() => {
+  'use strict';
+
+  const ZONE = window.KM_ZONE_CONFIG;
+  const navGroups = [
+    { label: '知識專區', items: [
+      ['overview', '◈', '總覽', true], ['documents', '▤', '文件瀏覽', true], ['ai', '♙', ZONE.assistant, true],
+    ]},
+    { label: '管理設定', items: [['ai-usage', '◌', 'AI 用量', false], ['settings', '⚙', '設定', false]] },
+  ];
+  const routeInfo = {
+    overview: ['總覽', '即時資料集、分類與版本狀態'],
+    documents: ['文件瀏覽', '查詢目前版本、歷史版本與文件段落'],
+    ai: [ZONE.assistant, `使用${ZONE.label}文件與 ${ZONE.short} Agent 進行可追溯問答`],
+    research: ['研究主題', `建立與管理 ${ZONE.short} 研究主題`],
+    'wfa-downloads': ['文件下載', '管理文件來源'],
+    'web-collection': ['網頁收集', '收集、清理與追蹤網頁資料'],
+    review: ['內容審核', '審核文件與知識內容'],
+    'ai-usage': ['AI 用量', '查看 Agent 用量與執行狀態'],
+    settings: ['設定', `調整${ZONE.label}設定`],
+  };
+  const state = { route: 'overview', overview: null, documentPage: 1, conversation: [], agentTask: null, renderToken: 0, files: [], filesConfig: null, uploading: false };
+  const $ = (selector) => document.querySelector(selector);
+  const content = $('#page-content');
+  const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (char) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
+  const number = (value) => Number(value || 0).toLocaleString('zh-TW');
+  const formatTime = (value) => value ? new Date(value).toLocaleString('zh-TW', { hour12: false }) : '—';
+  // The in-page route (#/ai …) never reaches the server, so it is kept in this tab while the user logs in again;
+  // login.html stores it too when /wifi8/#/… was opened without a session.
+  const RETURN_ROUTE_KEY = 'km.wifi8.returnRoute';
+  const LOADED_SCRIPT = (document.currentScript?.src.match(/wifi8\.[0-9a-f]{12}\.js/) || [''])[0];
+
+  async function api(path, options = {}) {
+    const response = await fetch(path, { credentials: 'same-origin', ...options, headers: { Accept: 'application/json', ...(options.headers || {}) } });
+    if (response.status === 401) {
+      try { sessionStorage.setItem(RETURN_ROUTE_KEY, location.hash); } catch (_) { /* storage may be unavailable */ }
+      location.assign('/login.html?next=%2Fwifi8%2F');
+      throw new Error('登入已過期');
+    }
+    let payload = null;
+    try { payload = await response.json(); } catch (_) { /* response can be empty */ }
+    if (!response.ok) throw new Error(payload?.detail || `請求失敗 (${response.status})`);
+    return payload;
+  }
+
+  function renderNav() {
+    $('#primary-nav').innerHTML = navGroups.map((group) => `<section class="nav-group"><p class="nav-label">${group.label}</p>${group.items.map(([id, icon, label, ready]) => `<a class="nav-item${id === state.route ? ' active' : ''}${ready ? '' : ' pending'}" href="#/${id}" ${id === state.route ? 'aria-current="page"' : ''}><span class="nav-icon" aria-hidden="true">${icon}</span><span>${label}</span>${ready ? '' : '<small>待移植</small>'}</a>`).join('')}</section>`).join('');
+  }
+
+  function setHeader(route) {
+    const [title] = routeInfo[route];
+    $('#page-section').textContent = title;
+    $('#page-title').textContent = ZONE.label;
+    $('#page-updated').textContent = new Date().toLocaleString('zh-TW', { hour12: false });
+    document.title = `${title} · ${ZONE.label}`;
+  }
+
+  function fail(error) { content.innerHTML = `<div class="error-card" role="alert"><strong>載入失敗</strong><p>${escapeHtml(error.message)}</p></div>`; }
+  function panel(title, body, hint = '') { return `<section class="panel"><div class="panel-heading"><div><h2>${title}</h2>${hint ? `<span>${hint}</span>` : ''}</div></div>${body}</section>`; }
+  function statusClass(status) { return /fail|error/i.test(status || '') ? 'failed' : /complete|success|ready/i.test(status || '') ? '' : 'active'; }
+
+  function healthItem(icon, name, status, detail, tone = '') {
+    return `<div class="health-item"><span class="health-icon">${icon}</span><div class="health-copy"><h3>${name}</h3><span class="health-state ${tone}">${escapeHtml(status)}</span><small>${escapeHtml(detail || '')}</small></div></div>`;
+  }
+  // Classification statistics like the original Wi-Fi8 KM System: every document (history versions included) grouped by the category of its
+  // publishing organisation; names and descriptions come from the server (src/wifi8/categories.json), the current versions are shown next to the total.
+  function classificationRows(stats = {}, counts = {}) {
+    const rows = stats.rows || []; const total = Number(stats.total || 0);
+    const excluded = Object.entries(counts.excluded || {});
+    const note = excluded.length ? `<p class="results-meta classification-note">另有 ${escapeHtml(excluded.map(([reason, n]) => `${number(n)} 份（${reason}）`).join('、'))} 依匯入政策未匯入，不在以上合計內。</p>` : '';
+    return `<div class="classification-total"><span>合計</span><strong>${number(total)}</strong></div><div class="category-list">${rows.map((row) => `<div class="category-row classification-row">
+      <div class="category-name"><span>${escapeHtml(row.label)}</span><small>${escapeHtml(row.description || '')}</small></div>
+      <div class="classification-bar"><progress class="category-bar" max="${Math.max(1, total)}" value="${Number(row.total || 0)}" aria-label="${escapeHtml(row.label)} 占比 ${Number(row.share || 0).toFixed(1)}%"></progress><small>目前版本 ${number(row.current)}・歷史版本 ${number(row.history)}</small></div>
+      <div class="category-value"><strong>${number(row.total)}</strong><span>${Number(row.share || 0).toFixed(1)}%</span></div></div>`).join('') || '<p class="empty">尚無分類資料</p>'}</div>${note}`;
+  }
+  function overviewCards(data, counts) {
+    const excluded = Object.values(counts.excluded || {}).reduce((sum, n) => sum + Number(n || 0), 0);
+    const cards = [
+      ['▤', '知識庫文件', counts.documents, `目前版本 ${number(counts.current_documents)}／歷史版本 ${number(counts.superseded_documents)}`],
+      ['◈', '問答與研究採用文件', data.qna_documents, 'AI 問答與研究共用的預設範圍'],
+      ['⌕', '檢索單位', counts.chunks || counts.retrieval_units, `可用 ${number(counts.chunks_ready)}／處理中 ${number(counts.chunks_pending)}`],
+      ['⊘', '依政策未匯入', excluded, excluded ? '機密屬性不符，不進入 KM' : '沒有被排除的文件'],
+    ];
+    return `<div class="metric-grid">${cards.map(([icon, label, value, note]) => `<div class="metric"><span class="metric-icon">${icon}</span><div class="metric-copy"><span>${label}</span><strong>${number(value)}</strong><small>${escapeHtml(note)}</small></div></div>`).join('')}</div>`;
+  }
+  // Things that need a person's attention, computed by the server from the import and the zone's switches (src/wifi8/overview.py).
+  function attentionPanel(items = []) {
+    const body = items.length
+      ? `<div class="attention-list">${items.map((item) => { const inner = `<span><strong>${escapeHtml(item.title)}</strong><small>${escapeHtml(item.detail)}</small></span>`; return routeInfo[item.route] ? `<a class="attention-task ${escapeHtml(item.level)}" href="#/${escapeHtml(item.route)}">${inner}<span class="attention-go" aria-hidden="true">›</span></a>` : `<div class="attention-task ${escapeHtml(item.level)}">${inner}</div>`; }).join('')}</div>`
+      : '<div class="alert-row success"><strong>目前沒有待處理事項</strong>匯入、版本關係與自動檢查都正常。</div>';
+    return `<div class="overview-grid single">${panel('待處理事項', body, items.length ? `${items.length} 項` : '一切正常')}</div>`;
+  }
+  function categoryRows(items = []) {
+    const max = Math.max(1, ...items.map((item) => Number(item[1] || 0)));
+    return `<div class="category-list">${items.slice(0, 12).map(([name, count]) => `<div class="category-row"><span class="category-name" title="${escapeHtml(name)}">${escapeHtml(name)}</span><progress class="category-bar" max="${max}" value="${Number(count || 0)}"></progress><span class="category-value">${number(count)}</span></div>`).join('') || '<div class="empty">尚無分類資料</div>'}</div>`;
+  }
+
+  async function renderOverview(token) {
+    const data = state.overview = await api('/api/wifi8/overview');
+    if (token !== state.renderToken) return;
+    const counts = data.counts || {};
+    const current = data.current || {};
+    const job = data.active_job;
+    $('#zone-status').textContent = `${number(counts.documents)} 份文件`;
+    content.innerHTML = `
+      <section class="health-panel"><div class="section-intro"><div><span class="health-icon">⌑</span><div><h2>系統狀態</h2><p>目前資料版本與匯入進度</p></div></div><span class="inline-note">LIVE API</span></div>
+        <div class="health-grid">${healthItem('◈','資料集','可用', current.package_id || current.version || current.import_id || '目前版本')}${healthItem('▤','文件','已索引',`${number(counts.current_documents)} 目前 / ${number(counts.superseded_documents)} 歷史`)}${healthItem('⌕','檢索單位','已就緒',`${number(counts.chunks || counts.retrieval_units)} 個`)}${healthItem('⇩','匯入工作',job ? (job.status || '執行中') : '無進行中工作',job?.job_id || '穩定',job ? 'warning' : '')}</div></section>
+      ${attentionPanel(data.attention)}
+      <div class="overview-grid">${panel('分類統計', classificationRows(data.by_category, counts), '依來源機構類別統計（全部文件）')}${panel('文件概況', overviewCards(data, counts), '來自目前匯入版本')}</div>
+      <div class="overview-grid">${panel('發布者', categoryRows(data.by_publisher), '目前版本')}${panel('文件角色', categoryRows(data.by_document_role), '目前版本')}</div>
+      <div class="overview-grid single">${panel('主題', `<div class="topic-list">${(data.top_topics || []).map(([name,count]) => `<span class="topic">${escapeHtml(name)} · ${number(count)}</span>`).join('') || '<span class="empty">尚無主題</span>'}</div>`, '目前版本')}</div>
+      ${processingPanel(data, counts)}`;
+  }
+
+  // What the import did with the data (Patty item 1): text status, excluded documents, chunk state, metadata coverage, failures.
+  function processingPanel(data, counts) {
+    const p = data.processing || {};
+    const excluded = Object.entries(counts.excluded || {});
+    const names = { indexed: '已建立全文', not_indexed: '未建立全文（圖片檔，由圖片轉文字進入檢索）' };
+    const rows = [
+      ['已排除（不匯入）', excluded.length ? excluded.map(([reason, n]) => `${escapeHtml(reason)}：${number(n)} 份`).join('、') : '無'],
+      ...(p.text_status || []).map(([name, n]) => [`文字狀態：${escapeHtml(names[name] || name)}`, `${number(n)} 份`]),
+      ['檢索單位', `${number(counts.chunks_ready)} 個可用／${number(counts.chunks_pending)} 個處理中`],
+      ['匯入失敗紀錄', p.failed_jobs ? `${number(p.failed_jobs)} 筆（最近：${escapeHtml((p.latest_failure?.error || '').slice(0, 80))}）` : '無'],
+    ];
+    const coverage = (p.metadata_coverage || []).map((m) => `<div class="detail-field"><small>${escapeHtml(m.label)}</small><strong>${m.total ? Math.round(m.present / m.total * 100) : 0}%</strong><small>${number(m.present)} / ${number(m.total)} 份有值</small></div>`).join('');
+    return panel('資料處理狀態', `<div class="detail-grid">${rows.map(([label, value]) => `<div class="detail-field"><small>${label}</small><strong>${value}</strong></div>`).join('')}</div><h3>metadata 覆蓋率</h3><div class="detail-grid">${coverage}</div>`, '清理、檢索單位、metadata 與失敗');
+  }
+
+  function documentFilters() {
+    return `<form id="document-filters" class="filters"><label>關鍵字<input name="query" maxlength="200" placeholder="${ZONE.placeholder}"></label><label>發布者<select name="publisher"><option value="">全部</option></select></label><label>文件角色<select name="document_role"><option value="">全部</option></select></label><button class="primary-button" type="submit">查詢</button><label class="checkbox-label"><input name="include_history" type="checkbox">包含歷史版本</label></form>`;
+  }
+  async function loadDocuments(page = 1, token = state.renderToken) {
+    const form = $('#document-filters');
+    const params = new URLSearchParams(new FormData(form));
+    params.set('page', page); params.set('page_size', '20');
+    const data = await api(`/api/wifi8/documents?${params}`);
+    if (token !== state.renderToken || state.route !== 'documents') return;
+    state.documentPage = page;
+    if (form.publisher.options.length === 1) (data.facets?.publishers || []).forEach(([value,count]) => form.publisher.add(new Option(`${value} (${count})`, value)));
+    if (form.document_role.options.length === 1) (data.facets?.document_roles || []).forEach(([value,count]) => form.document_role.add(new Option(`${value} (${count})`, value)));
+    const pages = Math.max(1, Math.ceil(data.total / data.page_size));
+    $('#document-results').innerHTML = `<p class="results-meta">共 ${number(data.total)} 份，第 ${page} / ${pages} 頁</p><div class="table-wrap"><table><thead><tr><th style="width:42%">文件</th><th>發布者</th><th>角色</th><th>版本</th><th></th></tr></thead><tbody>${data.documents.map((doc) => `<tr><td><span class="document-title" title="${escapeHtml(doc.title)}">${escapeHtml(doc.title)}</span><span class="document-sub">${escapeHtml(doc.wfa_document_id || doc.revision_id)}</span></td><td>${escapeHtml(doc.publisher || '—')}</td><td>${escapeHtml(doc.document_role || '—')}</td><td><span class="tag ${doc.analysis_eligible ? '' : 'history'}">${doc.analysis_eligible ? '目前' : '歷史'}</span></td><td><button class="table-button" data-document="${escapeHtml(doc.revision_id)}">詳情</button></td></tr>`).join('') || '<tr><td colspan="5" class="empty">找不到符合條件的文件</td></tr>'}</tbody></table></div><div class="pagination"><button class="secondary-button" data-page="${page-1}" ${page <= 1 ? 'disabled' : ''}>上一頁</button><button class="secondary-button" data-page="${page+1}" ${page >= pages ? 'disabled' : ''}>下一頁</button></div>`;
+  }
+  // Search hits and agent citations carry the document title in `source`.
+  const hitTitle = (hit) => hit.source || hit.title || hit.document_title || hit.revision_id || '未命名文件';
+  const matchedLabels = { fulltext: '全文', vector: '語意' };
+  function hitMeta(hit) {
+    return [
+      hit.location_label, hit.publisher, hit.wfa_document_id ? `${ZONE.idLabel} ${hit.wfa_document_id}` : '',
+      hit.analysis_eligible === false ? '歷史版本' : '',
+      (hit.matched_by || []).map((name) => matchedLabels[name] || name).join('＋'),
+      hit.score != null ? Number(hit.score).toFixed(4) : '',
+    ].filter(Boolean).join(' · ');
+  }
+  // Tables extracted as rows come with a Markdown display text (display_text); figures show the image with the
+  // text it was turned into; other chunks stay plain text.
+  function chunkBody(item, text) {
+    const image = item && item.image;
+    if (image && /^[0-9a-f]{64}$/.test(image.id || '')) {
+      return `<figure class="chunk-image"><a href="/api/wifi8/images/${image.id}" target="_blank" rel="noopener"><img src="/api/wifi8/images/${image.id}" alt="${escapeHtml(item.location_label || '文件圖片')}" loading="lazy"></a><figcaption>${escapeHtml(text)}</figcaption></figure>`;
+    }
+    return item && item.display_text ? `<div class="markdown chunk-table">${renderMarkdown(item.display_text)}</div>` : `<p>${escapeHtml(text)}</p>`;
+  }
+  async function runHybridSearch() {
+    const input = $('#hybrid-query');
+    const target = $('#hybrid-results');
+    if (!input.value.trim()) return;
+    target.innerHTML = '<div class="loading-card">正在執行 BM25 + 向量混合檢索…</div>';
+    try {
+      const data = await api('/api/wifi8/search', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ query:input.value.trim(), top_k:10, include_history:$('#hybrid-history').checked }) });
+      const hits = data.results || data.hits || [];
+      target.innerHTML = `<p class="results-meta">${escapeHtml(data.policy || '混合檢索')} · ${hits.length} 筆</p><div class="search-results">${hits.map((hit) => `<article class="search-hit"><h3 title="${escapeHtml(hit.revision_id)}">${escapeHtml(hitTitle(hit))}</h3>${chunkBody(hit, hit.content || hit.text || hit.snippet || '')}<small>${escapeHtml(hitMeta(hit))}</small></article>`).join('') || '<div class="empty">沒有檢索結果</div>'}</div>`;
+    } catch (error) { target.innerHTML = `<div class="error-card">${escapeHtml(error.message)}</div>`; }
+  }
+  async function renderDocuments(token) {
+    content.innerHTML = `${panel('文件篩選', documentFilters(), '預設只顯示目前版本')}<section id="document-results" class="panel" style="margin-top:16px"><div class="loading-card">正在載入文件…</div></section>${panel('混合檢索', `<div class="filters"><label>查詢<input id="hybrid-query" maxlength="500" placeholder="輸入中文短詞、縮寫或${ZONE.idLabel}"></label><label class="checkbox-label"><input id="hybrid-history" type="checkbox">包含歷史版本</label><button id="hybrid-submit" class="primary-button" type="button">開始檢索</button></div><div id="hybrid-results"></div>`, 'BM25 + vector RRF')}`;
+    $('#document-filters').addEventListener('submit', (event) => { event.preventDefault(); loadDocuments(1).catch(fail); });
+    $('#document-results').addEventListener('click', (event) => { const id = event.target.dataset.document; const page = Number(event.target.dataset.page); if (id) showDocument(id); if (page > 0) loadDocuments(page).catch(fail); });
+    $('#hybrid-submit').addEventListener('click', runHybridSearch);
+    await loadDocuments(1, token);
+  }
+
+  // Figures are numbered after the text, so they get their own section instead of waiting behind the text pages.
+  function figureSection(figures) {
+    const items = (figures && figures.chunks) || [];
+    if (!items.length) return '';
+    const more = figures.total > items.length ? `<p class="results-meta">顯示前 ${number(items.length)} 張，共 ${number(figures.total)} 張；其餘可用混合檢索找到</p>` : '';
+    return `<h3>文件圖片（${number(figures.total)}）</h3>${more}${items.map((chunk) => `<article class="chunk"><small>#${chunk.chunk_index} · ${escapeHtml(chunk.location_label || '')}</small>${chunkBody(chunk, chunk.content)}</article>`).join('')}`;
+  }
+  async function showDocument(revisionId) {
+    const dialog = $('#document-dialog');
+    $('#document-dialog-body').innerHTML = '<div class="loading-card">正在載入文件…</div>'; dialog.showModal();
+    try {
+      const [detail, chunks, figures] = await Promise.all([api(`/api/wifi8/documents/${encodeURIComponent(revisionId)}`), api(`/api/wifi8/documents/${encodeURIComponent(revisionId)}/chunks?count=8`), api(`/api/wifi8/documents/${encodeURIComponent(revisionId)}/chunks?figures=true&count=12`)]);
+      const doc = detail.document || {};
+      $('#document-dialog-title').textContent = doc.title || '文件詳情';
+      $('#document-dialog-body').innerHTML = `<div class="detail-grid">${[['Revision ID',doc.revision_id],[ZONE.idLabel,doc.wfa_document_id],['發布者',doc.publisher],['文件角色',doc.document_role],['日期',doc.document_date],['狀態',doc.analysis_eligible ? '目前版本' : '歷史版本']].map(([label,value]) => `<div class="detail-field"><small>${label}</small><strong>${escapeHtml(value || '—')}</strong></div>`).join('')}</div><h3>版本關係</h3><div class="topic-list">${(detail.versions || []).map((version) => `<span class="topic">${escapeHtml(version.version_label || version.wfa_revision || version.revision_id)}${version.analysis_eligible ? ' · 目前' : ''}</span>`).join('') || '<span class="empty">無其他版本</span>'}</div><h3>來源段落</h3>${(chunks.chunks || []).map((chunk) => `<article class="chunk"><small>#${chunk.chunk_index} · ${escapeHtml(chunk.location_label || '')}</small>${chunkBody(chunk, chunk.content)}</article>`).join('') || '<div class="empty">無可顯示段落</div>'}${figureSection(figures)}`;
+    } catch (error) { $('#document-dialog-body').innerHTML = `<div class="error-card">${escapeHtml(error.message)}</div>`; }
+  }
+
+  // Minimal Markdown for agent answers. The text is HTML-escaped before any rule runs,
+  // so only the tags generated here reach the page (no raw HTML, no links).
+  function inlineMarkdown(text) {
+    return text.split(/(`[^`\n]+`)/).map((part, index) => index % 2
+      ? `<code>${part.slice(1, -1)}</code>`
+      : part.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+        .replace(/(^|[^*\w])\*(?!\s)([^*\n]+?)\*(?!\w)/g, '$1<em>$2</em>')
+        .replace(/\[(S\d+)(・我的檔案)?\]/g, (match, ref, mine) => `<span class="cite-ref${mine ? ' cite-mine' : ''}">[${ref}${mine || ''}]</span>`)
+        .replace(/\[(G\d+)\]/g, '<span class="cite-ref graph-ref" title="知識圖譜關聯（LLM 抽取，未逐句驗證）">[$1]</span>')).join('');
+  }
+  const markdownList = /^\s*([-*+]|\d+[.)])\s+(.*)$/;
+  const markdownBlock = /^\s*(```|#{1,6}\s|[-*+]\s|\d+[.)]\s|&gt;|\|)/;
+  const tableRow = (line) => /^\s*\|.*\|\s*$/.test(line);
+  const tableCells = (line) => line.trim().replace(/^\||\|$/g, '').split('|').map((cell) => inlineMarkdown(cell.trim()));
+  // The model sometimes writes formulas as LaTeX (\( 10^{23/10} \)). The page has no math typesetting, so the common forms are turned into readable
+  // plain text before rendering; anything not understood is left as the model wrote it. Code blocks are never touched.
+  const TEX_SYMBOLS = { times: '×', div: '÷', cdot: '·', approx: '≈', leq: '≤', le: '≤', geq: '≥', ge: '≥', neq: '≠', ne: '≠', pm: '±', infty: '∞', Delta: 'Δ', mu: 'μ', alpha: 'α', beta: 'β', lambda: 'λ', pi: 'π', sigma: 'σ', rightarrow: '→', to: '→', Rightarrow: '⇒', Longrightarrow: '⇒', log: 'log', ln: 'ln', min: 'min', max: 'max', sum: 'Σ', ldots: '…', dots: '…' };
+  function texToText(tex) {
+    let s = String(tex);
+    for (let n = 0; n < 6; n += 1) {  // innermost groups first, so nested \frac / \text resolve from the inside out
+      const before = s;
+      s = s.replace(/\\(?:text|textbf|mathrm|mathbf|mathit|operatorname|boxed)\s*\{([^{}]*)\}/g, '$1')
+        .replace(/\\[dt]?frac\s*\{([^{}]*)\}\s*\{([^{}]*)\}/g, (m, a, b) => { const w = (x) => (/^[\w.]+$/.test(x.trim()) ? x.trim() : `(${x.trim()})`); return `${w(a)}/${w(b)}`; })
+        .replace(/_\{([^{}]*)\}/g, '_$1')
+        .replace(/\^\{([^{}]*)\}/g, (m, e) => (/^[\w.]+$/.test(e) ? `^${e}` : `^(${e})`))
+        .replace(/\\sqrt\s*\{([^{}]*)\}/g, '√($1)');
+      if (s === before) break;
+    }
+    return s.replace(/\\(?:left|right|big|Big)\b\s*/g, '').replace(/\\[,;:! ]|\\quad|\\qquad/g, ' ').replace(/\\%/g, '%')
+      .replace(/\\([A-Za-z]+)/g, (m, name) => (name in TEX_SYMBOLS ? TEX_SYMBOLS[name] : name))
+      .replace(/[{}]/g, '').replace(/[ \t]{2,}/g, ' ').trim();
+  }
+  function plainMath(source) {
+    return String(source ?? '').split(/(```[\s\S]*?```)/g).map((part, index) => (index % 2 ? part
+      : part.replace(/\\\[([\s\S]+?)\\\]/g, (m, tex) => `\n${texToText(tex)}\n`).replace(/\\\(([\s\S]+?)\\\)/g, (m, tex) => texToText(tex)))).join('');
+  }
+  function renderMarkdown(source) {
+    const lines = escapeHtml(plainMath(source)).replace(/\r\n?/g, '\n').split('\n');
+    const html = [];
+    let i = 0;
+    while (i < lines.length) {
+      const line = lines[i];
+      let match;
+      if (!line.trim()) { i += 1; continue; }
+      if (/^\s*```/.test(line)) {
+        const code = [];
+        for (i += 1; i < lines.length && !/^\s*```/.test(lines[i]); i += 1) code.push(lines[i]);
+        i += 1; html.push(`<pre><code>${code.join('\n')}</code></pre>`); continue;
+      }
+      if ((match = line.match(/^\s*(#{1,6})\s+(.*)$/))) {
+        const level = Math.min(match[1].length + 2, 6);
+        html.push(`<h${level}>${inlineMarkdown(match[2])}</h${level}>`); i += 1; continue;
+      }
+      if (/^\s*([-*_])(\s*\1){2,}\s*$/.test(line)) { html.push('<hr>'); i += 1; continue; }
+      if (tableRow(line) && /^\s*\|?\s*:?-{3,}/.test(lines[i + 1] || '')) {
+        const head = tableCells(line); const rows = [];
+        for (i += 2; i < lines.length && tableRow(lines[i]); i += 1) rows.push(tableCells(lines[i]));
+        html.push(`<div class="md-table"><table><thead><tr>${head.map((cell) => `<th>${cell}</th>`).join('')}</tr></thead><tbody>${rows.map((row) => `<tr>${row.map((cell) => `<td>${cell}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`);
+        continue;
+      }
+      if ((match = line.match(markdownList))) {
+        const ordered = /\d/.test(match[1]); const items = [];
+        const start = ordered ? parseInt(match[1], 10) : 1;
+        while (i < lines.length && (match = lines[i].match(markdownList)) && /\d/.test(match[1]) === ordered) {
+          items.push(inlineMarkdown(match[2])); i += 1;
+          let next = i; while (next < lines.length && !lines[next].trim()) next += 1;  // loose list: blank lines between items
+          if (next < lines.length && (match = lines[next].match(markdownList)) && /\d/.test(match[1]) === ordered) i = next;
+        }
+        const tag = ordered ? 'ol' : 'ul';
+        html.push(`<${tag}${ordered && start !== 1 ? ` start="${start}"` : ''}>${items.map((item) => `<li>${item}</li>`).join('')}</${tag}>`); continue;
+      }
+      if (/^\s*&gt;/.test(line)) {
+        const quote = [];
+        for (; i < lines.length && /^\s*&gt;/.test(lines[i]); i += 1) quote.push(lines[i].replace(/^\s*&gt;\s?/, ''));
+        html.push(`<blockquote>${inlineMarkdown(quote.join('<br>'))}</blockquote>`); continue;
+      }
+      const paragraph = [];
+      do { paragraph.push(lines[i]); i += 1; } while (i < lines.length && lines[i].trim() && !markdownBlock.test(lines[i]));
+      html.push(`<p>${inlineMarkdown(paragraph.join('<br>'))}</p>`);
+    }
+    return html.join('');
+  }
+  function citationItem(item, index) {
+    if (typeof item !== 'object' || item === null) return `<li><strong>[${index + 1}]</strong> ${escapeHtml(item)}</li>`;
+    const meta = [item.publisher, item.wfa_document_id ? `${ZONE.idLabel} ${item.wfa_document_id}` : '', item.analysis_eligible === false ? '歷史版本' : ''].filter(Boolean).join(' · ');
+    const image = item.image && /^[0-9a-f]{64}$/.test(item.image.id || '') ? item.image : null;
+    // Where in the document the cited text is (page / slide / figure): shown prominently, figures get a badge and
+    // a thumbnail that opens the image, so an answer read from a figure can be checked against it.
+    // Several chunks of one page / slide are told apart by their position there ("第 3 頁・第 1/2 段").
+    const part = item.part && item.part.total > 1 ? `・第 ${Number(item.part.index)}/${Number(item.part.total)} 段` : '';
+    const place = item.location_label ? `<span class="citation-place">${escapeHtml(item.location_label)}${part}</span>` : '';
+    const badge = image ? '<span class="citation-badge">圖片</span>' : '';
+    const thumb = image ? `<a class="citation-thumb" href="/api/wifi8/images/${image.id}" target="_blank" rel="noopener" title="開啟原圖"><img src="/api/wifi8/images/${image.id}" alt="${escapeHtml(item.location_label || '引用圖片')}" loading="lazy"></a>` : '';
+    return `<li class="${image ? 'citation-figure' : ''}">${thumb}<div><strong>[${escapeHtml(item.ref || index + 1)}]</strong> <span title="${escapeHtml(item.revision_id)}">${escapeHtml(hitTitle(item))}</span><div class="citation-meta">${badge}${place}${meta ? `<small>${escapeHtml(meta)}</small>` : ''}</div></div></li>`;
+  }
+  // Grounding check computed by the worker against the full text of the cited chunks (absent on older answers).
+  const groundingReasons = { no_source: '未附來源', value_not_found: '數值在資料中找不到', value_other_source: '數值出現在其他引用', value_not_in_cited: '數值不在引用的段落', source_name_mismatch: '引用的不是題目指名的文件', low_similarity: '與原文相似度低' };
+  function groundingChip(label, text, tone) { return `<span class="g-chip ${tone}"><small>${label}</small>${escapeHtml(text)}</span>`; }
+  function groundingPanel(grounding) {
+    if (!grounding) return '';
+    if (grounding.error) return '<p class="grounding-note">依據檢核未完成，請以引用原文為準。</p>';
+    const s = grounding.summary || {};
+    if (!s.claims) return '';
+    const sim = s.similarity || {};
+    const flagged = grounding.flagged || [];
+    const supported = (s.claims_cited || 0) + (s.claims_tool_data || 0);
+    const found = (s.values_verified || 0) + (s.values_other_source || 0) + (s.values_tool_data || 0);
+    const chips = [
+      groundingChip('有依據的句子', `${supported}/${s.claims}${s.claims_tool_data ? `（${s.claims_tool_data} 句依工具資料）` : ''}`, supported === s.claims ? 'ok' : supported / s.claims >= 0.8 ? 'warn' : 'bad'),
+      s.values ? groundingChip('數值核對', `${found}/${s.values} 可在資料中找到${s.values_not_found ? `，${s.values_not_found} 找不到` : ''}`, s.values_not_found ? 'bad' : 'ok') : groundingChip('數值核對', '無數值', 'ok'),
+      s.similarity_enabled && (sim.high || sim.medium || sim.low) ? groundingChip('原文相似度', `高 ${sim.high || 0}・中 ${sim.medium || 0}・低 ${sim.low || 0}`, sim.low ? 'warn' : 'ok') : '',
+      s.sources && s.sources.total ? groundingChip('引用來源', `${s.sources.wfa} 份${ZONE.sourceLabel}・${s.sources.current}/${s.sources.total} 份目前版本`, s.sources.current === s.sources.total ? 'ok' : 'warn') : '',
+    ].join('');
+    const items = flagged.map((f) => `<li><p>${escapeHtml(f.text)}${(f.refs || []).length ? ` <span class="cite-ref">[${escapeHtml(f.refs.join('][')) }]</span>` : ''}</p><div>${(f.reasons || []).map((r) => `<span class="g-reason ${r}">${escapeHtml(groundingReasons[r] || r)}</span>`).join('')}${(f.values || []).map((v) => `<code class="${v.status}" title="${v.status === 'not_found' ? '在 Agent 取得的資料中找不到' : v.status === 'not_in_cited' ? '不在本句引用的段落' : '出現在其他引用，不在本句引用的段落'}">${escapeHtml(v.value)}</code>`).join('')}${(f.names || []).map((n) => `<code class="not_in_cited" title="本句提到的文件，引用的段落不是這份文件">${escapeHtml(n)}</code>`).join('')}${f.similarity != null && (f.reasons || []).includes('low_similarity') ? `<small>相似度 ${Number(f.similarity).toFixed(2)}</small>` : ''}</div></li>`).join('');
+    return `<section class="grounding" aria-label="依據檢核"><div class="grounding-head"><strong>依據檢核</strong><div class="g-chips">${chips}</div></div><p class="grounding-note">由程式比對 Agent 取得的原文段落與文件資料：檢查每句是否有引用，以及數字、版本、型號是否真的出現在資料中${s.similarity_enabled ? '；相似度只代表用詞接近程度，不代表內容正確' : ''}。這是輔助檢核，不保證內容正確。</p>${flagged.length ? `<details><summary>需留意的句子（${flagged.length}）</summary><ul class="g-flags">${items}</ul></details>` : '<p class="grounding-note ok">所有句子都有依據，數值皆可在資料中找到。</p>'}</section>`;
+  }
+  // Extension of an answer: related knowledge (graph/documents), labelled general knowledge, follow-up questions. Only present when the zone enables it.
+  function graphCitationItem(item) {
+    const kind = item.kind === 'topic' ? '主題' : '文件';
+    const detail = [item.document_role, item.publisher, item.lifecycle].filter(Boolean).join('・');
+    return `<li><strong>[${escapeHtml(item.ref)}]</strong> ${kind}：${escapeHtml(item.title || item.key)}${detail ? `<small>${escapeHtml(detail)}</small>` : ''}</li>`;
+  }
+  function extensionPanel(value) {
+    const ext = value.extension; if (!ext) return '';
+    const graph = (value.graph_citations || []).map(graphCitationItem).join('');
+    const parts = [
+      ext.related ? `<section class="ext-section"><h4>相關主題與文件<small>來自專區文件與知識圖譜（圖譜關聯由 LLM 抽取，未逐句驗證）</small></h4><div class="markdown">${renderMarkdown(ext.related)}</div>${graph ? `<ul class="citation-list graph-list">${graph}</ul>` : ''}</section>` : '',
+      ext.general ? `<section class="ext-section ext-general"><h4>一般知識補充<small>模型的一般知識，未經專區文件驗證</small></h4><div class="markdown">${renderMarkdown(ext.general)}</div></section>` : '',
+      (ext.followups || []).length ? `<section class="ext-section"><h4>你可能還想問</h4><div class="followups">${ext.followups.map((q) => `<button type="button" class="followup" data-question="${escapeHtml(q)}">${escapeHtml(q)}</button>`).join('')}</div></section>` : '',
+    ].filter(Boolean).join('');
+    return parts ? `<div class="extension" aria-label="延伸知識"><strong class="ext-title">延伸知識</strong>${parts}</div>` : '';
+  }
+  function agentOutput(value) {
+    const answer = value.answer_main || value.answer || value.result || value.message || '未回傳回答';
+    const citations = value.citations || value.sources || [];
+    // A reference to a file the user attached is labelled in the text itself, so it cannot be mistaken for a WFA source.
+    const mine = new Set(citations.filter((c) => c.publisher === '使用者上傳').map((c) => c.ref));
+    const shown = mine.size ? answer.replace(/\[(S\d+)\]/g, (match, ref) => (mine.has(ref) ? `[${ref}・我的檔案]` : match)) : answer;
+    const trace = value.steps || value.tool_steps || value.trace || [];
+    return `<div class="message assistant markdown">${renderMarkdown(shown)}</div>${extensionPanel(value)}${groundingPanel(value.grounding)}<ul class="citation-list">${citations.map(citationItem).join('')}</ul><details><summary>Agent 工具步驟與停止原因</summary><ul class="trace-list">${trace.map((item) => `<li>${escapeHtml(typeof item === 'string' ? item : item.tool || item.name || JSON.stringify(item))}</li>`).join('') || '<li>無工具步驟</li>'}</ul><p class="results-meta">${escapeHtml(value.stop_reason || value.status || '')}</p></details>`;
+  }
+  async function pollAgent(taskId) {
+    for (let attempt = 0; attempt < 120; attempt += 1) {
+      const result = await api(`/api/wifi8/agent/${encodeURIComponent(taskId)}`);
+      if (result.status !== 'pending' && result.status !== 'submitted') return result;
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+    }
+    throw new Error('Agent 等待逾時，請稍後重試');
+  }
+  // Conversation memory: kept for the browser tab (sessionStorage), sent with every question; older turns are condensed by the server.
+  const CONVERSATION_KEY = `km.zone.${ZONE.id}.conversation.v1`;
+  const MAX_TURNS = 60;
+  function saveConversation() { try { sessionStorage.setItem(CONVERSATION_KEY, JSON.stringify(state.conversation.slice(-MAX_TURNS))); } catch (_) { /* private mode: the conversation just does not survive a reload */ } }
+  function loadConversation() {
+    try {
+      const turns = JSON.parse(sessionStorage.getItem(CONVERSATION_KEY) || '[]');
+      return Array.isArray(turns) ? turns.filter((t) => t && (t.role === 'user' || t.role === 'assistant') && typeof t.content === 'string').slice(-MAX_TURNS) : [];
+    } catch (_) { return []; }
+  }
+  function restoredTurns(turns) {
+    return turns.map((t) => (t.role === 'user' ? `<div class="message user">${escapeHtml(t.content)}</div>` : `<div class="message assistant markdown">${renderMarkdown(t.content)}</div>`)).join('');
+  }
+  // Progress and streamed text arrive as events the server keeps for a few minutes; if they cannot be read the ordinary poll still delivers the answer.
+  async function streamAgent(taskId, live) {
+    const status = live.querySelector('.live-status'); const body = live.querySelector('.live-text');
+    let next = 0; let raw = ''; let painted = 0;
+    const paint = (force) => { const now = Date.now(); if (force || now - painted > 120) { body.innerHTML = renderMarkdown(raw); painted = now; } };
+    for (let attempt = 0; attempt < 600; attempt += 1) {
+      let data;
+      try { data = await api(`/api/wifi8/agent/${encodeURIComponent(taskId)}/events?after=${next}`); } catch (_) { return; }
+      for (const event of data.events) {
+        if (event.type === 'tool') { status.textContent = `正在${event.label}…`; }
+        else if (event.type === 'delta') { raw += event.text; status.textContent = '正在撰寫回答…'; }
+        else if (event.type === 'reset') { raw = ''; body.innerHTML = ''; }
+      }
+      next = data.next; paint(false);
+      if (data.done) { paint(true); return; }
+      if (attempt % 6 === 5) {  // a worker that does not report progress must not keep the page waiting for events
+        const result = await api(`/api/wifi8/agent/${encodeURIComponent(taskId)}`).catch(() => null);
+        if (result && result.status !== 'pending' && result.status !== 'submitted') return;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 400));
+    }
+  }
+  function citedTitles(result) { return [...new Set((result.citations || []).map((c) => c.source || c.title).filter(Boolean))].slice(0, 5); }
+  async function askAgent() {
+    const input = $('#agent-question'); const question = input.value.trim(); if (!question) return;
+    if (state.uploading) { attachStatus('檔案還在讀取中，請稍候再送出。', 'error'); return; }
+    const button = $('#agent-submit'); button.disabled = true;
+    const attached = state.files.map((f) => f.name);
+    const attachedNote = attached.length ? `[附加檔案：${attached.join('、')}]` : '';
+    $('#conversation').insertAdjacentHTML('beforeend', `<div class="message user">${escapeHtml(question)}${attached.length ? `<div class="message-files">📎 ${escapeHtml(attached.join('、'))}</div>` : ''}</div><div id="agent-wait" class="message assistant"><div class="live-status" role="status">正在調用 ${ZONE.short} Agent…</div><div class="live-text markdown"></div></div>`);
+    input.value = '';
+    try {
+      const submitted = await api('/api/wifi8/agent', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ question, history:state.conversation.slice(-MAX_TURNS), ...(state.files.length ? { file_ids: state.files.map((f) => f.file_id) } : {}) }) });
+      if (submitted.stream) await streamAgent(submitted.task_id, $('#agent-wait'));
+      const result = await pollAgent(submitted.task_id); $('#agent-wait').outerHTML = agentOutput(result) + (submitted.feedback ? feedbackBar(result) : '');
+      state.conversation.push({role:'user',content:attachedNote ? `${question}\n${attachedNote}` : question},{role:'assistant',content:result.answer_main || result.answer || result.result || '', sources:citedTitles(result)});
+      saveConversation();
+    } catch (error) { $('#agent-wait').outerHTML = `<div class="message error">${escapeHtml(error.message)}</div>`; }
+    finally { button.disabled = false; refreshFiles(); }  // a file that expired meanwhile drops off the list
+  }
+  // Rating an answer: a thumb, and for a thumbs-down the reasons (the list comes from the server) and an optional note.
+  function feedbackBar(value) {
+    if (!value.task_id || value.status !== 'completed') return '';
+    return `<div class="feedback" data-task="${escapeHtml(value.task_id)}"><span class="feedback-ask">這個回答有幫助嗎？</span><button type="button" class="secondary-button fb-up">有幫助</button><button type="button" class="secondary-button fb-down">沒幫助</button><span class="fb-state" role="status"></span></div>`;
+  }
+  async function sendFeedback(bar, rating, reasons, comment) {
+    const state_ = bar.querySelector('.fb-state');
+    try {
+      await api(`/api/wifi8/agent/${encodeURIComponent(bar.dataset.task)}/feedback`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ rating, reasons, comment }) });
+      bar.querySelector('.fb-form')?.remove(); state_.textContent = rating === 'up' ? '已記錄，謝謝回饋' : '已記錄，謝謝你的說明';
+    } catch (error) { state_.textContent = `回饋未送出：${error.message}`; }
+  }
+  async function openFeedbackForm(bar) {
+    if (bar.querySelector('.fb-form')) return;
+    state.feedbackReasons = state.feedbackReasons || (await api('/api/wifi8/agent-feedback/options').then((data) => data.reasons).catch(() => []));
+    const boxes = state.feedbackReasons.map((r) => `<label class="checkbox-label"><input type="checkbox" value="${escapeHtml(r.key)}">${escapeHtml(r.label)}</label>`).join('');
+    bar.insertAdjacentHTML('beforeend', `<div class="fb-form"><div class="fb-reasons">${boxes}</div><textarea class="fb-comment" maxlength="500" placeholder="補充說明（選填，最多 500 字）" aria-label="補充說明"></textarea><button type="button" class="primary-button fb-send">送出回饋</button></div>`);
+  }
+  // Files the user attaches to the conversation (only accounts a KM Control admin authorised see this): the server reads each one into text,
+  // keeps it for a couple of hours and the page sends the ids along with every question. They are not added to the knowledge base.
+  const FILE_HEADERS = { 'x-km-wifi8-userfile': '1' };
+  function attachmentBar(config) {
+    if (!config?.enabled) return '';
+    const hours = Math.max(1, Math.round((config.ttl_seconds || 7200) / 3600));
+    const hint = `PDF、Word、Excel、文字、圖片；每個檔案 ${Math.floor((config.max_bytes || 10485760) / 1048576)} MB 內、最多 ${config.max_files || 3} 個。檔案只暫存在這次對話，約 ${hours} 小時後自動刪除，不會進入知識庫。`;
+    return `<div class="attach-bar"><div class="attach-row"><button id="attach-btn" class="secondary-button" type="button">＋ 附加檔案</button><input id="attach-input" type="file" multiple hidden accept="${escapeHtml((config.extensions || []).join(','))}"><small class="results-meta attach-hint">${hint}</small></div><ul id="attach-list" class="attach-list" aria-label="已附加的檔案"></ul><p id="attach-status" class="attach-status" role="status" aria-live="polite"></p></div>`;
+  }
+  function renderAttachments() {
+    const list = $('#attach-list'); if (!list) return;
+    list.innerHTML = state.files.map((f) => `<li class="attach-chip"><span class="attach-name" title="${escapeHtml(f.name)}">📎 ${escapeHtml(f.name)}</span><small>${number(f.chunks)} 段</small><button type="button" class="attach-remove" data-file="${escapeHtml(f.file_id)}" aria-label="移除 ${escapeHtml(f.name)}">✕</button></li>`).join('');
+    $('#attach-btn').disabled = state.uploading || state.files.length >= (state.filesConfig?.max_files || 3);
+  }
+  function attachStatus(text, kind = '') { const box = $('#attach-status'); if (box) { box.textContent = text; box.className = `attach-status ${kind}`.trim(); } }
+  async function refreshFiles() {
+    if (!state.filesConfig?.enabled) return;
+    try { state.files = (await api('/api/wifi8/files')).files || []; } catch (_) { /* the chips keep showing what they showed */ }
+    renderAttachments();
+  }
+  async function uploadFiles(fileList) {
+    const config = state.filesConfig; if (!config?.enabled || state.uploading) return;
+    state.uploading = true; renderAttachments();
+    try {
+      for (const file of fileList) {
+        if (state.files.length >= config.max_files) { attachStatus(`最多同時附加 ${config.max_files} 個檔案，請先移除一個。`, 'error'); break; }
+        const extension = (file.name.match(/\.[^.]+$/) || [''])[0].toLowerCase();
+        if (!config.extensions.includes(extension)) { attachStatus(`「${file.name}」不是支援的檔案類型。`, 'error'); continue; }
+        if (file.size > config.max_bytes) { attachStatus(`「${file.name}」超過 ${Math.floor(config.max_bytes / 1048576)} MB 上限。`, 'error'); continue; }
+        attachStatus(`正在讀取「${file.name}」…`);
+        try {
+          const form = new FormData(); form.append('file', file);
+          state.files.push(await api('/api/wifi8/files', { method: 'POST', headers: FILE_HEADERS, body: form }));
+          attachStatus(`已附加「${file.name}」，可以直接提問。`, 'ok'); renderAttachments();
+        } catch (error) { attachStatus(`「${file.name}」：${error.message}`, 'error'); }
+      }
+    } finally { state.uploading = false; renderAttachments(); }
+  }
+  async function removeFile(fileId) {
+    try { await api(`/api/wifi8/files/${encodeURIComponent(fileId)}`, { method: 'DELETE', headers: FILE_HEADERS }); } catch (_) { /* already gone */ }
+    state.files = state.files.filter((f) => f.file_id !== fileId); renderAttachments();
+  }
+  async function renderAgent() {
+    const token = state.renderToken;
+    state.filesConfig = await api('/api/wifi8/files/config').catch(() => ({ enabled: false }));
+    state.files = state.filesConfig.enabled ? await api('/api/wifi8/files').then((data) => data.files || []).catch(() => []) : [];
+    if (token !== state.renderToken) return;
+    if (!state.conversation.length) state.conversation = loadConversation();
+    const restored = state.conversation.length ? `<div class="message assistant restored-note">已還原本分頁先前的對話（${Math.ceil(state.conversation.length / 2)} 輪）；關閉分頁後不會保留。</div>${restoredTurns(state.conversation)}` : '';
+    content.innerHTML = `<div class="ai-layout">${panel(ZONE.assistant, `<div id="conversation" class="conversation"><div class="message assistant">我會使用${ZONE.label}的文件與版本關係回答，並保留引用與工具步驟。</div>${restored}</div><label>問題<textarea id="agent-question" maxlength="2000" placeholder="${ZONE.example}"></textarea></label>${attachmentBar(state.filesConfig)}<div class="ai-actions"><small class="results-meta">回答以目前匯入資料為準</small><button id="agent-new" class="secondary-button" type="button">新對話</button><button id="agent-submit" class="primary-button" type="button">送出問題</button></div>`)}${panel('回答依據', '<p>每次回答會同時顯示：</p><ul><li>引用文件</li><li>Agent 工具步驟</li><li>停止原因與錯誤狀態</li></ul>', 'KM 知識流程')}</div>`;
+    $('#agent-submit').addEventListener('click', askAgent);
+    if (state.filesConfig.enabled) {
+      const picker = $('#attach-input'); const question = $('#agent-question');
+      renderAttachments();
+      $('#attach-btn').addEventListener('click', () => picker.click());
+      picker.addEventListener('change', () => { const chosen = [...picker.files]; picker.value = ''; uploadFiles(chosen); });
+      $('#attach-list').addEventListener('click', (event) => { const remove = event.target.closest('.attach-remove'); if (remove) removeFile(remove.dataset.file); });
+      question.addEventListener('dragover', (event) => { if (event.dataTransfer?.types?.includes('Files')) { event.preventDefault(); question.classList.add('drag-over'); } });
+      question.addEventListener('dragleave', () => question.classList.remove('drag-over'));
+      question.addEventListener('drop', (event) => { question.classList.remove('drag-over'); if (event.dataTransfer?.files?.length) { event.preventDefault(); uploadFiles([...event.dataTransfer.files]); } });
+    }
+    $('#agent-new').addEventListener('click', () => {
+      [...state.files].forEach((f) => removeFile(f.file_id));  // a new conversation does not keep the old one's files
+      state.conversation = []; saveConversation();
+      $('#conversation').innerHTML = '<div class="message assistant">已開始新對話。</div>';
+    });
+    $('#conversation').addEventListener('click', (event) => {
+      // A suggested follow-up fills the question box; the user decides whether to send it.
+      const followup = event.target.closest('.followup');
+      if (followup) { const input = $('#agent-question'); input.value = followup.dataset.question || ''; input.focus(); return; }
+      const bar = event.target.closest('.feedback'); if (!bar) return;
+      if (event.target.closest('.fb-up')) sendFeedback(bar, 'up', [], '');
+      else if (event.target.closest('.fb-down')) openFeedbackForm(bar);
+      else if (event.target.closest('.fb-send')) {
+        const reasons = [...bar.querySelectorAll('.fb-reasons input:checked')].map((box) => box.value);
+        sendFeedback(bar, 'down', reasons, bar.querySelector('.fb-comment').value);
+      }
+    });
+  }
+
+  function renderPlaceholder(route) {
+    const [title, description] = routeInfo[route];
+    content.innerHTML = `<section class="placeholder-card"><div><span class="placeholder-icon">⌘</span><h2>${title}</h2><p>${description}</p><p>這個頁面已保留完整導覽與版型，功能尚未從參考站移植。</p><span class="mode-badge">功能待移植</span></div></section>`;
+  }
+  async function renderRoute() {
+    const token = ++state.renderToken;
+    const candidate = (location.hash.replace(/^#\//, '').split('/')[0] || 'overview');
+    state.route = routeInfo[candidate] ? candidate : 'overview'; renderNav(); setHeader(state.route); content.innerHTML = '<div class="loading-card">正在載入…</div>'; $('#app').setAttribute('aria-busy','true');
+    try {
+      if (state.route === 'overview') await renderOverview(token); else if (state.route === 'documents') await renderDocuments(token); else if (state.route === 'ai') await renderAgent(); else renderPlaceholder(state.route);
+    } catch (error) { fail(error); }
+    finally { $('#app').setAttribute('aria-busy','false'); content.focus({preventScroll:true}); $('#primary-nav').classList.remove('open'); $('#nav-toggle').setAttribute('aria-expanded','false'); }
+  }
+
+  $('#nav-toggle').addEventListener('click', () => { const open = $('#primary-nav').classList.toggle('open'); $('#nav-toggle').setAttribute('aria-expanded', String(open)); });
+  $('#refresh-page').addEventListener('click', async (event) => { event.currentTarget.classList.add('is-loading'); event.currentTarget.disabled = true; await renderRoute(); event.currentTarget.classList.remove('is-loading'); event.currentTarget.disabled = false; });
+  $('#close-dialog').addEventListener('click', () => $('#document-dialog').close());
+  // Wi-Fi 8 feed: the right-hand column of every page of this zone. The weekly outside digest is written by the host's cron run and the document
+  // changes are found by comparing the zone's packages (src/wifi8/digest.py); both come from GET /api/wifi8/feed. Every text from outside is escaped
+  // and only https links are made clickable.
+  const feedState = { tab: 'digest', data: null, failed: false };
+  const FEED_EVENT = { new_document: ['新增', ''], superseded: ['被新版取代', 'warn'], removed: ['已移除', 'gone'] };
+  const feedDate = (value) => { const d = value ? new Date(value) : null; return d && !Number.isNaN(d.getTime()) ? d.toLocaleDateString('zh-TW', { month: 'numeric', day: 'numeric' }) : ''; };
+  const feedHttps = (value) => { try { const u = new URL(value); return u.protocol === 'https:' ? u.href : ''; } catch (_) { return ''; } };
+  const feedCard = (meta, title, text, link) => `<article class="feed-card"><div class="feed-meta">${meta}</div><h3>${link ? `<a href="${escapeHtml(link)}" target="_blank" rel="noopener noreferrer">${escapeHtml(title)}</a>` : escapeHtml(title)}</h3>${text ? `<p>${escapeHtml(text)}</p>` : ''}</article>`;
+
+  function feedDigestHtml(digest) {
+    if (!digest) return '<p class="feed-empty">週報尚未產生。每週排程執行後會顯示在這裡。</p>';
+    const parts = [];
+    if ((digest.highlights || []).length) parts.push(`<div class="feed-card"><div class="feed-section">本週重點</div><ul class="feed-highlights">${digest.highlights.map((h) => `<li>${escapeHtml(h)}</li>`).join('')}</ul></div>`);
+    const t = digest.timeline;
+    if (t && t.last_done) parts.push(`<div class="feed-card"><div class="feed-section">${ZONE.timelineLabel}</div><p class="feed-timeline">已完成 ${escapeHtml(t.done)}／${escapeHtml(t.total)} 個里程碑；最近完成 ${escapeHtml(t.last_done.name)}（${escapeHtml(t.last_done.current)}）${t.next ? `；下一步 ${escapeHtml(t.next.name)}，預計 ${escapeHtml(t.next.projected)}` : ''}</p></div>`);
+    const items = digest.items || [];
+    parts.push(...items.map((item) => feedCard(
+      `<span class="feed-badge">${escapeHtml(item.source_name)}</span>${feedDate(item.published) ? `<span>${feedDate(item.published)}</span>` : ''}${item.summary ? '<span>AI 摘要</span>' : ''}${item.older ? '<span class="feed-badge warn">較早</span>' : ''}`,
+      item.title, item.summary || item.excerpt || '', feedHttps(item.url))));
+    if (!items.length) parts.push(`<p class="feed-empty">本週沒有符合 ${ZONE.short} 的新動態。</p>`);
+    const bad = (digest.sources || []).filter((s) => s.status !== 'ok');
+    parts.push(`<p class="feed-note">${escapeHtml(digest.note || '')}</p>${bad.length ? `<p class="feed-note feed-fail">讀取失敗的來源：${bad.map((s) => escapeHtml(s.name)).join('、')}（顯示的是其餘來源）</p>` : ''}`);
+    return parts.join('');
+  }
+
+  function feedUpdatesHtml(updates) {
+    const events = (updates && updates.events) || []; const recent = (updates && updates.recent) || [];
+    const cards = events.map((e) => {
+      const [label, tone] = FEED_EVENT[e.type] || [e.type, ''];
+      return feedCard(`<span class="feed-badge ${tone}">${escapeHtml(label)}</span><span>${feedDate(e.at)}</span>${e.publisher ? `<span>${escapeHtml(e.publisher)}</span>` : ''}`,
+        e.title || e.revision_id, [e.document_role, e.version_label].filter(Boolean).join(' · '), '');
+    });
+    if (!cards.length) cards.push('<p class="feed-empty">資料包尚無新的變動。下次匯入新資料包後，新增、被取代或移除的文件會列在這裡。</p>');
+    if (recent.length) cards.push('<div class="feed-section">近期文件（依文件日期）</div>', ...recent.slice(0, 8).map((d) => feedCard(
+      `<span class="feed-badge">${escapeHtml(d.publisher || '')}</span><span>${escapeHtml(d.document_date || '')}</span>`, d.title, [d.document_role, d.version_label].filter(Boolean).join(' · '), '')));
+    return cards.join('');
+  }
+
+  function renderFeed() {
+    const body = $('#feed-body'); if (!body) return;
+    document.querySelectorAll('[data-feed-tab]').forEach((b) => { const on = b.dataset.feedTab === feedState.tab; b.classList.toggle('active', on); b.setAttribute('aria-selected', String(on)); });
+    if (feedState.failed && !feedState.data) body.innerHTML = '<p class="feed-empty">暫時無法讀取動態，稍後按「重新整理」。</p>';
+    else if (!feedState.data) body.innerHTML = '<p class="feed-empty">讀取中…</p>';
+    else body.innerHTML = feedState.tab === 'digest' ? feedDigestHtml(feedState.data.digest) : feedUpdatesHtml(feedState.data.updates);
+    const made = feedState.data && feedState.data.digest && feedState.data.digest.generated_at;
+    $('#feed-stamp').textContent = made ? `週報更新 ${new Date(made).toLocaleString('zh-TW', { hour12: false })}` : '';
+  }
+
+  async function loadFeed() {
+    try { feedState.data = await api('/api/wifi8/feed'); feedState.failed = false; } catch (_) { feedState.failed = true; }
+    renderFeed();
+  }
+
+  function initFeed() {
+    const column = $('#feed-column'); if (!column) return;
+    column.innerHTML = `<div class="feed-head"><div><span class="feed-kicker">${ZONE.feedKicker}</span><h2>${ZONE.feedTitle}</h2></div><button id="feed-refresh" class="feed-refresh" type="button">重新整理</button></div><div class="feed-tabs" role="tablist" aria-label="動態類型"><button type="button" role="tab" data-feed-tab="digest">每週週報</button><button type="button" role="tab" data-feed-tab="updates">文件更新</button></div><div id="feed-body" class="feed-body" aria-live="polite"></div><p id="feed-stamp" class="feed-stamp"></p>`;
+    column.querySelectorAll('[data-feed-tab]').forEach((b) => b.addEventListener('click', () => { feedState.tab = b.dataset.feedTab; renderFeed(); }));
+    $('#feed-refresh').addEventListener('click', loadFeed);
+    renderFeed(); loadFeed();
+    setInterval(loadFeed, 10 * 60 * 1000);
+  }
+  initFeed();
+
+  window.addEventListener('hashchange', renderRoute);
+
+  // A tab opened before a deploy keeps running the old code; tell the user when the server serves another build.
+  async function checkForUpdate() {
+    if (!LOADED_SCRIPT || $('#update-banner')) return;
+    try {
+      const response = await fetch('/wifi8/', { cache: 'no-store', credentials: 'same-origin', redirect: 'manual' });
+      const current = response.ok ? ((await response.text()).match(/wifi8\.[0-9a-f]{12}\.js/) || [''])[0] : '';
+      if (!current || current === LOADED_SCRIPT) return;
+      const banner = document.createElement('div');
+      banner.id = 'update-banner'; banner.className = 'update-banner'; banner.setAttribute('role', 'status');
+      banner.innerHTML = '<span>本專區已更新，請重新整理以使用最新版本。</span><button type="button" class="primary-button">重新整理</button>';
+      banner.querySelector('button').addEventListener('click', () => location.reload());
+      document.body.prepend(banner);
+    } catch (_) { /* offline or logged out: check again later */ }
+  }
+  setInterval(checkForUpdate, 5 * 60 * 1000);
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') checkForUpdate(); });
+
+  let returnRoute = null;
+  try { returnRoute = sessionStorage.getItem(RETURN_ROUTE_KEY); sessionStorage.removeItem(RETURN_ROUTE_KEY); } catch (_) { /* no storage */ }
+  if (!location.hash) location.replace(returnRoute && /^#\/[\w-]+/.test(returnRoute) && routeInfo[returnRoute.slice(2).split('/')[0]] ? returnRoute : '#/overview'); else renderRoute();
+})();
