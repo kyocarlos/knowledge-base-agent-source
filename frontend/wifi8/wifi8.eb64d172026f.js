@@ -5,10 +5,6 @@
     { label: '知識專區', items: [
       ['overview', '◈', '總覽', true], ['documents', '▤', '文件瀏覽', true], ['ai', '♙', 'AI Agent', true],
     ]},
-    { label: '作業管理', items: [
-      ['jobs', '◷', '匯入與進度', true], ['research', '⌕', '研究主題', false], ['wfa-downloads', '⇩', 'WFA 下載', false],
-      ['web-collection', '◎', '網頁收集', false], ['review', '✓', '內容審核', false],
-    ]},
     { label: '管理設定', items: [['ai-usage', '◌', 'AI 用量', false], ['settings', '⚙', '設定', false]] },
   ];
   const routeInfo = {
