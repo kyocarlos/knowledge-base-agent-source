@@ -11,7 +11,6 @@
     overview: ['總覽', '即時資料集、分類與版本狀態'],
     documents: ['文件瀏覽', '查詢目前版本、歷史版本與文件段落'],
     ai: ['WiFi AI Agent', '使用現有 WiFi Agent 進行可追溯問答'],
-    jobs: ['匯入與工作進度', '檢視匯入工作，有權限帳號可上傳匯出包'],
     research: ['研究主題', '建立與管理 WiFi 研究主題'],
     'wfa-downloads': ['WFA 下載', '管理 Wi-Fi Alliance 文件來源'],
     'web-collection': ['網頁收集', '收集、清理與追蹤網頁資料'],
@@ -86,7 +85,7 @@
   // Things that need a person's attention, computed by the server from the import and the zone's switches (src/wifi8/overview.py).
   function attentionPanel(items = []) {
     const body = items.length
-      ? `<div class="attention-list">${items.map((item) => `<a class="attention-task ${escapeHtml(item.level)}" href="#/${escapeHtml(item.route)}"><span><strong>${escapeHtml(item.title)}</strong><small>${escapeHtml(item.detail)}</small></span><span class="attention-go" aria-hidden="true">›</span></a>`).join('')}</div>`
+      ? `<div class="attention-list">${items.map((item) => { const inner = `<span><strong>${escapeHtml(item.title)}</strong><small>${escapeHtml(item.detail)}</small></span>`; return routeInfo[item.route] ? `<a class="attention-task ${escapeHtml(item.level)}" href="#/${escapeHtml(item.route)}">${inner}<span class="attention-go" aria-hidden="true">›</span></a>` : `<div class="attention-task ${escapeHtml(item.level)}">${inner}</div>`; }).join('')}</div>`
       : '<div class="alert-row success"><strong>目前沒有待處理事項</strong>匯入、版本關係與自動檢查都正常。</div>';
     return `<div class="overview-grid single">${panel('待處理事項', body, items.length ? `${items.length} 項` : '一切正常')}</div>`;
   }
@@ -436,99 +435,6 @@
     });
   }
 
-  function imageProgress(job) {
-    const images = job.images;
-    if (!images || !images.distinct) return '';
-    const finished = Number(images.described || 0) + Number(images.empty || 0) + Number(images.failed || 0);
-    return `<div class="job-meta">圖片轉文字 ${number(finished)} / ${number(images.distinct)}（有內容 ${number(images.described || 0)}、無內容 ${number(images.empty || 0)}、失敗 ${number(images.failed || 0)}）</div>`;
-  }
-  function jobRow(job) {
-    const total = Number(job.total || job.total_chunks || job.progress?.total || 0); const done = Number(job.completed || job.ready || job.progress?.completed || 0); const value = total ? Math.round(done / total * 100) : (/complete|success/.test(job.status || '') ? 100 : 0);
-    return `<li class="job-item"><div class="job-head"><strong>${escapeHtml(job.job_id || '匯入工作')}</strong><span class="status-badge ${statusClass(job.status)}">${escapeHtml(job.status || '未知')}</span></div><div class="job-meta">${escapeHtml(job.stage || '')} ${done || total ? `· ${number(done)} / ${number(total)}` : ''} · ${formatTime(job.updated_at || job.created_at)}</div>${imageProgress(job)}${job.message ? `<p class="job-meta">${escapeHtml(job.message)}</p>` : ''}${job.error ? `<p class="error-card">${escapeHtml(job.error)}</p>` : ''}<progress max="100" value="${value}"></progress></li>`;
-  }
-  // Automatic quality check after a data update: the switch is a file in this zone (see src/wifi8/autocheck.py); the host's watcher reads it.
-  function autoCheckPanel(info) {
-    const on = info.enabled !== false; const can = info.can_change === true;
-    const locked = can ? '' : '<p id="auto-check-locked" class="results-meta" role="note">您的帳號尚未獲得這個開關的授權，只能查看目前狀態。需要使用時，請聯絡 KM 管理員，在「帳號與資料區授權管理」頁授權。</p>';
-    const last = info.last_check ? `${formatTime(info.last_check.at)}（${escapeHtml(info.last_check.status || '—')}；資料版本 ${escapeHtml(info.last_check.package_id || '—')}）` : '尚無資料更新後的檢查紀錄';
-    const alive = info.last_poll_at ? formatTime(info.last_poll_at) : '尚未回報';
-    const warn = info.watcher_overdue ? `<p class="auto-check-warn" role="alert">監看程式超過 ${Number(info.interval_minutes || 5) * 3} 分鐘沒有回報，開關仍會記住，但目前不會自動檢查，請通知開發者。</p>` : '';
-    const body = `<div class="auto-check-row"><label class="switch${can ? '' : ' is-locked'}"><input id="auto-check-toggle" type="checkbox" role="switch" ${on ? 'checked' : ''} ${can ? '' : 'disabled'} aria-describedby="auto-check-note"><span class="switch-track" aria-hidden="true"></span><span id="auto-check-state">${on ? '已開啟' : '已關閉'}</span></label>
-      <p id="auto-check-note" class="results-meta">新資料匯入完成後，系統每 ${Number(info.interval_minutes || 5)} 分鐘確認一次，發現資料更新就自動做品質檢查（檢索、回答、可信度），有問題會通知開發者。關閉後不再自動檢查，重新開啟時會補檢查關閉期間的資料更新；每日與每週的排程檢查不受影響。</p></div>
-      ${locked}${warn}<dl class="auto-check-status"><dt>最近輪詢</dt><dd>${escapeHtml(alive)}</dd><dt>目前監看的資料版本</dt><dd>${escapeHtml(info.watching?.package_id || '—')}</dd><dt>最近一次資料更新檢查</dt><dd>${last}</dd><dt>開關最後變更</dt><dd>${info.changed_at ? `${escapeHtml(info.changed_by || '—')}，${formatTime(info.changed_at)}` : '尚未變更（預設開啟）'}</dd></dl>
-      <p id="auto-check-message" class="results-meta" role="status" aria-live="polite"></p>`;
-    return panel('資料更新後自動檢查', body, on ? '已開啟' : '已關閉');
-  }
-  function bindAutoCheck(host) {
-    const toggle = $('#auto-check-toggle');
-    if (!toggle || toggle.disabled) return;
-    toggle.addEventListener('change', async () => {
-      const wanted = toggle.checked; const message = $('#auto-check-message'); toggle.disabled = true; message.textContent = '正在儲存…';
-      try {
-        const info = await api('/api/wifi8/auto-check', { method: 'POST', headers: { 'x-km-wifi8-setting': '1', 'Content-Type': 'application/json' }, body: JSON.stringify({ enabled: wanted }) });
-        host.innerHTML = autoCheckPanel(info); bindAutoCheck(host); $('#auto-check-message').textContent = wanted ? '已開啟自動檢查。' : '已關閉自動檢查。';
-      } catch (error) {
-        toggle.checked = !wanted; toggle.disabled = false; message.textContent = `儲存失敗：${error.message}`;
-        try { host.innerHTML = autoCheckPanel(await api('/api/wifi8/auto-check')); bindAutoCheck(host); $('#auto-check-message').textContent = `儲存失敗：${error.message}`; } catch (_) { /* keep the message */ }
-      }
-    });
-  }
-  // When the zone's scheduled quality check runs: everybody sees the time, only an account that a KM Control admin authorised for this zone
-  // can change it. The page mirrors can_change from GET /api/wifi8/quality-schedule; the server checks again on every change.
-  // The time is picked on a 24-hour clock with two selects (a time input would show AM/PM on some systems); minutes are offered in
-  // steps of 5, the interval at which the host looks whether a check is due.
-  function qualitySchedulePanel(info) {
-    const can = info.can_change === true;
-    const [hour, minute] = String(info.time || '03:30').split(':');
-    const hours = Array.from({ length: 24 }, (_, h) => String(h).padStart(2, '0'));
-    const minutes = Array.from({ length: 12 }, (_, i) => String(i * 5).padStart(2, '0'));
-    if (!minutes.includes(minute)) { minutes.push(minute); minutes.sort(); }
-    const options = (list, current) => list.map((v) => `<option value="${v}"${v === current ? ' selected' : ''}>${v}</option>`).join('');
-    const clock = info.timezone === 'Asia/Taipei' ? '台北時間' : escapeHtml(info.timezone || '');
-    const dis = can ? '' : 'disabled';
-    const locked = can ? '' : '<p id="quality-schedule-locked" class="results-meta" role="note">您的帳號尚未獲得這個設定的授權，只能查看目前時間。需要更改時，請聯絡 KM 管理員，在「帳號與資料區授權管理」頁授權。</p>';
-    const body = `<p id="quality-schedule-note" class="results-meta">每天在這個時間為這個資料區執行品質檢查：檢索與回答可信度；每週日另外加跑 Agent 回答檢查（會把題庫逐題問 Agent，使用語言模型，較久）。檢查跑完一律通知 Telegram，不論通過、警示、失敗或無法執行。預設 03:30。</p>
-      <div class="summary-time-row" role="group" aria-label="品質檢查時間（24 小時制）"><span>每天</span>
-        <select id="quality-schedule-hour" aria-label="時（00 到 23）" ${dis}>${options(hours, hour)}</select><span aria-hidden="true">:</span>
-        <select id="quality-schedule-minute" aria-label="分" ${dis}>${options(minutes, minute)}</select>
-        <span class="results-meta">24 小時制・${clock}</span>
-        <button id="quality-schedule-save" class="secondary-button" type="button" disabled>儲存時間</button></div>
-      ${locked}<dl class="auto-check-status"><dt>目前設定</dt><dd>每天 ${escapeHtml(info.time || '03:30')}（${clock}）</dd><dt>最後變更</dt><dd>${info.changed_at ? `${escapeHtml(info.changed_by || '—')}，${formatTime(info.changed_at)}` : '尚未變更（使用預設時間）'}</dd></dl>
-      <p id="quality-schedule-message" class="results-meta" role="status" aria-live="polite"></p>`;
-    return panel('品質檢查排程', body, `每天 ${escapeHtml(info.time || '03:30')}`);
-  }
-  function bindQualitySchedule(host) {
-    const hour = $('#quality-schedule-hour'); const minute = $('#quality-schedule-minute'); const save = $('#quality-schedule-save');
-    if (!hour || hour.disabled) return;
-    const initial = `${hour.value}:${minute.value}`; const picked = () => `${hour.value}:${minute.value}`;
-    const sync = () => { save.disabled = picked() === initial; };
-    hour.addEventListener('change', sync); minute.addEventListener('change', sync);
-    save.addEventListener('click', async () => {
-      const message = $('#quality-schedule-message'); const controls = [hour, minute, save]; controls.forEach((c) => { c.disabled = true; }); message.textContent = '正在儲存…';
-      try {
-        const info = await api('/api/wifi8/quality-schedule', { method: 'POST', headers: { 'x-km-wifi8-setting': '1', 'Content-Type': 'application/json' }, body: JSON.stringify({ time: picked() }) });
-        host.innerHTML = qualitySchedulePanel(info); bindQualitySchedule(host); $('#quality-schedule-message').textContent = `已儲存：每天 ${info.time} 執行品質檢查，跑完會通知 Telegram。`;
-      } catch (error) {
-        try { host.innerHTML = qualitySchedulePanel(await api('/api/wifi8/quality-schedule')); bindQualitySchedule(host); $('#quality-schedule-message').textContent = `儲存失敗：${error.message}`; }
-        catch (_) { controls.forEach((c) => { c.disabled = false; }); message.textContent = `儲存失敗：${error.message}`; }
-      }
-    });
-  }
-  async function renderJobs(token) {
-    const data = await api('/api/wifi8/jobs');
-    if (token !== state.renderToken) return;
-    let upload = '';
-    try { const status = await api('/api/wifi8/status'); if (status.upload_enabled) upload = `<div class="upload-box"><form id="upload-form" class="upload-row"><label>Wi-Fi8 匯出包 (.zip)<input name="file" type="file" accept=".zip" required></label><button class="primary-button" type="submit">上傳並匯入</button></form><p id="upload-status" class="results-meta">匯入完成前不會切換目前版本。</p></div>`; } catch (_) { /* jobs remain readable */ }
-    let autoCheck = '<div id="auto-check-host"></div>';
-    try { autoCheck = `<div id="auto-check-host">${autoCheckPanel(await api('/api/wifi8/auto-check'))}</div>`; } catch (_) { /* the jobs stay readable without the switch */ }
-    let qualitySchedule = '<div id="quality-schedule-host"></div>';
-    try { qualitySchedule = `<div id="quality-schedule-host">${qualitySchedulePanel(await api('/api/wifi8/quality-schedule'))}</div>`; } catch (_) { /* the jobs stay readable without it */ }
-    content.innerHTML = panel('匯入工作', `${upload}<ul class="job-list">${(data.jobs || []).map(jobRow).join('') || '<li class="empty">尚無匯入工作</li>'}</ul>`, `${(data.jobs || []).length} 筆近期工作`) + autoCheck + qualitySchedule;
-    if ($('#auto-check-host')?.firstElementChild) bindAutoCheck($('#auto-check-host'));
-    if ($('#quality-schedule-host')?.firstElementChild) bindQualitySchedule($('#quality-schedule-host'));
-    $('#upload-form')?.addEventListener('submit', async (event) => { event.preventDefault(); const message = $('#upload-status'); message.textContent = '正在上傳…'; try { const result = await api('/api/wifi8/packages', { method:'POST', headers:{'x-km-wifi8-import':'1'}, body:new FormData(event.target) }); message.textContent = `已送出 ${result.job_id}`; setTimeout(() => renderRoute(), 1000); } catch (error) { message.textContent = error.message; } });
-  }
-
   function renderPlaceholder(route) {
     const [title, description] = routeInfo[route];
     content.innerHTML = `<section class="placeholder-card"><div><span class="placeholder-icon">⌘</span><h2>${title}</h2><p>${description}</p><p>這個頁面已保留完整導覽與版型，功能尚未從參考站移植。</p><span class="mode-badge">功能待移植</span></div></section>`;
@@ -538,7 +444,7 @@
     const candidate = (location.hash.replace(/^#\//, '').split('/')[0] || 'overview');
     state.route = routeInfo[candidate] ? candidate : 'overview'; renderNav(); setHeader(state.route); content.innerHTML = '<div class="loading-card">正在載入…</div>'; $('#app').setAttribute('aria-busy','true');
     try {
-      if (state.route === 'overview') await renderOverview(token); else if (state.route === 'documents') await renderDocuments(token); else if (state.route === 'ai') await renderAgent(); else if (state.route === 'jobs') await renderJobs(token); else renderPlaceholder(state.route);
+      if (state.route === 'overview') await renderOverview(token); else if (state.route === 'documents') await renderDocuments(token); else if (state.route === 'ai') await renderAgent(); else renderPlaceholder(state.route);
     } catch (error) { fail(error); }
     finally { $('#app').setAttribute('aria-busy','false'); content.focus({preventScroll:true}); $('#primary-nav').classList.remove('open'); $('#nav-toggle').setAttribute('aria-expanded','false'); }
   }
