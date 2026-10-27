@@ -4,7 +4,7 @@ The digest reads only the headline, link, date and excerpt that each source publ
 latest meeting entry of the IEEE 802.11bn task-group page); it never fetches an article body and every link points at the source itself.
 A language model turns the excerpts into one or two Chinese sentences each. What the sources say is data, never an instruction: the
 prompt says so, the model's answer must be JSON with a summary per known item id, and anything else is dropped. Without a model the
-items are shown with their excerpt. Sources, keywords and limits are in ``config/wifi8_digest_sources.json``.
+items are shown with their excerpt. Sources, keywords and limits are in ``digest_sources.json`` next to this file (or the file named by KM_WIFI8_DIGEST_SOURCES).
 
 Files (in the zone's wifi8 root, a persistent volume):
   digest/latest.json   the digest the page shows: highlights, items, and per source when it was last read and whether that worked
@@ -36,7 +36,7 @@ from .autocheck import _read, write_json
 logger = logging.getLogger("km.wifi8.digest")
 
 CONFIG_ENV = "KM_WIFI8_DIGEST_SOURCES"
-DEFAULT_CONFIG = Path(__file__).resolve().parents[2] / "config" / "wifi8_digest_sources.json"
+DEFAULT_CONFIG = Path(__file__).resolve().parent / "digest_sources.json"  # next to the code: /app/config is a host mount in some zones
 DIR = "digest"
 USER_AGENT = "KM-WiFi8-Digest/1.0 (+internal research digest; reads feeds only)"
 MAX_BYTES = 3 * 1024 * 1024
