@@ -3,14 +3,14 @@
 
   const navGroups = [
     { label: '知識專區', items: [
-      ['overview', '◈', '總覽', true], ['documents', '▤', '文件瀏覽', true], ['ai', '♙', 'AI Agent', true],
+      ['overview', '◈', '總覽', true], ['documents', '▤', '文件瀏覽', true], ['ai', '♙', 'WiFi 知識助理', true],
     ]},
     { label: '管理設定', items: [['ai-usage', '◌', 'AI 用量', false], ['settings', '⚙', '設定', false]] },
   ];
   const routeInfo = {
     overview: ['總覽', '即時資料集、分類與版本狀態'],
     documents: ['文件瀏覽', '查詢目前版本、歷史版本與文件段落'],
-    ai: ['WiFi AI Agent', '使用現有 WiFi Agent 進行可追溯問答'],
+    ai: ['WiFi 知識助理', '使用現有 WiFi Agent 進行可追溯問答'],
     research: ['研究主題', '建立與管理 WiFi 研究主題'],
     'wfa-downloads': ['WFA 下載', '管理 Wi-Fi Alliance 文件來源'],
     'web-collection': ['網頁收集', '收集、清理與追蹤網頁資料'],
