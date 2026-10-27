@@ -562,3 +562,4 @@ tbody tr:hover { background: rgba(127,255,227,.055); }
 .attach-status.error { color: #ff9b9b; }
 .message-files { margin-top: 6px; font-size: .76rem; opacity: .85; }
 #agent-question.drag-over { outline: 2px dashed var(--green); outline-offset: 2px; }
+.cite-ref.cite-mine { color: #ffd479; background: rgba(255,212,121,.13); }

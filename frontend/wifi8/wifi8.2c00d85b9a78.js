@@ -205,7 +205,7 @@
       ? `<code>${part.slice(1, -1)}</code>`
       : part.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
         .replace(/(^|[^*\w])\*(?!\s)([^*\n]+?)\*(?!\w)/g, '$1<em>$2</em>')
-        .replace(/\[(S\d+)\]/g, '<span class="cite-ref">[$1]</span>')
+        .replace(/\[(S\d+)(・我的檔案)?\]/g, (match, ref, mine) => `<span class="cite-ref${mine ? ' cite-mine' : ''}">[${ref}${mine || ''}]</span>`)
         .replace(/\[(G\d+)\]/g, '<span class="cite-ref graph-ref" title="知識圖譜關聯（LLM 抽取，未逐句驗證）">[$1]</span>')).join('');
   }
   const markdownList = /^\s*([-*+]|\d+[.)])\s+(.*)$/;
@@ -333,8 +333,11 @@
   function agentOutput(value) {
     const answer = value.answer_main || value.answer || value.result || value.message || '未回傳回答';
     const citations = value.citations || value.sources || [];
+    // A reference to a file the user attached is labelled in the text itself, so it cannot be mistaken for a WFA source.
+    const mine = new Set(citations.filter((c) => c.publisher === '使用者上傳').map((c) => c.ref));
+    const shown = mine.size ? answer.replace(/\[(S\d+)\]/g, (match, ref) => (mine.has(ref) ? `[${ref}・我的檔案]` : match)) : answer;
     const trace = value.steps || value.tool_steps || value.trace || [];
-    return `<div class="message assistant markdown">${renderMarkdown(answer)}</div>${extensionPanel(value)}${groundingPanel(value.grounding)}<ul class="citation-list">${citations.map(citationItem).join('')}</ul><details><summary>Agent 工具步驟與停止原因</summary><ul class="trace-list">${trace.map((item) => `<li>${escapeHtml(typeof item === 'string' ? item : item.tool || item.name || JSON.stringify(item))}</li>`).join('') || '<li>無工具步驟</li>'}</ul><p class="results-meta">${escapeHtml(value.stop_reason || value.status || '')}</p></details>`;
+    return `<div class="message assistant markdown">${renderMarkdown(shown)}</div>${extensionPanel(value)}${groundingPanel(value.grounding)}<ul class="citation-list">${citations.map(citationItem).join('')}</ul><details><summary>Agent 工具步驟與停止原因</summary><ul class="trace-list">${trace.map((item) => `<li>${escapeHtml(typeof item === 'string' ? item : item.tool || item.name || JSON.stringify(item))}</li>`).join('') || '<li>無工具步驟</li>'}</ul><p class="results-meta">${escapeHtml(value.stop_reason || value.status || '')}</p></details>`;
   }
   async function pollAgent(taskId) {
     for (let attempt = 0; attempt < 120; attempt += 1) {
