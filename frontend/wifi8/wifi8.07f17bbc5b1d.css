@@ -546,3 +546,19 @@ tbody tr:hover { background: rgba(127,255,227,.055); }
   html { scroll-behavior: auto; }
   *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
 }
+
+/* Files attached to a WiFi assistant conversation */
+.attach-bar { display: grid; gap: 8px; margin-top: 12px; }
+.attach-row { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.attach-hint { margin: 0; flex: 1 1 260px; }
+.attach-list { display: flex; flex-wrap: wrap; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.attach-chip { display: inline-flex; align-items: center; gap: 8px; max-width: 100%; padding: 6px 8px 6px 13px; border: 1px solid var(--line); border-radius: 999px; background: rgba(127,255,227,.07); font-size: .8rem; }
+.attach-name { max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.attach-chip small { color: var(--muted); }
+.attach-remove { padding: 2px 7px; border: 0; border-radius: 999px; background: transparent; color: var(--muted); font-size: .85rem; cursor: pointer; }
+.attach-remove:hover { color: #f2ffff; background: rgba(255,255,255,.12); }
+.attach-status { min-height: 1em; margin: 0; color: var(--muted); font-size: .78rem; }
+.attach-status.ok { color: #81d8c6; }
+.attach-status.error { color: #ff9b9b; }
+.message-files { margin-top: 6px; font-size: .76rem; opacity: .85; }
+#agent-question.drag-over { outline: 2px dashed var(--green); outline-offset: 2px; }

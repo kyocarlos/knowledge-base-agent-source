@@ -25,6 +25,7 @@ from .memory import history_messages
 from .quality import QUALITY_LOG_PREFIX
 from .search import SearchOptions, Wifi8Search, figure_intent
 from .store import match, scroll_all
+from .userfiles import USERFILE_PROMPT, USERFILE_TOOL_LABELS, USERFILE_TOOLS, UserFiles
 
 logger = logging.getLogger("km.wifi8.agent")
 
@@ -190,8 +191,10 @@ class CitationRegistry:
 
 
 class WifiTools:
-    def __init__(self, search: Wifi8Search, settings: AgentSettings, citations: CitationRegistry, graph: Wifi8Graph | None = None):
+    def __init__(self, search: Wifi8Search, settings: AgentSettings, citations: CitationRegistry, graph: Wifi8Graph | None = None,
+                 user_files: UserFiles | None = None):
         self.graph = graph
+        self.user_files = user_files  # files the user attached to this conversation (never part of the knowledge base)
         self.concepts = ConceptTools(self) if settings.concepts and graph is not None else None
         self.graph_citations = GraphCitations()
         self.search_engine = search
@@ -415,7 +418,8 @@ class WifiTools:
                    "read_document": self.read_document, "list_documents": self.list_documents,
                    "zone_overview": self.zone_overview, **({"graph_related": self.graph_related, "graph_timeline": self.graph_timeline} if self.graph else {}),
                    **({"calculate": self.calculate} if self.settings.calc else {}),
-                   **({"concept_relations": self.concepts.concept_relations, "concept_compare": self.concepts.concept_compare} if self.concepts else {})}.get(name)
+                   **({"concept_relations": self.concepts.concept_relations, "concept_compare": self.concepts.concept_compare} if self.concepts else {}),
+                   **(self.user_files.handlers() if self.user_files else {})}.get(name)
         if handler is None:
             return {"error": f"未知的工具：{name}"}
         try:
@@ -442,6 +446,7 @@ TOOL_LABELS = {
     "read_document": "閱讀文件內容", "list_documents": "列出文件", "zone_overview": "查看專區總覽",
     "graph_related": "查詢相關主題與文件", "graph_timeline": "查詢版本關係",
     "concept_relations": "查詢概念關係", "concept_compare": "比較兩個概念", "calculate": "計算",
+    **USERFILE_TOOL_LABELS,
 }
 
 
@@ -474,7 +479,11 @@ def run_agent(question: str, *, llm: Llm, tools: WifiTools, settings: AgentSetti
         prompt += CALC_PROMPT
     if settings.list_assist:
         prompt += LIST_PROMPT
-    tool_schema = TOOLS + (GRAPH_TOOLS if extension_on and tools.graph else []) + (CONCEPT_TOOLS if concepts_on else []) + ([CALC_TOOL] if settings.calc else [])
+    files_on = tools.user_files is not None
+    if files_on:
+        prompt += USERFILE_PROMPT
+    tool_schema = (TOOLS + (GRAPH_TOOLS if extension_on and tools.graph else []) + (CONCEPT_TOOLS if concepts_on else [])
+                   + ([CALC_TOOL] if settings.calc else []) + (USERFILE_TOOLS if files_on else []))
     messages: list[dict[str, Any]] = [{"role": "system", "content": prompt}]
     if settings.memory:  # older turns condensed by code instead of dropped
         messages += history_messages(history)
@@ -482,7 +491,7 @@ def run_agent(question: str, *, llm: Llm, tools: WifiTools, settings: AgentSetti
         for turn in (history or [])[-6:]:
             if turn.get("role") in {"user", "assistant"} and isinstance(turn.get("content"), str):
                 messages.append({"role": turn["role"], "content": turn["content"][:2000]})
-    messages.append({"role": "user", "content": question})
+    messages.append({"role": "user", "content": (tools.user_files.intro() if files_on else "") + question})
     trace: list[dict[str, Any]] = []
     answer, stop_reason = "", "answered"
     for step in range(settings.max_steps + 1):

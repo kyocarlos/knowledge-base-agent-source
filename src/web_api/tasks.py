@@ -969,7 +969,7 @@ def _wifi8_graph():
 
 
 @celery_app.task(name="tasks.wifi8_agent_task", bind=True)
-def wifi8_agent_task(self, question: str, history: list | None = None, owner: dict | None = None):
+def wifi8_agent_task(self, question: str, history: list | None = None, owner: dict | None = None, file_ids: list | None = None):
     """WiFi zone agent: the LLM picks read-only WiFi tools; limits and citations stay in code."""
     from ..wifi8.agent import AgentSettings, CitationRegistry, WifiTools, run_agent
     from ..wifi8.importer import Wifi8Importer, Wifi8Settings
@@ -1005,9 +1005,18 @@ def wifi8_agent_task(self, question: str, history: list | None = None, owner: di
     if client is None:
         # The agent needs tool calling; the Ollama fallback is not used for it.
         return finish({**base, "status": "failed", "error": "WiFi agent 需要主要 LLM（支援工具呼叫），目前未設定或無法建立"})
+    citations = CitationRegistry()
+    user_files = None
+    if file_ids and owner:  # files the asker attached: looked up under the asker's own account, an expired or foreign id finds nothing
+        from ..wifi8.userfiles import UserFileSettings, UserFileStore, UserFiles
+        file_settings = UserFileSettings.from_environment()
+        file_store = UserFileStore(get_redis_client(), file_settings)
+        wanted = [str(i) for i in file_ids][:file_settings.max_files]
+        records = {i: r for i in wanted if (r := file_store.get(owner, i))}
+        user_files = UserFiles(records, citations.add, missing=len(wanted) - len(records), read_chars=settings.read_chars)
     try:
         result = run_agent(question, llm=lambda **kw: client.chat.completions.create(**kw),
-                           tools=WifiTools(search, settings, CitationRegistry(), _wifi8_graph() if (settings.extension or settings.concepts) else None), settings=settings,
+                           tools=WifiTools(search, settings, citations, _wifi8_graph() if (settings.extension or settings.concepts) else None, user_files), settings=settings,
                            history=history, emit=emitter)
     except Exception as exc:  # noqa: BLE001 - tell the page now instead of letting it wait for its timeout
         finish({**base, "status": "failed", "error": f"{type(exc).__name__}"})

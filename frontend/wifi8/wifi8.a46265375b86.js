@@ -18,7 +18,7 @@
     'ai-usage': ['AI 用量', '查看 Agent 用量與執行狀態'],
     settings: ['設定', '調整 WiFi 知識專區設定'],
   };
-  const state = { route: 'overview', overview: null, documentPage: 1, conversation: [], agentTask: null, renderToken: 0 };
+  const state = { route: 'overview', overview: null, documentPage: 1, conversation: [], agentTask: null, renderToken: 0, files: [], filesConfig: null, uploading: false };
   const $ = (selector) => document.querySelector(selector);
   const content = $('#page-content');
   const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (char) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
@@ -382,17 +382,20 @@
   function citedTitles(result) { return [...new Set((result.citations || []).map((c) => c.source || c.title).filter(Boolean))].slice(0, 5); }
   async function askAgent() {
     const input = $('#agent-question'); const question = input.value.trim(); if (!question) return;
+    if (state.uploading) { attachStatus('檔案還在讀取中，請稍候再送出。', 'error'); return; }
     const button = $('#agent-submit'); button.disabled = true;
-    $('#conversation').insertAdjacentHTML('beforeend', `<div class="message user">${escapeHtml(question)}</div><div id="agent-wait" class="message assistant"><div class="live-status" role="status">正在調用 WiFi Agent…</div><div class="live-text markdown"></div></div>`);
+    const attached = state.files.map((f) => f.name);
+    const attachedNote = attached.length ? `[附加檔案：${attached.join('、')}]` : '';
+    $('#conversation').insertAdjacentHTML('beforeend', `<div class="message user">${escapeHtml(question)}${attached.length ? `<div class="message-files">📎 ${escapeHtml(attached.join('、'))}</div>` : ''}</div><div id="agent-wait" class="message assistant"><div class="live-status" role="status">正在調用 WiFi Agent…</div><div class="live-text markdown"></div></div>`);
     input.value = '';
     try {
-      const submitted = await api('/api/wifi8/agent', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ question, history:state.conversation.slice(-MAX_TURNS) }) });
+      const submitted = await api('/api/wifi8/agent', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ question, history:state.conversation.slice(-MAX_TURNS), ...(state.files.length ? { file_ids: state.files.map((f) => f.file_id) } : {}) }) });
       if (submitted.stream) await streamAgent(submitted.task_id, $('#agent-wait'));
       const result = await pollAgent(submitted.task_id); $('#agent-wait').outerHTML = agentOutput(result) + (submitted.feedback ? feedbackBar(result) : '');
-      state.conversation.push({role:'user',content:question},{role:'assistant',content:result.answer_main || result.answer || result.result || '', sources:citedTitles(result)});
+      state.conversation.push({role:'user',content:attachedNote ? `${question}\n${attachedNote}` : question},{role:'assistant',content:result.answer_main || result.answer || result.result || '', sources:citedTitles(result)});
       saveConversation();
     } catch (error) { $('#agent-wait').outerHTML = `<div class="message error">${escapeHtml(error.message)}</div>`; }
-    finally { button.disabled = false; }
+    finally { button.disabled = false; refreshFiles(); }  // a file that expired meanwhile drops off the list
   }
   // Rating an answer: a thumb, and for a thumbs-down the reasons (the list comes from the server) and an optional note.
   function feedbackBar(value) {
@@ -412,12 +415,69 @@
     const boxes = state.feedbackReasons.map((r) => `<label class="checkbox-label"><input type="checkbox" value="${escapeHtml(r.key)}">${escapeHtml(r.label)}</label>`).join('');
     bar.insertAdjacentHTML('beforeend', `<div class="fb-form"><div class="fb-reasons">${boxes}</div><textarea class="fb-comment" maxlength="500" placeholder="補充說明（選填，最多 500 字）" aria-label="補充說明"></textarea><button type="button" class="primary-button fb-send">送出回饋</button></div>`);
   }
+  // Files the user attaches to the conversation (only accounts a KM Control admin authorised see this): the server reads each one into text,
+  // keeps it for a couple of hours and the page sends the ids along with every question. They are not added to the knowledge base.
+  const FILE_HEADERS = { 'x-km-wifi8-userfile': '1' };
+  function attachmentBar(config) {
+    if (!config?.enabled) return '';
+    const hours = Math.max(1, Math.round((config.ttl_seconds || 7200) / 3600));
+    const hint = `PDF、Word、Excel、文字、圖片；每個檔案 ${Math.floor((config.max_bytes || 10485760) / 1048576)} MB 內、最多 ${config.max_files || 3} 個。檔案只暫存在這次對話，約 ${hours} 小時後自動刪除，不會進入知識庫。`;
+    return `<div class="attach-bar"><div class="attach-row"><button id="attach-btn" class="secondary-button" type="button">＋ 附加檔案</button><input id="attach-input" type="file" multiple hidden accept="${escapeHtml((config.extensions || []).join(','))}"><small class="results-meta attach-hint">${hint}</small></div><ul id="attach-list" class="attach-list" aria-label="已附加的檔案"></ul><p id="attach-status" class="attach-status" role="status" aria-live="polite"></p></div>`;
+  }
+  function renderAttachments() {
+    const list = $('#attach-list'); if (!list) return;
+    list.innerHTML = state.files.map((f) => `<li class="attach-chip"><span class="attach-name" title="${escapeHtml(f.name)}">📎 ${escapeHtml(f.name)}</span><small>${number(f.chunks)} 段</small><button type="button" class="attach-remove" data-file="${escapeHtml(f.file_id)}" aria-label="移除 ${escapeHtml(f.name)}">✕</button></li>`).join('');
+    $('#attach-btn').disabled = state.uploading || state.files.length >= (state.filesConfig?.max_files || 3);
+  }
+  function attachStatus(text, kind = '') { const box = $('#attach-status'); if (box) { box.textContent = text; box.className = `attach-status ${kind}`.trim(); } }
+  async function refreshFiles() {
+    if (!state.filesConfig?.enabled) return;
+    try { state.files = (await api('/api/wifi8/files')).files || []; } catch (_) { /* the chips keep showing what they showed */ }
+    renderAttachments();
+  }
+  async function uploadFiles(fileList) {
+    const config = state.filesConfig; if (!config?.enabled || state.uploading) return;
+    state.uploading = true; renderAttachments();
+    try {
+      for (const file of fileList) {
+        if (state.files.length >= config.max_files) { attachStatus(`最多同時附加 ${config.max_files} 個檔案，請先移除一個。`, 'error'); break; }
+        const extension = (file.name.match(/\.[^.]+$/) || [''])[0].toLowerCase();
+        if (!config.extensions.includes(extension)) { attachStatus(`「${file.name}」不是支援的檔案類型。`, 'error'); continue; }
+        if (file.size > config.max_bytes) { attachStatus(`「${file.name}」超過 ${Math.floor(config.max_bytes / 1048576)} MB 上限。`, 'error'); continue; }
+        attachStatus(`正在讀取「${file.name}」…`);
+        try {
+          const form = new FormData(); form.append('file', file);
+          state.files.push(await api('/api/wifi8/files', { method: 'POST', headers: FILE_HEADERS, body: form }));
+          attachStatus(`已附加「${file.name}」，可以直接提問。`, 'ok'); renderAttachments();
+        } catch (error) { attachStatus(`「${file.name}」：${error.message}`, 'error'); }
+      }
+    } finally { state.uploading = false; renderAttachments(); }
+  }
+  async function removeFile(fileId) {
+    try { await api(`/api/wifi8/files/${encodeURIComponent(fileId)}`, { method: 'DELETE', headers: FILE_HEADERS }); } catch (_) { /* already gone */ }
+    state.files = state.files.filter((f) => f.file_id !== fileId); renderAttachments();
+  }
   async function renderAgent() {
+    const token = state.renderToken;
+    state.filesConfig = await api('/api/wifi8/files/config').catch(() => ({ enabled: false }));
+    state.files = state.filesConfig.enabled ? await api('/api/wifi8/files').then((data) => data.files || []).catch(() => []) : [];
+    if (token !== state.renderToken) return;
     if (!state.conversation.length) state.conversation = loadConversation();
     const restored = state.conversation.length ? `<div class="message assistant restored-note">已還原本分頁先前的對話（${Math.ceil(state.conversation.length / 2)} 輪）；關閉分頁後不會保留。</div>${restoredTurns(state.conversation)}` : '';
-    content.innerHTML = `<div class="ai-layout">${panel('WiFi 知識助理', `<div id="conversation" class="conversation"><div class="message assistant">我會使用 WiFi 專區的文件與版本關係回答，並保留引用與工具步驟。</div>${restored}</div><label>問題<textarea id="agent-question" maxlength="2000" placeholder="例如：ELR 的規格重點是什麼？"></textarea></label><div class="ai-actions"><small class="results-meta">回答以目前匯入資料為準</small><button id="agent-new" class="secondary-button" type="button">新對話</button><button id="agent-submit" class="primary-button" type="button">送出問題</button></div>`)}${panel('回答依據', '<p>每次回答會同時顯示：</p><ul><li>引用文件</li><li>Agent 工具步驟</li><li>停止原因與錯誤狀態</li></ul>', 'KM 知識流程')}</div>`;
+    content.innerHTML = `<div class="ai-layout">${panel('WiFi 知識助理', `<div id="conversation" class="conversation"><div class="message assistant">我會使用 WiFi 專區的文件與版本關係回答，並保留引用與工具步驟。</div>${restored}</div><label>問題<textarea id="agent-question" maxlength="2000" placeholder="例如：ELR 的規格重點是什麼？"></textarea></label>${attachmentBar(state.filesConfig)}<div class="ai-actions"><small class="results-meta">回答以目前匯入資料為準</small><button id="agent-new" class="secondary-button" type="button">新對話</button><button id="agent-submit" class="primary-button" type="button">送出問題</button></div>`)}${panel('回答依據', '<p>每次回答會同時顯示：</p><ul><li>引用文件</li><li>Agent 工具步驟</li><li>停止原因與錯誤狀態</li></ul>', 'KM 知識流程')}</div>`;
     $('#agent-submit').addEventListener('click', askAgent);
+    if (state.filesConfig.enabled) {
+      const picker = $('#attach-input'); const question = $('#agent-question');
+      renderAttachments();
+      $('#attach-btn').addEventListener('click', () => picker.click());
+      picker.addEventListener('change', () => { const chosen = [...picker.files]; picker.value = ''; uploadFiles(chosen); });
+      $('#attach-list').addEventListener('click', (event) => { const remove = event.target.closest('.attach-remove'); if (remove) removeFile(remove.dataset.file); });
+      question.addEventListener('dragover', (event) => { if (event.dataTransfer?.types?.includes('Files')) { event.preventDefault(); question.classList.add('drag-over'); } });
+      question.addEventListener('dragleave', () => question.classList.remove('drag-over'));
+      question.addEventListener('drop', (event) => { question.classList.remove('drag-over'); if (event.dataTransfer?.files?.length) { event.preventDefault(); uploadFiles([...event.dataTransfer.files]); } });
+    }
     $('#agent-new').addEventListener('click', () => {
+      [...state.files].forEach((f) => removeFile(f.file_id));  // a new conversation does not keep the old one's files
       state.conversation = []; saveConversation();
       $('#conversation').innerHTML = '<div class="message assistant">已開始新對話。</div>';
     });

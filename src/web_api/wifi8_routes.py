@@ -7,6 +7,7 @@ Reading the import status only requires a KM session for this data zone.
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
 import tempfile
@@ -19,7 +20,9 @@ from fastapi import APIRouter, HTTPException, Query, Request, UploadFile
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field, StrictBool
 
-from ..wifi8 import autocheck, feedback, overview as overview_stats, progress, quality_schedule
+from starlette.concurrency import run_in_threadpool
+
+from ..wifi8 import autocheck, feedback, images, overview as overview_stats, progress, quality_schedule, userfiles
 from ..wifi8.importer import ImportConflict, Wifi8Importer, Wifi8Settings
 from ..wifi8.package import IMAGE_TYPES, PackageError
 from ..wifi8.search import SearchOptions, SearchUnavailable, Wifi8Search
@@ -29,6 +32,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/wifi8", tags=["Wi-Fi8 import"])
 IMPORT_HEADER = "x-km-wifi8-import"
 SETTING_HEADER = "x-km-wifi8-setting"
+USERFILE_HEADER = "x-km-wifi8-userfile"
 IMPORT_TASK = "tasks.wifi8_import_task"
 AGENT_TASK = "tasks.wifi8_agent_task"
 
@@ -525,6 +529,7 @@ class AgentTurn(BaseModel):
 class AgentRequest(BaseModel):
     question: str = Field(min_length=1, max_length=2000)
     history: list[AgentTurn] = Field(default_factory=list, max_length=60)
+    file_ids: list[str] = Field(default_factory=list, max_length=5, description="files attached with POST /files")
 
 
 def _owner(identity: dict) -> dict:
@@ -534,9 +539,14 @@ def _owner(identity: dict) -> dict:
 @router.post("/agent", status_code=202)
 async def ask_wifi8_agent(body: AgentRequest, request: Request):
     owner = _owner(_identity(request))
+    file_ids = list(dict.fromkeys(body.file_ids))
+    if file_ids:
+        _require_user_files(request)
+        if not all(userfiles.FILE_ID.match(i) for i in file_ids):
+            raise HTTPException(status_code=422, detail="invalid file id")
     from .tasks import celery_app
-    task = celery_app.send_task(AGENT_TASK, args=[body.question.strip(), [t.model_dump() for t in body.history], owner],
-                                queue="search")
+    args = [body.question.strip(), [t.model_dump() for t in body.history], owner]
+    task = celery_app.send_task(AGENT_TASK, args=[*args, file_ids] if file_ids else args, queue="search")
     stream = _stream_enabled()
     if stream:
         try:  # the owner is recorded before the worker starts, so the first poll of the events is already owner-checked
@@ -546,6 +556,86 @@ async def ask_wifi8_agent(body: AgentRequest, request: Request):
             logger.warning("wifi8 progress owner not recorded", exc_info=True)
             stream = False
     return {"task_id": task.id, "status": "submitted", "stream": stream, "feedback": _feedback_enabled()}
+
+
+def _require_user_files(request: Request) -> None:
+    if not _may_change(request, userfiles.CAPABILITY):
+        raise HTTPException(status_code=403, detail="This account is not authorised to attach files")
+
+
+def _user_file_store() -> userfiles.UserFileStore:
+    from . import tasks
+    return userfiles.UserFileStore(tasks.get_redis_client(), userfiles.UserFileSettings.from_environment())
+
+
+def _image_describer():
+    settings = images.DescriberSettings.from_environment()
+    if not settings.enabled:
+        return None
+    try:
+        return images.openai_describer(settings)
+    except RuntimeError:  # incomplete settings: images stay unreadable, the other types still work
+        logger.warning("wifi8 user files: image description is not configured")
+        return None
+
+
+_parse_slots = asyncio.Semaphore(2)  # reading a large file is CPU work; a few uploads at once are enough
+
+
+@router.get("/files/config")
+async def wifi8_user_files_config(request: Request):
+    """Whether this account may attach files, and the limits the page shows. Any logged-in account of this zone may ask."""
+    _identity(request)
+    allowed = _may_change(request, userfiles.CAPABILITY)
+    return {"enabled": allowed, **(userfiles.UserFileSettings.from_environment().public() if allowed else {})}
+
+
+@router.get("/files")
+async def wifi8_user_files(request: Request):
+    owner = _owner(_identity(request))
+    _require_user_files(request)
+    return {"files": _user_file_store().list(owner)}
+
+
+@router.post("/files", status_code=201)
+async def upload_wifi8_user_file(request: Request, file: UploadFile):
+    """Read an attached file into text and keep it for this conversation only; it is not added to the knowledge base."""
+    if request.headers.get(USERFILE_HEADER) != "1":
+        raise HTTPException(status_code=403, detail="Same-origin Wi-Fi8 file request required")
+    owner = _owner(_identity(request))
+    _require_user_files(request)
+    settings = userfiles.UserFileSettings.from_environment()
+    data = bytearray()
+    while chunk := await file.read(1024 * 1024):
+        data.extend(chunk)
+        if len(data) > settings.max_bytes:
+            raise HTTPException(status_code=413, detail=f"檔案超過 {settings.max_bytes // (1024 * 1024)} MB 上限")
+    name = file.filename or "file"
+    try:
+        store = _user_file_store()
+        if len(store.ids(owner)) >= settings.max_files:  # checked before the work of reading the file
+            raise userfiles.UserFileError(f"最多同時附加 {settings.max_files} 個檔案，請先移除一個", 409)
+        async with _parse_slots:
+            record = await run_in_threadpool(userfiles.build_record, name, bytes(data), settings, _image_describer())
+        file_id = store.save(owner, record)
+    except userfiles.UserFileError as exc:
+        raise HTTPException(status_code=exc.status, detail=str(exc)) from exc
+    except Exception as exc:  # noqa: BLE001 - Redis down or an unexpected parser failure: nothing about the file goes to the log
+        logger.warning("wifi8 user file not stored: %s", type(exc).__name__)
+        raise HTTPException(status_code=503, detail="檔案暫時無法處理，請稍後再試") from exc
+    logger.info("wifi8 user file stored: kind=%s bytes=%d chunks=%d", record["kind"], record["bytes"], len(record["chunks"]))
+    return {**userfiles.UserFileStore.summary(file_id, record), "expires_in": settings.ttl_seconds}
+
+
+@router.delete("/files/{file_id}")
+async def delete_wifi8_user_file(file_id: str, request: Request):
+    if request.headers.get(USERFILE_HEADER) != "1":
+        raise HTTPException(status_code=403, detail="Same-origin Wi-Fi8 file request required")
+    owner = _owner(_identity(request))
+    _require_user_files(request)
+    if not _user_file_store().delete(owner, file_id):
+        raise HTTPException(status_code=404, detail="file not found")
+    return {"deleted": file_id}
 
 
 class FeedbackRequest(BaseModel):
