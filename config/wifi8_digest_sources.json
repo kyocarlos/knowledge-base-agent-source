@@ -1,0 +1,20 @@
+{
+  "_comment": "WiFi 專區動態週報的外部來源與過濾規則（資料驅動，新增或停用來源只改這個檔案）。kind: rss＝RSS／Atom 摘要；ieee_timeline＝IEEE 802.11 任務組狀態頁（里程碑與最近一次會議）。filter: keywords＝標題或摘錄要含 keywords 之一；none＝全收。程式只讀取各來源的標題、連結、日期與摘錄，不抓內文；連結只指向來源本身。",
+  "window_days": 7,
+  "max_items_per_source": 6,
+  "max_excerpt_chars": 400,
+  "min_items": 3,
+  "fallback_days": 30,
+  "keywords": [
+    "wi-fi 8", "wifi 8", "802.11bn", "uhr", "ultra high reliability", "wi-fi 7", "wifi 7", "802.11be", "wi-fi 6e",
+    "wi-fi certified", "wi-fi alliance", "wi-fi", "wifi", "wlan", "mlo", "multi-link", "npca", "elr", "6 ghz", "wpa3",
+    "easymesh", "openroaming", "unlicensed spectrum"
+  ],
+  "sources": [
+    {"id": "ieee", "name": "IEEE 802.11", "priority": 1, "kind": "ieee_timeline", "url": "https://www.ieee802.org/11/Reports/tgbn_update.htm", "label": "IEEE 802.11bn (UHR) 任務組", "filter": "none"},
+    {"id": "wfa", "name": "Wi-Fi Alliance", "priority": 2, "kind": "rss", "url": "https://www.wi-fi.org/rss.xml", "filter": "keywords"},
+    {"id": "wba", "name": "WBA Newsroom", "priority": 3, "kind": "rss", "url": "https://wballiance.com/feed/", "filter": "keywords"},
+    {"id": "rcr", "name": "RCR Wireless News", "priority": 4, "kind": "rss", "url": "https://www.rcrwireless.com/feed", "filter": "keywords"},
+    {"id": "networkworld", "name": "Network World", "priority": 5, "kind": "rss", "url": "https://www.networkworld.com/feed", "filter": "keywords"}
+  ]
+}

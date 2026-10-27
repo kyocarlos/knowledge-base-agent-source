@@ -22,7 +22,7 @@ from pydantic import BaseModel, Field, StrictBool
 
 from starlette.concurrency import run_in_threadpool
 
-from ..wifi8 import autocheck, feedback, images, overview as overview_stats, progress, quality_schedule, userfiles
+from ..wifi8 import autocheck, digest as digest_feed, feedback, images, overview as overview_stats, progress, quality_schedule, userfiles
 from ..wifi8.importer import ImportConflict, Wifi8Importer, Wifi8Settings
 from ..wifi8.package import IMAGE_TYPES, PackageError
 from ..wifi8.search import SearchOptions, SearchUnavailable, Wifi8Search
@@ -580,6 +580,23 @@ def _image_describer():
 
 
 _parse_slots = asyncio.Semaphore(2)  # reading a large file is CPU work; a few uploads at once are enough
+
+
+@router.get("/feed")
+async def wifi8_feed(request: Request):
+    """What the right-hand column of the KM page shows: the weekly outside digest (written by the host's cron run) and the changes to the zone's own
+    documents. Any logged-in account of this zone may read it."""
+    _identity(request)
+    root = _wifi8_root()
+    updates: dict[str, Any] = {"events": [], "recent": [], "package_id": None}
+    try:
+        importer = _importer()
+        package = importer.current_store() if importer.qdrant is not None else None
+        if package is not None:
+            updates = digest_feed.update_events(package.documents(), (importer.current() or {}).get("package_id"), root)
+    except Exception:  # noqa: BLE001 - the digest is still shown when the document comparison cannot be made
+        logger.warning("wifi8 feed: document updates unavailable", exc_info=True)
+    return {"digest": digest_feed.read_digest(root), "updates": updates}
 
 
 @router.get("/files/config")
