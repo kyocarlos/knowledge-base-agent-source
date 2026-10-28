@@ -1,0 +1,9 @@
+# Answer-export service: a small FastAPI app next to the KM web service (see docs/km-export-deploy.md).
+# Built from the same base image as kb-web so the packages (python-pptx, openpyxl, fastapi, requests) match; nothing is added to it.
+ARG BASE_IMAGE
+FROM ${BASE_IMAGE}
+WORKDIR /app
+COPY src/km_export /app/src/km_export
+# The login check and the capability lookup are the web service's own modules; the export service does not carry a second copy of them.
+# One worker: the hourly rate limit is kept in the process.
+CMD ["uvicorn", "src.km_export.app:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]

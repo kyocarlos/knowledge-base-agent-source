@@ -80,7 +80,17 @@ const sandbox = { window: {} };
 new Function('window', dataJs)(sandbox.window);
 const zones = sandbox.window.KM_ZONES;
 
-const indexTemplate = read(path.join(wifi, 'index.html'));
+// The answer-export script is shared by every page with an assistant; it lives at the web root next to the other shared assets.
+const exportJs = read(path.join(src, 'km-export.js'));
+const exportFile = `km-export.${blobHash(Buffer.from(exportJs))}.js`;
+
+// The WiFi page itself carries one line for the export script; the zones get their own line from the rules below, so it is removed from the
+// template here. A WiFi page that points at an older copy of the script stops the build instead of quietly missing the new one.
+const EXPORT_TAG = /^[ \t]*<script src="\/km-export\.([0-9a-f]{12})\.js" defer><\/script>\n/m;
+const wifiIndex = read(path.join(wifi, 'index.html'));
+const wifiExportTag = wifiIndex.match(EXPORT_TAG);
+if (wifiExportTag && wifiExportTag[1] !== exportFile.split('.')[1]) throw new Error(`WiFi index.html loads km-export.${wifiExportTag[1]}.js, expected ${exportFile}`);
+const indexTemplate = wifiIndex.replace(EXPORT_TAG, '');
 const indexRules = (z) => [
   ['<html lang="zh-Hant">', `<html lang="zh-Hant" data-zone="${z.id}">`],
   ['<title>WiFi 知識專區</title>', `<title>${z.label}</title>`],
@@ -94,7 +104,7 @@ const indexRules = (z) => [
   ['<span>WiFi Knowledge Zone · KM DEV</span><span>內容依目前匯入版本提供</span>', `<span>${z.brandTitle} · KM DEV</span><span>示範資料 · 內容依目前匯入版本提供</span>`],
   ['WiFi 知識專區需要 JavaScript 才能顯示。', `${z.label}需要 JavaScript 才能顯示。`],
   ['<a class="back-link" href="/chat-v2.html">返回知識中樞</a>', '<a class="back-link" href="/hub/">返回知識中樞</a>'],
-  [`<script src="/wifi8/${jsName}" defer></script>`, `<script src="/zones/${dataFile}" defer></script>\n  <script src="/zones/${mockFile}" defer></script>\n  <script src="/zones/${zoneJsFile}" defer></script>`],
+  [`<script src="/wifi8/${jsName}" defer></script>`, `<script src="/zones/${dataFile}" defer></script>\n  <script src="/zones/${mockFile}" defer></script>\n  <script src="/zones/${zoneJsFile}" defer></script>\n  <script src="/${exportFile}" defer></script>`],
 ];
 if (!read(path.join(wifi, 'index.html')).includes('/wifi8/wifi8.957774158ba4.css')) throw new Error('WiFi index.html no longer uses the expected style sheet');
 
@@ -107,6 +117,8 @@ const hubCssFile = `hub.${blobHash(Buffer.from(hubCss))}.css`;
 const hubHtml = replaceAll(read(path.join(src, 'hub-template.html')), [['{{BASECSS}}', zoneCssFile], ['{{HUBCSS}}', hubCssFile], ['{{DATA}}', dataFile], ['{{HUBJS}}', hubJsFile]], 'hub index');
 
 for (const f of fs.readdirSync(out)) if (/^(zone|zones-mock|zones-data|hub)\.[0-9a-f]{12}\.(js|css)$/.test(f)) fs.unlinkSync(path.join(out, f));
+for (const f of fs.readdirSync(root)) if (/^km-export\.[0-9a-f]{12}\.js$/.test(f)) fs.unlinkSync(path.join(root, f));
+fs.writeFileSync(path.join(root, exportFile), exportJs);
 fs.writeFileSync(path.join(out, hubJsFile), hubJs);
 fs.writeFileSync(path.join(out, hubCssFile), hubCss);
 fs.mkdirSync(path.join(root, 'hub'), { recursive: true });
@@ -119,4 +131,4 @@ for (const z of Object.values(zones)) {
   fs.mkdirSync(path.join(out, z.id), { recursive: true });
   fs.writeFileSync(path.join(out, z.id, 'index.html'), replaceAll(indexTemplate, indexRules(z), `index ${z.id}`));
 }
-console.log(JSON.stringify({ zones: Object.keys(zones), zoneJsFile, zoneCssFile, mockFile, dataFile }, null, 1));
+console.log(JSON.stringify({ zones: Object.keys(zones), zoneJsFile, zoneCssFile, mockFile, dataFile, exportFile }, null, 1));
