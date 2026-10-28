@@ -464,7 +464,7 @@
     if (token !== state.renderToken) return;
     if (!state.conversation.length) state.conversation = loadConversation();
     const restored = state.conversation.length ? `<div class="message assistant restored-note">已還原本分頁先前的對話（${Math.ceil(state.conversation.length / 2)} 輪）；關閉分頁後不會保留。</div>${restoredTurns(state.conversation)}` : '';
-    content.innerHTML = `<div class="ai-layout">${panel(ZONE.assistant, `<div id="conversation" class="conversation"><div class="message assistant">我會使用${ZONE.label}的文件與版本關係回答，並保留引用。</div>${restored}</div><label>問題<textarea id="agent-question" maxlength="2000" placeholder="${ZONE.example}"></textarea></label>${attachmentBar(state.filesConfig)}<div class="ai-actions"><small class="results-meta">回答以目前匯入資料為準</small><button id="agent-new" class="secondary-button" type="button">新對話</button><button id="agent-submit" class="primary-button" type="button">送出問題</button></div>`)}${panel('回答依據', '<p>每次回答會同時顯示：</p><ul><li>引用文件</li></ul>', 'KM 知識流程')}</div>`;
+    content.innerHTML = `<div class="ai-layout">${panel(ZONE.assistant, `<div id="conversation" class="conversation"><div class="message assistant">我會使用${ZONE.label}的文件與版本關係回答，並保留引用。</div>${restored}</div><label>問題<textarea id="agent-question" maxlength="2000" placeholder="${ZONE.example}"></textarea></label>${attachmentBar(state.filesConfig)}<div class="ai-actions"><small class="results-meta">回答以目前匯入資料為準</small><button id="agent-new" class="secondary-button" type="button">新對話</button><button id="agent-submit" class="primary-button" type="button">送出問題</button></div>`)}</div>`;
     $('#agent-submit').addEventListener('click', askAgent);
     if (state.filesConfig.enabled) {
       const picker = $('#attach-input'); const question = $('#agent-question');
