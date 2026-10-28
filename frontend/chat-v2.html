@@ -662,7 +662,6 @@
             <a href="#knowledge-assistant" data-knowledge-zone="smallcell" data-knowledge-parent="mobile"><span>›</span> Smallcell知識專區</a>
           </div>
         </div>
-        <a href="#knowledge-assistant" data-knowledge-zone="technical"><span>⌬</span> 技術知識專區</a>
         <a href="#knowledge-assistant" data-knowledge-zone="equipment"><span>▣</span> 設備預約知識專區</a>
         <a href="#knowledge-assistant" data-knowledge-zone="integrations"><span>⌕</span> Confluence / Jira / TestRail 查詢專區</a>
         <a href="#knowledge-assistant" data-knowledge-zone="cert"><span>✦</span> 認證與法規知識專區</a>
@@ -866,7 +865,7 @@
     };
     let activeKnowledgeZone = new URLSearchParams(location.search).get('zone') === 'all' ? 'all' : 'csit';
     // 這些專區改開專區頁面（版面與 WiFi 知識專區相同，資料為示範資料）；WiFi 知識專區維持原本的連結。
-    const demoKnowledgeZones = ['csit', 'mobile', 'cpe', 'smallcell', 'integrations', 'technical', 'equipment', 'cert', 'lab', 'broadband', 'admin'];
+    const demoKnowledgeZones = ['csit', 'mobile', 'cpe', 'smallcell', 'integrations', 'equipment', 'cert', 'lab', 'broadband', 'admin'];
     // CSIT 助手狀態：放在這裡，避免連線狀態函式早於後面的宣告被呼叫（暫時性死區）。
     let csitAssistants = [];
     let activeCsitAssistant = '';

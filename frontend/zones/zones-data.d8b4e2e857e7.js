@@ -71,6 +71,14 @@ window.KM_ZONES.csit = {
   updates: [['new_document', 2, 0], ['new_document', 4, 7], ['superseded', 6, 10], ['new_document', 9, 2], ['new_document', 12, 5]],
 };
 
+// CSIT雜項專區: 跨技術的研討會講義（沒有單一主要技術的講義歸在這裡）。
+window.KM_ZONES.csit.cats.push(['研討會講義', '研討會與技術講座的講義與心得']);
+window.KM_ZONES.csit.families.push(
+  ['SEM-20260923', '20260923_Keysight_Keysight World Tech Day 2026', '研討會講義', '研討會講義', '研討會', 'v1@2026-10-05',
+    '研討會講義重點：Wi-Fi 7 與 Wi-Fi 8 的量測挑戰、5G Advanced 與 6G 研究的測試方向，以及 AI 在測試自動化的應用，附參加心得與可套用建議。',
+    ['建議評估 320 MHz 頻寬的量測設備', 'AI 輔助可縮短測試報告整理時間', '需留意各廠商儀器的軟體授權範圍']],
+);
+
 // 4G/5G 知識專區 sample data (demo): 3GPP specifications and the team's own LTE / 5G NR / RedCap / NTN / 6G notes.
 window.KM_ZONES.mobile = {
   id: 'mobile', label: '4G/5G 知識專區', assistant: '4G/5G 知識助理', short: '4G/5G', brand: '4G/5G knowledge zone', brandTitle: '4G/5G Knowledge Zone',
@@ -142,6 +150,14 @@ window.KM_ZONES.mobile = {
   },
   updates: [['new_document', 1, 8], ['superseded', 5, 0], ['superseded', 5, 1], ['new_document', 7, 6], ['new_document', 12, 13]],
 };
+
+// 4G/5G 知識專區: 以 5G 為主題的研討會講義。
+window.KM_ZONES.mobile.cats.push(['研討會講義', '研討會與技術講座的講義與心得']);
+window.KM_ZONES.mobile.families.push(
+  ['SEM-20260812', '20260812_Anritsu_5G 量測技術研討會', '研討會講義', '研討會講義', '研討會', 'v1@2026-08-20',
+    '介紹 5G NR 終端與基地台的量測方案，涵蓋射頻一致性、協定測試與 OTA 量測，並示範新版測試儀的自動化腳本功能。',
+    ['新版儀器支援更多 5G Advanced 功能', '腳本範例可直接套用到現有流程', '建議於下季評估升級']],
+);
 
 // CPE知識專區 sample data (demo): customer premises equipment (4G/5G routers and gateways). Documents are in data-03b-cpe.js.
 window.KM_ZONES.cpe = {
@@ -260,6 +276,14 @@ window.KM_ZONES.smallcell.families = [
     ['N2 與 N3 介面建議走專用 VLAN', '支援最多 4 個網路切片', '核心網備援切換時間小於 3 秒']],
 ];
 
+// Smallcell知識專區: 以 Small Cell／O-RAN 為主題的研討會講義。
+window.KM_ZONES.smallcell.cats.push(['研討會講義', '研討會與技術講座的講義與心得']);
+window.KM_ZONES.smallcell.families.push(
+  ['SEM-20260604', '20260604_合作廠商_O-RAN 互通技術說明會', '研討會講義', '研討會講義', '研討會', 'v1@2026-06-12',
+    '說明 O-RAN 7.2x 前傳互通的常見問題與測試方法，包含 M-Plane 組態、同步需求與常見失敗原因，並分享合作廠商的互通經驗。',
+    ['同步精度是互通成敗的關鍵', 'M-Plane 組態範本可重複使用', '建議建立互通案例資料庫']],
+);
+
 // Confluence / Jira / TestRail 查詢專區 sample data (demo). Documents are in data-05b-integrations.js, questions and feed in data-05c-integrations.js.
 window.KM_ZONES.integrations = {
   id: 'integrations', label: 'Confluence / Jira / TestRail 查詢專區', assistant: '整合查詢助理', short: '整合查詢', brand: 'Confluence / Jira / TestRail zone', brandTitle: 'Confluence / Jira / TestRail Zone',
@@ -324,62 +348,6 @@ Object.assign(window.KM_ZONES.integrations, {
   },
   updates: [['new_document', 2, 9], ['new_document', 3, 8], ['superseded', 6, 1], ['new_document', 10, 5]],
 });
-
-// 技術知識專區 sample data (demo): seminar slides, design documents and debugging know-how. Documents are in data-06b-technical.js.
-window.KM_ZONES.technical = {
-  id: 'technical', label: '技術知識專區', assistant: '技術知識助理', short: '技術', brand: 'Technical knowledge zone', brandTitle: 'Technical Knowledge Zone',
-  idLabel: '文件編號', sourceLabel: '技術文件', placeholder: '研討會、架構、除錯、量測…', example: '如何排查 Wi-Fi 與 5G 同時使用時的干擾問題？',
-  package: 'TECH-2026-10', feedKicker: 'Tech Watch', feedTitle: '技術動態', timelineLabel: '學習與分享進度',
-  cats: [['研討會講義', '研討會與技術講座的講義與心得'], ['設計與架構', '系統設計、架構與技術選型文件'], ['除錯與操作', '除錯流程、工具使用與經驗彙整'], ['量測與方法', '量測方法、環境設定與判讀指引']],
-  topics: [['射頻量測', 5], ['干擾', 4], ['除錯', 5], ['自動化測試', 4], ['OTA', 3], ['研討會', 4], ['Wi-Fi 7', 3]],
-  attention: [['info', '2 份研討會講義新增', 'Keysight World Tech Day 2026 與 Anritsu 技術研討會講義已上傳'], ['warning', '1 份除錯指南超過 6 個月未更新', '自動化測試框架使用指南建議複查']],
-  qa: [
-    { q: '如何排查 Wi-Fi 與 5G 同時使用時的干擾問題？', a: '建議依下列順序排查 {3}：\n\n1. 先量測 2.4 GHz 與 5 GHz 的底噪，確認是否有外部干擾\n2. 檢查 Wi-Fi 6 GHz 與 5G n77／n78 的鄰頻情形\n3. 在遮蔽室重現，確認是否為設備本身互相干擾\n4. 調整天線隔離度或頻道設定後重測\n\n量測方法與環境設定見量測方法文件 {6}。' },
-    { q: 'Keysight World Tech Day 2026 有哪些值得參考的內容？', a: '本次研討會講義重點 {0}：\n\n- Wi-Fi 7 與 Wi-Fi 8 的量測挑戰\n- 5G Advanced 與 6G 研究的測試方向\n- AI 在測試自動化的應用\n\n心得與可套用到本部門的建議見講義第 2 頁 {0:1}。' },
-    { q: 'OTA 量測環境要注意什麼？', a: 'OTA 量測的重點 {6}：\n\n1. 暗室需定期校驗，確認靜區品質\n2. 天線與纜線損耗需先校準\n3. 待測物擺放角度與高度需固定並記錄\n\n錯誤的擺位是常見誤差來源 {6:1}。' },
-  ],
-  digest: {
-    sources: ['技術分享', '研討會', '內部知識庫'],
-    highlights: ['Keysight World Tech Day 2026 講義已上傳', '新增 Wi-Fi 與 5G 共存干擾排查指南', 'OTA 量測方法更新到 v2.1'],
-    items: [
-      ['研討會', 3, 'Keysight World Tech Day 2026 講義上傳', '涵蓋 Wi-Fi 7／Wi-Fi 8 量測挑戰、5G Advanced 與 AI 測試自動化。'],
-      ['技術分享', 5, 'Wi-Fi 與 5G 共存干擾排查指南發布', '提供從底噪量測到天線隔離度調整的 4 步驟排查流程。'],
-      ['內部知識庫', 9, 'OTA 量測方法更新到 v2.1', '新增暗室靜區校驗週期與擺位紀錄表範本。', true],
-    ],
-  },
-  updates: [['new_document', 3, 0], ['new_document', 5, 3], ['superseded', 9, 6], ['new_document', 12, 1]],
-};
-
-// 技術知識專區 sample documents (demo).
-window.KM_ZONES.technical.families = [
-  ['SEM-20260923', '20260923_Keysight_Keysight World Tech Day 2026', '研討會講義', '研討會講義', '研討會', 'v1@2026-10-05',
-    '研討會講義重點：Wi-Fi 7 與 Wi-Fi 8 的量測挑戰、5G Advanced 與 6G 研究的測試方向，以及 AI 在測試自動化的應用，附參加心得與可套用建議。',
-    ['建議評估 320 MHz 頻寬的量測設備', 'AI 輔助可縮短測試報告整理時間', '需留意各廠商儀器的軟體授權範圍']],
-  ['SEM-20260812', '20260812_Anritsu_5G 量測技術研討會', '研討會講義', '研討會講義', '研討會', 'v1@2026-08-20',
-    '介紹 5G NR 終端與基地台的量測方案，涵蓋射頻一致性、協定測試與 OTA 量測，並示範新版測試儀的自動化腳本功能。',
-    ['新版儀器支援更多 5G Advanced 功能', '腳本範例可直接套用到現有流程', '建議於下季評估升級']],
-  ['SEM-20260604', '20260604_合作廠商_O-RAN 互通技術說明會', '研討會講義', '研討會講義', '研討會', 'v1@2026-06-12',
-    '說明 O-RAN 7.2x 前傳互通的常見問題與測試方法，包含 M-Plane 組態、同步需求與常見失敗原因，並分享合作廠商的互通經驗。',
-    ['同步精度是互通成敗的關鍵', 'M-Plane 組態範本可重複使用', '建議建立互通案例資料庫']],
-  ['TECH-DBG-2026-05', 'Wi-Fi 與 5G 共存干擾排查指南', '除錯與操作', '操作指南', '技術分享', 'v1.0@2026-09-30',
-    '說明 Wi-Fi 與 5G 同時運作時的干擾排查流程：先量測底噪，再檢查鄰頻，於遮蔽室重現，最後調整天線隔離度或頻道設定後重測。',
-    ['6 GHz 與 n77／n78 需特別留意鄰頻', '遮蔽室重現可排除外部干擾', '天線隔離度不足是設備內部干擾的常見原因']],
-  ['TECH-DBG-2026-03', '封包擷取與日誌分析入門', '除錯與操作', '操作指南', '技術分享', 'v1.2@2026-07-08|v1.1@2026-03-25',
-    '介紹如何在 Wi-Fi 與 5G 場景擷取封包與日誌，使用 Wireshark 過濾常見問題，並整理依症狀快速定位問題的範例。',
-    ['Wi-Fi 需使用監聽模式網卡', '5G 日誌需終端 DIAG 工具', '先縮小時間範圍再分析']],
-  ['TECH-DES-2026-02', '自動化測試框架設計文件', '設計與架構', '設計文件', '研發部', 'v2.0@2026-06-22|v1.4@2026-01-15',
-    '說明自動化測試框架的整體設計：測試案例描述格式、儀器控制抽象層、結果收集與報表輸出，以及如何新增一個儀器驅動。',
-    ['案例以 YAML 描述，執行器依序呼叫驅動', '儀器驅動需實作統一介面', '結果自動上傳至測試報告平台']],
-  ['TECH-MEA-2026-04', 'OTA 量測方法與環境設定', '量測與方法', '操作指南', '技術分享', 'v2.1@2026-09-14|v2.0@2026-05-30',
-    'OTA 量測方法與環境設定：暗室靜區校驗、天線與纜線損耗校準、待測物擺位與記錄，以及常見誤差來源與判讀方式。',
-    ['暗室需定期校驗，確認靜區品質', '待測物角度與高度需固定並記錄', '擺位錯誤是常見誤差來源']],
-  ['TECH-MEA-2026-01', '射頻量測不確定度評估方法', '量測與方法', '技術報告', '技術分享', 'v1.0@2026-04-18',
-    '說明射頻量測不確定度的組成、估算與報告方式，以發射功率與 EVM 為例示範計算，並提供試算表範本。',
-    ['需列出儀器、纜線與重複性的貢獻', '擴充不確定度通常取 k=2', '報告需附上計算過程']],
-  ['TECH-DES-2026-04', '測試資料收集與報表平台設計', '設計與架構', '設計文件', '研發部', 'v1.0@2026-08-05',
-    '說明測試資料收集與報表平台的設計：資料來源、儲存格式、報表範本與權限控管，並規劃與 TestRail 及 Jira 的整合方式。',
-    ['原始資料與報表分開儲存', '報表範本可由使用者自訂', '權限依專案與角色設定']],
-];
 
 // 設備預約知識專區 sample data (demo): instrument list, vendors, booking rules and calibration. Documents are in data-07b-equipment.js.
 window.KM_ZONES.equipment = {

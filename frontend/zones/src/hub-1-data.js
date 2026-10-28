@@ -3,7 +3,7 @@
 const ZONES = window.KM_ZONES || {};
 const DAY = 86400000;
 const GROUPS = [
-  { label: '技術類', ids: ['wifi', 'mobile', 'cpe', 'smallcell', 'broadband', 'technical'] },
+  { label: '技術類', ids: ['wifi', 'mobile', 'cpe', 'smallcell', 'broadband'] },
   { label: '測試與認證類', ids: ['csit', 'cert', 'integrations'] },
   { label: '資源與管理類', ids: ['equipment', 'lab', 'admin'] },
 ];
@@ -13,7 +13,6 @@ const META = {
   cpe: { icon: '◍', tagline: 'CPE 機種規格、韌體測試與業者規範' },
   smallcell: { icon: '◎', tagline: 'Small Cell 部署、OAM 與 O-RAN 互通' },
   broadband: { icon: '≋', tagline: 'PON／Cable 技術與 Broadband Forum 規範' },
-  technical: { icon: '⌬', tagline: '研討會講義、設計文件與除錯經驗' },
   csit: { icon: '◈', tagline: 'CSIT 測試報告、申請單與測試計畫' },
   cert: { icon: '✦', tagline: 'Wi-Fi、藍牙、GCF、PTCRB 認證與法規' },
   integrations: { icon: '⌕', tagline: 'Confluence、Jira、TestRail 整合查詢' },
