@@ -51,7 +51,7 @@ const zoneJsRules = [
   ["${s.sources.wfa} 份 WFA・", "${s.sources.wfa} 份${ZONE.sourceLabel}・"],
   ["正在調用 WiFi Agent…", "正在調用 ${ZONE.short} Agent…"],
   ["panel('WiFi 知識助理', ", "panel(ZONE.assistant, "],
-  ["我會使用 WiFi 專區的文件與版本關係回答，並保留引用與工具步驟。", "我會使用${ZONE.label}的文件與版本關係回答，並保留引用與工具步驟。"],
+  ["我會使用 WiFi 專區的文件與版本關係回答，並保留引用。", "我會使用${ZONE.label}的文件與版本關係回答，並保留引用。"],
   ['placeholder="例如：ELR 的規格重點是什麼？"', 'placeholder="${ZONE.example}"'],
   ["'wifi8.conversation.v1'", "`km.zone.${ZONE.id}.conversation.v1`"],
   ['<span class="feed-kicker">Wi-Fi 8 Watch</span><h2>Wi-Fi 8 動態</h2>', '<span class="feed-kicker">${ZONE.feedKicker}</span><h2>${ZONE.feedTitle}</h2>'],
