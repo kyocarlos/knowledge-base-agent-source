@@ -597,9 +597,12 @@
       #connectionBadge { display:flex !important; }
       /* 嵌入新首頁（?embed=1）時只顯示助理本身 */
       html.km-embed .km-v2-sidebar, html.km-embed .km-v2-evidence, html.km-embed .km-v2-top, html.km-embed .km-v2-metrics, html.km-embed .km-v2-quality-summary { display:none !important; }
-      html.km-embed .km-v2-shell { display:block; min-height:0; }
-      html.km-embed .km-v2-main { padding:0; }
-      html.km-embed .km-v2-assistant { margin-top:0; }
+      html.km-embed, html.km-embed body { height:100%; margin:0; overflow:hidden; }
+      html.km-embed .km-v2-shell { display:flex; flex-direction:column; height:100%; min-height:0; }
+      html.km-embed .km-v2-main { flex:1; min-height:0; display:flex; flex-direction:column; padding:0; }
+      html.km-embed .km-v2-assistant { flex:1; min-height:0; margin-top:0; }
+      html.km-embed .km-v2-chat-window { max-height:none !important; min-height:0 !important; }
+      html.km-embed .km-v2-chat-window .chat-messages { min-height:0; }
       @media (max-width: 1100px) { .km-v2-shell { grid-template-columns:190px minmax(0,1fr); } .km-v2-evidence { display:none; } }
       @media (max-width: 720px) {
         .km-v2-shell { display:block; }
