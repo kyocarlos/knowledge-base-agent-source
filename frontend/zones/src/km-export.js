@@ -82,6 +82,7 @@
   }
   async function call(path, body) {
     const r = await fetch(`${API}${path}`, { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json', 'x-km-export': '1' }, body: JSON.stringify(body) });
+    if (r.status === 401) throw new Error('登入已逾時（約 15 分鐘），請重新整理頁面並重新登入後再試。');
     const data = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(typeof data.detail === 'string' ? data.detail : `匯出失敗（HTTP ${r.status}）`);
     return data;

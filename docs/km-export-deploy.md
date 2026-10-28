@@ -32,6 +32,17 @@
 - 語言模型：`KM_LLM_PRIMARY_MODEL`、`KM_LLM_PRIMARY_BASE_URL`、`KM_LLM_PRIMARY_API_KEY_ENV` 所指的金鑰變數、`KM_LLM_PRIMARY_TIMEOUT_SECONDS`（可用 `KM_EXPORT_LLM_*` 覆寫）
 - 匯出：`KM_EXPORT_DIR`（暫存目錄，掛 volume 或 tmpfs）、`KM_EXPORT_TTL_SECONDS`（預設 3600）、`KM_EXPORT_MAX_FILES`（每人，預設 20）、`KM_EXPORT_PLANS_PER_HOUR`（預設 12）、`KM_EXPORT_BUILDS_PER_HOUR`（預設 40）
 
+語言模型閘道在主機上（`host.docker.internal:18080`），容器必須加 `--add-host host.docker.internal:host-gateway`（compose 的 `extra_hosts`），否則會連不到而回「語言模型暫時無法使用」。
+
+DA40 實際啟動指令（2026-10-28 部署，環境檔 `~/.km-control/km-export-da40.env` 由 `km-da40-web-1` 的設定複製，權限 600）：
+
+```bash
+docker run -d --name km-export-da40 --restart unless-stopped --network km-control-private \
+  --add-host host.docker.internal:host-gateway --env-file ~/.km-control/km-export-da40.env \
+  --read-only --tmpfs /tmp --tmpfs /export:size=512m,mode=1777 --memory 2g --cpus 1 \
+  --cap-drop ALL --security-opt no-new-privileges km-export:ddef899
+```
+
 TEST 與 DA40 各需一個服務（各自的 `KM_INSTANCE_ID` 與控制資料庫）。服務要加入 `km-control-private`（連控制資料庫）與 nginx 所在的網路，並設記憶體上限。**只跑 1 個 worker**（限流在程序內）。
 
 ## 上線步驟
