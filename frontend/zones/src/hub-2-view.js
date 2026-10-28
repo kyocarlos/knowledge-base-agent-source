@@ -6,10 +6,12 @@ const day = (time) => (time ? new Date(time).toLocaleDateString('zh-TW', { month
 const label = (id) => META[id].label;
 const EVENT = { new_document: ['新增', ''], superseded: ['被新版取代', 'warn'], removed: ['已移除', 'gone'] };
 const hub = { data: null, tab: 'digest' };
+// CPE 與 Smallcell 歸在 4G/5G 知識專區底下（與原本的選單一致）
+const SUB_OF = { cpe: 'mobile', smallcell: 'mobile' };
 
 function renderNav() {
   $('#primary-nav').innerHTML = `<section class="nav-group"><p class="nav-label">知識中樞</p><a class="nav-item active" href="/hub/" aria-current="page"><span class="nav-icon" aria-hidden="true">◈</span><span>首頁總覽</span></a></section>`
-    + GROUPS.map((g) => `<section class="nav-group"><p class="nav-label">${g.label}</p>${g.ids.map((id) => `<a class="nav-item" href="${zoneUrl(id)}"><span class="nav-icon" aria-hidden="true">${META[id].icon}</span><span>${esc(label(id))}</span></a>`).join('')}</section>`).join('');
+    + GROUPS.map((g) => `<section class="nav-group"><p class="nav-label">${g.label}</p>${g.ids.map((id) => `<a class="nav-item${SUB_OF[id] ? ' nav-sub' : ''}" href="${zoneUrl(id)}"><span class="nav-icon" aria-hidden="true">${SUB_OF[id] ? '›' : META[id].icon}</span><span>${esc(label(id))}</span></a>`).join('')}</section>`).join('');
 }
 
 function card(id, s) {

@@ -36,3 +36,5 @@ a.attention-task { text-decoration: none; color: inherit; }
 .hub-assistant { padding: 18px; }
 .hub-assistant-frame { display: block; width: 100%; height: 640px; margin-top: 12px; border: 0; border-radius: 12px; background: transparent; }
 @media (max-width: 760px) { .hub-assistant-frame { height: 560px; } }
+.nav-item.nav-sub { margin-left: 18px; font-size: .86rem; }
+.nav-item.nav-sub .nav-icon { opacity: .7; }
