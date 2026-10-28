@@ -38,3 +38,6 @@ a.attention-task { text-decoration: none; color: inherit; }
 @media (max-width: 760px) { .hub-assistant-frame { height: 560px; } }
 .nav-item.nav-sub { margin-left: 18px; font-size: .86rem; }
 .nav-item.nav-sub .nav-icon { opacity: .7; }
+.nav-item.nav-parent { position: relative; }
+.nav-caret { margin-left: auto; opacity: .7; font-size: .8rem; }
+.nav-subs[hidden] { display: none; }

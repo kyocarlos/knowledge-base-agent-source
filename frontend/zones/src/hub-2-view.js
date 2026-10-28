@@ -9,9 +9,20 @@ const hub = { data: null, tab: 'digest' };
 // CPE 與 Smallcell 歸在 4G/5G 知識專區底下（與原本的選單一致）
 const SUB_OF = { cpe: 'mobile', smallcell: 'mobile' };
 
+// 有子專區的項目（4G/5G）：第一次點擊先展開子專區，再點一次才進入該專區。
+function navItem(id, children) {
+  const sub = SUB_OF[id]; const icon = sub ? '›' : META[id].icon;
+  const link = `<a class="nav-item${sub ? ' nav-sub' : ''}${children.length ? ' nav-parent' : ''}" href="${zoneUrl(id)}"${children.length ? ' aria-expanded="false"' : ''}><span class="nav-icon" aria-hidden="true">${icon}</span><span>${esc(label(id))}</span>${children.length ? '<span class="nav-caret" aria-hidden="true">▸</span>' : ''}</a>`;
+  return children.length ? `${link}<div class="nav-subs" hidden>${children.map((c) => navItem(c, [])).join('')}</div>` : link;
+}
 function renderNav() {
   $('#primary-nav').innerHTML = `<section class="nav-group"><p class="nav-label">知識中樞</p><a class="nav-item active" href="/hub/" aria-current="page"><span class="nav-icon" aria-hidden="true">◈</span><span>首頁總覽</span></a></section>`
-    + GROUPS.map((g) => `<section class="nav-group"><p class="nav-label">${g.label}</p>${g.ids.map((id) => `<a class="nav-item${SUB_OF[id] ? ' nav-sub' : ''}" href="${zoneUrl(id)}"><span class="nav-icon" aria-hidden="true">${SUB_OF[id] ? '›' : META[id].icon}</span><span>${esc(label(id))}</span></a>`).join('')}</section>`).join('');
+    + GROUPS.map((g) => `<section class="nav-group"><p class="nav-label">${g.label}</p>${g.ids.filter((id) => !SUB_OF[id]).map((id) => navItem(id, g.ids.filter((c) => SUB_OF[c] === id))).join('')}</section>`).join('');
+  document.querySelectorAll('.nav-parent').forEach((parent) => parent.addEventListener('click', (event) => {
+    const subs = parent.nextElementSibling;
+    if (!subs.hidden) return;  // 已展開：照連結進入該專區
+    event.preventDefault(); subs.hidden = false; parent.setAttribute('aria-expanded', 'true'); parent.querySelector('.nav-caret').textContent = '▾';
+  }));
 }
 
 function card(id, s) {
