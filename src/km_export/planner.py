@@ -30,8 +30,43 @@ SYSTEM = """你是文件整理助理。使用者剛從知識庫助理得到一�
 table 沒有就省略。使用語言與回答一致（通常是繁體中文）。"""
 
 
+MULTI_RULES = """
+
+【整合多則回答】使用者選了數則回答（依提問順序），要整合成「一份」報告：
+6. 依主題而不是依提問順序安排章節，重複的內容合併。
+7. 若不同回答對同一件事的說法不一致，或後面的回答修正了前面的，不可自行挑一個：在報告中並列各說法，明確寫出「各回答說法不一致」，並附各自的來源。
+8. 來源一律用「來源」清單的編號 [1]、[2]…。回答裡形如 [Q1-S2] 的標記表示該來源沒有列出，不可當成來源引用，也不可編造。"""
+
+MAX_ANSWERS = 5  # one export covers at most this many answers
+CITE = re.compile(r"\[(S\d+)(?:[・·][^\]]*)?\]")  # [S1], and [S1・我的檔案] for a file the user attached
+SOURCE_LABEL = re.compile(r"^\s*\[(S\d+)\]\s*")
+
+
 class PlanError(RuntimeError):
     """The model did not return a usable plan."""
+
+
+def merge_answers(items) -> tuple[list[tuple[str, str]], list[str]]:
+    """Several answers number their sources from [S1] each, so the same label means different documents. Give every distinct source one
+    number for the whole report and rewrite the labels inside each answer to match. A label with no listed source becomes [Q<answer>-S<n>]."""
+    sources: list[str] = []
+    number_of: dict[str, int] = {}
+    pairs: list[tuple[str, str]] = []
+    for n, item in enumerate(items, 1):
+        local: dict[str, int] = {}
+        for raw in item.sources:
+            text = SOURCE_LABEL.sub("", raw).strip()[:300]
+            if not text:
+                continue
+            key = " ".join(text.split()).lower()
+            if key not in number_of:
+                sources.append(text)
+                number_of[key] = len(sources)
+            label = SOURCE_LABEL.match(raw)
+            if label:
+                local[label.group(1)] = number_of[key]
+        pairs.append((item.question, CITE.sub(lambda m, n=n, local=local: f"[{local[m.group(1)]}]" if m.group(1) in local else f"[Q{n}-{m.group(1)}]", item.answer)))
+    return pairs, sources
 
 
 def _extract_json(raw: str) -> dict:
@@ -58,10 +93,22 @@ def build_messages(question: str, answer: str, sources: list[str], request: str,
     return [{"role": "system", "content": SYSTEM}, {"role": "user", "content": user}]
 
 
-def plan(complete: Complete, *, question: str, answer: str, sources: list[str], request: str = "", fmt: str | None = None) -> ExportSpec:
+def build_messages_multi(pairs: list[tuple[str, str]], sources: list[str], request: str, fmt: str | None) -> list[dict]:
+    wanted = f"檔案格式：{fmt}（format 欄位必須是 {fmt}）" if fmt else f"檔案格式：使用者沒指定時由你從 {', '.join(FORMATS)} 擇一"
+    listing = "\n".join(f"[{i}] {s}" for i, s in enumerate(sources, 1)) or "（沒有列出來源）"
+    turns = "\n\n".join(f"--- 第 {i} 則 ---\n問題：{q or '（未提供）'}\n回答：\n{a}" for i, (q, a) in enumerate(pairs, 1))
+    user = f"{turns}\n\n來源（全部回答共用的編號）：\n{listing}\n\n使用者對檔案的需求：\n{request.strip() or '（沒有特別要求，請整合成適合閱讀的報告）'}\n\n{wanted}"
+    return [{"role": "system", "content": SYSTEM + MULTI_RULES}, {"role": "user", "content": user}]
+
+
+def plan(complete: Complete, *, question: str = "", answer: str = "", sources: list[str] | None = None, request: str = "", fmt: str | None = None, items=None) -> ExportSpec:
     if fmt is not None and fmt not in FORMATS:
         raise PlanError("unsupported format")
-    messages = build_messages(question, answer, sources, request, fmt)
+    if items:
+        pairs, merged_sources = merge_answers(items)
+        messages = build_messages_multi(pairs, merged_sources, request, fmt)
+    else:
+        messages = build_messages(question, answer, sources or [], request, fmt)
     last = "unknown"
     for attempt in range(2):
         try:

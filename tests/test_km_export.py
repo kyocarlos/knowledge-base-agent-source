@@ -224,3 +224,77 @@ def test_plan_errors_are_clear_and_the_hourly_limit_applies(client, monkeypatch)
 def test_oversized_or_empty_answers_are_rejected(client):
     assert client.post("/api/export/plan", json={"answer": ""}, headers=POST).status_code == 422
     assert client.post("/api/export/plan", json={"answer": "x" * 20001}, headers=POST).status_code == 422
+
+
+# ------------------------------------------------------------------ several answers in one report
+
+def item(question, answer, sources=()):
+    return service.PlanItem(question=question, answer=answer, sources=list(sources))
+
+
+def test_merge_gives_each_distinct_source_one_report_wide_number_and_rewrites_the_labels():
+    first = item("Q1", "甲 [S1] 乙 [S2]", ["[S1] 文件 A v1", "[S2] 文件 B v2"])
+    second = item("Q2", "丙 [S1・我的檔案] 丁 [S3]", ["[S1] 文件 B v2", "[S2] 我的檔案.pdf"])  # [S1] here is document B; [S3] has no source
+    pairs, sources = planner.merge_answers([first, second])
+    assert sources == ["文件 A v1", "文件 B v2", "我的檔案.pdf"]
+    assert pairs[0] == ("Q1", "甲 [1] 乙 [2]")
+    assert pairs[1] == ("Q2", "丙 [2] 丁 [Q2-S3]")  # B is [2] in both answers; the unlisted label is marked, not guessed
+
+
+def test_merge_keeps_answers_without_any_source_list():
+    pairs, sources = planner.merge_answers([item("Q", "只有文字")])
+    assert pairs == [("Q", "只有文字")] and sources == []
+
+
+def test_multi_prompt_has_every_question_the_global_sources_and_the_conflict_rule():
+    pairs, sources = planner.merge_answers([item("第一問", "答一 [S1]", ["[S1] 文件 A"]), item("第二問", "答二 [S1]", ["[S1] 文件 C"])])
+    messages = planner.build_messages_multi(pairs, sources, "整合成一份報告", "docx")
+    system, user = messages[0]["content"], messages[1]["content"]
+    assert "不一致" in system and "不可自行挑一個" in system and "[Q1-S2]" in system
+    assert "第一問" in user and "第二問" in user and "[1] 文件 A" in user and "[2] 文件 C" in user and "答二 [2]" in user
+
+
+def test_planner_uses_the_multi_prompt_when_given_items():
+    seen = []
+    def complete(messages):
+        seen.append(messages)
+        return json.dumps(SPEC)
+    planner.plan(complete, items=[item("Q1", "A1"), item("Q2", "A2")], fmt="pptx")
+    assert "--- 第 2 則 ---" in seen[0][1]["content"]
+
+
+def test_route_takes_up_to_five_answers_and_sends_the_merged_text(client, monkeypatch):
+    seen = []
+    monkeypatch.setattr(service, "_llm_complete", lambda: (lambda messages: (seen.append(messages), json.dumps(SPEC))[1]))
+    items = [{"question": f"Q{i}", "answer": f"A{i} [S1]", "sources": [f"[S1] 文件 {i}"]} for i in range(1, 6)]
+    r = client.post("/api/export/plan", json={"items": items, "format": "docx"}, headers=POST)
+    assert r.status_code == 200 and r.json()["spec"]["format"] == "docx"
+    assert "A5 [5]" in seen[0][1]["content"] and "[5] 文件 5" in seen[0][1]["content"]
+
+
+def test_route_refuses_a_sixth_answer_with_a_clear_message(client):
+    items = [{"answer": f"A{i}"} for i in range(6)]
+    r = client.post("/api/export/plan", json={"items": items}, headers=POST)
+    assert r.status_code == 422 and "最多匯出 5 則" in r.json()["detail"]
+
+
+def test_route_refuses_too_much_text_across_the_selected_answers(client):
+    items = [{"answer": "x" * 15000} for _ in range(3)]  # each is allowed alone; together they are over the cap
+    r = client.post("/api/export/plan", json={"items": items}, headers=POST)
+    assert r.status_code == 413 and "太長" in r.json()["detail"]
+
+
+def test_a_request_with_neither_answer_nor_items_is_refused(client):
+    assert client.post("/api/export/plan", json={"question": "q"}, headers=POST).status_code == 422
+
+
+def test_several_answer_reports_have_their_own_smaller_hourly_limit(client, monkeypatch):
+    monkeypatch.setenv("KM_EXPORT_MULTI_PLANS_PER_HOUR", "1")
+    body = {"items": [{"answer": "a"}, {"answer": "b"}]}
+    assert client.post("/api/export/plan", json=body, headers=POST).status_code == 200
+    assert client.post("/api/export/plan", json=body, headers=POST).status_code == 429
+    assert client.post("/api/export/plan", json={"answer": "a"}, headers=POST).status_code == 200  # a single answer is not affected
+
+
+def test_config_tells_the_page_the_answer_limit(client):
+    assert client.get("/api/export/config").json()["max_answers"] == 5

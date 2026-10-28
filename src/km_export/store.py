@@ -21,6 +21,7 @@ class ExportSettings:
     max_files_per_owner: int = 20
     max_bytes: int = 25 * 1024 * 1024
     plans_per_hour: int = 12
+    multi_plans_per_hour: int = 4  # a report over several answers sends several times more text to the model
     builds_per_hour: int = 40
 
     @classmethod
@@ -30,6 +31,7 @@ class ExportSettings:
                    ttl_seconds=int(env("KM_EXPORT_TTL_SECONDS", "3600")),
                    max_files_per_owner=int(env("KM_EXPORT_MAX_FILES", "20")),
                    plans_per_hour=int(env("KM_EXPORT_PLANS_PER_HOUR", "12")),
+                   multi_plans_per_hour=int(env("KM_EXPORT_MULTI_PLANS_PER_HOUR", "4")),
                    builds_per_hour=int(env("KM_EXPORT_BUILDS_PER_HOUR", "40")))
 
     def public(self) -> dict:

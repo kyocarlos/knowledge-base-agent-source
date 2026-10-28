@@ -69,7 +69,13 @@
 .kmx-sec{display:grid;grid-template-columns:auto 1fr auto;gap:8px;align-items:center;margin:6px 0}
 .kmx-sec small{color:#8fb0b6}
 .kmx-err{color:#ffb4a8;margin-top:10px}.kmx-note{font-size:12px;color:#8fb0b6}
-.kmx-dl{display:inline-block;margin-top:10px;padding:8px 18px;border-radius:8px;background:#1f8a8a;color:#fff;text-decoration:none}`;
+.kmx-dl{display:inline-block;margin-top:10px;padding:8px 18px;border-radius:8px;background:#1f8a8a;color:#fff;text-decoration:none}
+.kmx-pick{display:inline-flex;align-items:center;gap:6px;color:#a9c5ca;cursor:pointer;user-select:none}
+.kmx-pick input{accent-color:#2aa6a0;cursor:pointer}
+.kmx-pick.kmx-off{opacity:.4;cursor:not-allowed}.kmx-pick.kmx-off input{cursor:not-allowed}
+.kmx-tray{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);z-index:2147482000;display:flex;align-items:center;gap:12px;flex-wrap:wrap;justify-content:center;max-width:calc(100vw - 24px);padding:10px 16px;background:#0b2530;color:#e6f3f5;border:1px solid #2aa6a0;border-radius:12px;box-shadow:0 10px 40px rgba(0,0,0,.45);font:13px/1.5 system-ui,'Microsoft JhengHei',sans-serif}
+.kmx-tray strong{color:#7fffe3}.kmx-tray .kmx-limit{color:#ffd28a}
+.kmx-tray[hidden]{display:none}`;
 
   let config = null;
   async function loadConfig() {
@@ -94,6 +100,9 @@
     back.innerHTML = '<div class="kmx-dlg" role="dialog" aria-modal="true" aria-labelledby="kmx-title" tabindex="-1"></div>';
     const dlg = back.firstChild;
     const state = { format: null, request: '', spec: null, busy: false };
+    // Answers restored after a page reload (or from a chat without a citation list) have no sources; say so before the user relies on the file.
+    const missing = (context.multi ? context.items() : [context.read()]).filter((i) => !i.sources.length).length;
+    const missingNote = missing ? `<p class="kmx-note kmx-limit">注意：有 ${missing} 則回答沒有來源資料，報告中這些內容不會附來源。</p>` : '';
     const close = () => { back.remove(); document.removeEventListener('keydown', onKey, true); context.button.focus(); };
     const onKey = (e) => { if (e.key === 'Escape' && !state.busy) { e.stopPropagation(); close(); } };
     document.addEventListener('keydown', onKey, true);
@@ -102,17 +111,18 @@
     const fail = (message) => { const box = dlg.querySelector('.kmx-err') || dlg.appendChild(Object.assign(document.createElement('p'), { className: 'kmx-err', role: 'alert' })); box.textContent = message; };
 
     function stepChoose() {
-      show(`<h2 id="kmx-title">匯出這則回答</h2><p>選擇想要的檔案格式，或直接用文字描述需求。按下「產生大綱」之前不會產生任何檔案。</p>
+      show(`<h2 id="kmx-title">${context.multi ? `匯出所選的 ${context.count} 則回答` : '匯出這則回答'}</h2><p>選擇想要的檔案格式，或直接用文字描述需求。按下「產生大綱」之前不會產生任何檔案。</p>
         <label>檔案格式</label><div class="kmx-chips">${FORMATS.map(([id, name, ext]) => `<button type="button" class="kmx-chip" data-f="${id}" aria-pressed="${state.format === id}">${name} <small>${ext}</small></button>`).join('')}<button type="button" class="kmx-chip" data-f="" aria-pressed="${state.format === null}">讓助理建議</button></div>
         <label for="kmx-req">你希望怎麼整理？（選填）</label><textarea id="kmx-req" maxlength="1000" placeholder="例如：做成 5 頁簡報給主管看；只列重點與數值；比較表格要放前面">${esc(state.request)}</textarea>
-        <p class="kmx-note">產生大綱會使用語言模型額度；內容只會依這則回答與其來源整理，不會加入新的資料。</p>
+        <p class="kmx-note">${context.multi ? `會把這 ${context.count} 則回答整合成一份報告，依主題重新編排；若各則回答說法不一致，報告會並列標示、不會自行擇一。整合所用的語言模型額度比單一回答多。內容只依這些回答與其來源整理，不會加入新的資料。`
+          : '產生大綱會使用語言模型額度；內容只會依這則回答與其來源整理，不會加入新的資料。'}</p>${missingNote}
         <div class="kmx-row"><button type="button" class="kmx-btn" data-a="cancel">取消</button><button type="button" class="kmx-btn primary" data-a="plan">產生大綱</button></div>`);
       dlg.querySelectorAll('.kmx-chip').forEach((b) => b.addEventListener('click', () => { state.format = b.dataset.f || null; dlg.querySelectorAll('.kmx-chip').forEach((x) => x.setAttribute('aria-pressed', String(x === b))); }));
       dlg.querySelector('[data-a=cancel]').addEventListener('click', close);
       dlg.querySelector('[data-a=plan]').addEventListener('click', async (e) => {
         state.request = dlg.querySelector('#kmx-req').value; state.busy = true; e.target.disabled = true; e.target.textContent = '整理中…';
         try {
-          const payload = { question: context.question(), answer: context.answer(), sources: context.sources(), request: state.request };
+          const payload = context.multi ? { items: context.items(), request: state.request } : { ...context.read(), request: state.request };
           if (state.format) payload.format = state.format;
           state.spec = (await call('/plan', payload)).spec; state.busy = false; stepOutline();
         } catch (err) { state.busy = false; e.target.disabled = false; e.target.textContent = '產生大綱'; fail(err.message); }
@@ -145,24 +155,58 @@
         <p class="kmx-note">檔案由 AI 依回答整理，使用前請對照來源。下載連結約 ${minutes} 分鐘後失效。</p>
         <div class="kmx-row"><button type="button" class="kmx-btn" data-a="close">關閉</button></div>`);
       dlg.querySelector('[data-a=close]').addEventListener('click', close);
+      if (context.onDone) context.onDone();
     }
 
     document.body.appendChild(back);
     stepChoose();
   }
 
+  // Answers ticked for one report. The limit comes from the service (config.max_answers); once it is reached the other boxes are greyed out.
+  const picks = new Map();  // answer element → { box, label, read }
+  const limit = () => (config && config.max_answers) || 5;
+  let tray = null;
+
+  function syncPicks() {
+    for (const el of [...picks.keys()]) if (!el.isConnected) picks.delete(el);
+    const full = picks.size >= limit();
+    document.querySelectorAll('.kmx-pick').forEach((label) => {
+      const box = label.querySelector('input');
+      const off = full && !box.checked;
+      box.disabled = off; label.classList.toggle('kmx-off', off);
+      label.title = off ? `已達上限 ${limit()} 則，取消其他已選的回答後才能再選` : '勾選後可把最多 ' + limit() + ' 則回答整合成一份報告';
+    });
+    if (!tray) {
+      tray = document.createElement('div'); tray.className = 'kmx-tray'; tray.setAttribute('role', 'status'); tray.hidden = true;
+      tray.innerHTML = '<span class="kmx-count"></span><span class="kmx-limit"></span><button type="button" class="kmx-open" data-a="export" aria-haspopup="dialog">匯出所選回答</button><button type="button" class="kmx-btn" data-a="clear">清除</button>';
+      tray.querySelector('[data-a=clear]').addEventListener('click', () => { picks.forEach((p) => { p.box.checked = false; }); picks.clear(); syncPicks(); });
+      tray.querySelector('[data-a=export]').addEventListener('click', (e) => {
+        const chosen = [...picks.entries()].sort((a, b) => (a[0].compareDocumentPosition(b[0]) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1));  // in the order they were asked
+        open({ button: e.currentTarget, multi: true, count: chosen.length, items: () => chosen.map(([, p]) => p.read()),
+          onDone: () => { picks.forEach((p) => { p.box.checked = false; }); picks.clear(); syncPicks(); } });
+      });
+      document.body.appendChild(tray);
+    }
+    tray.hidden = picks.size === 0;
+    tray.querySelector('.kmx-count').innerHTML = `已選 <strong>${picks.size}</strong> / ${limit()} 則回答`;
+    tray.querySelector('.kmx-limit').textContent = full ? `已達上限 ${limit()} 則，其他回答已反灰；取消勾選後可改選。` : '';
+  }
+
   function decorate(adapter, root) {
     for (const el of adapter.answers(root)) {
       if (el.dataset.kmExported) continue;
       el.dataset.kmExported = '1';
+      const read = () => ({ question: adapter.question(el).slice(0, 2000), answer: toText(adapter.body(el)), sources: adapter.sources(el) });
       const bar = document.createElement('div');
       bar.className = 'kmx-bar'; bar.setAttribute('data-km-export-bar', '');
-      bar.innerHTML = '<button type="button" class="kmx-open" aria-haspopup="dialog">匯出為檔案</button>';
-      const button = bar.firstChild;
-      button.addEventListener('click', () => open({ button, answer: () => toText(adapter.body(el)), question: () => adapter.question(el).slice(0, 2000), sources: () => adapter.sources(el) }));
+      bar.innerHTML = '<button type="button" class="kmx-open" aria-haspopup="dialog">匯出為檔案</button><label class="kmx-pick"><input type="checkbox"> 加入多則匯出</label>';
+      const button = bar.firstChild; const label = bar.lastChild; const box = label.querySelector('input');
+      button.addEventListener('click', () => open({ button, multi: false, read }));
+      box.addEventListener('change', () => { if (box.checked) picks.set(el, { box, label, read }); else picks.delete(el); syncPicks(); });
       const anchor = adapter.after(el);
       if (adapter.inside) anchor.appendChild(bar); else anchor.after(bar);
     }
+    syncPicks();
   }
 
   async function start() {

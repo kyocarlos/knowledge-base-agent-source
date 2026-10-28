@@ -16,7 +16,7 @@ from pydantic import BaseModel, Field
 from starlette.concurrency import run_in_threadpool
 
 from . import builders
-from .planner import PlanError, plan
+from .planner import MAX_ANSWERS, PlanError, plan
 from .spec import FORMATS, ExportSpec
 from .store import ExportSettings, ExportStore, RateLimiter
 
@@ -27,10 +27,21 @@ router = APIRouter(prefix="/api/export", tags=["Answer export"])
 _limiter = RateLimiter()
 
 
-class PlanRequest(BaseModel):
+MAX_MULTI_CHARS = 40000  # all selected answers together
+
+
+class PlanItem(BaseModel):
     question: str = Field(default="", max_length=2000)
     answer: str = Field(min_length=1, max_length=20000)
     sources: list[str] = Field(default_factory=list, max_length=30)
+
+
+class PlanRequest(BaseModel):
+    """One answer (``answer``) or several (``items``, at most MAX_ANSWERS, checked in the route so the message can be specific)."""
+    question: str = Field(default="", max_length=2000)
+    answer: str = Field(default="", max_length=20000)
+    sources: list[str] = Field(default_factory=list, max_length=30)
+    items: list[PlanItem] = Field(default_factory=list, max_length=50)
     request: str = Field(default="", max_length=1000)
     format: str | None = Field(default=None, max_length=8)
 
@@ -89,7 +100,7 @@ async def export_config(request: Request):
     _identity(request)
     allowed = _may_export(request)
     settings = ExportSettings.from_environment()
-    return {"enabled": allowed, **({"formats": list(FORMATS), **settings.public()} if allowed else {})}
+    return {"enabled": allowed, **({"formats": list(FORMATS), "max_answers": MAX_ANSWERS, **settings.public()} if allowed else {})}
 
 
 @router.post("/plan")
@@ -98,10 +109,20 @@ async def export_plan(body: PlanRequest, request: Request):
     owner = _require(request, write=True)
     if body.format is not None and body.format not in FORMATS:
         raise HTTPException(status_code=422, detail="unsupported format")
-    if not _limiter.allow(f"plan:{owner}", ExportSettings.from_environment().plans_per_hour):
+    multi = bool(body.items)
+    if multi:
+        if len(body.items) > MAX_ANSWERS:
+            raise HTTPException(status_code=422, detail=f"一次最多匯出 {MAX_ANSWERS} 則回答，請取消幾則再試")
+        if sum(len(i.answer) for i in body.items) > MAX_MULTI_CHARS:
+            raise HTTPException(status_code=413, detail="所選回答的內容太長，請減少所選的回答再試")
+    elif not body.answer.strip():
+        raise HTTPException(status_code=422, detail="沒有可匯出的回答內容")
+    settings = ExportSettings.from_environment()
+    if not _limiter.allow(f"{'multi' if multi else 'plan'}:{owner}", settings.multi_plans_per_hour if multi else settings.plans_per_hour):
         raise HTTPException(status_code=429, detail="匯出次數已達每小時上限，請稍後再試")
     try:
-        spec = await run_in_threadpool(lambda: plan(_llm_complete(), question=body.question, answer=body.answer, sources=body.sources, request=body.request, fmt=body.format))
+        spec = await run_in_threadpool(lambda: plan(_llm_complete(), question=body.question, answer=body.answer, sources=body.sources, request=body.request, fmt=body.format,
+                                                    items=body.items if multi else None))
     except PlanError as exc:
         if str(exc) == "llm_unavailable":
             raise HTTPException(status_code=503, detail="語言模型暫時無法使用，請稍後再試") from exc
