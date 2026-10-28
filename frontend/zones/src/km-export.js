@@ -52,7 +52,7 @@
   ];
 
   const CSS = `
-.kmx-bar{display:flex;align-items:center;gap:10px;margin:10px 0 2px;font:13px/1.4 system-ui,'Microsoft JhengHei',sans-serif}
+.kmx-bar{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin:10px 0 2px;font:13px/1.4 system-ui,'Microsoft JhengHei',sans-serif}
 .kmx-open{cursor:pointer;border:1px solid #2aa6a0;background:rgba(42,166,160,.12);color:#7fffe3;border-radius:8px;padding:5px 12px;font:inherit}
 .kmx-open:hover{background:rgba(42,166,160,.25)}
 .kmx-back{position:fixed;inset:0;z-index:2147483000;background:rgba(2,10,14,.72);display:grid;place-items:center;padding:16px}
@@ -70,9 +70,12 @@
 .kmx-sec small{color:#8fb0b6}
 .kmx-err{color:#ffb4a8;margin-top:10px}.kmx-note{font-size:12px;color:#8fb0b6}
 .kmx-dl{display:inline-block;margin-top:10px;padding:8px 18px;border-radius:8px;background:#1f8a8a;color:#fff;text-decoration:none}
-.kmx-pick{display:inline-flex;align-items:center;gap:6px;color:#a9c5ca;cursor:pointer;user-select:none}
-.kmx-pick input{accent-color:#2aa6a0;cursor:pointer}
-.kmx-pick.kmx-off{opacity:.4;cursor:not-allowed}.kmx-pick.kmx-off input{cursor:not-allowed}
+.kmx-pick{position:relative;display:inline-flex;align-items:center;white-space:nowrap;cursor:pointer;user-select:none;border:1px solid #2b5560;background:rgba(15,51,64,.6);color:#a9c5ca;border-radius:8px;padding:5px 12px;font:inherit}
+.kmx-pick:hover{border-color:#2aa6a0;color:#7fffe3}
+.kmx-pick input{position:absolute;opacity:0;width:1px;height:1px;margin:0;pointer-events:none}
+.kmx-pick.on{border-color:#7fffe3;background:#14505a;color:#fff}
+.kmx-pick:has(input:focus-visible){outline:2px solid #7fffe3;outline-offset:2px}
+.kmx-pick.kmx-off{opacity:.4;cursor:not-allowed}.kmx-pick.kmx-off:hover{border-color:#2b5560;color:#a9c5ca}
 .kmx-tray{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);z-index:2147482000;display:flex;align-items:center;gap:12px;flex-wrap:wrap;justify-content:center;max-width:calc(100vw - 24px);padding:10px 16px;background:#0b2530;color:#e6f3f5;border:1px solid #2aa6a0;border-radius:12px;box-shadow:0 10px 40px rgba(0,0,0,.45);font:13px/1.5 system-ui,'Microsoft JhengHei',sans-serif}
 .kmx-tray strong{color:#7fffe3}.kmx-tray .kmx-limit{color:#ffd28a}
 .kmx-tray[hidden]{display:none}`;
@@ -174,6 +177,7 @@
       const box = label.querySelector('input');
       const off = full && !box.checked;
       box.disabled = off; label.classList.toggle('kmx-off', off);
+      label.classList.toggle('on', box.checked); label.querySelector('.kmx-pick-text').textContent = box.checked ? '✓ 已加入多則匯出' : '＋ 加入多則匯出';
       label.title = off ? `已達上限 ${limit()} 則，取消其他已選的回答後才能再選` : '勾選後可把最多 ' + limit() + ' 則回答整合成一份報告';
     });
     if (!tray) {
@@ -199,7 +203,7 @@
       const read = () => ({ question: adapter.question(el).slice(0, 2000), answer: toText(adapter.body(el)), sources: adapter.sources(el) });
       const bar = document.createElement('div');
       bar.className = 'kmx-bar'; bar.setAttribute('data-km-export-bar', '');
-      bar.innerHTML = '<button type="button" class="kmx-open" aria-haspopup="dialog">匯出為檔案</button><label class="kmx-pick"><input type="checkbox"> 加入多則匯出</label>';
+      bar.innerHTML = '<button type="button" class="kmx-open" aria-haspopup="dialog">匯出為檔案</button><label class="kmx-pick"><input type="checkbox"><span class="kmx-pick-text">＋ 加入多則匯出</span></label>';
       const button = bar.firstChild; const label = bar.lastChild; const box = label.querySelector('input');
       button.addEventListener('click', () => open({ button, multi: false, read }));
       box.addEventListener('change', () => { if (box.checked) picks.set(el, { box, label, read }); else picks.delete(el); syncPicks(); });
