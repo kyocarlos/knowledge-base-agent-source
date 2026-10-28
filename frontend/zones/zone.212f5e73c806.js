@@ -1,22 +1,20 @@
 (() => {
   'use strict';
 
+  const ZONE = window.KM_ZONE_CONFIG;
   const navGroups = [
     { label: '知識專區', items: [
-      ['overview', '◈', '總覽', true], ['documents', '▤', '文件瀏覽', true], ['ai', '♙', 'WiFi 知識助理', true],
+      ['overview', '◈', '總覽', true], ['documents', '▤', '文件瀏覽', true], ['ai', '♙', ZONE.assistant, true],
     ]},
-    { label: '管理設定', items: [['ai-usage', '◌', 'AI 用量', false], ['settings', '⚙', '設定', false]] },
   ];
   const routeInfo = {
     overview: ['總覽', '即時資料集、分類與版本狀態'],
     documents: ['文件瀏覽', '查詢目前版本、歷史版本與文件段落'],
-    ai: ['WiFi 知識助理', '使用現有 WiFi Agent 進行可追溯問答'],
-    research: ['研究主題', '建立與管理 WiFi 研究主題'],
-    'wfa-downloads': ['WFA 下載', '管理 Wi-Fi Alliance 文件來源'],
+    ai: [ZONE.assistant, `使用${ZONE.label}文件與 ${ZONE.short} Agent 進行可追溯問答`],
+    research: ['研究主題', `建立與管理 ${ZONE.short} 研究主題`],
+    'wfa-downloads': ['文件下載', '管理文件來源'],
     'web-collection': ['網頁收集', '收集、清理與追蹤網頁資料'],
     review: ['內容審核', '審核文件與知識內容'],
-    'ai-usage': ['AI 用量', '查看 Agent 用量與執行狀態'],
-    settings: ['設定', '調整 WiFi 知識專區設定'],
   };
   const state = { route: 'overview', overview: null, documentPage: 1, conversation: [], agentTask: null, renderToken: 0, files: [], filesConfig: null, uploading: false };
   const $ = (selector) => document.querySelector(selector);
@@ -49,9 +47,9 @@
   function setHeader(route) {
     const [title] = routeInfo[route];
     $('#page-section').textContent = title;
-    $('#page-title').textContent = 'WiFi 知識專區';
+    $('#page-title').textContent = ZONE.label;
     $('#page-updated').textContent = new Date().toLocaleString('zh-TW', { hour12: false });
-    document.title = `${title} · WiFi 知識專區`;
+    document.title = `${title} · ${ZONE.label}`;
   }
 
   function fail(error) { content.innerHTML = `<div class="error-card" role="alert"><strong>載入失敗</strong><p>${escapeHtml(error.message)}</p></div>`; }
@@ -127,7 +125,7 @@
   }
 
   function documentFilters() {
-    return `<form id="document-filters" class="filters"><label>關鍵字<input name="query" maxlength="200" placeholder="ELR、NPCA、WFA ID…"></label><label>發布者<select name="publisher"><option value="">全部</option></select></label><label>文件角色<select name="document_role"><option value="">全部</option></select></label><button class="primary-button" type="submit">查詢</button><label class="checkbox-label"><input name="include_history" type="checkbox">包含歷史版本</label></form>`;
+    return `<form id="document-filters" class="filters"><label>關鍵字<input name="query" maxlength="200" placeholder="${ZONE.placeholder}"></label><label>發布者<select name="publisher"><option value="">全部</option></select></label><label>文件角色<select name="document_role"><option value="">全部</option></select></label><button class="primary-button" type="submit">查詢</button><label class="checkbox-label"><input name="include_history" type="checkbox">包含歷史版本</label></form>`;
   }
   async function loadDocuments(page = 1, token = state.renderToken) {
     const form = $('#document-filters');
@@ -146,7 +144,7 @@
   const matchedLabels = { fulltext: '全文', vector: '語意' };
   function hitMeta(hit) {
     return [
-      hit.location_label, hit.publisher, hit.wfa_document_id ? `WFA ${hit.wfa_document_id}` : '',
+      hit.location_label, hit.publisher, hit.wfa_document_id ? `${ZONE.idLabel} ${hit.wfa_document_id}` : '',
       hit.analysis_eligible === false ? '歷史版本' : '',
       (hit.matched_by || []).map((name) => matchedLabels[name] || name).join('＋'),
       hit.score != null ? Number(hit.score).toFixed(4) : '',
@@ -173,7 +171,7 @@
     } catch (error) { target.innerHTML = `<div class="error-card">${escapeHtml(error.message)}</div>`; }
   }
   async function renderDocuments(token) {
-    content.innerHTML = `${panel('文件篩選', documentFilters(), '預設只顯示目前版本')}<section id="document-results" class="panel" style="margin-top:16px"><div class="loading-card">正在載入文件…</div></section>${panel('混合檢索', `<div class="filters"><label>查詢<input id="hybrid-query" maxlength="500" placeholder="輸入中文短詞、縮寫或 WFA ID"></label><label class="checkbox-label"><input id="hybrid-history" type="checkbox">包含歷史版本</label><button id="hybrid-submit" class="primary-button" type="button">開始檢索</button></div><div id="hybrid-results"></div>`, 'BM25 + vector RRF')}`;
+    content.innerHTML = `${panel('文件篩選', documentFilters(), '預設只顯示目前版本')}<section id="document-results" class="panel" style="margin-top:16px"><div class="loading-card">正在載入文件…</div></section>${panel('混合檢索', `<div class="filters"><label>查詢<input id="hybrid-query" maxlength="500" placeholder="輸入中文短詞、縮寫或${ZONE.idLabel}"></label><label class="checkbox-label"><input id="hybrid-history" type="checkbox">包含歷史版本</label><button id="hybrid-submit" class="primary-button" type="button">開始檢索</button></div><div id="hybrid-results"></div>`, 'BM25 + vector RRF')}`;
     $('#document-filters').addEventListener('submit', (event) => { event.preventDefault(); loadDocuments(1).catch(fail); });
     $('#document-results').addEventListener('click', (event) => { const id = event.target.dataset.document; const page = Number(event.target.dataset.page); if (id) showDocument(id); if (page > 0) loadDocuments(page).catch(fail); });
     $('#hybrid-submit').addEventListener('click', runHybridSearch);
@@ -194,7 +192,7 @@
       const [detail, chunks, figures] = await Promise.all([api(`/api/wifi8/documents/${encodeURIComponent(revisionId)}`), api(`/api/wifi8/documents/${encodeURIComponent(revisionId)}/chunks?count=8`), api(`/api/wifi8/documents/${encodeURIComponent(revisionId)}/chunks?figures=true&count=12`)]);
       const doc = detail.document || {};
       $('#document-dialog-title').textContent = doc.title || '文件詳情';
-      $('#document-dialog-body').innerHTML = `<div class="detail-grid">${[['Revision ID',doc.revision_id],['WFA ID',doc.wfa_document_id],['發布者',doc.publisher],['文件角色',doc.document_role],['日期',doc.document_date],['狀態',doc.analysis_eligible ? '目前版本' : '歷史版本']].map(([label,value]) => `<div class="detail-field"><small>${label}</small><strong>${escapeHtml(value || '—')}</strong></div>`).join('')}</div><h3>版本關係</h3><div class="topic-list">${(detail.versions || []).map((version) => `<span class="topic">${escapeHtml(version.version_label || version.wfa_revision || version.revision_id)}${version.analysis_eligible ? ' · 目前' : ''}</span>`).join('') || '<span class="empty">無其他版本</span>'}</div><h3>來源段落</h3>${(chunks.chunks || []).map((chunk) => `<article class="chunk"><small>#${chunk.chunk_index} · ${escapeHtml(chunk.location_label || '')}</small>${chunkBody(chunk, chunk.content)}</article>`).join('') || '<div class="empty">無可顯示段落</div>'}${figureSection(figures)}`;
+      $('#document-dialog-body').innerHTML = `<div class="detail-grid">${[['Revision ID',doc.revision_id],[ZONE.idLabel,doc.wfa_document_id],['發布者',doc.publisher],['文件角色',doc.document_role],['日期',doc.document_date],['狀態',doc.analysis_eligible ? '目前版本' : '歷史版本']].map(([label,value]) => `<div class="detail-field"><small>${label}</small><strong>${escapeHtml(value || '—')}</strong></div>`).join('')}</div><h3>版本關係</h3><div class="topic-list">${(detail.versions || []).map((version) => `<span class="topic">${escapeHtml(version.version_label || version.wfa_revision || version.revision_id)}${version.analysis_eligible ? ' · 目前' : ''}</span>`).join('') || '<span class="empty">無其他版本</span>'}</div><h3>來源段落</h3>${(chunks.chunks || []).map((chunk) => `<article class="chunk"><small>#${chunk.chunk_index} · ${escapeHtml(chunk.location_label || '')}</small>${chunkBody(chunk, chunk.content)}</article>`).join('') || '<div class="empty">無可顯示段落</div>'}${figureSection(figures)}`;
     } catch (error) { $('#document-dialog-body').innerHTML = `<div class="error-card">${escapeHtml(error.message)}</div>`; }
   }
 
@@ -282,7 +280,7 @@
   }
   function citationItem(item, index) {
     if (typeof item !== 'object' || item === null) return `<li><strong>[${index + 1}]</strong> ${escapeHtml(item)}</li>`;
-    const meta = [item.publisher, item.wfa_document_id ? `WFA ${item.wfa_document_id}` : '', item.analysis_eligible === false ? '歷史版本' : ''].filter(Boolean).join(' · ');
+    const meta = [item.publisher, item.wfa_document_id ? `${ZONE.idLabel} ${item.wfa_document_id}` : '', item.analysis_eligible === false ? '歷史版本' : ''].filter(Boolean).join(' · ');
     const image = item.image && /^[0-9a-f]{64}$/.test(item.image.id || '') ? item.image : null;
     // Where in the document the cited text is (page / slide / figure): shown prominently, figures get a badge and
     // a thumbnail that opens the image, so an answer read from a figure can be checked against it.
@@ -309,7 +307,7 @@
       groundingChip('有依據的句子', `${supported}/${s.claims}${s.claims_tool_data ? `（${s.claims_tool_data} 句依工具資料）` : ''}`, supported === s.claims ? 'ok' : supported / s.claims >= 0.8 ? 'warn' : 'bad'),
       s.values ? groundingChip('數值核對', `${found}/${s.values} 可在資料中找到${s.values_not_found ? `，${s.values_not_found} 找不到` : ''}`, s.values_not_found ? 'bad' : 'ok') : groundingChip('數值核對', '無數值', 'ok'),
       s.similarity_enabled && (sim.high || sim.medium || sim.low) ? groundingChip('原文相似度', `高 ${sim.high || 0}・中 ${sim.medium || 0}・低 ${sim.low || 0}`, sim.low ? 'warn' : 'ok') : '',
-      s.sources && s.sources.total ? groundingChip('引用來源', `${s.sources.wfa} 份 WFA・${s.sources.current}/${s.sources.total} 份目前版本`, s.sources.current === s.sources.total ? 'ok' : 'warn') : '',
+      s.sources && s.sources.total ? groundingChip('引用來源', `${s.sources.wfa} 份${ZONE.sourceLabel}・${s.sources.current}/${s.sources.total} 份目前版本`, s.sources.current === s.sources.total ? 'ok' : 'warn') : '',
     ].join('');
     const items = flagged.map((f) => `<li><p>${escapeHtml(f.text)}${(f.refs || []).length ? ` <span class="cite-ref">[${escapeHtml(f.refs.join('][')) }]</span>` : ''}</p><div>${(f.reasons || []).map((r) => `<span class="g-reason ${r}">${escapeHtml(groundingReasons[r] || r)}</span>`).join('')}${(f.values || []).map((v) => `<code class="${v.status}" title="${v.status === 'not_found' ? '在 Agent 取得的資料中找不到' : v.status === 'not_in_cited' ? '不在本句引用的段落' : '出現在其他引用，不在本句引用的段落'}">${escapeHtml(v.value)}</code>`).join('')}${(f.names || []).map((n) => `<code class="not_in_cited" title="本句提到的文件，引用的段落不是這份文件">${escapeHtml(n)}</code>`).join('')}${f.similarity != null && (f.reasons || []).includes('low_similarity') ? `<small>相似度 ${Number(f.similarity).toFixed(2)}</small>` : ''}</div></li>`).join('');
     return `<section class="grounding" aria-label="依據檢核"><div class="grounding-head"><strong>依據檢核</strong><div class="g-chips">${chips}</div></div><p class="grounding-note">由程式比對 Agent 取得的原文段落與文件資料：檢查每句是否有引用，以及數字、版本、型號是否真的出現在資料中${s.similarity_enabled ? '；相似度只代表用詞接近程度，不代表內容正確' : ''}。這是輔助檢核，不保證內容正確。</p>${flagged.length ? `<details><summary>需留意的句子（${flagged.length}）</summary><ul class="g-flags">${items}</ul></details>` : '<p class="grounding-note ok">所有句子都有依據，數值皆可在資料中找到。</p>'}</section>`;
@@ -348,7 +346,7 @@
     throw new Error('Agent 等待逾時，請稍後重試');
   }
   // Conversation memory: kept for the browser tab (sessionStorage), sent with every question; older turns are condensed by the server.
-  const CONVERSATION_KEY = 'wifi8.conversation.v1';
+  const CONVERSATION_KEY = `km.zone.${ZONE.id}.conversation.v1`;
   const MAX_TURNS = 60;
   function saveConversation() { try { sessionStorage.setItem(CONVERSATION_KEY, JSON.stringify(state.conversation.slice(-MAX_TURNS))); } catch (_) { /* private mode: the conversation just does not survive a reload */ } }
   function loadConversation() {
@@ -389,7 +387,7 @@
     const button = $('#agent-submit'); button.disabled = true;
     const attached = state.files.map((f) => f.name);
     const attachedNote = attached.length ? `[附加檔案：${attached.join('、')}]` : '';
-    $('#conversation').insertAdjacentHTML('beforeend', `<div class="message user">${escapeHtml(question)}${attached.length ? `<div class="message-files">📎 ${escapeHtml(attached.join('、'))}</div>` : ''}</div><div id="agent-wait" class="message assistant"><div class="live-status" role="status">正在調用 WiFi Agent…</div><div class="live-text markdown"></div></div>`);
+    $('#conversation').insertAdjacentHTML('beforeend', `<div class="message user">${escapeHtml(question)}${attached.length ? `<div class="message-files">📎 ${escapeHtml(attached.join('、'))}</div>` : ''}</div><div id="agent-wait" class="message assistant"><div class="live-status" role="status">正在調用 ${ZONE.short} Agent…</div><div class="live-text markdown"></div></div>`);
     input.value = '';
     try {
       const submitted = await api('/api/wifi8/agent', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ question, history:state.conversation.slice(-MAX_TURNS), ...(state.files.length ? { file_ids: state.files.map((f) => f.file_id) } : {}) }) });
@@ -467,7 +465,7 @@
     if (token !== state.renderToken) return;
     if (!state.conversation.length) state.conversation = loadConversation();
     const restored = state.conversation.length ? `<div class="message assistant restored-note">已還原本分頁先前的對話（${Math.ceil(state.conversation.length / 2)} 輪）；關閉分頁後不會保留。</div>${restoredTurns(state.conversation)}` : '';
-    content.innerHTML = `<div class="ai-layout">${panel('WiFi 知識助理', `<div id="conversation" class="conversation"><div class="message assistant">我會使用 WiFi 專區的文件與版本關係回答，並保留引用與工具步驟。</div>${restored}</div><label>問題<textarea id="agent-question" maxlength="2000" placeholder="例如：ELR 的規格重點是什麼？"></textarea></label>${attachmentBar(state.filesConfig)}<div class="ai-actions"><small class="results-meta">回答以目前匯入資料為準</small><button id="agent-new" class="secondary-button" type="button">新對話</button><button id="agent-submit" class="primary-button" type="button">送出問題</button></div>`)}${panel('回答依據', '<p>每次回答會同時顯示：</p><ul><li>引用文件</li><li>Agent 工具步驟</li><li>停止原因與錯誤狀態</li></ul>', 'KM 知識流程')}</div>`;
+    content.innerHTML = `<div class="ai-layout">${panel(ZONE.assistant, `<div id="conversation" class="conversation"><div class="message assistant">我會使用${ZONE.label}的文件與版本關係回答，並保留引用與工具步驟。</div>${restored}</div><label>問題<textarea id="agent-question" maxlength="2000" placeholder="${ZONE.example}"></textarea></label>${attachmentBar(state.filesConfig)}<div class="ai-actions"><small class="results-meta">回答以目前匯入資料為準</small><button id="agent-new" class="secondary-button" type="button">新對話</button><button id="agent-submit" class="primary-button" type="button">送出問題</button></div>`)}${panel('回答依據', '<p>每次回答會同時顯示：</p><ul><li>引用文件</li><li>Agent 工具步驟</li><li>停止原因與錯誤狀態</li></ul>', 'KM 知識流程')}</div>`;
     $('#agent-submit').addEventListener('click', askAgent);
     if (state.filesConfig.enabled) {
       const picker = $('#attach-input'); const question = $('#agent-question');
@@ -529,12 +527,12 @@
     const parts = [];
     if ((digest.highlights || []).length) parts.push(`<div class="feed-card"><div class="feed-section">本週重點</div><ul class="feed-highlights">${digest.highlights.map((h) => `<li>${escapeHtml(h)}</li>`).join('')}</ul></div>`);
     const t = digest.timeline;
-    if (t && t.last_done) parts.push(`<div class="feed-card"><div class="feed-section">IEEE 802.11bn (UHR) 進度</div><p class="feed-timeline">已完成 ${escapeHtml(t.done)}／${escapeHtml(t.total)} 個里程碑；最近完成 ${escapeHtml(t.last_done.name)}（${escapeHtml(t.last_done.current)}）${t.next ? `；下一步 ${escapeHtml(t.next.name)}，預計 ${escapeHtml(t.next.projected)}` : ''}</p></div>`);
+    if (t && t.last_done) parts.push(`<div class="feed-card"><div class="feed-section">${ZONE.timelineLabel}</div><p class="feed-timeline">已完成 ${escapeHtml(t.done)}／${escapeHtml(t.total)} 個里程碑；最近完成 ${escapeHtml(t.last_done.name)}（${escapeHtml(t.last_done.current)}）${t.next ? `；下一步 ${escapeHtml(t.next.name)}，預計 ${escapeHtml(t.next.projected)}` : ''}</p></div>`);
     const items = digest.items || [];
     parts.push(...items.map((item) => feedCard(
       `<span class="feed-badge">${escapeHtml(item.source_name)}</span>${feedDate(item.published) ? `<span>${feedDate(item.published)}</span>` : ''}${item.summary ? '<span>AI 摘要</span>' : ''}${item.older ? '<span class="feed-badge warn">較早</span>' : ''}`,
       item.title, item.summary || item.excerpt || '', feedHttps(item.url))));
-    if (!items.length) parts.push('<p class="feed-empty">本週沒有符合 Wi-Fi 的新動態。</p>');
+    if (!items.length) parts.push(`<p class="feed-empty">本週沒有符合 ${ZONE.short} 的新動態。</p>`);
     const bad = (digest.sources || []).filter((s) => s.status !== 'ok');
     parts.push(`<p class="feed-note">${escapeHtml(digest.note || '')}</p>${bad.length ? `<p class="feed-note feed-fail">讀取失敗的來源：${bad.map((s) => escapeHtml(s.name)).join('、')}（顯示的是其餘來源）</p>` : ''}`);
     return parts.join('');
@@ -570,7 +568,7 @@
 
   function initFeed() {
     const column = $('#feed-column'); if (!column) return;
-    column.innerHTML = `<div class="feed-head"><div><span class="feed-kicker">Wi-Fi 8 Watch</span><h2>Wi-Fi 8 動態</h2></div><button id="feed-refresh" class="feed-refresh" type="button">重新整理</button></div><div class="feed-tabs" role="tablist" aria-label="動態類型"><button type="button" role="tab" data-feed-tab="digest">每週週報</button><button type="button" role="tab" data-feed-tab="updates">文件更新</button></div><div id="feed-body" class="feed-body" aria-live="polite"></div><p id="feed-stamp" class="feed-stamp"></p>`;
+    column.innerHTML = `<div class="feed-head"><div><span class="feed-kicker">${ZONE.feedKicker}</span><h2>${ZONE.feedTitle}</h2></div><button id="feed-refresh" class="feed-refresh" type="button">重新整理</button></div><div class="feed-tabs" role="tablist" aria-label="動態類型"><button type="button" role="tab" data-feed-tab="digest">每週週報</button><button type="button" role="tab" data-feed-tab="updates">文件更新</button></div><div id="feed-body" class="feed-body" aria-live="polite"></div><p id="feed-stamp" class="feed-stamp"></p>`;
     column.querySelectorAll('[data-feed-tab]').forEach((b) => b.addEventListener('click', () => { feedState.tab = b.dataset.feedTab; renderFeed(); }));
     $('#feed-refresh').addEventListener('click', loadFeed);
     renderFeed(); loadFeed();
@@ -589,7 +587,7 @@
       if (!current || current === LOADED_SCRIPT) return;
       const banner = document.createElement('div');
       banner.id = 'update-banner'; banner.className = 'update-banner'; banner.setAttribute('role', 'status');
-      banner.innerHTML = '<span>WiFi 專區已更新，請重新整理以使用最新版本。</span><button type="button" class="primary-button">重新整理</button>';
+      banner.innerHTML = '<span>本專區已更新，請重新整理以使用最新版本。</span><button type="button" class="primary-button">重新整理</button>';
       banner.querySelector('button').addEventListener('click', () => location.reload());
       document.body.prepend(banner);
     } catch (_) { /* offline or logged out: check again later */ }

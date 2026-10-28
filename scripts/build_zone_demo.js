@@ -41,7 +41,6 @@ const zoneJsRules = [
   ["ai: ['WiFi 知識助理', '使用現有 WiFi Agent 進行可追溯問答'],", "ai: [ZONE.assistant, `使用${ZONE.label}文件與 ${ZONE.short} Agent 進行可追溯問答`],"],
   ["research: ['研究主題', '建立與管理 WiFi 研究主題'],", "research: ['研究主題', `建立與管理 ${ZONE.short} 研究主題`],"],
   ["'wfa-downloads': ['WFA 下載', '管理 Wi-Fi Alliance 文件來源'],", "'wfa-downloads': ['文件下載', '管理文件來源'],"],
-  ["settings: ['設定', '調整 WiFi 知識專區設定'],", "settings: ['設定', `調整${ZONE.label}設定`],"],
   ["$('#page-title').textContent = 'WiFi 知識專區';", "$('#page-title').textContent = ZONE.label;"],
   ["document.title = `${title} · WiFi 知識專區`;", "document.title = `${title} · ${ZONE.label}`;"],
   ['placeholder="ELR、NPCA、WFA ID…"', 'placeholder="${ZONE.placeholder}"'],
