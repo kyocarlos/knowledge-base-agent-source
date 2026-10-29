@@ -30,12 +30,13 @@ def ensure_collection(client, dim: int = 768) -> None:
 
 def payload(pkg: dict, chunk: dict, model: str, model_version: str) -> dict:
     doc, run = pkg["document"], pkg["test_run"]
+    pol = pkg.get("policy") or POLICY
     return {
         "schema_version": pkg["schema_version"], "document_id": doc["document_id"], "document_version": doc["document_version"], "chunk_id": chunk["chunk_id"],
-        "chunk_index": chunk["chunk_index"], "chunk_hash": chunk["chunk_hash"], "chunk_text": chunk["text"], "source_system": POLICY["source_system"],
-        "source_record_id": doc["document_id"], "title": doc["title"] or doc["document_id"], "document_type": "test_report", "publish_status": POLICY["publish_status"],
-        "approval_status": POLICY["approval_status"], "approval_basis": POLICY["approval_basis"], "is_current": True, "visibility": POLICY["visibility"],
-        "owner_department": POLICY["owner_department"], "access_roles": POLICY["access_roles"], "access_departments": POLICY["access_departments"],
+        "chunk_index": chunk["chunk_index"], "chunk_hash": chunk["chunk_hash"], "chunk_text": chunk["text"], "source_system": pol["source_system"],
+        "source_record_id": run.get("source_record_id") or doc["document_id"], "title": doc["title"] or doc["document_id"], "document_type": "test_report", "publish_status": pol["publish_status"],
+        "approval_status": pol["approval_status"], "approval_basis": pol["approval_basis"], "is_current": True, "visibility": pol["visibility"],
+        "owner_department": pol["owner_department"], "access_roles": pol["access_roles"], "access_departments": pol["access_departments"],
         "embedding_model": model, "embedding_model_version": model_version,
         "content_type": chunk["content_type"], "report_type": doc["report_type"], "product_id": run["product_id"], "dut_model": run["dut_model"],
         "firmware_version": run.get("firmware_version"), "test_run_id": run["test_run_id"], "band": chunk.get("band"), "bandwidth_mhz": chunk.get("bandwidth_mhz"),

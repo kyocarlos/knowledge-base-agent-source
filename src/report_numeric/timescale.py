@@ -45,9 +45,10 @@ def validate(pkg: dict, allowed_metrics: set[tuple[str, str]]) -> list[str]:
     return errors
 
 
-def write_package(conn, pkg: dict, *, accept_source_errors: bool, replace: bool = False) -> dict:
+def write_package(conn, pkg: dict, *, accept_source_errors: bool, replace: bool = False, policy: dict | None = None) -> dict:
     """Returns counts; raises ConflictError when the same document and version already exist with other content."""
     doc, run = pkg["document"], pkg["test_run"]
+    policy = policy or pkg.get("policy") or POLICY
     errors = pkg["quality"]["formula_errors"]
     if errors and not accept_source_errors:
         raise ConflictError(f"{len(errors)} formula error cells; fix the report or accept source errors explicitly")
@@ -62,10 +63,13 @@ def write_package(conn, pkg: dict, *, accept_source_errors: bool, replace: bool 
         problems = validate(pkg, allowed)
         if problems:
             raise ConflictError("; ".join(problems))
-        existing = conn.execute("SELECT content_hash FROM km_test.test_run WHERE document_id = %s AND document_version = %s",
+        existing = conn.execute("SELECT content_hash, csit_id FROM km_test.test_run WHERE document_id = %s AND document_version = %s",
                                 (doc["document_id"], doc["document_version"])).fetchone()
         if existing and existing[0] == content_hash:
             return {"status": "unchanged"}
+        # A newer upload of the same CSIT document supersedes it; any other content under the same number and version is a conflict.
+        if existing and run.get("csit_id") and existing[1] == run["csit_id"]:
+            replace = True
         if existing and not replace:
             raise ConflictError("same document and version with different content; raise the report version or pass replace")
         if existing:
@@ -73,12 +77,12 @@ def write_package(conn, pkg: dict, *, accept_source_errors: bool, replace: bool 
         conn.execute("""INSERT INTO km_test.test_run (test_run_id, id_basis, report_id, document_id, document_version, report_revision, report_type, technology,
             product_id, product_id_basis, dut_model, npi_stage, firmware_id, firmware_version, hardware_version, chipset_vendor, ethernet_type, test_date,
             overall_result, source_system, approval_status, approval_basis, publish_status, visibility, owner_department, access_roles, access_departments,
-            quality_status, formula_error_count, package_id, schema_version, content_hash)
+            quality_status, formula_error_count, package_id, schema_version, content_hash, csit_id, source_record_id, project_id)
             VALUES (%(test_run_id)s,%(id_basis)s,%(document_id)s,%(document_id)s,%(document_version)s,%(report_revision)s,%(report_type)s,%(technology)s,
             %(product_id)s,%(product_id_basis)s,%(dut_model)s,%(npi_stage)s,%(firmware_id)s,%(firmware_version)s,%(hardware_version)s,%(chipset_vendor)s,%(ethernet_type)s,%(test_date)s,
             %(overall_result)s,%(source_system)s,%(approval_status)s,%(approval_basis)s,%(publish_status)s,%(visibility)s,%(owner_department)s,%(access_roles)s,%(access_departments)s,
-            %(quality_status)s,%(formula_error_count)s,%(package_id)s,%(schema_version)s,%(content_hash)s)""",
-                     {**run, **doc, **{k: v for k, v in POLICY.items()}, "quality_status": "source_errors_accepted" if errors else "clean",
+            %(quality_status)s,%(formula_error_count)s,%(package_id)s,%(schema_version)s,%(content_hash)s,%(csit_id)s,%(source_record_id)s,%(project_id)s)""",
+                     {"csit_id": None, "source_record_id": None, "project_id": None, **run, **doc, **policy, "quality_status": "source_errors_accepted" if errors else "clean",
                       "formula_error_count": len(errors), "package_id": pkg["package_id"], "schema_version": pkg["schema_version"], "content_hash": content_hash})
         rid = run["test_run_id"]
         with conn.cursor() as cur:

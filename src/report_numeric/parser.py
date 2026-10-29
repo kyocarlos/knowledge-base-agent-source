@@ -17,6 +17,8 @@ from openpyxl.utils import get_column_letter
 
 SCHEMA_VERSION = "1.0"
 REPORT_TYPES = (("SIT-TR-WL-RvR", "wifi_rvr"), ("SIT-TR-WL-Throughput", "wifi_throughput"), ("SIT-TR-SC-NR-Throughput", "cellular_throughput"))
+# Report categories (Wi-Fi / Cellular / Small Cell / PON / Cable). A new report type is one REPORT_TYPES entry plus a parser function.
+CATEGORY = {"wifi_rvr": "wifi", "wifi_throughput": "wifi", "cellular_throughput": "small_cell"}
 DOC_NUMBER = re.compile(r"^SIT-TR-[A-Z]{2}-[\w .-]*-V\d+$")
 BAND = r"(2\.4GHz|5GHz|6GHz)"
 # Source label -> canonical direction. Tx/Rx are the STA's view and the DUT is always the AP (domain engineers, 2026-10-21).
@@ -105,11 +107,18 @@ def classify(path: Path) -> str:
     raise ValueError(f"unknown report type: {path.name}")
 
 
-def parse_report(path: str | Path) -> Package:
+def classify_or_none(name: str) -> str | None:
+    """Report type for a file name, or None when no template is registered (the caller then keeps the generic document path)."""
+    return next((kind for prefix, kind in REPORT_TYPES if name.startswith(prefix)), None)
+
+
+def parse_report(path: str | Path, identity: dict | None = None, source_name: str | None = None) -> Package:
+    """identity: optional upstream identity (CSIT) merged into the package: {"csit_id", "source_record_id", "project_id", "policy"}."""
     path = Path(path)
-    report_type = classify(path)
+    name = source_name or path.name   # an upload is stored under a generated name; the original name selects the template
+    report_type = classify(Path(name))
     wb = load_workbook(path, data_only=True)
-    document_number = _doc_number(wb) or path.stem
+    document_number = _doc_number(wb) or Path(name).stem
     version = document_number.rsplit("-", 1)[-1]
     test_run_id = f"TR:{document_number}"
     out = Collector(test_run_id)
@@ -129,7 +138,7 @@ def parse_report(path: str | Path) -> Package:
     pkg = Package({
         "schema_version": SCHEMA_VERSION,
         "package_id": "PKG-" + sha256_file(path)[:16],
-        "source": {"source_system": "ManualUpload", "source_file_name": path.name, "checksum": "sha256:" + sha256_file(path)},
+        "source": {"source_system": "ManualUpload", "source_file_name": name, "checksum": "sha256:" + sha256_file(path)},
         "document": {"document_id": document_number, "document_version": version, "title": _title(wb), "file_type": "xlsx",
                      "report_type": report_type, "technology": "NR" if report_type == "cellular_throughput" else "WiFi",
                      "report_revision": meta.get("revision")},
@@ -141,6 +150,11 @@ def parse_report(path: str | Path) -> Package:
         "measurements": out.measurements, "results": out.results, "criteria": out.criteria, "conditions": out.conditions,
         "text_blocks": out.blocks, "quality": {"formula_errors": errors, "issues": out.issues},
     })
+    pkg["document"]["category"] = CATEGORY.get(report_type)
+    if identity:
+        pkg["test_run"].update(id_basis="csit", csit_id=identity["csit_id"], source_record_id=identity["source_record_id"], project_id=identity.get("project_id"))
+        pkg["source"]["source_system"] = identity["policy"]["source_system"]
+        pkg["policy"] = identity["policy"]
     return pkg
 
 

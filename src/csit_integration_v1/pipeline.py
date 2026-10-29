@@ -153,8 +153,24 @@ def normalize(extraction,job,rules):
     except Exception:raise IntegrationError("SCHEMA_VALIDATION_FAILED","Typed extraction schema invalid") from None
 
 class Pipeline:
-    def __init__(self,settings,repository,client,writers,parser=None,extractor=None,numeric_rules=()):
+    def run_report(self,job,path):
+        from .report_adapter import REPORT_PARSER_VERSION,REPORT_EXTRACTION_VERSION
+        self.repo.phase(job,"Parsing")
+        pkg=self.reports.parse(path,job)
+        checkpoint=self.repo.checkpoints(job);references={}
+        for phase,write in (("TimescaleDB",self.reports.write_numeric),("Neo4j",self.reports.write_graph),("Qdrant",self.reports.write_vectors)):
+            self.repo.phase(job,phase)
+            if phase in checkpoint:references[phase]=checkpoint[phase];continue
+            try:result=write(pkg)
+            except IntegrationError:raise
+            except Exception:raise IntegrationError("STORAGE_UNAVAILABLE",phase+" writer unavailable",True) from None
+            self.repo.checkpoint(job,phase,result)
+            references[phase]=result
+        self.repo.finish(job,references,REPORT_PARSER_VERSION,REPORT_EXTRACTION_VERSION)
+
+    def __init__(self,settings,repository,client,writers,parser=None,extractor=None,numeric_rules=(),reports=None):
         self.settings,self.repo,self.client,self.writers=settings,repository,client,writers
+        self.reports=reports # ReportAdapter: workbooks with a registered report template skip the generic extraction
         self.parser=parser or Parser(settings)
         self.extractor=extractor # controlled service returns typed content; never receives writer tools
         self.numeric_rules=numeric_rules
@@ -168,6 +184,7 @@ class Pipeline:
         self.repo.set_hash(job,digest)
         self.repo.phase(job,"Validating")
         suffix=validate_file(path,job,s)
+        if self.reports is not None and self.reports.matches(job):return self.run_report(job,path)
         checkpoint=self.repo.checkpoints(job)
         canonical=root/("extracted-"+str(job["lease_token"])+".json")
         if "Extraction" in checkpoint:

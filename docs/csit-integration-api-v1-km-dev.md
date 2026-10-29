@@ -136,3 +136,14 @@ commit/push：NO / NO
 Remaining Blocker：由 CSIT runtime 發送 fresh valid service-token + canonical contract-valid safe probe；KM 端核對正式 HTTP503/schemaPASS與 jobs0→0 後才能標記 READY FOR FINAL v3 RETRY。
 
 Only number is accepted for project/case/task public references; existing *_code storage fields receive the number value. No schema migration or writer-data change. Auth/config unchanged. Evidence: protected csit-contract-422-20261013; runtime API healthy, enabledfalse/workerOFF/jobs0. Original body/error not retained; six code-missing/number-extra errors are validation-only reproduction, not recovered historical request. Fresh real CSIT safe probe remains pending, must reach503 with zero jobs before finalv3retry.
+
+## Report templates (test reports)
+
+With `KM_CSIT_REPORT_TEMPLATES=1` the worker routes an `.xlsx` whose original file name matches a registered template to the report pipeline in `src/report_numeric` instead of the generic extraction:
+
+- Templates are registered in `parser.REPORT_TYPES` (file-name prefix -> report type) and `parser.CATEGORY` (report type -> Wi-Fi / Cellular / Small Cell / PON / Cable). Registered today: `SIT-TR-WL-Throughput`, `SIT-TR-WL-RvR` (Wi-Fi) and `SIT-TR-SC-NR-Throughput` (Small Cell NR). Any other workbook keeps the generic path; adding a category means adding a template, a golden sample and tests.
+- Phases: `Parsing` -> `TimescaleDB` (`km_test.*`) -> `Neo4j` -> `Qdrant` (`ai_km_knowledge_v1`), each checkpointed; a store outage is retryable.
+- Identity: the report keeps its own document number and version (for readable answers); CSIT's `documentId` is stored as `csit_id` and `documentId:vN` as `source_record_id`; `id_basis` is `csit` and approval basis is `csit` (TestReportCommitted = supervisor approval + commit). A newer upload of the same CSIT document replaces the earlier content; the same number and version from a different CSIT document is rejected (`REPORT_REJECTED`).
+- Formula-error cells (`#REF!`) are never stored as numbers; the report is kept with `quality_status = source_errors_accepted`.
+- Numbers come only from cell values; Pass/Fail and criteria are stored as written in the report.
+- The schema is created by `report_numeric/schema.sql` (the writer runs it idempotently), so the worker's Timescale role needs DDL rights, or the schema must be created first.

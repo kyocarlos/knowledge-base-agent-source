@@ -33,7 +33,9 @@ def write_graph(session, pkg: dict) -> dict:
     doc, run = pkg["document"], pkg["test_run"]
     rid, pid, fid = run["test_run_id"], run["product_id"], run.get("firmware_id")
     ref = f"km_test.test_run/{rid}"
-    src = {"source_system": "ManualUpload", "created_from_package_id": pkg["package_id"], "schema_version": pkg["schema_version"]}
+    pol = pkg.get("policy") or {}
+    ss, ab, idb = pol.get("source_system", "ManualUpload"), pol.get("approval_basis", "assumed_manual"), run.get("id_basis", "derived")
+    src = {"source_system": ss, "created_from_package_id": pkg["package_id"], "schema_version": pkg["schema_version"]}
     cases = sorted({m["test_case_id"] for m in pkg["measurements"]} | {r["test_case_id"] for r in pkg["results"]})
     tally: dict[str, Counter] = defaultdict(Counter)
     for r in pkg["results"]:
@@ -50,28 +52,28 @@ def write_graph(session, pkg: dict) -> dict:
         MERGE (d:Document {document_id: $did, document_version: $ver})
           SET d.title = $title, d.document_type = 'test_report', d.source_system = $ss, d.source_record_id = $did, d.publish_status = 'published', d.is_current = true,
               d.source_sha256 = $sha, d.created_from_package_id = $pkg, d.schema_version = $sv
-        MERGE (rep:Report {report_id: $did}) SET rep.version = $ver, rep.approval_status = 'approved', rep.approval_basis = 'assumed_manual', rep.source_system = $ss
-        MERGE (tr:TestRun {test_run_id: $rid}) SET tr.id_basis = 'derived', tr.test_date = $date, tr.overall_result = $overall, tr.source_system = $ss, tr.numeric_ref = $ref,
+        MERGE (rep:Report {report_id: $did}) SET rep.version = $ver, rep.approval_status = 'approved', rep.approval_basis = $ab, rep.source_system = $ss
+        MERGE (tr:TestRun {test_run_id: $rid}) SET tr.id_basis = $idb, tr.test_date = $date, tr.overall_result = $overall, tr.source_system = $ss, tr.numeric_ref = $ref,
               tr.report_type = $rtype, tr.created_from_package_id = $pkg
         MERGE (tr)-[x:DOCUMENTED_IN]->(rep) SET x += $ev
         MERGE (rep)-[y:SOURCE_FROM]->(d) SET y += $ev
-        """, pid=pid, model=run["dut_model"], ptype="Small Cell" if doc["technology"] == "NR" else "WiFi AP", ss="ManualUpload", pkg=pkg["package_id"], did=doc["document_id"],
+        """, pid=pid, model=run["dut_model"], ptype="Small Cell" if doc["technology"] == "NR" else "WiFi AP", ss=ss, ab=ab, idb=idb, pkg=pkg["package_id"], did=doc["document_id"],
                 ver=doc["document_version"], title=doc["title"], sha=pkg["source"]["checksum"], sv=pkg["schema_version"], rid=rid, date=run.get("test_date"),
                 overall=run.get("overall_result"), ref=ref, rtype=doc["report_type"], ev=_evidence(doc, "Cover", "explicit"))
     if fid:
         session.run("""MATCH (p:Product {product_id: $pid}), (tr:TestRun {test_run_id: $rid})
-            MERGE (f:Firmware {firmware_id: $fid}) SET f.version = $ver, f.product_id = $pid, f.source_system = 'ManualUpload'
+            MERGE (f:Firmware {firmware_id: $fid}) SET f.version = $ver, f.product_id = $pid, f.source_system = $ss
             MERGE (p)-[a:HAS_FIRMWARE]->(f) SET a += $ev
-            MERGE (f)-[b:USED_IN]->(tr) SET b += $ev""", pid=pid, rid=rid, fid=fid, ver=run["firmware_version"], ev=_evidence(doc, "2. Introduction", "explicit"))
+            MERGE (f)-[b:USED_IN]->(tr) SET b += $ev""", pid=pid, rid=rid, fid=fid, ver=run["firmware_version"], ss=ss, ev=_evidence(doc, "2. Introduction", "explicit"))
     session.run("""UNWIND $cases AS c
         MATCH (p:Product {product_id: $pid}), (tr:TestRun {test_run_id: $rid})
-        MERGE (tc:TestCase {test_case_id: c.id}) SET tc.name = c.name, tc.category = c.category, tc.technology = $tech, tc.source_system = 'ManualUpload'
+        MERGE (tc:TestCase {test_case_id: c.id}) SET tc.name = c.name, tc.category = c.category, tc.technology = $tech, tc.source_system = $ss
         MERGE (p)-[a:HAS_TEST_CASE]->(tc) SET a += $ev
         MERGE (tc)-[b:EXECUTED_IN]->(tr) SET b += $ev""", cases=[{"id": c, "name": c, "category": _case_meta(c)["category"]} for c in cases], pid=pid, rid=rid,
-                tech=doc["technology"], ev=_evidence(doc, sheet, "derived"))
+                tech=doc["technology"], ss=ss, ev=_evidence(doc, sheet, "derived"))
     if results:
         session.run("""UNWIND $rows AS r MATCH (tr:TestRun {test_run_id: $rid})
             MERGE (x:TestResult {result_id: r.result_id}) SET x.test_case_id = r.test_case_id, x.result = r.result, x.pass_items = r.pass_items, x.fail_items = r.fail_items,
-                x.na_items = r.na_items, x.numeric_ref = $ref, x.source_system = 'ManualUpload'
-            MERGE (tr)-[h:HAS_RESULT]->(x) SET h += $ev""", rows=results, rid=rid, ref=ref, ev=_evidence(doc, "3. Test Result Summary", "explicit"))
+                x.na_items = r.na_items, x.numeric_ref = $ref, x.source_system = $ss
+            MERGE (tr)-[h:HAS_RESULT]->(x) SET h += $ev""", rows=results, rid=rid, ref=ref, ss=ss, ev=_evidence(doc, "3. Test Result Summary", "explicit"))
     return {"product": pid, "firmware": fid, "test_cases": len(cases), "test_results": len(results)}

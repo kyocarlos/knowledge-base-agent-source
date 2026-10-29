@@ -35,7 +35,13 @@ def worker():
         dsn=Path(os.environ["KM_CSIT_TIMESCALE_DSN_FILE"]).read_text().strip()
         writers["timescale"]=TimescaleWriter(lambda:psycopg.connect(dsn))
     rules=json.loads(Path(os.environ["KM_CSIT_NUMERIC_RULES_FILE"]).read_text())
-    pipeline=Pipeline(s,repo,client,writers,numeric_rules=rules)
+    reports=None
+    if os.getenv("KM_CSIT_REPORT_TEMPLATES")=="1":
+        # Registered report templates (src/report_numeric): needs the TimescaleDB, Neo4j and Qdrant targets together.
+        if "timescale" not in writers or "neo4j" not in writers:raise SystemExit("Report templates need KM_CSIT_TIMESCALE_DSN_FILE and KM_CSIT_NEO4J_URI")
+        from .report_adapter import ReportAdapter
+        reports=ReportAdapter(lambda:psycopg.connect(dsn,autocommit=True),driver,vector.client)
+    pipeline=Pipeline(s,repo,client,writers,numeric_rules=rules,reports=reports)
     stop=threading.Event()
     for sig in (signal.SIGTERM,signal.SIGINT):signal.signal(sig,lambda *_:stop.set())
     logging.basicConfig(level=logging.INFO)
