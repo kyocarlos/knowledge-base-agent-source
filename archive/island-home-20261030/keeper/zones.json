@@ -1,0 +1,240 @@
+{
+  "_comment": "知識島主的專區目錄：島主只用它來「帶路」，不回答專區裡的內容。id 與首頁的專區代號相同；summary / covers 依 CSIT 主題對應表寫成，keywords 只在模型無法使用時作為關鍵字備援。新增專區只改這個檔案。",
+  "zones": [
+    {
+      "id": "wifi",
+      "name": "WiFi 知識專區",
+      "url": "/wifi8/",
+      "summary": "Wi-Fi 技術與國際規範：Wi-Fi 7／8、TR-398，以及 Wi-Fi Alliance、IEEE 802.11 的規格文件。",
+      "covers": [
+        "Wi-Fi 技術文件（Wi-Fi 7、Wi-Fi 8、TR-398）",
+        "Wi-Fi Alliance、IEEE 802.11 的 Test Plan／MRD／SPEC",
+        "以 Wi-Fi 為主的研討會講義"
+      ],
+      "keywords": [
+        "wifi",
+        "wi-fi",
+        "wlan",
+        "802.11",
+        "wfa",
+        "wi-fi alliance",
+        "ieee",
+        "tr-398",
+        "wi-fi 7",
+        "wifi7",
+        "wi-fi 8",
+        "wifi8",
+        "mlo",
+        "無線網路",
+        "無線區域網路"
+      ]
+    },
+    {
+      "id": "mobile",
+      "name": "4G/5G 知識專區",
+      "url": "/zones/mobile/",
+      "summary": "行動通訊技術：LTE、5G NR、NTN、RedCap、6G 與 3GPP 規範，也包含 CPE 用戶端設備與 Small Cell 小型基地台。",
+      "covers": [
+        "Cellular 技術文件（LTE、5G-NR、NTN、RedCap、6G）",
+        "3GPP 的 Test Plan／MRD／SPEC",
+        "CPE 用戶端設備：路由器、閘道器的規格與韌體測試",
+        "Small Cell 小型基地台：部署、OAM、O-RAN 互通",
+        "以 Cellular、Small Cell／O-RAN 為主的研討會講義"
+      ],
+      "keywords": [
+        "4g",
+        "5g",
+        "6g",
+        "lte",
+        "nr",
+        "ntn",
+        "redcap",
+        "3gpp",
+        "handover",
+        "cellular",
+        "ran",
+        "行動通訊",
+        "蜂巢",
+        "cpe",
+        "路由器",
+        "router",
+        "gateway",
+        "閘道器",
+        "用戶端設備",
+        "customer premises",
+        "small cell",
+        "smallcell",
+        "小型基地台",
+        "o-ran",
+        "oran",
+        "oam",
+        "室內涵蓋"
+      ]
+    },
+    {
+      "id": "broadband",
+      "name": "固網寬頻知識專區",
+      "url": "/zones/broadband/",
+      "summary": "固網寬頻：PON、Cable 技術與 Broadband Forum 規範。",
+      "covers": [
+        "PON 技術與細項",
+        "Cable 技術與細項",
+        "Broadband Forum 的 Test Plan／MRD／SPEC（PON、Cable 相關）"
+      ],
+      "keywords": [
+        "pon",
+        "gpon",
+        "xgs-pon",
+        "epon",
+        "cable",
+        "docsis",
+        "broadband forum",
+        "光纖",
+        "寬頻",
+        "固網",
+        "onu",
+        "olt"
+      ]
+    },
+    {
+      "id": "csit",
+      "name": "CSIT雜項專區",
+      "url": "/zones/csit/",
+      "summary": "各機種的產品驗證資料：測試報告、產品資訊、申請單檔案，以及實驗室的測試計畫與跨技術研討會講義。",
+      "covers": [
+        "各機種的測試報告與產品資訊",
+        "測試申請單（存放於檔案者）",
+        "測試計畫（Wi-Fi／5G／Small Cell／PON）",
+        "跨多種技術的研討會講義"
+      ],
+      "keywords": [
+        "測試報告",
+        "test report",
+        "測試計畫",
+        "test plan",
+        "csit",
+        "機種",
+        "申請單",
+        "產品資訊",
+        "測試結果",
+        "project",
+        "測試案例"
+      ]
+    },
+    {
+      "id": "cert",
+      "name": "認證與法規知識專區",
+      "url": "/zones/cert/",
+      "summary": "外部認證與法規：Wi-Fi、藍牙、GCF、PTCRB 等認證項目、送測流程與各機種的認證資料。",
+      "covers": [
+        "各機種的認證資料（Wi-Fi／BT／GCF／PTCRB）",
+        "認證項目與送測流程",
+        "各地區法規"
+      ],
+      "keywords": [
+        "認證",
+        "certification",
+        "certified",
+        "gcf",
+        "ptcrb",
+        "bluetooth",
+        "藍牙",
+        "bt",
+        "法規",
+        "送測",
+        "ncc",
+        "fcc",
+        "ce",
+        "regulatory"
+      ]
+    },
+    {
+      "id": "integrations",
+      "name": "Confluence / Jira / TestRail 查詢專區",
+      "url": "/zones/integrations/",
+      "summary": "存放在 Confluence、Jira、TestRail 裡的資料：申請單、週報、議題與測試執行結果的整合查詢。目前是模擬資料，尚未接上實際的系統。",
+      "covers": [
+        "Jira 上的測試申請單與議題",
+        "Confluence 上的 Weekly Report",
+        "TestRail 的測試計畫與執行結果"
+      ],
+      "keywords": [
+        "jira",
+        "confluence",
+        "testrail",
+        "issue",
+        "議題",
+        "ticket",
+        "工單",
+        "weekly report"
+      ],
+      "simulated": true
+    },
+    {
+      "id": "equipment",
+      "name": "設備預約知識專區",
+      "url": "/zones/equipment/",
+      "summary": "測試設備與儀器：設備資訊、廠商資料、環境校驗報告，以及預約與借用規範。",
+      "covers": [
+        "設備名稱與資產編號",
+        "廠商資訊（Anritsu、Keysight、Meshlink）",
+        "環境校驗報告",
+        "設備預約、借用與歸還規範"
+      ],
+      "keywords": [
+        "設備",
+        "儀器",
+        "預約",
+        "借用",
+        "歸還",
+        "校驗",
+        "資產編號",
+        "anritsu",
+        "keysight",
+        "meshlink",
+        "廠商",
+        "equipment"
+      ]
+    },
+    {
+      "id": "lab",
+      "name": "實驗室與測試環境知識專區",
+      "url": "/zones/lab/",
+      "summary": "實驗室與測試環境：實驗室介紹、規劃與架構圖、建置資料與測試環境介紹。",
+      "covers": [
+        "實驗室介紹、海報與架構圖",
+        "各實驗室的建置資料（例如 8F 5G 實驗室）",
+        "測試環境介紹簡報"
+      ],
+      "keywords": [
+        "實驗室",
+        "lab",
+        "測試環境",
+        "架構圖",
+        "海報",
+        "建置",
+        "機房"
+      ]
+    },
+    {
+      "id": "admin",
+      "name": "部門與公司文管專區",
+      "url": "/zones/admin/",
+      "summary": "部門與公司的一般文件：Weekly Report、內部雜項文件與組織架構。人事行政、採購請款、工時等敏感資料不收錄在此。",
+      "covers": [
+        "Weekly Report（存放於檔案者）",
+        "內部雜項文件",
+        "組織架構"
+      ],
+      "keywords": [
+        "週報",
+        "weekly report",
+        "組織架構",
+        "部門",
+        "公司文件",
+        "內部文件",
+        "組織"
+      ]
+    }
+  ]
+}

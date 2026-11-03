@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <!-- 預設先到新的知識中樞首頁（/hub/）；舊版首頁（OpenClaw 問答）用 /chat-v2.html?legacy=1 開啟。 -->
   <script>if (!/[?&]legacy=1/.test(location.search)) location.replace('/hub/');</script>
-  <script>if (/[?&]embed=1/.test(location.search)) document.documentElement.classList.add('km-embed');</script>
+  <script>if (/[?&]embed=1/.test(location.search)) document.documentElement.classList.add('km-embed'); window.KM_HUB_KEEPER = /[?&]embed=1/.test(location.search) && /[?&]zone=all/.test(location.search); if (window.KM_HUB_KEEPER) document.documentElement.classList.add('km-hub-keeper');</script>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>KM · Research Intelligence Platform · chat-v2</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -603,6 +603,19 @@
       html.km-embed .km-v2-assistant { flex:1; min-height:0; margin-top:0; }
       html.km-embed .km-v2-chat-window { max-height:none !important; min-height:0 !important; }
       html.km-embed .km-v2-chat-window .chat-messages { min-height:0; }
+      /* the hub puts the keeper inside its own card: no second frame around it */
+      html.km-hub-keeper .km-v2-assistant { padding:0; border:0; border-radius:0; background:none; box-shadow:none; }
+      html.km-hub-keeper .keeper-thinking { opacity:.7; }
+      html.km-hub-keeper .keeper-card { margin-top:10px; padding:10px 12px; border:1px solid rgba(127,255,227,.28); border-radius:12px; background:rgba(127,255,227,.06); }
+      html.km-hub-keeper .keeper-card-title { font-weight:700; color:#e7ffff; }
+      html.km-hub-keeper .keeper-sim { margin-left:6px; padding:1px 8px; border:1px solid #ffd9a8; border-radius:99px; color:#ffd9a8; font-size:11px; font-weight:400; }
+      html.km-hub-keeper .keeper-card-why { margin-top:2px; color:#9dc0c5; font-size:12px; line-height:1.5; }
+      html.km-hub-keeper .keeper-card-actions { display:flex; flex-wrap:wrap; gap:8px; margin-top:8px; }
+      html.km-hub-keeper .keeper-card-actions button, html.km-hub-keeper .keeper-card-actions a { padding:5px 12px; border:1px solid rgba(127,255,227,.4); border-radius:99px; background:transparent; color:#7fffe3; font-size:12px; text-decoration:none; cursor:pointer; }
+      html.km-hub-keeper .keeper-card-actions button { background:rgba(127,255,227,.16); }
+      html.km-hub-keeper .keeper-all { display:flex; flex-wrap:wrap; gap:6px; margin-top:10px; }
+      html.km-hub-keeper .keeper-chip { padding:4px 10px; border:1px solid rgba(127,255,227,.3); border-radius:99px; background:transparent; color:#bfe0e3; font-size:12px; cursor:pointer; }
+      html.km-hub-keeper .keeper-note { margin-top:8px; color:#ffd9a8; font-size:12px; }
       @media (max-width: 1100px) { .km-v2-shell { grid-template-columns:190px minmax(0,1fr); } .km-v2-evidence { display:none; } }
       @media (max-width: 720px) {
         .km-v2-shell { display:block; }
@@ -1931,7 +1944,7 @@
       const latencyBlock = latencyText
         ? `<div class="message-latency">${latencyText}</div>`
         : '';
-      const roleLabel = role === 'bot' ? 'KM 助理' : '你';
+      const roleLabel = role === 'bot' ? (window.KM_HUB_KEEPER ? '知識島主' : 'KM 助理') : '你';
       return `
         <div class="message-role-label">${roleLabel}</div>
         ${sourceBlock}
@@ -2602,7 +2615,7 @@
 
     // WiFi 專區走 /api/wifi8/agent（一般 HTTPS API），不需要 OpenClaw 聊天連線。
     function canSendWithoutGateway() {
-      return activeKnowledgeZone === 'wifi' || (activeKnowledgeZone === 'csit' && !!activeCsitAssistant);
+      return !!window.KM_HUB_KEEPER || activeKnowledgeZone === 'wifi' || (activeKnowledgeZone === 'csit' && !!activeCsitAssistant);
     }
     const WIFI_AGENT_POLL_MS = 1500;
     const WIFI_AGENT_TIMEOUT_MS = 180000;
@@ -2691,6 +2704,7 @@
       input.value = '';
       addMessage('user', text);
       
+      if (window.KM_HUB_KEEPER) { keeperAsk(text); return; }  // the island keeper only guides; see the script at the end of the page
       // Store the query globally for later use in card clicks
       window.lastQuery = text;
       pendingAgentBotSeq = null;
@@ -3480,5 +3494,74 @@ ${text}
   </div>
 
   <script src="/km-export.ce0eeb115129.js" defer></script>
+<script>
+    /* The island keeper (home page, all-zones frame): a guide. It sends the question to /api/keeper/route and shows which island to go to;
+       the answers about what is inside a zone come from that zone's own assistant. */
+    if (window.KM_HUB_KEEPER) {
+      (function () {
+        const ORIGIN = location.origin;
+        let stats = {};
+        const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+        window.addEventListener('message', (e) => {  // the home page tells which islands have news (numbers it already shows)
+          if (e.origin === ORIGIN && e.data && e.data.type === 'km-keeper-stats' && e.data.stats && typeof e.data.stats === 'object') stats = e.data.stats;
+        });
+        function bubble(html, thinking) {
+          const div = document.createElement('div');
+          div.className = 'message bot';
+          div.innerHTML = '<div class="message-avatar">🦾</div><div class="message-content"><div class="message-role-label">知識島主</div><div class="message-bubble' + (thinking ? ' keeper-thinking' : '') + '">' + html + '</div></div>';
+          document.getElementById('chatMessages').appendChild(div);
+          scrollChat();
+          return div;
+        }
+        const zoneCard = (z, question) => '<div class="keeper-card"><div class="keeper-card-title">' + esc(z.name) + (z.simulated ? ' <span class="keeper-sim">模擬資料</span>' : '') + '</div><div class="keeper-card-why">' + esc(z.reason) + '</div><div class="keeper-card-actions">'
+          + '<button type="button" data-keeper-go="' + esc(z.id) + '">📍 帶我去這座島</button>'
+          + '<a href="' + esc(z.url) + '#/overview" target="_top">進入專區</a>'
+          + (question ? '<a href="' + esc(z.url) + '?q=' + encodeURIComponent(question.slice(0, 300)) + '#/ai" target="_top">帶著問題進入</a>' : '') + '</div></div>';
+        function answerHtml(res, question) {
+          let html = '<div>' + esc(res.answer) + '</div>';
+          const asking = res.intent === 'route' || res.intent === 'index';
+          html += (res.zones || []).map((z) => zoneCard(z, asking || res.mode === 'index' ? question : '')).join('');
+          if (!(res.zones || []).length && (res.all_zones || []).length) {
+            html += '<div class="keeper-all">' + res.all_zones.map((z) => '<button type="button" class="keeper-chip" title="' + esc(z.reason) + '" data-keeper-go="' + esc(z.id) + '">' + esc(z.name.replace('知識專區', '').replace('專區', '')) + '</button>').join('') + '</div>';
+          }
+          if (res.mode === 'keyword') html += '<div class="keeper-note">島主的判斷服務暫時無法使用，這是用關鍵字比對的結果，可能不夠精準。</div>';
+          return html;
+        }
+        window.keeperAsk = async function (text) {
+          isLoading = true; updateInputState();
+          const waiting = bubble('正在找該去哪座島…', true);
+          const controller = new AbortController(), timer = setTimeout(() => controller.abort(), 35000);
+          try {
+            const response = await fetch('/api/keeper/route', { method: 'POST', credentials: 'same-origin', signal: controller.signal, headers: { 'Content-Type': 'application/json', Accept: 'application/json' }, body: JSON.stringify({ question: text, stats }) });
+            if (response.status === 401) { waiting.querySelector('.message-bubble').innerHTML = '登入已過期，請重新整理頁面後再問。'; return; }
+            if (response.status === 429) { waiting.querySelector('.message-bubble').innerHTML = '問得太快了，請稍等一下再問。'; return; }
+            if (!response.ok) throw new Error('HTTP ' + response.status);
+            const res = await response.json();
+            const target = waiting.querySelector('.message-bubble'); target.classList.remove('keeper-thinking'); target.innerHTML = answerHtml(res, text);
+          } catch (error) {
+            waiting.querySelector('.message-bubble').innerHTML = '島主暫時沒有回應，請稍後再試。';
+          } finally {
+            clearTimeout(timer); isLoading = false; updateInputState(); scrollChat();
+          }
+        };
+        window.keeperQuick = function (button) { const input = document.getElementById('chatInput'); input.value = button.dataset.q; sendMessage(); };
+        document.addEventListener('click', (e) => {
+          const go = e.target.closest && e.target.closest('[data-keeper-go]');
+          if (go) { parent.postMessage({ type: 'km-keeper-go', zone: go.dataset.keeperGo }, ORIGIN); go.textContent = '✓ 已在地圖上標出'; }
+        });
+        window.addEventListener('load', () => {  // after the page's own start-up has put the all-zones texts in place
+          const kicker = document.querySelector('.km-v2-assistant-head .km-v2-kicker'); if (kicker) kicker.textContent = '知識島主';
+          const badge = document.querySelector('.km-v2-assistant-head .badge'); if (badge) badge.style.display = 'none';
+          const zone = document.getElementById('knowledgeZoneStatus'); if (zone) zone.innerHTML = '我只負責<strong>帶路</strong>；專區裡的內容，請到那座島向專家提問';
+          const input = document.getElementById('chatInput'); if (input) input.placeholder = '想找什麼資料？例如：Wi-Fi 認證要準備什麼？';
+          const label = document.querySelector('#chatMessages .message-role-label'); if (label) label.textContent = '知識島主';
+          const hello = document.querySelector('#chatMessages .message-bubble'); if (hello) hello.textContent = '嗨！我是知識島主。告訴我你想找什麼，我會帶你去對的島；島上的專家會回答裡面的內容。';
+          const quick = document.querySelector('.km-v2-quick');
+          if (quick) quick.innerHTML = ['我想查 Wi-Fi 認證要準備什麼', '哪裡有 5G Handover 的資料？', '今天哪裡有新東西？', '這些島各放什麼？'].map((q) => '<button type="button" data-q="' + esc(q) + '" onclick="keeperQuick(this)">' + esc(q) + '</button>').join('');
+          if (typeof updateInputState === 'function') updateInputState();
+        });
+      })();
+    }
+  </script>
 </body>
 </html>

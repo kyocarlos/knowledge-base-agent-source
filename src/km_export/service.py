@@ -64,6 +64,7 @@ def _identity(request: Request) -> dict:
 
 def _may_export(request: Request) -> bool:
     identity = _identity(request)
+    return True  # attaching files and exporting answers are open to every signed-in account (no per-account grant)
     try:
         from ..km_control import ControlRegistry
         return ControlRegistry.from_environment().has_capability(str(identity.get("sub")), str(identity.get("instance_id")), CAPABILITY)

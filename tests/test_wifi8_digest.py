@@ -145,7 +145,43 @@ def test_a_run_keeps_the_window_the_filter_and_the_limit(tmp_path):
     assert [i["title"] for i in out["items"]] == ["Wi-Fi 8 news today", "Wi-Fi again"]  # window, keyword filter, per-source limit; newest first
     assert out["week"] == "2026-W44" and out["summarized"] is False and out["sources"][0]["status"] == "ok" and out["note"]
     assert json.loads((tmp_path / "digest" / "latest.json").read_text(encoding="utf-8"))["items"][0]["id"] == out["items"][0]["id"]
-    assert (tmp_path / "digest" / "archive" / "2026-W44.json").exists() and digest.read_digest(tmp_path)["week"] == "2026-W44"
+    assert (tmp_path / "digest" / "archive" / f"{out['date']}.json").exists() and digest.read_digest(tmp_path)["week"] == "2026-W44"
+
+
+def _feed(*titles):
+    return rss(*[(t, f"https://www.rcrwireless.com/{n}", "d", age) for t, n, age in titles])
+
+
+def test_a_daily_run_with_nothing_newer_keeps_the_shown_content(tmp_path):
+    feed = _feed(("Wi-Fi 8 news", 1, 1))
+    first = digest.run(tmp_path, lambda m: '{"items":[],"highlights":["h"]}', NOW, settings(RSS_SOURCE), lambda s: feed)
+    calls = []
+    again = digest.run(tmp_path, lambda m: calls.append(m) or "{}", NOW + timedelta(days=1), settings(RSS_SOURCE), lambda s: feed)
+    assert not calls and again["generated_at"] == first["generated_at"] and again["checked_at"] != first["generated_at"]
+    assert [i["id"] for i in again["items"]] == [i["id"] for i in first["items"]] and again["highlights"] == first["highlights"]
+    assert [p.name for p in (tmp_path / "digest" / "archive").iterdir()] == [f"{first['date']}.json"]   # no new archive copy for an unchanged day
+
+
+def test_a_newer_item_replaces_the_digest_and_keeps_the_summaries_already_made(tmp_path):
+    old = _feed(("Wi-Fi first", 1, 2))
+    digest.run(tmp_path, lambda m: '{"items":[{"id":"%s","summary":"第一則摘要"}],"highlights":[]}' % digest.hashlib.sha1(b"https://www.rcrwireless.com/1").hexdigest()[:12],
+               NOW, settings(RSS_SOURCE), lambda s: old)
+    asked = []
+
+    def llm(messages):
+        asked.append(messages[-1]["content"])
+        return '{"items":[],"highlights":["新重點"]}'
+    new = digest.run(tmp_path, llm, NOW + timedelta(days=1), settings(RSS_SOURCE), lambda s: _feed(("Wi-Fi second", 2, 0), ("Wi-Fi first", 1, 2)))
+    assert [i["title"] for i in new["items"]] == ["Wi-Fi second", "Wi-Fi first"] and new["items"][1]["summary"] == "第一則摘要"
+    assert new["highlights"] == ["新重點"] and new["generated_at"] == new["checked_at"] and len(list((tmp_path / "digest" / "archive").iterdir())) == 2
+    assert "Wi-Fi first" not in asked[0]                      # only the new item is sent for its own summary
+
+
+def test_an_older_item_appearing_in_a_feed_is_not_news(tmp_path):
+    digest.run(tmp_path, None, NOW, settings(RSS_SOURCE), lambda s: _feed(("Wi-Fi first", 1, 1)))
+    quiet = settings(RSS_SOURCE)
+    again = digest.run(tmp_path, None, NOW + timedelta(days=1), quiet, lambda s: _feed(("Wi-Fi first", 1, 1), ("Wi-Fi backfill", 9, 40)))
+    assert [i["title"] for i in again["items"]] == ["Wi-Fi first"]
 
 
 def test_a_quiet_week_is_filled_with_marked_older_items_but_a_busy_one_is_not(tmp_path):
@@ -155,7 +191,7 @@ def test_a_quiet_week_is_filled_with_marked_older_items_but_a_busy_one_is_not(tm
     out = digest.run(tmp_path, None, NOW, quiet, lambda s: feed)
     assert [(i["title"], bool(i.get("older"))) for i in out["items"]] == [("Wi-Fi this week", False), ("Wi-Fi last month", True)]  # 90 days is beyond the fallback
     busy = digest.Settings(window_days=7, max_items_per_source=5, max_excerpt_chars=100, min_items=1, fallback_days=30, keywords=("wi-fi",), sources=(RSS_SOURCE,))
-    assert [i["title"] for i in digest.run(tmp_path, None, NOW, busy, lambda s: feed)["items"]] == ["Wi-Fi this week"]
+    assert [i["title"] for i in digest.run(tmp_path / "busy", None, NOW, busy, lambda s: feed)["items"]] == ["Wi-Fi this week"]
 
 
 def test_one_failing_source_is_reported_and_the_others_still_appear(tmp_path):

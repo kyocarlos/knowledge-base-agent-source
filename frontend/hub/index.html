@@ -7,14 +7,19 @@
   <meta http-equiv="Cache-Control" content="no-store">
   <title>CSIT 知識管理系統</title>
   <link rel="stylesheet" href="/zones/zone.957774158ba4.css">
-  <link rel="stylesheet" href="/zones/hub.52e1d9daf255.css">
+  <link rel="stylesheet" href="/zones/hub.7bc813e36b37.css">
   <link rel="stylesheet" href="/km-select-dark.fb2dfa66e6a4.css">
+  <link rel="stylesheet" href="/km-theme.a56758f45f60.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
+  <script src="/km-icons.5decf0d94da3.js" defer></script>
 </head>
 <body>
   <div id="app" class="app-shell" aria-busy="true">
     <aside class="sidebar" aria-label="知識專區導覽">
       <a class="brand" href="/hub/" aria-label="知識中樞首頁">
-        <span class="brand-mark" aria-hidden="true">K</span>
+        <span class="brand-mark" aria-hidden="true">KM</span>
         <span><strong>KM</strong><small>research platform</small></span>
       </a>
       <button id="nav-toggle" class="nav-toggle" type="button" aria-expanded="false" aria-controls="primary-nav">開啟功能選單</button>
@@ -30,24 +35,39 @@
         <div class="topbar-actions">
           <div class="snapshot-time"><span class="clock-icon" aria-hidden="true"></span><span><strong>資料更新</strong><time id="page-updated">—</time></span></div>
           <button id="refresh-page" class="refresh-button" type="button"><span class="refresh-icon" aria-hidden="true"></span>重新讀取</button>
-          <a class="back-link" href="/chat-v2.html?legacy=1">舊版首頁</a>
+          <a class="back-link" href="/hub/islands.html">知識島</a>
         </div>
       </header>
       <div class="workspace-body">
         <main id="page-content" tabindex="-1">
-          <section class="panel hub-assistant" aria-label="全專區知識助理">
-            <div class="panel-heading"><div><h2>全專區知識助理</h2><span>跨所有專區提問，回答會標明資料來自哪個專區</span></div></div>
-            <iframe class="hub-assistant-frame" title="全專區知識助理" src="/chat-v2.html?legacy=1&amp;embed=1&amp;zone=all"></iframe>
+          <section class="panel hub-ask" aria-label="全專區知識助理">
+            <form id="hub-ask-form" class="hub-ask-form">
+              <span class="hub-ask-title">全專區知識助理</span>
+              <input id="hub-ask-input" type="text" maxlength="500" autocomplete="off" placeholder="告訴我你想找什麼，我帶你去對的專區，例如：Wi-Fi 認證要準備什麼？" aria-label="告訴導覽助理你想找什麼">
+              <button class="primary-button" type="submit">開始查詢</button>
+            </form>
+            <div class="hub-faq" aria-label="大家最近在問"><div class="hub-faq-head">大家最近在問<small>點一下，帶著問題直接進入專區</small></div><div id="hub-faq-list" class="hub-faq-list"></div></div>
+            <div id="hub-ask-panel" class="hub-ask-panel" hidden>
+              <div class="hub-ask-bar"><span>我負責帶你到對的專區；專區裡的內容，請到該專區向專家提問</span><span><button id="hub-ask-clear" type="button">清除</button><button id="hub-ask-close" type="button">收合</button></span></div>
+              <div id="hub-ask-log" class="hub-ask-log" aria-live="polite"></div>
+            </div>
+          </section>
+          <section class="panel hub-news" aria-label="各專區最新動態">
+            <div class="panel-heading"><div><h2>各專區最新動態</h2><span id="hub-news-stamp">讀取中…</span></div><button id="feed-refresh" class="feed-refresh" type="button">重新整理</button></div>
+            <div id="hub-news-zones" class="hub-news-zones" role="group" aria-label="依專區篩選"></div>
+            <div class="hub-news-cols">
+              <div><h3 class="hub-news-title">專區更新消息</h3><div id="hub-news-digest" class="feed-body" aria-live="polite"></div></div>
+              <div><h3 class="hub-news-title">文件更新動態</h3><div id="hub-news-docs" class="feed-body" aria-live="polite"></div></div>
+            </div>
           </section>
           <div id="hub-body"><div class="loading-card">正在讀取各專區資料…</div></div>
         </main>
-        <aside id="feed-column" class="feed-column" aria-label="跨專區動態"></aside>
       </div>
       <footer class="page-footer"><span>KM Research Platform · KM DEV</span><span>除 WiFi 專區外，其餘專區為示範資料</span></footer>
     </section>
   </div>
   <noscript><p class="noscript">知識中樞需要 JavaScript 才能顯示。</p></noscript>
   <script src="/zones/zones-data.d8b4e2e857e7.js" defer></script>
-  <script src="/zones/hub.545f93045dd2.js" defer></script>
+  <script src="/zones/hub.4ef7f138b11a.js" defer></script>
 </body>
 </html>

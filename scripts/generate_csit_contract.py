@@ -19,6 +19,8 @@ PRIORITY_CATEGORIES = {
     "Task Report",
     "Case File",
     "File",
+    "Asset",
+    "Asset File",
 }
 KNOWN_GAPS = [
     "CSIT_OPENAPI_RETRIEVAL_PENDING",
@@ -92,7 +94,7 @@ def generate(source: Path) -> dict[str, object]:
         "schema": "wp2.csit-rest-contract.v1",
         "source_file": source.name,
         "source_sha256": digest,
-        "scope": ["Module", "Record / Project", "Case", "Task", "File / Test Report"],
+        "scope": ["Module", "Record / Project", "Case", "Task", "File / Test Report", "Asset / Asset File"],
         "read_only_boundary": "WP2-B permits only mapped GET endpoints",
         "known_gaps": KNOWN_GAPS,
         "endpoints": rows,

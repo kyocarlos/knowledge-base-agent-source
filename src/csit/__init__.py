@@ -7,6 +7,7 @@ from .manifest import CsitManifestEntry, CsitManifestError, importable_entries, 
 from .pull import CsitPullResult, CsitTraversalPuller
 from .ingest import CsitManifestIngestError, CsitManifestIngestResult, CsitManifestIngestor
 from .sync import CsitSyncResult, sync_csit_manifest
+from .assets import CsitAssetEntry, CsitAssetFile, CsitAssetPuller, CsitAssetPullResult
 
 __all__ = [
     "CsitContract",
@@ -32,4 +33,8 @@ __all__ = [
     "CsitManifestIngestor",
     "CsitSyncResult",
     "sync_csit_manifest",
+    "CsitAssetEntry",
+    "CsitAssetFile",
+    "CsitAssetPuller",
+    "CsitAssetPullResult",
 ]

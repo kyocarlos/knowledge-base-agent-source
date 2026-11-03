@@ -54,9 +54,15 @@ const zoneJsRules = [
   ["我會使用 WiFi 專區的文件與版本關係回答，並保留引用。", "我會使用${ZONE.label}的文件與版本關係回答，並保留引用。"],
   ['placeholder="例如：ELR 的規格重點是什麼？"', 'placeholder="${ZONE.example}"'],
   ["'wifi8.conversation.v1'", "`km.zone.${ZONE.id}.conversation.v1`"],
-  ['<span class="feed-kicker">Wi-Fi 8 Watch</span><h2>Wi-Fi 8 動態</h2>', '<span class="feed-kicker">${ZONE.feedKicker}</span><h2>${ZONE.feedTitle}</h2>'],
+  ['<span class="feed-kicker">Wifi 最新動態資訊</span><h2>Wifi 最新動態資訊</h2>', '<span class="feed-kicker">${ZONE.feedKicker}</span><h2>${ZONE.feedTitle}</h2>'],
   ["IEEE 802.11bn (UHR) 進度", "${ZONE.timelineLabel}"],
-  ["'<p class=\"feed-empty\">本週沒有符合 Wi-Fi 的新動態。</p>'", "`<p class=\"feed-empty\">本週沒有符合 ${ZONE.short} 的新動態。</p>`"],
+  // The WiFi page now says "daily" (its digest runs every morning); the other zones keep their demo wording, so these go back to what they were.
+  ["'<p class=\"feed-empty\">目前沒有符合 Wi-Fi 的新動態。</p>'", "`<p class=\"feed-empty\">本週沒有符合 ${ZONE.short} 的新動態。</p>`"],
+  ["尚未產生。每天早上 8:00 排程執行後會顯示在這裡。", "週報尚未產生。每週排程執行後會顯示在這裡。"],
+  ['<div class="feed-section">最新重點</div>', '<div class="feed-section">本週重點</div>'],
+  ['data-feed-tab="digest">每日動態<', 'data-feed-tab="digest">每週週報<'],
+  ["const dg = feedState.data && feedState.data.digest; const when = (v) => new Date(v).toLocaleString('zh-TW', { hour12: false });\n    $('#feed-stamp').textContent = dg && dg.generated_at ? `內容更新 ${when(dg.generated_at)}${dg.checked_at && dg.checked_at !== dg.generated_at ? `　最後檢查 ${when(dg.checked_at)}（無更新的新聞）` : ''}` : '';",
+    "const made = feedState.data && feedState.data.digest && feedState.data.digest.generated_at;\n    $('#feed-stamp').textContent = made ? `週報更新 ${new Date(made).toLocaleString('zh-TW', { hour12: false })}` : '';"],
   ["WiFi 專區已更新", "本專區已更新"],
 ];
 
@@ -99,7 +105,7 @@ const indexRules = (z) => [
   ['<small>WiFi knowledge zone</small>', `<small>${z.brand}</small>`],
   ['<h1 id="page-title">WiFi 知識專區</h1>', `<h1 id="page-title">${z.label}</h1>`],
   ['正在讀取 WiFi 知識專區…', `正在讀取${z.label}…`],
-  ['aria-label="Wi-Fi 8 動態"', `aria-label="${z.feedTitle}"`],
+  ['aria-label="Wifi 最新動態資訊"', `aria-label="${z.feedTitle}"`],
   ['<span>WiFi Knowledge Zone · KM DEV</span><span>內容依目前匯入版本提供</span>', `<span>${z.brandTitle} · KM DEV</span><span>示範資料 · 內容依目前匯入版本提供</span>`],
   ['WiFi 知識專區需要 JavaScript 才能顯示。', `${z.label}需要 JavaScript 才能顯示。`],
   ['<a class="back-link" href="/chat-v2.html">返回知識中樞</a>', '<a class="back-link" href="/hub/">返回知識中樞</a>'],
@@ -129,5 +135,16 @@ fs.writeFileSync(path.join(out, dataFile), dataJs);
 for (const z of Object.values(zones)) {
   fs.mkdirSync(path.join(out, z.id), { recursive: true });
   fs.writeFileSync(path.join(out, z.id, 'index.html'), replaceAll(indexTemplate, indexRules(z), `index ${z.id}`));
+}
+// CPE and Smallcell were folded into the 4G/5G zone: their old addresses (and bookmarks) lead there.
+const MERGED_INTO_MOBILE = ['cpe', 'smallcell'];
+for (const id of MERGED_INTO_MOBILE) {
+  fs.mkdirSync(path.join(out, id), { recursive: true });
+  fs.writeFileSync(path.join(out, id, 'index.html'), `<!doctype html>
+<html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>已併入 4G/5G 知識專區</title>
+<meta http-equiv="refresh" content="0; url=/zones/mobile/#/overview"></head>
+<body><p>CPE 與 Smallcell 已併入 <a href="/zones/mobile/#/overview">4G/5G 知識專區</a>。</p>
+<script>location.replace('/zones/mobile/' + location.search + (location.hash || '#/overview'));</script></body></html>
+`);
 }
 console.log(JSON.stringify({ zones: Object.keys(zones), zoneJsFile, zoneCssFile, mockFile, dataFile, exportFile }, null, 1));

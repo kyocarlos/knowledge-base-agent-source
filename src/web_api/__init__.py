@@ -1194,6 +1194,10 @@ from .e2e_cleanup_routes import router as e2e_cleanup_router
 app.include_router(e2e_cleanup_router)
 from .wifi8_routes import router as wifi8_router
 app.include_router(wifi8_router)
+from .legacy_routes import router as legacy_router
+app.include_router(legacy_router)
+from .keeper_routes import router as keeper_router
+app.include_router(keeper_router)
 
 # CORS 允許前端跨域
 app.add_middleware(

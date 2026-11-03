@@ -7,7 +7,8 @@
     "Record / Project",
     "Case",
     "Task",
-    "File / Test Report"
+    "File / Test Report",
+    "Asset / Asset File"
   ],
   "read_only_boundary": "WP2-B permits only mapped GET endpoints",
   "known_gaps": [
@@ -410,6 +411,138 @@
       "response": "200 OK",
       "authorization": "CsitStaff",
       "description": "TaskNo 模式上傳測試報告",
+      "integration_stage": "WP2-D-DEFERRED",
+      "read_only_allowed": false
+    },
+    {
+      "category": "Asset",
+      "controller": "",
+      "method": "GET",
+      "path": "/api/assets/ownership-options",
+      "parameters": "—",
+      "response": "ApparatusOwnershipOptionsDto",
+      "authorization": "CsitStaff",
+      "description": "取得 Team / 保管人選項",
+      "integration_stage": "WP2-A/B",
+      "read_only_allowed": true
+    },
+    {
+      "category": "Asset",
+      "controller": "",
+      "method": "GET",
+      "path": "/api/assets/{moduleCode}/new-id",
+      "parameters": "moduleCode",
+      "response": "NewApparatusIdResponse",
+      "authorization": "CsitStaff",
+      "description": "取得新 Asset ID",
+      "integration_stage": "WP2-A/B",
+      "read_only_allowed": true
+    },
+    {
+      "category": "Asset",
+      "controller": "",
+      "method": "GET",
+      "path": "/api/assets/{moduleCode}",
+      "parameters": "moduleCode; keyword; kind",
+      "response": "List<ApparatusListItemDto>",
+      "authorization": "CsitStaff",
+      "description": "設備/貨品清單",
+      "integration_stage": "WP2-A/B",
+      "read_only_allowed": true
+    },
+    {
+      "category": "Asset",
+      "controller": "",
+      "method": "GET",
+      "path": "/api/assets/{moduleCode}/{id}",
+      "parameters": "moduleCode; id",
+      "response": "ApparatusDetailDto",
+      "authorization": "CsitStaff",
+      "description": "設備/貨品主檔詳細",
+      "integration_stage": "WP2-A/B",
+      "read_only_allowed": true
+    },
+    {
+      "category": "Asset",
+      "controller": "",
+      "method": "POST",
+      "path": "/api/assets/{moduleCode}",
+      "parameters": "moduleCode; Body: ApparatusUpsertRequest",
+      "response": "{ id }",
+      "authorization": "CsitStaff",
+      "description": "建立設備/貨品",
+      "integration_stage": "WP2-D-DEFERRED",
+      "read_only_allowed": false
+    },
+    {
+      "category": "Asset",
+      "controller": "",
+      "method": "PUT",
+      "path": "/api/assets/{moduleCode}/{id}",
+      "parameters": "moduleCode; id; Body: ApparatusUpsertRequest",
+      "response": "204 NoContent",
+      "authorization": "CsitStaff",
+      "description": "修改設備/貨品",
+      "integration_stage": "WP2-D-DEFERRED",
+      "read_only_allowed": false
+    },
+    {
+      "category": "Asset",
+      "controller": "",
+      "method": "DELETE",
+      "path": "/api/assets/{moduleCode}/{id}",
+      "parameters": "moduleCode; id",
+      "response": "204 / 404 / 409",
+      "authorization": "CsitStaff",
+      "description": "刪除設備/貨品",
+      "integration_stage": "WP2-D-DEFERRED",
+      "read_only_allowed": false
+    },
+    {
+      "category": "Asset File",
+      "controller": "",
+      "method": "GET",
+      "path": "/api/assets/{moduleCode}/{id}/files",
+      "parameters": "moduleCode; id",
+      "response": "List<ApparatusFileDto>",
+      "authorization": "CsitStaff",
+      "description": "取得設備/貨品附件",
+      "integration_stage": "WP2-A/B",
+      "read_only_allowed": true
+    },
+    {
+      "category": "Asset File",
+      "controller": "",
+      "method": "POST",
+      "path": "/api/assets/{moduleCode}/{id}/files",
+      "parameters": "moduleCode; id; multipart/form-data",
+      "response": "200 OK",
+      "authorization": "CsitStaff",
+      "description": "上傳 Asset 附件",
+      "integration_stage": "WP2-D-DEFERRED",
+      "read_only_allowed": false
+    },
+    {
+      "category": "Asset File",
+      "controller": "",
+      "method": "GET",
+      "path": "/api/assets/files/{fileId}/content",
+      "parameters": "fileId",
+      "response": "Binary content",
+      "authorization": "CsitStaff",
+      "description": "取得 Asset 附件/照片內容",
+      "integration_stage": "WP2-A/B",
+      "read_only_allowed": true
+    },
+    {
+      "category": "Asset File",
+      "controller": "",
+      "method": "DELETE",
+      "path": "/api/assets/files/{fileId}",
+      "parameters": "fileId",
+      "response": "204 / 404",
+      "authorization": "CsitStaff",
+      "description": "刪除 Asset 附件",
       "integration_stage": "WP2-D-DEFERRED",
       "read_only_allowed": false
     }

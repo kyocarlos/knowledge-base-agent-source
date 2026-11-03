@@ -174,6 +174,8 @@ def _may_change(request: Request, capability: str) -> bool:
     """Whether the signed-in account holds ``capability`` for this zone. Looked up in KM Control on every call (a revoked grant
     applies at once); any failure means no, so the switch stays locked."""
     identity = _identity(request)
+    if capability == userfiles.CAPABILITY:
+        return True  # attaching files is open to every signed-in account (no per-account grant)
     try:
         from ..km_control import ControlRegistry
         return ControlRegistry.from_environment().has_capability(str(identity.get("sub")), str(identity.get("instance_id")), capability)
