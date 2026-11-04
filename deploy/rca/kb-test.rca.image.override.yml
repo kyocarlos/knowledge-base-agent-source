@@ -1,0 +1,13 @@
+# RCA report comparison for the product-verification zone (TEST plane). 2026-11-04, user-authorised.
+# Overlay of the running web image (open-files-20261031) with compare.py, rca.py, rca_routes.py and a flag-gated router registration.
+# Reads km_test through the read-only role km_rca_ro (DSN file below, 0600, not in git). No other service changes.
+# Rollback: deploy.sh test $HOME/.km-control/compose/kb-test.open-files.image.override.yml
+services:
+  web:
+    image: km-chat-v2-secure:rca-20261104-on-open-files-c7869ce
+    environment:
+      KM_RCA_ENABLED: "1"
+      KM_RCA_DSN_FILE: /run/secrets/km-rca-dsn
+      KM_RCA_ROLES: CSIT_ENGINEER,CSIT_MANAGER
+    volumes:
+      - /home/da40_ai_gb10/.km-control/rca-deploy-20261104/km-rca-dsn:/run/secrets/km-rca-dsn:ro
