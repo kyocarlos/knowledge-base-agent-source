@@ -1,8 +1,10 @@
 """RCA (root-cause analysis) endpoints for the product-verification zone.
 
-    GET  /api/rca/v1/runs      selectable reports (read-only, role filtered)
-    POST /api/rca/v1/compare   deterministic comparison pack for 2..6 reports (no model)
-    POST /api/rca/v1/analyze   the same pack plus a verified cause analysis from the model
+    GET  /api/rca/v1/status               what this deployment can do (comparison always; analysis only when KM_RCA_ANALYZE=1)
+    GET  /api/rca/v1/runs                 selectable reports (read-only, role filtered), with formula-error details
+    POST /api/rca/v1/compare              deterministic comparison pack for 2..6 reports (no model, answers at once)
+    POST /api/rca/v1/analyze              202 + task id: the model runs in a Celery worker, never in this web process
+    GET  /api/rca/v1/analyze/{task_id}    running | done (pack + verified analysis) | failed; only the asker may read a finished result
 
 Off unless KM_RCA_ENABLED=1. A KM login is required; the reports a caller may see are the ones whose access_roles intersect KM_RCA_ROLES
 (default CSIT_ENGINEER, the role the report importer assigns). The model only ever sees the comparison pack, never the database.
@@ -12,14 +14,15 @@ from __future__ import annotations
 import logging
 import os
 from pathlib import Path
-from typing import Callable
+from typing import Callable, Protocol
 
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 
-from ..report_numeric import compare, query, rca
+from ..report_numeric import compare, query, rca_service
 
 logger = logging.getLogger("km.rca")
+ANALYZE_TASK = "tasks.rca_analyze_task"
 
 
 class CompareRequest(BaseModel):
@@ -30,6 +33,27 @@ class AnalyzeRequest(CompareRequest):
     question: str = Field(default="", max_length=500)
 
 
+class TaskQueue(Protocol):
+    def submit(self, run_ids: list[str], question: str, owner: dict) -> str: ...
+    def fetch(self, task_id: str) -> dict | None: ...   # None = not finished (or unknown); else the task's result dict
+
+
+class CeleryTasks:
+    """The analysis runs in the search worker (same queue as the Wi-Fi agent), so a slow model never occupies a web worker."""
+    def submit(self, run_ids, question, owner):
+        from .tasks import celery_app
+        return celery_app.send_task(ANALYZE_TASK, args=[run_ids, question, owner], queue="search").id
+
+    def fetch(self, task_id):
+        from celery.result import AsyncResult
+        from .tasks import celery_app
+        result = AsyncResult(task_id, app=celery_app)
+        if not result.ready():
+            return None
+        value = result.result
+        return value if isinstance(value, dict) else {"status": "failed", "detail": "分析工作異常結束", "owner": None}
+
+
 def _identity(request: Request) -> dict:
     identity = getattr(request.state, "km_identity", None)
     if not identity:
@@ -37,12 +61,16 @@ def _identity(request: Request) -> dict:
     return identity
 
 
+def _owner(identity: dict) -> dict:
+    return {"user_id": identity["sub"], "instance_id": identity.get("instance_id")}
+
+
 def default_roles() -> list[str]:
     return [r.strip() for r in os.getenv("KM_RCA_ROLES", "CSIT_ENGINEER").split(",") if r.strip()]
 
 
 def default_connect():
-    """A connection to the report store, opened per request so a missing or wrong setting is a 503 for RCA only, never a startup failure of the app."""
+    """A connection to the report store, opened per call so a missing or wrong setting is a 503 for RCA only, never a startup failure of the app."""
     import psycopg
     try:
         dsn = Path(os.environ["KM_RCA_DSN_FILE"]).read_text().strip() if os.getenv("KM_RCA_DSN_FILE") else os.environ["KM_RCA_DSN"]
@@ -57,38 +85,48 @@ def default_llm() -> Callable[[list[dict]], str]:
     from ..main import load_config
     client, _label = _build_primary_client(load_config())
     if client is None:
-        raise HTTPException(status_code=503, detail="RCA 需要主要 LLM，目前未設定或無法建立")
+        raise RuntimeError("no primary LLM configured")
     return lambda messages: client.chat.completions.create(messages=messages, temperature=0).choices[0].message.content or ""
 
 
-def create_router(connect: Callable | None = None, llm_factory: Callable | None = None, roles: Callable[[], list[str]] | None = None) -> APIRouter:
+def create_router(connect: Callable | None = None, tasks: TaskQueue | None = None, roles: Callable[[], list[str]] | None = None,
+                  analyze_enabled: Callable[[], bool] | None = None) -> APIRouter:
     router = APIRouter(prefix="/api/rca/v1", tags=["RCA"])
     connect_ = connect or default_connect
     roles_ = roles or default_roles
+    queue = tasks or CeleryTasks()
+    can_analyze = analyze_enabled or (lambda: tasks is not None or os.getenv("KM_RCA_ANALYZE") == "1")
 
-    def _guard(request: Request) -> None:
-        _identity(request)
+    def _guard(request: Request) -> dict:
+        identity = _identity(request)
         if os.getenv("KM_RCA_ENABLED") != "1" and connect is None:
             raise HTTPException(status_code=503, detail="RCA is not enabled")
+        return identity
 
     def _pack(conn, run_ids: list[str]) -> dict:
         try:
-            runs = compare.load_runs(conn, run_ids, roles_())
-            return compare.compare_runs(runs, compare.load_directions(conn))
+            return compare.compare_runs(compare.load_runs(conn, run_ids, roles_()), compare.load_directions(conn))
         except compare.CompareError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from None
+
+    @router.get("/status")
+    def status(request: Request):
+        _guard(request)
+        return {"compare": True, "analyze": bool(can_analyze())}
 
     @router.get("/runs")
     def list_runs(request: Request, product: str = "", report_type: str = ""):
         _guard(request)
         with connect_() as conn:
-            rows = compare._rows(conn, """SELECT test_run_id, product_id, dut_model, report_type, technology, npi_stage, firmware_version, hardware_version, chipset_vendor,
-                       test_date, overall_result, quality_status, document_id FROM km_test.test_run
-                WHERE access_roles && %(roles)s AND publish_status = 'published' AND (%(p)s = '' OR product_id ILIKE %(l)s OR dut_model ILIKE %(l)s)
-                  AND (%(t)s = '' OR report_type = %(t)s) ORDER BY product_id, test_date DESC NULLS LAST, report_type LIMIT 300""",
+            rows = compare._rows(conn, """SELECT r.test_run_id, r.product_id, r.dut_model, r.report_type, r.technology, r.npi_stage, r.firmware_version, r.hardware_version,
+                       r.chipset_vendor, r.test_date, r.overall_result, r.quality_status, r.formula_error_count, r.document_id, p.quality
+                FROM km_test.test_run r LEFT JOIN km_test.report_package p USING (test_run_id)
+                WHERE r.access_roles && %(roles)s AND r.publish_status = 'published' AND (%(p)s = '' OR r.product_id ILIKE %(l)s OR r.dut_model ILIKE %(l)s)
+                  AND (%(t)s = '' OR r.report_type = %(t)s) ORDER BY r.product_id, r.test_date DESC NULLS LAST, r.report_type LIMIT 300""",
                 {"roles": roles_(), "p": product, "l": "%" + product.replace("%", "").replace("_", r"\_") + "%", "t": report_type})
         for r in rows:
             r["test_date"] = r["test_date"].isoformat() if r["test_date"] else None
+            r["error_summary"] = compare.error_summary(r.pop("quality"))
         return {"runs": rows, "report_types": sorted(query.REPORT_TYPES)}
 
     @router.post("/compare")
@@ -97,19 +135,32 @@ def create_router(connect: Callable | None = None, llm_factory: Callable | None 
         with connect_() as conn:
             return _pack(conn, body.run_ids)
 
-    @router.post("/analyze")
+    @router.post("/analyze", status_code=202)
     def analyze(body: AnalyzeRequest, request: Request):
-        _guard(request)
+        identity = _guard(request)
+        if not can_analyze():
+            raise HTTPException(status_code=503, detail="RCA analysis is not enabled")
         with connect_() as conn:
-            pack = _pack(conn, body.run_ids)
-        llm = (llm_factory or default_llm)()
+            _pack(conn, body.run_ids)  # an impossible selection fails here, at once, instead of after a queue wait
         try:
-            out = rca.run_rca(pack, llm, question=body.question.strip())
-        except HTTPException:
-            raise
-        except Exception:  # noqa: BLE001 - a model failure must not take the deterministic comparison away
-            logger.warning("RCA model call failed", exc_info=True)
-            out = {"status": "unavailable", "analysis": None, "violations": ["模型暫時無法使用"], "warnings": [], "attempts": 0}
-        return {"pack": pack, "rca": out}
+            task_id = queue.submit(body.run_ids, body.question.strip(), _owner(identity))
+        except Exception:  # noqa: BLE001 - broker down: the comparison still works
+            logger.warning("RCA analysis could not be queued", exc_info=True)
+            raise HTTPException(status_code=503, detail="分析佇列暫時無法使用") from None
+        return {"task_id": task_id, "status": "submitted"}
+
+    @router.get("/analyze/{task_id}")
+    def analyze_result(task_id: str, request: Request):
+        identity = _guard(request)
+        try:
+            value = queue.fetch(task_id)
+        except Exception:  # noqa: BLE001
+            logger.warning("RCA result lookup failed", exc_info=True)
+            raise HTTPException(status_code=503, detail="分析結果暫時無法讀取") from None
+        if value is None:
+            return {"status": "running"}
+        if value.get("owner") != _owner(identity):
+            raise HTTPException(status_code=404, detail="task not found")
+        return {k: v for k, v in value.items() if k != "owner"}
 
     return router

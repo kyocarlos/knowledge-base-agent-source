@@ -5,7 +5,7 @@
 
 Nothing here touches a KM deployment. The 'model' only rephrases the evidence pack, so it demonstrates the page and the checks, not AI quality.
 """
-import argparse,json,random,sys,uuid,webbrowser
+import argparse,json,random,sys,threading,time,uuid,webbrowser
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[2];sys.path.insert(0,str(ROOT))
 import psycopg,uvicorn
@@ -13,6 +13,7 @@ from fastapi import FastAPI
 from fastapi.responses import FileResponse
 from src.report_numeric import timescale
 from src.web_api.rca_routes import create_router
+from src.report_numeric import rca_service,compare
 
 ROLES=["CSIT_ENGINEER"]
 PAGE=ROOT/"frontend"/"zones"/"csit"/"rca.html"
@@ -80,8 +81,20 @@ def stub_llm(messages):
     return json.dumps({"summary":f"{len(pack['diffs'])} 筆顯著差異，最大的是 {top[0]['label']}。" if top else "沒有顯著差異。","observations":obs[:6] or [{"text":"沒有顯著差異。","evidence":[pack['factors'][0]['id']] if pack['factors'] else []}],
                        "hypotheses":hyps,"unexplained":unexplained,"data_gaps":gaps},ensure_ascii=False)
 
+class ThreadTasks:
+    """Stands in for the Celery worker: runs the analysis in a thread after a short delay so the page's polling can be seen."""
+    def __init__(self,connect,roles,llm,delay=4):self.connect,self.roles,self.llm,self.delay,self.done,self.n=connect,roles,llm,delay,{},0
+    def submit(self,run_ids,question,owner):
+        self.n+=1;tid="demo-%d"%self.n
+        def work():
+            time.sleep(self.delay)
+            try:self.done[tid]={"owner":owner,"status":"done",**rca_service.analyze(self.connect,self.roles,self.llm,run_ids,question)}
+            except compare.CompareError as e:self.done[tid]={"owner":owner,"status":"failed","detail":str(e)}
+        threading.Thread(target=work,daemon=True).start();return tid
+    def fetch(self,tid):return self.done.get(tid)
+
 def main():
-    p=argparse.ArgumentParser();p.add_argument("--database-url");p.add_argument("--port",type=int,default=8770);p.add_argument("--no-browser",action="store_true")
+    p=argparse.ArgumentParser();p.add_argument("--database-url");p.add_argument("--port",type=int,default=8770);p.add_argument("--no-browser",action="store_true");p.add_argument("--keep-data",action="store_true",help="do not reseed: use the km_test data already in the database (e.g. real imported reports)")
     a=p.parse_args()
     for s in (sys.stdout,sys.stderr):
         try:s.reconfigure(encoding="utf-8",errors="replace")
@@ -91,12 +104,14 @@ def main():
         try:import pgserver
         except ImportError:sys.exit("pip install pgserver  (or pass --database-url)")
         d=Path(__file__).parent/".demo";d.mkdir(exist_ok=True);url=pgserver.get_server(str(d/"pg"),cleanup_mode=None).get_uri()
-    with psycopg.connect(url,autocommit=True) as c:seed(c)
+    if not a.keep_data:
+        with psycopg.connect(url,autocommit=True) as c:seed(c)
     app=FastAPI()
     @app.middleware("http")
     async def ident(request,call_next):
         request.state.km_identity={"sub":"demo","instance_id":"csit"};return await call_next(request)
-    app.include_router(create_router(connect=lambda:psycopg.connect(url,autocommit=True),llm_factory=lambda:stub_llm,roles=lambda:ROLES))
+    connect=lambda:psycopg.connect(url,autocommit=True)
+    app.include_router(create_router(connect=connect,tasks=ThreadTasks(connect,ROLES,stub_llm),roles=lambda:ROLES))
     @app.get("/api/rca/v1/demo-info")
     def info():return {"demo":True}
     @app.get("/")

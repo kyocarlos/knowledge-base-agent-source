@@ -56,11 +56,12 @@ td,th{padding:7px 8px;border-bottom:1px solid #17404d;vertical-align:top}tr.pick
 <div class="row"><label>設備或型號<input id="q" placeholder="例如 RTF7907VW-D223" size="26"></label>
 <label>報告類型<select id="rt"><option value="">全部</option></select></label><button class="ghost" onclick="loadRuns()">搜尋</button></div>
 <div class="scroll" style="margin-top:10px"><table id="runs"></table></div>
-<div class="mute" style="margin-top:6px">第一個勾選的是<b>基準</b>(其餘與它比較)。不同類型的報告(例如 Throughput 與 RvR)不能互比。</div></div>
+<div class="mute" style="margin-top:6px">第一個勾選的是<b>基準</b>(其餘與它比較)。不同類型的報告(例如 Throughput 與 RvR)不能互比。</div>
+<div class="mute" style="margin-top:4px">「資料品質」欄的意思:報告的原始 Excel 裡有公式錯誤(例如 <span class="mono">#REF!</span>,通常是範本的引用被刪除)。這些儲存格不會被當成數值,報告其餘資料照常使用;滑鼠移到標籤上可看位置,「隱藏頁」代表錯誤都在隱藏的工作表。</div></div>
 
 <div class="card"><h2>② 比較與分析</h2>
 <div class="row"><label style="flex:1;min-width:260px">想釐清的問題(選填)<input id="ask" placeholder="例如:ch36 的下行吞吐量為什麼下降?" maxlength="500"></label>
-<button id="btnCmp" class="ghost" onclick="go(false)">只做比較(不用模型)</button><button id="btnRca" class="primary" onclick="go(true)">比較並分析可能原因</button></div></div>
+<button id="btnCmp" class="ghost" onclick="go(false)">只做比較(不用模型)</button><button id="btnRca" class="primary" onclick="go(true)">比較並分析可能原因</button></div><div class="mute" id="capnote" style="margin-top:6px"></div></div>
 <div id="out"></div>
 </main></div>
 <div id="pop"></div>
@@ -71,6 +72,15 @@ const api=async(p,b)=>{const r=await fetch(p,b?{method:'POST',headers:{'Content-
  if(r.status===404||r.status===503&&(!d||d.detail==='RCA is not enabled'))throw new Error('RCA 後端尚未啟用,目前只有畫面可以預覽。請管理員啟用後再使用。');
  if(!r.ok)throw new Error(typeof d?.detail==='string'?d.detail:(d?.detail?JSON.stringify(d.detail):('錯誤 '+r.status)));return d};
 let runs=[],picked=[],PACK=null;
+
+const plural=(n)=>n+' 個';
+function qualityText(sum,total){const vals=[...new Set(sum.flatMap(g=>g.values))].join('、');
+ const lines=sum.map(g=>`• ${g.hidden?'隱藏':'可見'}工作表「${g.sheet}」:${g.count} 個 ${g.values.join('、')}(${g.cells.join('、')}${g.count>g.cells.length?' …':''})`);
+ return `來源 Excel 有 ${total} 個公式錯誤儲存格(${vals}):`+String.fromCharCode(10)+lines.join(String.fromCharCode(10))+String.fromCharCode(10)+'這些格子沒有被當成數值,報告其餘資料仍可使用。'}
+function qualityPill(r){const n=r.formula_error_count||0;if(!n&&r.quality_status==='clean')return '<span class="pill ok">無公式錯誤</span>';
+ const sum=r.error_summary||[];const allHidden=sum.length&&sum.every(g=>g.hidden);const vals=[...new Set(sum.flatMap(g=>g.values))].join('、');
+ const label=allHidden?`隱藏頁 ${n} 個 ${vals}`:`公式錯誤 ${n} 個 ${vals}`;
+ return `<span class="pill ${allHidden?'mute':'warn'}" title="${esc(qualityText(sum,n))}">${esc(label)}</span>`}
 const fmt=(v,d=2)=>v==null?'—':(typeof v==='number'?(Math.abs(v)>=1000?v.toFixed(0):+v.toFixed(d)):esc(v));
 const FNAME={firmware_version:'韌體版本',hardware_version:'硬體版本',chipset_vendor:'晶片廠商',ethernet_type:'乙太網路類型',npi_stage:'NPI 階段',test_date:'測試日期',report_type:'報告類型',technology:'技術',dut_model:'設備型號',report_revision:'報告修訂',document_version:'文件版本'};
 async function loadRuns(){try{const d=await api('/api/rca/v1/runs?product='+encodeURIComponent($('q').value)+'&report_type='+encodeURIComponent($('rt').value));runs=d.runs;
@@ -78,8 +88,8 @@ async function loadRuns(){try{const d=await api('/api/rca/v1/runs?product='+enco
 function drawRuns(){$('runs').innerHTML='<tr><th></th><th>順序</th><th>設備</th><th>類型</th><th>韌體</th><th>硬體</th><th>日期</th><th>判定</th><th>資料品質</th></tr>'+(runs.length?runs.map(r=>{const i=picked.indexOf(r.test_run_id);
  return `<tr class="pick ${i>=0?'sel':''}" onclick="toggle('${esc(r.test_run_id)}')"><td><input type="checkbox" ${i>=0?'checked':''} tabindex="-1"></td><td>${i>=0?(i===0?'<span class="pill">基準</span>':'#'+(i+1)):''}</td>
  <td><b>${esc(r.dut_model)}</b><div class="mono mute">${esc(r.test_run_id)}</div></td><td>${esc(r.report_type)}</td><td>${esc(r.firmware_version||'—')}</td><td>${esc(r.hardware_version||'—')}</td><td class="nowrap">${esc(r.test_date||'—')}</td>
- <td><span class="pill ${r.overall_result==='pass'?'ok':r.overall_result==='fail'?'bad':'mute'}">${esc(r.overall_result||'—')}</span></td><td>${r.quality_status==='clean'?'<span class="pill ok">clean</span>':'<span class="pill warn">有來源錯誤</span>'}</td></tr>`}).join(''):'<tr><td colspan="9" class="mute">沒有符合的報告</td></tr>');
- $('selcount').textContent='已選 '+picked.length;$('btnCmp').disabled=$('btnRca').disabled=picked.length<2}
+ <td><span class="pill ${r.overall_result==='pass'?'ok':r.overall_result==='fail'?'bad':'mute'}">${esc(r.overall_result||'—')}</span></td><td>${qualityPill(r)}</td></tr>`}).join(''):'<tr><td colspan="9" class="mute">沒有符合的報告</td></tr>');
+ $('selcount').textContent='已選 '+picked.length;$('btnCmp').disabled=picked.length<2;if(typeof applyCaps==='function')applyCaps()}
 function toggle(id){const i=picked.indexOf(id);if(i>=0)picked.splice(i,1);else if(picked.length<6)picked.push(id);drawRuns()}
 function evChip(id,pack){const k=id[0].toLowerCase();return `<span class="chip ${k}" onclick="showEv('${id}')">${id}</span>`}
 function showEv(id){const e=PACK?.evidence?.[id];if(!e)return;const t=document.getElementById('ev-'+id);if(t){t.scrollIntoView({block:'center',behavior:'smooth'});t.classList.remove('flash');void t.offsetWidth;t.classList.add('flash')}
@@ -99,7 +109,7 @@ function drawPack(p){PACK=p;const c=p.counts;let h='';
  if(p.result_changes.length)h+=`<div class="card"><h2>Pass / Fail 變化</h2><table><tr><th>編號</th><th>項目</th>${p.runs.map((_,i)=>`<th>${runName(i)}</th>`).join('')}</tr>`+p.result_changes.map(r=>`<tr id="ev-${r.id}"><td>${evChip(r.id)}</td><td>${esc(r.label)}</td>${r.outcomes.map(o=>`<td><span class="pill ${o==='pass'?'ok':o==='fail'?'bad':'mute'}">${esc(o||'無')}</span></td>`).join('')}</tr>`).join('')+'</table></div>';
  if(p.criteria_changes.length)h+=`<div class="card"><h2>判定門檻不同</h2><table><tr><th>編號</th><th>條件</th>${p.runs.map((_,i)=>`<th>${runName(i)}</th>`).join('')}</tr>`+p.criteria_changes.map(r=>`<tr id="ev-${r.id}"><td>${evChip(r.id)}</td><td>${esc(r.label)}</td>${r.criteria.map((v,i)=>`<td>${fmt(v)}${r.reference_rate_mbps[i]!=null?`<div class="mute">參考 ${fmt(r.reference_rate_mbps[i])} Mbps</div>`:''}</td>`).join('')}</tr>`).join('')+'</table></div>';
  if(p.coverage.length||p.quality.length)h+=`<div class="card"><h2>資料缺口與品質</h2>${p.coverage.map(r=>`<div id="ev-${r.id}">${evChip(r.id)} ${esc(r.label)} — ${r.unit_mismatch?'單位不一致 '+esc(r.unit_mismatch.join('/')):'只出現在 '+r.present_in.map(i=>runName(i)).join('、')}</div>`).join('')}
- ${p.quality.map(r=>`<div id="ev-${r.id}">${evChip(r.id)} ${r.duplicate_keys?`${runName(r.run)} 有 ${r.duplicate_keys} 筆重複的量測鍵`:`${runName(r.run)} 資料品質:${esc(r.status)}(來源檔有 ${r.formula_errors} 個公式錯誤儲存格)`}</div>`).join('')}</div>`;
+ ${p.quality.map(r=>`<div id="ev-${r.id}">${evChip(r.id)} ${r.duplicate_keys?`${runName(r.run)} 有 ${r.duplicate_keys} 筆重複的量測鍵`:`${runName(r.run)} <span class="mono">${esc(p.runs[r.run].dut_model)}</span>:${esc(qualityText(p.runs[r.run].error_summary||[],r.formula_errors)).split(String.fromCharCode(10)).join('<br>')}`}</div>`).join('')}</div>`;
  return h}
 function drawRca(r,p){if(!r)return'';let h='<div class="card"><h2>③ 可能的原因分析 <span class="pill warn">待驗證的假設,不是結論</span></h2>';
  if(r.status==='unavailable')return h+'<div class="banner bad">模型暫時無法使用;上面的比較結果仍然有效。</div></div>';
@@ -112,8 +122,31 @@ function drawRca(r,p){if(!r)return'';let h='<div class="card"><h2>③ 可能的�
  if(a.unexplained.length)h+=`<h3>沒有被解釋的差異</h3><ul>${a.unexplained.map(u=>`<li>${esc(u.text)} ${ev(u.evidence)}</li>`).join('')}</ul>`;
  if(a.data_gaps.length)h+=`<h3>資料不足與限制</h3><ul>${a.data_gaps.map(g=>`<li>${esc(g)}</li>`).join('')}</ul>`;
  return h+'<div class="mute">每個編號都可以點開看原始證據。程式已檢查:引用的編號存在、文中的數字都來自證據包、多變因時信心不超過「中」。</div></div>'}
-async function go(withModel){if(picked.length<2)return;const b=[$('btnCmp'),$('btnRca')];b.forEach(x=>x.disabled=true);const old=$('btnRca').innerHTML;if(withModel)$('btnRca').innerHTML='<span class="spin"></span> 分析中…';$('out').innerHTML='';
- try{const d=await api(withModel?'/api/rca/v1/analyze':'/api/rca/v1/compare',withModel?{run_ids:picked,question:$('ask').value}:{run_ids:picked});const pack=withModel?d.pack:d;PACK=pack;$('out').innerHTML=drawPack(pack)+(withModel?drawRca(d.rca,pack):'');$('out').scrollIntoView({behavior:'smooth'})}
- catch(e){$('out').innerHTML=`<div class="banner bad">${esc(e.message)}</div>`}finally{$('btnRca').innerHTML=old;drawRuns()}}
-(async()=>{try{const d=await api('/api/rca/v1/demo-info');if(d.demo)$('demo').innerHTML='<div class="banner info">示範模式:資料是合成的,原因分析由規則產生的替身模型回答,不代表真實的 AI 分析品質。</div>'}catch(e){}loadRuns()})();
+let canAnalyze=false,runToken=0;
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+async function go(withModel){if(picked.length<2)return;const token=++runToken;const b=[$('btnCmp'),$('btnRca')];b.forEach(x=>x.disabled=true);$('out').innerHTML='';
+ try{
+  // The comparison is computed by code and answers at once, so it is shown first; the model's analysis (slow) arrives into its own card.
+  const pack=await api('/api/rca/v1/compare',{run_ids:picked});PACK=pack;
+  $('out').innerHTML=drawPack(pack)+'<div id="rcaCard"></div>';$('out').scrollIntoView({behavior:'smooth'});
+  if(withModel)await runAnalysis(pack,token);
+ }catch(e){$('out').innerHTML=`<div class="banner bad">${esc(e.message)}</div>`}
+ finally{drawRuns();$('btnCmp').disabled=picked.length<2;applyCaps()}}
+async function runAnalysis(pack,token){const card=$('rcaCard');
+ const wait=(msg,t)=>card.innerHTML=`<div class="card"><h2>③ 可能的原因分析 <span class="pill warn">待驗證的假設,不是結論</span></h2><div><span class="spin"></span> ${esc(msg)} <span class="mute">已等待 ${t} 秒(通常 20 到 90 秒;可以先看上面的比較結果)</span></div></div>`;
+ wait('正在送出分析工作…',0);
+ let sub;try{sub=await api('/api/rca/v1/analyze',{run_ids:picked,question:$('ask').value})}catch(e){card.innerHTML=`<div class="card"><h2>③ 可能的原因分析</h2><div class="banner bad">${esc(e.message)}。上面的比較結果仍然有效。</div></div>`;return}
+ const t0=Date.now();
+ while(token===runToken&&Date.now()-t0<330000){
+  await sleep(2000);if(token!==runToken)return;
+  let d;try{d=await api('/api/rca/v1/analyze/'+encodeURIComponent(sub.task_id))}catch(e){card.innerHTML=`<div class="card"><h2>③ 可能的原因分析</h2><div class="banner bad">${esc(e.message)}。上面的比較結果仍然有效。</div></div>`;return}
+  if(d.status==='running'){wait('模型分析中…',Math.round((Date.now()-t0)/1000));continue}
+  if(d.status==='failed'){card.innerHTML=`<div class="card"><h2>③ 可能的原因分析</h2><div class="banner bad">${esc(d.detail||'分析失敗')}。上面的比較結果仍然有效。</div></div>`;return}
+  card.innerHTML=drawRca(d.rca,d.pack||pack);return}
+ if(token===runToken)card.innerHTML='<div class="card"><h2>③ 可能的原因分析</h2><div class="banner bad">等待逾時,分析可能仍在進行。請稍後重新按「比較並分析可能原因」。上面的比較結果仍然有效。</div></div>'}
+function applyCaps(){const b=$('btnRca');b.disabled=picked.length<2||!canAnalyze;b.title=canAnalyze?'':'這個環境尚未啟用模型分析,目前只能做比較';
+ $('capnote').textContent=canAnalyze?'':'(模型分析尚未啟用,目前只提供比較)'}
+(async()=>{try{const d=await api('/api/rca/v1/demo-info');if(d.demo)$('demo').innerHTML='<div class="banner info">示範模式:資料是合成的,原因分析由規則產生的替身模型回答,不代表真實的 AI 分析品質。</div>'}catch(e){}
+ try{canAnalyze=!!(await api('/api/rca/v1/status')).analyze}catch(e){canAnalyze=false}
+ applyCaps();loadRuns()})();
 </script></body></html>

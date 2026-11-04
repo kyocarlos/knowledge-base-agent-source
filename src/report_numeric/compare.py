@@ -68,6 +68,8 @@ def load_runs(conn, run_ids: list[str], roles=q.DEFAULT_ROLES) -> list[dict]:
     for i in ids:
         r = dict(by_id[i])
         r["test_date"] = r["test_date"].isoformat() if r["test_date"] is not None else None
+        quality = conn.execute("SELECT quality FROM km_test.report_package WHERE test_run_id = %(r)s", {"r": i}).fetchone()
+        r["error_summary"] = error_summary(quality[0] if quality else None)
         r["measurements"] = _rows(conn, """SELECT test_case_id, test_case_name, metric_name, value, unit, value_basis, band, bandwidth_mhz, channel, direction, attenuation_db,
                                                   angle_deg, traffic_mode, protocol, statistic, sample_index, wireless_mode, time_slot, source_sheet, source_cell_range
                                            FROM km_test.test_measurement WHERE test_run_id = %(r)s""", {"r": i})
@@ -79,6 +81,20 @@ def load_runs(conn, run_ids: list[str], roles=q.DEFAULT_ROLES) -> list[dict]:
                                          FROM km_test.test_condition WHERE test_run_id = %(r)s""", {"r": i})
         out.append(r)
     return out
+
+
+def error_summary(quality: Any) -> list[dict]:
+    """Where a report's formula-error cells are, grouped by sheet: {sheet, hidden, count, values, cells(first 4)}.
+    Error cells are never stored as numbers (the importer keeps the report and flags it), so this only tells a reader what was missing at the source."""
+    errors = (quality or {}).get("formula_errors", []) if isinstance(quality, dict) else []
+    groups: dict[tuple, dict] = {}
+    for e in errors:
+        g = groups.setdefault((e.get("sheet"), e.get("sheet_state")), {"sheet": e.get("sheet"), "hidden": e.get("sheet_state") not in (None, "visible"), "count": 0, "values": set(), "cells": []})
+        g["count"] += 1
+        g["values"].add(str(e.get("value")))
+        if len(g["cells"]) < 4:
+            g["cells"].append(e.get("cell"))
+    return [{**g, "values": sorted(g["values"])} for g in sorted(groups.values(), key=lambda x: (x["hidden"], str(x["sheet"])))]
 
 
 def load_directions(conn) -> dict[str, bool | None]:
@@ -135,7 +151,8 @@ def compare_runs(runs: list[dict], directions: dict[str, bool | None] | None = N
         return eid
 
     run_info = [{"index": i, "test_run_id": r["test_run_id"], "product_id": r["product_id"], "dut_model": r["dut_model"], "document_id": r["document_id"],
-                 **{f: r.get(f) for f in FACTOR_FIELDS}, "overall_result": r["overall_result"], "quality_status": r["quality_status"]} for i, r in enumerate(runs)]
+                 **{f: r.get(f) for f in FACTOR_FIELDS}, "overall_result": r["overall_result"], "quality_status": r["quality_status"],
+                 "formula_error_count": r.get("formula_error_count", 0), "error_summary": r.get("error_summary", [])} for i, r in enumerate(runs)]
 
     # ---- changed factors (what is different between the runs, before looking at any number) ----
     factors = []
