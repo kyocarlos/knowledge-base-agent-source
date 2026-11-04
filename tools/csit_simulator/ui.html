@@ -1,58 +1,196 @@
 <!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>CSIT 模擬器</title>
+<title>CSIT 文件管理(模擬)</title>
 <style>
-:root{--bg:#f6f7f9;--fg:#1c2330;--card:#fff;--line:#d9dee7;--ok:#127a3d;--bad:#b3261e;--mute:#667085;--acc:#1d5fd6}
-@media(prefers-color-scheme:dark){:root{--bg:#10151d;--fg:#e6e9ef;--card:#182030;--line:#2b3547;--ok:#4cc582;--bad:#ff8a80;--mute:#98a2b3;--acc:#7aa7ff}}
-body{margin:0;font:15px/1.5 system-ui,"Noto Sans TC",sans-serif;background:var(--bg);color:var(--fg)}
-main{max-width:1100px;margin:0 auto;padding:16px}
-h1{font-size:20px;margin:0 0 12px}h2{font-size:16px;margin:0 0 8px}
-.card{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:12px 14px;margin-bottom:12px}
-.row{display:flex;flex-wrap:wrap;gap:10px;align-items:end}
-label{display:flex;flex-direction:column;font-size:13px;color:var(--mute);gap:3px}
-input,select,button{font:inherit;padding:6px 8px;border:1px solid var(--line);border-radius:6px;background:var(--card);color:var(--fg)}
-button{cursor:pointer;background:var(--acc);color:#fff;border-color:var(--acc)}button.alt{background:var(--card);color:var(--fg);border-color:var(--line)}
-table{width:100%;border-collapse:collapse;font-size:14px}td,th{text-align:left;padding:5px 6px;border-bottom:1px solid var(--line);vertical-align:top}
-.ok{color:var(--ok)}.bad{color:var(--bad)}.mute{color:var(--mute)}.mono{font-family:ui-monospace,Consolas,monospace;font-size:12px;word-break:break-all}
-details{margin-top:4px}pre{margin:4px 0;white-space:pre-wrap;font-size:12px}
-.pill{display:inline-block;padding:1px 8px;border-radius:99px;border:1px solid var(--line);font-size:12px}
-</style></head><body><main>
-<h1>CSIT 模擬器 <span class="mute" style="font-size:13px">規格 v1.3 · 扮演 CSIT 對 KM 演練</span></h1>
-<div class="card"><h2>送出文件通知</h2><div class="row">
-<label>檔案<input id="file" type="file"></label>
-<label>或直接輸入文字<input id="text" value="CSIT 測試文件。This document describes the Wi-Fi 7 access point setup procedure." size="46"></label>
-<label>檔名<input id="name" value="manual.txt" size="14"></label>
-<label>下載情境<select id="fault"><option value="none">正常</option><option value="tamper">內容被改動(SHA256 不符)</option>
-<option value="truncate">內容被截斷</option><option value="unavailable">前 N 次回 503</option><option value="forbidden">回 403</option><option value="notfound">回 404</option></select></label>
-<label>N<input id="n" type="number" value="2" min="0" style="width:60px"></label>
-<label>認證<select id="tok"><option value="">正確 token</option><option value="bad">錯誤 token(應被拒絕)</option></select></label>
-<button onclick="send()">送出</button></div></div>
-<div class="card"><h2>情境:KM 回報時 CSIT 端故障</h2><div class="row">
-<label>接下來 N 次回報回<input id="cf" type="number" value="0" min="0" style="width:70px"></label>
-<label>狀態碼<select id="cs"><option>503</option><option>409</option><option>500</option></select></label>
-<button class="alt" onclick="faults()">設定</button><button class="alt" onclick="reset()">全部清除</button></div></div>
-<div class="card"><h2>驗收結果</h2><div id="report" class="mute">…</div></div>
-<div class="card"><h2>文件工作</h2><div id="jobs"></div></div>
-<div class="card"><h2>刪除工作</h2><div id="dels"></div></div>
-</main><script>
-const $=id=>document.getElementById(id);
-const b64=buf=>{let s='';new Uint8Array(buf).forEach(c=>s+=String.fromCharCode(c));return btoa(s)};
-async function send(){const f=$('file').files[0];const spec={fileName:f?f.name:$('name').value,downloadFault:$('fault').value,downloadFailures:+$('n').value,badToken:$('tok').value==='bad'};
- if(f){spec.contentBase64=b64(await f.arrayBuffer());spec.contentType=f.type||'application/octet-stream'}else spec.contentText=$('text').value;
- await fetch('/sim/jobs',{method:'POST',body:JSON.stringify(spec)});load()}
-async function del(fid){await fetch('/sim/deletions',{method:'POST',body:JSON.stringify({documentFileId:fid})});load()}
-async function resend(id){await fetch('/sim/jobs/'+id+'/resend',{method:'POST'});load()}
-async function faults(){await fetch('/sim/faults',{method:'POST',body:JSON.stringify({callbackFailures:+$('cf').value,callbackStatus:+$('cs').value})});load()}
-async function reset(){await fetch('/sim/reset',{method:'POST'});load()}
-const esc=s=>String(s??'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
-function verd(x){return x.verdicts.map(v=>`<div class="${v.ok?'ok':'bad'}">${v.ok?'✔':'✘'} ${esc(v.what)}</div>`).join('')}
-function tl(x){return `<details><summary>時間線 (${x.timeline.length})</summary><pre>${x.timeline.map(e=>esc(e.t.slice(11,23)+'  '+e.kind+(e.detail?'  '+JSON.stringify(e.detail):''))).join('\n')}</pre></details>`}
-async function load(){const s=await (await fetch('/sim/state')).json();const r=await (await fetch('/sim/report')).json();
- $('report').innerHTML=`<b class="${r.failed?'bad':'ok'}">${r.failed?'有 '+r.failed+' 項不符':'全部符合'}</b> · 通過 ${r.passed} · 不符 ${r.failed} · 文件 ${r.jobs} · 刪除 ${r.deletions}`;
- $('jobs').innerHTML=s.jobs.length?`<table><tr><th>狀態</th><th>檔案 / ID</th><th>回報</th><th>判定</th><th></th></tr>`+s.jobs.map(j=>`<tr><td><span class="pill">${esc(j.state)}${j.deleted?' · 已刪':''}</span></td>
- <td>${esc(j.fileName)}<div class="mono">${j.documentFileId}<br>${j.kmJobId||''}</div></td><td>${esc(j.callbackStatuses.join(' → '))}</td>
- <td>${verd(j)}${tl(j)}${j.result?`<details><summary>Completed.result</summary><pre>${esc(JSON.stringify(j.result,null,1))}</pre></details>`:''}</td>
- <td><button class="alt" onclick="resend('${j.csitJobId}')">重送</button> <button class="alt" onclick="del('${j.documentFileId}')">刪除</button></td></tr>`).join('')+'</table>':'<span class="mute">尚無</span>';
- $('dels').innerHTML=s.deletions.length?`<table><tr><th>狀態</th><th>ID</th><th>回報</th><th>判定</th></tr>`+s.deletions.map(d=>`<tr><td><span class="pill">${esc(d.state)}</span></td>
- <td class="mono">${d.deletionRequestId}<br>${d.kmDeletionJobId||''}</td><td>${esc(d.callbackStatuses.join(' → '))}</td><td>${verd(d)}${tl(d)}${d.result?`<pre>${esc(JSON.stringify(d.result,null,1))}</pre>`:''}</td></tr>`).join('')+'</table>':'<span class="mute">尚無</span>'}
-load();setInterval(load,2000)
+:root{--bg:#eef1f6;--panel:#fff;--fg:#1b2433;--mute:#667085;--line:#dbe1ea;--acc:#1f5fd1;--acc2:#e8f0fe;--ok:#0f7a3c;--okbg:#e3f6ea;--bad:#b3261e;--badbg:#fdeceb;--warn:#8a5a00;--warnbg:#fff4d6;--side:#14213a;--sidefg:#c9d4ea}
+@media(prefers-color-scheme:dark){:root{--bg:#0e131c;--panel:#161d2a;--fg:#e6e9ef;--mute:#98a2b3;--line:#2a3447;--acc:#7aa7ff;--acc2:#1c2a47;--ok:#52d08a;--okbg:#12301f;--bad:#ff8a80;--badbg:#3a1b1a;--warn:#f0c15a;--warnbg:#3a2f12;--side:#0a0f18;--sidefg:#a9b6cf}}
+*{box-sizing:border-box}body{margin:0;font:14px/1.55 system-ui,"Noto Sans TC","Microsoft JhengHei",sans-serif;background:var(--bg);color:var(--fg)}
+header{display:flex;align-items:center;gap:14px;background:var(--side);color:#fff;padding:10px 18px;position:sticky;top:0;z-index:5}
+header h1{font-size:17px;margin:0;font-weight:700}header .tag{font-size:12px;background:#ffffff1f;border-radius:99px;padding:2px 10px}
+header .sp{flex:1}.dot{display:inline-block;width:9px;height:9px;border-radius:50%;background:#98a2b3;margin-right:6px}.dot.ok{background:#52d08a}.dot.bad{background:#ff6b61}
+.layout{display:grid;grid-template-columns:190px 1fr;min-height:calc(100vh - 46px)}
+nav{background:var(--side);padding:10px 8px}nav a{display:block;color:var(--sidefg);padding:9px 12px;border-radius:7px;cursor:pointer;margin-bottom:2px;user-select:none}
+nav a.on{background:#ffffff1c;color:#fff;font-weight:600}nav a:hover{background:#ffffff12}
+main{padding:16px 18px;min-width:0}
+@media(max-width:760px){.layout{grid-template-columns:1fr}nav{display:flex;overflow:auto}nav a{white-space:nowrap}}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 16px;margin-bottom:14px}
+.card h2{font-size:15px;margin:0 0 10px}.row{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end}
+label{display:flex;flex-direction:column;font-size:12px;color:var(--mute);gap:3px}
+input,select,textarea,button{font:inherit;padding:6px 9px;border:1px solid var(--line);border-radius:7px;background:var(--panel);color:var(--fg)}
+button{cursor:pointer;background:var(--acc);color:#fff;border-color:var(--acc);font-weight:600}button.alt{background:var(--panel);color:var(--fg);border-color:var(--line);font-weight:500}
+button.danger{background:var(--bad);border-color:var(--bad)}button:disabled{opacity:.45;cursor:not-allowed}
+table{width:100%;border-collapse:collapse}th{font-size:12px;color:var(--mute);text-align:left;font-weight:600}td,th{padding:8px 8px;border-bottom:1px solid var(--line);vertical-align:middle}
+tr.doc{cursor:pointer}tr.doc:hover{background:var(--acc2)}tr.sel{background:var(--acc2)}
+.badge{display:inline-block;padding:1px 9px;border-radius:99px;font-size:12px;font-weight:600;background:var(--acc2);color:var(--acc);white-space:nowrap}
+.badge.ok{background:var(--okbg);color:var(--ok)}.badge.bad{background:var(--badbg);color:var(--bad)}.badge.warn{background:var(--warnbg);color:var(--warn)}.badge.mute{background:var(--bg);color:var(--mute)}
+.mono{font-family:ui-monospace,Consolas,monospace;font-size:12px;word-break:break-all}.mute{color:var(--mute)}.ok{color:var(--ok)}.bad{color:var(--bad)}
+.split{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:14px;align-items:start}@media(max-width:1100px){.split{grid-template-columns:1fr}}
+.steps{display:flex;gap:0;margin:8px 0 12px;overflow:auto}.step{flex:1;min-width:84px;text-align:center;position:relative;padding-top:2px}
+.step .c{width:26px;height:26px;border-radius:50%;margin:0 auto 4px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;background:var(--bg);border:2px solid var(--line);color:var(--mute)}
+.step.done .c{background:var(--ok);border-color:var(--ok);color:#fff}.step.now .c{border-color:var(--acc);color:var(--acc);background:var(--acc2)}.step.fail .c{background:var(--bad);border-color:var(--bad);color:#fff}
+.step .t{font-size:11px;color:var(--mute);line-height:1.3}.step:not(:last-child)::after{content:"";position:absolute;top:14px;left:calc(50% + 15px);right:calc(-50% + 15px);height:2px;background:var(--line)}
+.step.done:not(:last-child)::after{background:var(--ok)}
+.hint{background:var(--acc2);border-radius:8px;padding:8px 10px;font-size:13px;margin:6px 0}
+.v{padding:2px 0}.v.ok{color:var(--ok)}.v.bad{color:var(--bad);font-weight:600}
+.tl{border-left:2px solid var(--line);margin-left:6px;padding-left:12px}.tl div{position:relative;padding:2px 0}.tl div::before{content:"";position:absolute;left:-18px;top:9px;width:8px;height:8px;border-radius:50%;background:var(--acc)}
+details{margin:4px 0}summary{cursor:pointer;color:var(--acc)}pre{margin:4px 0;padding:8px;background:var(--bg);border-radius:7px;overflow:auto;font-size:12px;max-height:340px;white-space:pre-wrap;word-break:break-all}
+.dir{font-weight:700;font-size:12px}.dir.out{color:var(--acc)}.dir.in{color:#b45f06}
+.kv{display:grid;grid-template-columns:130px 1fr;gap:2px 10px;font-size:13px}.kv div:nth-child(odd){color:var(--mute)}
+.pill{display:inline-block;background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:0 7px;margin:2px 4px 2px 0;font-size:12px}
+.empty{color:var(--mute);padding:14px;text-align:center}
+</style></head><body>
+<header><h1>CSIT 文件管理系統</h1><span class="tag">模擬器 · 規格 v1.3</span><span class="sp"></span>
+<span id="kmstat"><span class="dot"></span>KM …</span><span id="score" class="tag">…</span></header>
+<div class="layout"><nav id="nav"></nav><main id="main"></main></div>
+<script>
+const $=id=>document.getElementById(id),esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const J=(o,n=2)=>esc(JSON.stringify(o,null,n));
+const api=async(p,b,m)=>{const r=await fetch(p,{method:m||(b!==undefined?'POST':'GET'),body:b!==undefined?JSON.stringify(b):undefined});
+  if(!r.ok){let t='';try{t=(await r.json()).detail}catch(e){}alert('操作失敗 ('+r.status+')\n'+(typeof t==='string'?t:JSON.stringify(t)));return null}return r.status===204?{}:r.json()};
+let sig='',S={docs:[],settings:{},faults:{}},T=[],taxo=[],tab='docs',sel=null,lastTid=0,inspect=null,ping=null,filt={dir:'',doc:''};
+const NAV=[['docs','文件專區'],['traffic','API 流量'],['km','KM 內部觀察'],['set','情境與設定']];
+$('nav').innerHTML=NAV.map(([k,t])=>`<a data-k="${k}" onclick="go('${k}')">${t}</a>`).join('');
+function go(k){tab=k;sig='';draw()}
+const STEPS=[['上傳','員工上傳'],['核准','主管核准'],['NAS 歸檔','正式入庫'],['派送 KM','Outbox → KM'],['KM 處理','下載·解析·索引'],['完成','AI Metadata 回寫']];
+const STAGE_LABEL={PendingApproval:'待核准',Approved:'已核准',Archived:'已歸檔',Dispatched:'已派送',Deleting:'刪除中',Purged:'已刪除',Rejected:'已退回'};
+const KM_LABEL={Accepted:'KM 已受理',Downloading:'KM 下載中',Processing:'KM 處理中',Completed:'KM 完成',Failed:'KM 失敗',Rejected:'KM 拒絕'};
+function stepState(d){ // index of the node currently waiting, plus failures
+  const done=[true,d.stage!=='PendingApproval'&&d.stage!=='Rejected',d.archived,d.jobIds.length>0&&d.kmStatus&&d.kmStatus!=='Rejected',['Processing','Completed','Failed'].includes(d.kmStatus),d.kmStatus==='Completed'];
+  const fail=[false,d.stage==='Rejected',false,d.kmStatus==='Rejected',d.kmStatus==='Failed',d.kmStatus==='Failed'];
+  let now=done.findIndex(x=>!x);return{done,fail,now}}
+function steps(d){const s=stepState(d);return `<div class="steps">${STEPS.map((x,i)=>`<div class="step ${s.fail[i]?'fail':s.done[i]?'done':i===s.now?'now':''}"><div class="c">${s.fail[i]?'✕':s.done[i]?'✓':i+1}</div><div class="t"><b>${x[0]}</b><br>${x[1]}</div></div>`).join('')}</div>`}
+function badge(d){if(d.stage==='Purged')return'<span class="badge mute">已刪除</span>';if(d.stage==='Deleting')return`<span class="badge warn">刪除中 · ${esc(d.deleteState||'')}</span>`;
+  if(d.kmStatus)return`<span class="badge ${d.kmStatus==='Completed'?'ok':['Failed','Rejected'].includes(d.kmStatus)?'bad':'warn'}">${KM_LABEL[d.kmStatus]||d.kmStatus}</span>`;
+  return`<span class="badge">${STAGE_LABEL[d.stage]}</span>`}
+function cls(d){return['l1','l2','l3'].map(k=>d.classification[k]?.name).filter(Boolean).join(' / ')||'<span class="mute">未分類</span>'}
+function nextLabel(d){return{PendingApproval:'主管核准',Approved:'NAS 歸檔',Archived:'派送給 KM'}[d.stage]}
+const HINT={PendingApproval:'文件在 Approval Staging,尚未正式入庫。規格 §4.1:核准後才入 NAS,KM 不會收到任何通知。',
+ Approved:'已核准,等待 CSIT NAS 正式入庫(ArchiveStatus=Completed)。規格 §1:先入 NAS,才建立 KM Outbox。',
+ Archived:'已正式歸檔,Outbox 已建立。按「派送給 KM」就會對 KM 送出 POST …/document-library/jobs。',
+ Dispatched:'KM 應先回 202 Accepted(只代表收件),再以 GET 下載檔案、核對 SHA256,最後用獨立的 callback 回報 Processing → Completed/Failed。',
+ Deleting:'刪除通知已送出。規格 §7:KM 驗證七項清理完成並回 Completed 後,CSIT 才可刪除自己的檔案。',Purged:'KM 已驗證清理完成,CSIT 檔案已移除。再下載會得到 404;重送上傳通知應被 KM 以 409 拒絕(tombstone)。',Rejected:'已退回,不會歸檔,也不會通知 KM。'};
+
+function drawNav(){document.querySelectorAll('#nav a').forEach(a=>a.classList.toggle('on',a.dataset.k===tab))}
+function draw(){drawNav();({docs:drawDocs,traffic:drawTraffic,km:drawKm,set:drawSet})[tab]()}
+
+// ---------- 文件專區 ----------
+function taxOpts(nodes,sel){return '<option value="">—</option>'+nodes.map(n=>`<option value="${n.id}" ${n.id===sel?'selected':''}>${esc(n.name)}</option>`).join('')}
+let up={l1:'',l2:'',l3:'',text:'CSIT 測試文件。This manual describes the Wi-Fi 7 access point FSW26 setup procedure. Spectrum analyzer calibration steps are listed in section 3.',name:'manual.txt',auto:false};
+function drawUp(){const e=$('upc');if(!e)return;const f=$('f')?.files?.[0];e.innerHTML=uploadCard();if(f){try{const dt=new DataTransfer();dt.items.add(f);$('f').files=dt.files}catch(x){}}}
+function uploadCard(){
+  const l1=taxo.find(n=>n.id===up.l1),l2=l1?.children.find(n=>n.id===up.l2);
+  return `<div class="card"><h2>上傳文件</h2><div class="row">
+  <label>選擇檔案(txt / csv / xlsx / pdf / docx)<input id="f" type="file"></label>
+  <label>或輸入文字內容<input id="txt" size="40" value="${esc(up.text)}" oninput="up.text=this.value"></label>
+  <label>檔名<input id="nm" size="14" value="${esc(up.name)}" oninput="up.name=this.value"></label></div>
+  <div class="row" style="margin-top:8px"><label>分類 L1<select onchange="up.l1=this.value;up.l2='';up.l3='';drawUp()">${taxOpts(taxo,up.l1)}</select></label>
+  <label>L2<select onchange="up.l2=this.value;up.l3='';drawUp()">${taxOpts(l1?.children||[],up.l2)}</select></label>
+  <label>L3<select onchange="up.l3=this.value">${taxOpts(l2?.children||[],up.l3)}</select></label>
+  <label style="flex-direction:row;align-items:center;gap:6px;color:var(--fg)"><input type="checkbox" ${up.auto?'checked':''} onchange="up.auto=this.checked"> 上傳後自動核准 / 歸檔 / 派送</label>
+  <button onclick="upload()">上傳</button></div>
+  <div class="mute" style="margin-top:6px">預設停在「待核准」,每一步由你手動按,方便觀察 KM 在哪個時間點收到什麼。</div></div>`}
+async function upload(){const f=$('f').files[0],spec={fileName:f?f.name:up.name,classification:{l1:up.l1,l2:up.l2,l3:up.l3},autoRun:up.auto};
+  if(f){const buf=new Uint8Array(await f.arrayBuffer());let s='';for(let i=0;i<buf.length;i+=8192)s+=String.fromCharCode.apply(null,buf.subarray(i,i+8192));spec.contentBase64=btoa(s);spec.contentType=f.type||'application/octet-stream'}
+  else spec.contentText=up.text;
+  const d=await api('/api/docs',spec);if(d){sel=d.id;await load()}}
+function drawDocs(){
+  const m=$('main');sig='';
+  m.innerHTML=`<div id="upc">${uploadCard()}</div><div class="split"><div class="card" style="overflow:auto"><h2>文件專區(${S.docs.length})</h2>${S.docs.length?`<table><tr><th>文件</th><th>分類</th><th>狀態</th><th>操作</th></tr>`+
+  S.docs.slice().reverse().map(d=>`<tr class="doc ${d.id===sel?'sel':''}" onclick="sel='${d.id}';sig='';refreshList();drawDetail()"><td><b>${esc(d.name)}</b><div class="mute mono">${d.id.slice(0,8)} · ${d.size} B</div></td><td>${cls(d)}</td><td>${badge(d)}</td>
+  <td onclick="event.stopPropagation()">${nextLabel(d)?`<button onclick="act('${d.id}','advance')">${nextLabel(d)}</button>`:''}</td></tr>`).join('')+'</table>':'<div class="empty">尚無文件,先上傳一份</div>'}</div>
+  <div id="detail"></div></div>`;drawDetail()}
+async function act(id,a,b){const d=await api('/api/docs/'+id+'/'+a,b===undefined?{}:b);if(d){sel=id;await load()}}
+function dl(d){return `<details><summary>${d}</summary>`}
+function drawDetail(){const el=$('detail');if(!el)return;const d=S.docs.find(x=>x.id===sel);
+  if(!d){el.innerHTML='<div class="card"><div class="empty">選一份文件,看它的流程、API 往返與 KM 回傳的 AI Metadata</div></div>';return}
+  const f=d.faults,calls=T.filter(t=>t.docId===d.id);const last=d.jobs[d.jobs.length-1];
+  const bad=d.allVerdicts.filter(v=>!v.ok);
+  el.innerHTML=`<div class="card"><h2>${esc(d.name)} ${badge(d)}</h2>${steps(d)}
+  <div class="hint">${esc(HINT[d.stage]||'')}</div>
+  <div class="row" style="margin:8px 0">${nextLabel(d)?`<button onclick="act('${d.id}','advance')">${nextLabel(d)}</button>`:''}
+   ${d.stage==='PendingApproval'?`<button class="alt" onclick="act('${d.id}','reject')">退回</button>`:''}
+   ${['PendingApproval','Approved','Archived'].includes(d.stage)?`<button class="alt" onclick="act('${d.id}','run-all')">一鍵跑完</button>`:''}
+   ${d.archived&&d.stage!=='Purged'&&d.stage!=='Deleting'&&d.jobIds.length?`<button class="alt" onclick="act('${d.id}','dispatch')" title="同一個 csitJobId,驗證冪等">重送(同工作)</button><button class="alt" onclick="act('${d.id}','dispatch',{newJob:true})" title="新的 csitJobId">新工作重送</button>`:''}
+   ${d.archived&&!['Purged','Deleting'].includes(d.stage)?`<button class="danger" onclick="if(confirm('通知 KM 刪除這份文件?'))act('${d.id}','delete')">刪除</button>`:''}
+   ${d.stage==='Deleting'||d.stage==='Purged'?`<button class="alt" onclick="act('${d.id}','delete',{deletionRequestId:'${d.delIds[0]}'})">重送刪除通知(同請求)</button>`:''}
+   ${d.stage==='Purged'?`<button class="alt" onclick="act('${d.id}','dispatch')" title="KM 應回 409">再派送上傳通知(應被拒絕)</button>`:''}</div>
+  <div class="kv"><div>documentFileId</div><div class="mono">${d.id}</div><div>sha256</div><div class="mono">${d.sha256}</div><div>分類</div><div>${cls(d)}</div>
+   ${last?`<div>csitJobId</div><div class="mono">${last.csitJobId}</div><div>kmJobId</div><div class="mono">${esc(last.kmJobId||'—')}</div>`:''}
+   ${d.dels[0]?`<div>deletionRequestId</div><div class="mono">${d.dels[0].deletionRequestId}</div><div>kmDeletionJobId</div><div class="mono">${esc(d.dels[0].kmDeletionJobId||'—')}</div>`:''}</div></div>
+  <div class="card"><h2>情境注入(影響這份文件)</h2><div class="row">
+   <label>KM 下載時<select onchange="fault('${d.id}',{download:this.value})">${[['none','正常'],['tamper','內容被改動 → SHA256 不符'],['truncate','內容被截斷'],['unavailable','前 N 次回 503(應自動重試)'],['forbidden','回 403'],['notfound','回 404']].map(([v,t])=>`<option value="${v}" ${f.download===v?'selected':''}>${t}</option>`).join('')}</select></label>
+   <label>N<input type="number" min="0" style="width:60px" value="${f.downloadFailures}" onchange="fault('${d.id}',{downloadFailures:+this.value})"></label>
+   <label style="flex-direction:row;align-items:center;gap:5px;color:var(--fg)"><input type="checkbox" ${f.badToken?'checked':''} onchange="fault('${d.id}',{badToken:this.checked})">派送用錯誤 token</label>
+   <label style="flex-direction:row;align-items:center;gap:5px;color:var(--fg)"><input type="checkbox" ${f.wrongDeclaredSha?'checked':''} onchange="fault('${d.id}',{wrongDeclaredSha:this.checked})">通知寫錯 sha256</label>
+   <label style="flex-direction:row;align-items:center;gap:5px;color:var(--fg)"><input type="checkbox" ${f.noIdempotencyKey?'checked':''} onchange="fault('${d.id}',{noIdempotencyKey:this.checked})">不帶 Idempotency-Key</label></div>
+   <div class="mute" style="margin-top:4px">設定後再按「派送 / 重送」生效。</div></div>
+  <div class="card"><h2>規格判定 ${bad.length?`<span class="badge bad">${bad.length} 項不符</span>`:'<span class="badge ok">目前符合</span>'}</h2>
+   ${d.allVerdicts.length?d.allVerdicts.map(v=>`<div class="v ${v.ok?'ok':'bad'}">${v.ok?'✔':'✘'} ${esc(v.what)}</div>`).join(''):'<span class="mute">尚無</span>'}</div>
+  ${last?.result?metaCard(last.result):''}${last?.error?`<div class="card"><h2>KM 回報失敗</h2><pre>${J(last.error)}</pre></div>`:''}
+  ${d.dels.some(x=>x.result)?delCard(d.dels.find(x=>x.result).result):''}
+  <div class="card"><h2>時間線</h2><div class="tl">${[...d.timeline,...d.jobs.flatMap(j=>j.timeline),...d.dels.flatMap(j=>j.timeline)].sort((a,b)=>a.t<b.t?-1:1).map(e=>`<div><span class="mono mute">${e.t.slice(11,23)}</span> ${esc(e.kind)}${e.detail?` <span class="mute">${esc(typeof e.detail==='string'?e.detail:JSON.stringify(e.detail))}</span>`:''}</div>`).join('')}</div></div>
+  <div class="card"><h2>這份文件的 API 往返(${calls.length})</h2>${calls.length?calls.map(trow).join(''):'<span class="mute">尚無</span>'}</div>`}
+async function fault(id,b){const d=await api('/api/docs/'+id+'/faults',b);if(d)await load()}
+function metaCard(r){const D=r.document,X=r.extraction,I=r.indexing,Tc=r.technical;
+  const list=a=>a.length?a.map(x=>`<span class="pill">${esc(typeof x==='string'?x:JSON.stringify(x))}</span>`).join(''):'<span class="mute">[]</span>';
+  return `<div class="card"><h2>KM 回傳的 AI Metadata(Completed.result)</h2><div class="kv">
+  <div>文件類型</div><div><b>${esc(D.documentType)}</b></div><div>摘要</div><div>${esc(D.summary??'null')}</div><div>關鍵字</div><div>${list(D.keywords)}</div>
+  <div>語言</div><div>${esc(D.language??'null')}</div><div>標題 / 日期 / 作者</div><div class="mute">${esc(D.title??'null')} / ${esc(D.documentDate??'null')} / ${D.authors.length?D.authors.join(','):'[]'}(KM 不知道的不會亂填)</div>
+  <div>擷取</div><div>${esc(X.sourceFormat)} · ${esc(X.method)} · ${X.extractedCharacterCount} 字 · 頁數 ${X.pageCount??'null'} · OCR ${X.ocrUsed}</div>
+  <div>索引</div><div class="mono">${esc(I.status)} · ${esc(I.indexId)} · ${I.chunkCount} chunks · ${esc(I.indexedAt)}</div>
+  <div>技術欄位</div><div class="mute">${Object.entries(Tc).filter(([k,v])=>v.length).map(([k,v])=>k+':'+v.length).join('、')||'全為空陣列'}</div>
+  <div>warnings</div><div>${list(r.warnings)}</div></div><details><summary>完整 JSON</summary><pre>${J(r)}</pre></details></div>`}
+function delCard(r){return `<div class="card"><h2>KM 刪除驗證結果</h2><div class="kv"><div>cleanupVerified</div><div class="ok"><b>${r.cleanupVerified}</b> · ${esc(r.verifiedAt)}</div>
+  ${Object.entries(r.cleanup).map(([k,v])=>`<div>${k}</div><div><span class="badge ${v==='Deleted'?'ok':'mute'}">${v}</span></div>`).join('')}</div></div>`}
+
+// ---------- API 流量 ----------
+function trow(t){const out=t.direction==='CSIT→KM';
+  return `<details><summary><span class="dir ${out?'out':'in'}">${esc(t.direction)}</span> <b>${t.method}</b> ${esc(t.path.replace('/api/integrations',''))} <span class="badge ${t.status>=200&&t.status<300?'ok':(t.status>=400||!t.status)?'bad':'warn'}">${t.status??'無回應'}</span> <span class="mute">${t.t.slice(11,23)}${t.ms!=null?' · '+t.ms+'ms':''}</span></summary>
+   ${t.note?`<div class="mute">${esc(t.note)}</div>`:''}${t.request!=null?`<div class="mute">Request</div><pre>${J(t.request)}</pre>`:''}${t.response!=null?`<div class="mute">Response</div><pre>${J(t.response)}</pre>`:''}</details>`}
+function drawTraffic(){const rows=T.filter(t=>(!filt.dir||t.direction===filt.dir)&&(!filt.doc||t.docId===filt.doc)).slice().reverse();
+  $('main').innerHTML=`<div class="card"><h2>API 流量(${rows.length})</h2><div class="row"><label>方向<select onchange="filt.dir=this.value;drawTraffic()"><option value="">全部</option><option ${filt.dir==='CSIT→KM'?'selected':''}>CSIT→KM</option><option ${filt.dir==='KM→CSIT'?'selected':''}>KM→CSIT</option></select></label>
+  <label>文件<select onchange="filt.doc=this.value;drawTraffic()"><option value="">全部</option>${S.docs.map(d=>`<option value="${d.id}" ${filt.doc===d.id?'selected':''}>${esc(d.name)} ${d.id.slice(0,6)}</option>`).join('')}</select></label></div>
+  <div style="margin-top:8px">${rows.length?rows.map(trow).join(''):'<div class="empty">尚無流量</div>'}</div></div>`}
+
+// ---------- KM 內部 ----------
+async function drawKm(){
+  if(!S.settings.inspectAvailable){$('main').innerHTML='<div class="card"><h2>KM 內部觀察</h2><div class="empty">只有本機 demo(python -m tools.csit_simulator.demo)能看到 KM 資料庫與向量庫。<br>連到外部 KM 時,請從「API 流量」觀察。</div></div>';return}
+  const k=inspect;if(!k){$('main').innerHTML='<div class="card"><div class="empty">讀取中…</div></div>';return}
+  const tbl=(title,rows,cols)=>`<div class="card"><h2>${title}(${rows.length})</h2>${rows.length?`<div style="overflow:auto"><table><tr>${cols.map(c=>`<th>${c}</th>`).join('')}</tr>${rows.map(r=>`<tr>${cols.map(c=>`<td class="${c.includes('id')||c.includes('Id')||c==='sha'?'mono':''}">${esc(r[c]??'')}</td>`).join('')}</tr>`).join('')}</table></div>`:'<div class="empty">空</div>'}</div>`;
+  $('main').innerHTML=`<div class="hint">這是 KM 這一側的真實資料(本機 demo 的 PostgreSQL 與向量庫),用來對照 CSIT 這邊看到的流程。</div>`+
+   tbl('文件專區工作 km_csit_doclib_jobs',k.jobs,['kmJobId','status','phase','attempts','lastError','nextRetry','fileId']) +
+   tbl('向量庫(依文件統計)',k.vectors,['documentFileId','chunks','sample']) +
+   tbl('刪除工作',k.deletions,['kmDeletionJobId','status','phase','attempts','lastError','sourceKey']) +
+   tbl('Tombstone(已刪除,不可復活)',k.tombstones,['sourceType','sourceKey']) +
+   tbl('回報 Outbox',k.outbox,['kind','status','payloadStatus','attempts','lastError']) +
+   tbl('本機儲存檔案',k.files,['path','bytes'])}
+
+// ---------- 設定 ----------
+function drawSet(){$('main').innerHTML=`<div class="card"><h2>連線設定</h2><div class="row"><label>KM 位址<input id="kmurl" size="38" value="${esc(S.settings.kmBaseUrl)}"></label>
+  <label>Bearer token(DEV)<input id="kmtok" size="26" placeholder="${S.settings.hasToken?'已設定,留空表示不變':''}"></label>
+  <button onclick="saveSet()">儲存</button><button class="alt" onclick="doPing()">測試連線</button></div><div id="pingout" class="mute" style="margin-top:6px"></div></div>
+  <div class="card"><h2>情境:KM 回報時 CSIT 端故障</h2><div class="row"><label>接下來 N 次 KM 回報,CSIT 回<input id="cf" type="number" min="0" value="${S.faults.callbackFailures||0}" style="width:70px"></label>
+  <label>狀態碼<select id="cs"><option ${S.faults.callbackStatus==503?'selected':''}>503</option><option ${S.faults.callbackStatus==409?'selected':''}>409</option><option ${S.faults.callbackStatus==500?'selected':''}>500</option></select></label>
+  <button onclick="cfault()">設定</button></div><div class="mute" style="margin-top:6px">用來驗證:KM 的回報被擋時會持久化重試,且順序不亂(Processing → Completed)。剩餘 ${S.faults.callbackFailures||0} 次。</div></div>
+  <div class="card"><h2>清除</h2><button class="danger" onclick="if(confirm('清除所有文件與紀錄?(KM 那邊的資料不會被清除)'))api('/api/reset',{}).then(load)">清除模擬器資料</button></div>`}
+async function saveSet(){await api('/api/settings',{kmBaseUrl:$('kmurl').value,token:$('kmtok').value||undefined});await doPing();await load()}
+async function doPing(){const r=await api('/api/km/ping');$('pingout').innerHTML=r?(r.ok?`<span class="ok">✔ KM 可連線</span> ${esc(r.body)}`:`<span class="bad">✘ 無法連線</span> ${esc(r.error||r.status)}`):''}
+async function cfault(){await api('/api/callback-faults',{callbackFailures:+$('cf').value,callbackStatus:+$('cs').value});await load()}
+
+// ---------- loop ----------
+async function load(){
+  const [s,t]=await Promise.all([fetch('/api/state').then(r=>r.json()),fetch('/api/traffic?after='+lastTid).then(r=>r.json())]);
+  S=s;if(t.length){T=T.concat(t);lastTid=t[t.length-1].id;T=T.slice(-500)}
+  const r=await fetch('/api/report').then(r=>r.json());$('score').innerHTML=r.failed?`<span style="color:#ff9b93">✘ 不符 ${r.failed}</span> · ✔ ${r.passed}`:`✔ 符合 ${r.passed}`;
+  if(tab==='km'&&S.settings.inspectAvailable)inspect=await fetch('/api/km/inspect').then(r=>r.ok?r.json():null);
+  if(tab==='docs'){ // keep the upload form untouched while the user is typing; refresh the list and detail only
+    if(!$('detail'))drawDocs();else{const g=JSON.stringify(S.docs)+T.length+sel;if(g!==sig){sig=g;refreshList();const o=[...document.querySelectorAll('#detail details')].map(x=>x.open);drawDetail();document.querySelectorAll('#detail details').forEach((x,i)=>{if(o[i])x.open=true})}}}
+  else if(tab==='traffic'){const g='t'+T.length;if(g!==sig&&!document.querySelectorAll('#main details[open]').length){sig=g;drawTraffic()}}
+  else if(tab==='km')drawKm();
+  drawNav()}
+function refreshList(){const box=document.querySelector('.split .card');if(!box)return;
+  box.innerHTML=`<h2>文件專區(${S.docs.length})</h2>${S.docs.length?`<table><tr><th>文件</th><th>分類</th><th>狀態</th><th>操作</th></tr>`+
+  S.docs.slice().reverse().map(d=>`<tr class="doc ${d.id===sel?'sel':''}" onclick="sel='${d.id}';sig='';refreshList();drawDetail()"><td><b>${esc(d.name)}</b><div class="mute mono">${d.id.slice(0,8)} · ${d.size} B</div></td><td>${cls(d)}</td><td>${badge(d)}</td>
+  <td onclick="event.stopPropagation()">${nextLabel(d)?`<button onclick="act('${d.id}','advance')">${nextLabel(d)}</button>`:''}</td></tr>`).join('')+'</table>':'<div class="empty">尚無文件,先上傳一份</div>'}`}
+(async()=>{taxo=await fetch('/api/taxonomy').then(r=>r.json());await load();draw();
+  const p=async()=>{const r=await fetch('/api/km/ping').then(r=>r.json()).catch(()=>({ok:false}));$('kmstat').innerHTML=`<span class="dot ${r.ok?'ok':'bad'}"></span>KM ${r.ok?'已連線':'未連線'}`};p();setInterval(p,8000);setInterval(load,1500)})();
 </script></body></html>

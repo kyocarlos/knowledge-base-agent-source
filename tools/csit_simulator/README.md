@@ -1,35 +1,53 @@
 # CSIT 模擬器(規格 v1.3)
 
-扮演 CSIT,對 KM 演練文件專區寫入與刪除。KM 的每個行為都會依規格逐項判定(通過 / 不符),不連 CSIT 資料庫。
+一套有操作介面的「CSIT 文件管理系統」模擬:你在畫面上上傳文件、核准、歸檔、派送給 KM、刪除,同時看到 KM 在每個時間點收到什麼、回了什麼、
+回報的內容是否符合規格。不連 CSIT 資料庫。
 
-## 啟動
+## 最快試法(本機完整流程,不需要 KM 環境)
 
 ```bash
-python -m tools.csit_simulator serve --km-base-url http://<KM>:<port> --token <DEV bearer> --port 8765
+pip install pgserver "psycopg[binary]" uvicorn fastapi httpx pydantic jsonschema pyjwt cryptography qdrant-client neo4j openpyxl
+python -m tools.csit_simulator.demo
 ```
 
-開 `http://127.0.0.1:8765/`:選檔或輸入文字 → 送出 → 看時間線與判定;可重送(驗冪等)、刪除、注入故障。
+會起:內嵌 PostgreSQL + **真實的 KM 路由與 worker**(向量庫為記憶體版、認證用固定 bearer、documentType/摘要/關鍵字用規則式替身,
+加 `--llm` 改用 KM 的 LLM)+ 模擬器畫面,並開啟 `http://127.0.0.1:8765/`。每次啟動都是乾淨狀態。
 
-## 模擬器做的事
+## 畫面
 
-| 方向 | 內容 |
+| 頁面 | 內容 |
 |---|---|
-| CSIT→KM | `POST /api/integrations/csit/v1/document-library/jobs`、`POST .../document-deletions`(帶 `Idempotency-Key`) |
-| KM→CSIT | `GET /api/integrations/km/v1/document-library/files/{id}/content`(可注入:內容被改、截斷、503×N、403、404)、`POST .../document-library/ingestion-status`、`POST .../document-deletion-status` |
+| 文件專區 | 上傳(含 L1/L2/L3 分類)。預設停在「待核准」,**每一步手動按**:主管核准 → NAS 歸檔 → 派送給 KM。點文件看流程條、提示(對應規格章節)、規格判定、KM 回傳的 AI Metadata、時間線、這份文件的 API 往返 |
+| API 流量 | 兩個方向的每一次 HTTP:方法、路徑、狀態碼、耗時,展開可看完整 Request / Response JSON |
+| KM 內部觀察 | (僅 demo)KM 的工作表、向量庫、刪除工作、tombstone、回報 outbox、本機儲存檔案,對照 CSIT 這邊看到的 |
+| 情境與設定 | KM 位址與 token、測試連線、「KM 回報時 CSIT 端故障」、清除資料 |
 
-收到 KM 回報時檢查:欄位齊全(含 Completed.result 全部 key)、時間戳三鍵、callbackId 冪等(同內容 204、不同內容 409)、
-終態後不可再收狀態、Processing 不可重複、關聯 ID 與 202 一致、刪除七項清理只能是 Deleted/NotPresent 且 `cleanupVerified=true`。
+文件層級的情境注入:下載內容被改動(SHA256 不符)、截斷、前 N 次 503、403、404、派送用錯誤 token、通知寫錯 sha256、不帶 Idempotency-Key。
+另有「重送(同工作)」驗冪等、「新工作重送」、「再派送上傳通知(已刪除的文件,應被拒絕)」。
 
-## 本機端到端演練(26 項)
+## 對外部 KM(DEV)驗證
 
 ```bash
-TEST_DATABASE_URL=postgresql://user:pass@host/db python -m tools.csit_simulator.drill
+python -m tools.csit_simulator serve --km-base-url https://<KM> --token <DEV bearer> --port 8765 --data-dir ./sim-data
 ```
 
-起模擬器 + 真實 KM 路由與 worker(向量庫用記憶體版、認證用固定 bearer),全程走真實 HTTP。
+KM 端要把 CSIT 的 base URL 指到模擬器、並接受同一個 bearer。此模式沒有「KM 內部觀察」,請用「API 流量」。
+
+## 模擬器的判定(依規格 v1.3 獨立撰寫,不 import KM 程式)
+
+欄位齊全(含 Completed.result 全部 key)、時間戳三鍵、callbackId 冪等(同內容 204、不同內容 409)、終態後不可再收狀態、Processing 不可重複、
+關聯 ID 與 202 一致、刪除七項清理只能是 Deleted/NotPresent 且 `cleanupVerified=true`。CSIT 流程也照規格:未核准、未入 NAS 不會通知 KM;
+KM 驗證刪除完成後,CSIT 才移除自己的檔案。
+
+## 自動化演練與測試
+
+```bash
+TEST_DATABASE_URL=postgresql://user:pass@host/db python -m tools.csit_simulator.drill   # 30 項,真實 HTTP
+python -m pytest tests/csit_simulator -q
+```
 
 ## 尚未涵蓋
 
 - 真實 M2M(JWKS、client credentials、audience/scope):這版用固定 bearer。
 - 7444 TLS 入口與 allowlist。
-- Test Report v1 的通知(`ingestion-jobs`)與 v1.3 §8、§9.2 提案中的介面。
+- Test Report v1 通知、v1.3 §8 / §9.2 的提案介面。

@@ -1,220 +1,326 @@
-"""CSIT simulator: plays CSIT for KM against CSIT x AI KM spec v1.3.
+"""CSIT simulator engine: a document library that behaves like CSIT toward KM (spec v1.3).
 
-Outbound (CSIT -> KM): document-library/jobs and document-deletions.
-Inbound  (KM -> CSIT): file download, document-library/ingestion-status, document-deletion-status.
-Every KM behaviour is judged against the spec and recorded as a verdict; nothing here talks to a CSIT database.
+A document moves 上傳 -> 核准 -> NAS 歸檔 -> 派送 KM -> KM 處理 exactly as spec section 4.1 describes, one manual step at a time or
+all at once. Every HTTP exchange with KM is recorded (traffic) and every KM behaviour is judged against the spec (verdicts).
 """
 import base64,hashlib,json,threading,time,uuid
 from datetime import datetime,timezone
 from pathlib import Path
 import httpx
-from fastapi import FastAPI,HTTPException,Request,Response
-from fastapi.responses import HTMLResponse
+from fastapi import HTTPException,Request,Response
 from .checks import check_ingestion_callback,check_deletion_callback
 
 BASE="/api/integrations/km/v1"
+TAXONOMY=[
+ {"id":"10","name":"設備儀器","children":[{"id":"11","name":"頻譜分析儀","children":[{"id":"111","name":"FSW 系列"},{"id":"112","name":"MS269x 系列"}]},
+                                    {"id":"12","name":"網路分析儀","children":[]}]},
+ {"id":"20","name":"Wi-Fi 專區","children":[{"id":"21","name":"規格文件","children":[]},{"id":"22","name":"測試報告","children":[{"id":"221","name":"Wi-Fi 7"}]}]},
+ {"id":"30","name":"認證","children":[{"id":"31","name":"NCC","children":[]},{"id":"32","name":"CE","children":[]}]}]
+NEXT={"PendingApproval":"approve","Approved":"archive","Archived":"dispatch"}
+
 def now():return datetime.now(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00","Z")
+def _find_class(node_id,nodes):
+    for n in nodes:
+        if n["id"]==node_id:return {"id":n["id"],"name":n["name"]}
+        r=_find_class(node_id,n.get("children",[]))
+        if r:return r
+    return None
 
 class Sim:
-    def __init__(self,km_base_url,token,timeout=15):
+    def __init__(self,km_base_url,token,timeout=15,data_dir=None,inspect=None):
         self.km=km_base_url.rstrip("/");self.token=token;self.timeout=timeout
+        self.inspect=inspect # callable -> dict (only the local demo can look inside KM)
+        self.dir=Path(data_dir) if data_dir else None
         self.lock=threading.RLock()
-        self.reset()
-    def reset(self):
-        with self.lock:
-            self.jobs={};self.dels={};self.seen_callbacks={};self.violations=[];self.global_faults={"callbackFailures":0,"callbackStatus":503}
-    # ---------- helpers ----------
-    def ev(self,obj,kind,detail=None):obj["timeline"].append({"t":now(),"kind":kind,"detail":detail})
-    def verdict(self,obj,ok,what):
-        obj["verdicts"].append({"ok":ok,"what":what})
-        if not ok:self.violations.append({"ref":obj.get("kmJobId") or obj.get("csitJobId") or obj.get("deletionRequestId"),"what":what})
-    def _headers(self,key,bad):
-        return {"Authorization":"Bearer "+("not-the-real-token" if bad else self.token),"Idempotency-Key":key,"Content-Type":"application/json"}
-    def _auth_ok(self,request):
-        return request.headers.get("authorization")=="Bearer "+self.token
+        self.reset(clear_disk=False)
+        if self.dir:self._load()
 
-    # ---------- CSIT -> KM ----------
-    def create_job(self,spec):
-        content=base64.b64decode(spec["contentBase64"]) if spec.get("contentBase64") else spec.get("contentText","").encode()
-        sha=hashlib.sha256(content).hexdigest()
-        job={"csitJobId":spec.get("csitJobId") or str(uuid.uuid4()),"documentFileId":spec.get("documentFileId") or str(uuid.uuid4()),
-             "fileName":spec.get("fileName","document.txt"),"content":content,"sha256":spec.get("declaredSha256") or sha,
-             "declaredSize":spec.get("declaredSize",len(content)),"contentType":spec.get("contentType","text/plain"),
-             "classification":spec.get("classification") or {"l1":{"id":"1","name":"Equipment"},"l2":{"id":"2","name":"Wi-Fi"},"l3":None},
-             "faults":{"download":spec.get("downloadFault","none"),"downloadFailures":int(spec.get("downloadFailures",0)),
-                       "badToken":bool(spec.get("badToken")),"noIdempotencyKey":bool(spec.get("noIdempotencyKey"))},
-             "state":"New","kmJobId":None,"callbacks":[],"downloads":[],"verdicts":[],"timeline":[],"deleted":False,"sendCount":0}
-        with self.lock:self.jobs[job["csitJobId"]]=job
-        return self.send_job(job["csitJobId"])
-    def send_job(self,csit_job_id):
-        job=self.jobs[csit_job_id]
-        body={"schemaVersion":"1.0","sourceSystem":"CSIT","eventType":"DocumentLibraryFileUploaded","documentFileId":job["documentFileId"],
-              "csitJobId":job["csitJobId"],"occurredAt":now(),
-              "file":{"originalFileName":job["fileName"],"standardFileName":job["fileName"],"contentType":job["contentType"],
-                      "fileSizeBytes":job["declaredSize"],"sha256":job["sha256"],
-                      "downloadUrl":f"{self.km}{BASE}/document-library/files/{job['documentFileId']}/content"},
-              "classification":job["classification"]}
-        headers=self._headers(job["csitJobId"],job["faults"]["badToken"])
-        if job["faults"]["noIdempotencyKey"]:headers.pop("Idempotency-Key")
-        job["sendCount"]+=1;self.ev(job,"POST /document-library/jobs",{"attempt":job["sendCount"]})
-        try:r=httpx.post(self.km+"/api/integrations/csit/v1/document-library/jobs",json=body,headers=headers,timeout=self.timeout)
-        except httpx.HTTPError as e:
-            self.ev(job,"send failed",type(e).__name__);self.verdict(job,False,"KM unreachable: "+type(e).__name__);return self.public(job)
-        self.ev(job,f"KM answered {r.status_code}",r.text[:300])
-        if job["faults"]["badToken"]:
-            self.verdict(job,r.status_code==401,"invalid bearer token is rejected with 401 (got %s)"%r.status_code)
-        elif r.status_code==202:
-            d=r.json()
-            ok=d.get("csitJobId")==job["csitJobId"] and d.get("status")=="Accepted" and isinstance(d.get("kmJobId"),str) and d["kmJobId"]
-            self.verdict(job,bool(ok),"202 body is {csitJobId,kmJobId,status:Accepted}")
-            if job["kmJobId"] and d.get("kmJobId")!=job["kmJobId"]:self.verdict(job,False,"resend returned a different kmJobId (must be idempotent)")
-            elif job["kmJobId"]:self.verdict(job,True,"resend returned the original kmJobId")
-            job["kmJobId"]=d.get("kmJobId");job["state"]="Accepted"
-        else:
-            job["state"]="Rejected"
-            self.verdict(job,r.status_code in (409,422,503),f"KM refused the job with {r.status_code}")
-        return self.public(job)
-    def create_deletion(self,spec):
-        res=spec.get("resource")
-        if not res:
-            fid=spec["documentFileId"]
-            res={"sourceType":"DocumentLibraryFile","documentFileId":fid,"documentId":None,"version":None,"sourceEntityId":None,"applicationId":None,"recordId":None}
-        if spec.get("deletionRequestId") in self.dels:return self.send_deletion(spec["deletionRequestId"]) # a resend, not a new request
-        d={"deletionRequestId":spec.get("deletionRequestId") or str(uuid.uuid4()),"resource":res,"kmDeletionJobId":None,"state":"New",
-           "callbacks":[],"verdicts":[],"timeline":[]}
+    # ---------- state ----------
+    def reset(self,clear_disk=True):
         with self.lock:
-            self.dels[d["deletionRequestId"]]=d
-            for j in self.jobs.values():
-                if j["documentFileId"]==res.get("documentFileId"):j["deleted"]=True # CSIT stops serving the file once it deletes it
-        return self.send_deletion(d["deletionRequestId"])
-    def send_deletion(self,rid):
-        d=self.dels[rid]
-        body={"schemaVersion":"1.0","sourceSystem":"CSIT","eventType":"DocumentDeletionRequested","deletionRequestId":rid,
-              "requestedAt":now(),"reasonCode":"DocumentFileDeleted","resource":d["resource"]}
-        self.ev(d,"POST /document-deletions")
-        try:r=httpx.post(self.km+"/api/integrations/csit/v1/document-deletions",json=body,headers=self._headers(rid,False),timeout=self.timeout)
+            self.docs={};self.jobs={};self.dels={};self.seen={};self.traffic=[];self.tid=0;self.violations=[]
+            self.faults={"callbackFailures":0,"callbackStatus":503}
+            if clear_disk and self.dir and (self.dir/"content").is_dir():
+                for f in (self.dir/"content").glob("*"):f.unlink()
+                (self.dir/"state.json").unlink(missing_ok=True)
+    def _save(self):
+        if not self.dir:return
+        with self.lock:
+            self.dir.mkdir(parents=True,exist_ok=True);(self.dir/"content").mkdir(exist_ok=True)
+            for d in self.docs.values():
+                if d["content"] is not None:(self.dir/"content"/(d["id"]+".bin")).write_bytes(d["content"])
+            snap={"docs":{k:{x:y for x,y in v.items() if x!="content"} for k,v in self.docs.items()},"jobs":self.jobs,"dels":self.dels,
+                  "seen":self.seen,"traffic":self.traffic[-300:],"tid":self.tid,"violations":self.violations}
+            tmp=self.dir/"state.tmp";tmp.write_text(json.dumps(snap,ensure_ascii=False),encoding="utf-8");tmp.replace(self.dir/"state.json")
+    def _load(self):
+        f=self.dir/"state.json"
+        if not f.is_file():return
+        s=json.loads(f.read_text(encoding="utf-8"))
+        self.docs=s["docs"];self.jobs=s["jobs"];self.dels=s["dels"];self.seen=s["seen"];self.traffic=s["traffic"];self.tid=s["tid"];self.violations=s["violations"]
+        for k,d in self.docs.items():
+            p=self.dir/"content"/(k+".bin");d["content"]=p.read_bytes() if p.is_file() else None
+
+    # ---------- bookkeeping ----------
+    def ev(self,obj,kind,detail=None):obj["timeline"].append({"t":now(),"kind":kind,"detail":detail})
+    def verdict(self,obj,ok,what,ref=None):
+        obj["verdicts"].append({"ok":ok,"what":what,"t":now()})
+        if not ok:self.violations.append({"ref":ref or obj.get("name") or obj.get("id"),"what":what})
+    def log(self,direction,method,path,status,req=None,resp=None,doc=None,ms=None,note=None):
+        with self.lock:
+            self.tid+=1
+            self.traffic.append({"id":self.tid,"t":now(),"direction":direction,"method":method,"path":path,"status":status,"ms":ms,
+                                 "request":req,"response":resp,"docId":doc,"note":note})
+            del self.traffic[:-500]
+    def _headers(self,key,bad=False):
+        h={"Authorization":"Bearer "+("not-the-real-token" if bad else self.token),"Content-Type":"application/json"}
+        if key:h["Idempotency-Key"]=key
+        return h
+    def _auth_ok(self,request):return request.headers.get("authorization")=="Bearer "+self.token
+
+    # ---------- documents (CSIT's own workflow) ----------
+    def create_doc(self,spec):
+        content=base64.b64decode(spec["contentBase64"]) if spec.get("contentBase64") else spec.get("contentText","").encode()
+        cls={}
+        for lvl in ("l1","l2","l3"):
+            cid=(spec.get("classification") or {}).get(lvl)
+            cls[lvl]=_find_class(cid,TAXONOMY) if cid else None
+        d={"id":spec.get("documentFileId") or str(uuid.uuid4()),"name":spec.get("fileName","document.txt"),"size":len(content),
+           "sha256":hashlib.sha256(content).hexdigest(),"contentType":spec.get("contentType","text/plain"),"classification":cls,
+           "uploader":spec.get("uploader","simulator.user"),"stage":"PendingApproval","archived":False,"approvedBy":None,
+           "faults":{"download":"none","downloadFailures":2,"badToken":False,"noIdempotencyKey":False,"wrongDeclaredSha":False},
+           "jobIds":[],"delIds":[],"timeline":[],"verdicts":[],"content":content,"uploadedAt":now(),"kmStatus":None,"deleteState":None}
+        if "downloadFault" in spec:d["faults"]["download"]=spec["downloadFault"]
+        if "downloadFailures" in spec:d["faults"]["downloadFailures"]=int(spec["downloadFailures"])
+        for k in ("badToken","noIdempotencyKey","wrongDeclaredSha"):
+            if k in spec:d["faults"][k]=bool(spec[k])
+        with self.lock:self.docs[d["id"]]=d
+        self.ev(d,"員工上傳","進入待核准(Approval Staging)")
+        if spec.get("autoRun"):self.run_all(d["id"])
+        self._save();return self.view(d)
+    def _doc(self,doc_id):
+        d=self.docs.get(doc_id)
+        if d is None:raise HTTPException(404,"unknown document")
+        return d
+    def approve(self,doc_id,by="manager.sim"):
+        d=self._doc(doc_id)
+        if d["stage"]!="PendingApproval":raise HTTPException(409,"only a pending document can be approved")
+        d["stage"]="Approved";d["approvedBy"]=by;self.ev(d,"主管核准",by);self._save();return self.view(d)
+    def reject(self,doc_id):
+        d=self._doc(doc_id)
+        if d["stage"]!="PendingApproval":raise HTTPException(409,"only a pending document can be rejected")
+        d["stage"]="Rejected";self.ev(d,"主管退回","不會歸檔,不會通知 KM");self._save();return self.view(d)
+    def archive(self,doc_id):
+        d=self._doc(doc_id)
+        if d["stage"]!="Approved":raise HTTPException(409,"approve first: KM is notified only after the NAS archive")
+        d["stage"]="Archived";d["archived"]=True;self.ev(d,"CSIT NAS 正式入庫","ArchiveStatus=Completed,建立 KM Outbox");self._save();return self.view(d)
+    def run_all(self,doc_id):
+        d=self._doc(doc_id)
+        if d["stage"]=="PendingApproval":self.approve(doc_id)
+        if d["stage"]=="Approved":self.archive(doc_id)
+        if d["stage"]=="Archived":return self.dispatch(doc_id)
+        return self.view(d)
+    def advance(self,doc_id):
+        d=self._doc(doc_id);step=NEXT.get(d["stage"])
+        if not step:raise HTTPException(409,"nothing to advance from "+d["stage"])
+        return getattr(self,step)(doc_id)
+    def dispatch(self,doc_id,new_job=False):
+        """Outbox -> KM. Without new_job a resend reuses the same csitJobId (idempotency); with it, a second job is created."""
+        d=self._doc(doc_id)
+        if not d["archived"]:raise HTTPException(409,"NAS archive must complete before KM is notified")
+        if d["stage"]=="Rejected":raise HTTPException(409,"document was rejected")
+        # A Purged document may still be dispatched on purpose: KM must refuse it (tombstone), which is exactly what we want to observe.
+        with self.lock:
+            if d["jobIds"] and not new_job:cid=d["jobIds"][-1]
+            else:
+                cid=str(uuid.uuid4())
+                self.jobs[cid]={"csitJobId":cid,"docId":d["id"],"kmJobId":None,"state":"New","callbacks":[],"downloads":[],"verdicts":[],
+                                "timeline":[],"sendCount":0}
+                d["jobIds"].append(cid)
+        if d["stage"]=="Archived":d["stage"]="Dispatched"
+        self._send_job(d,self.jobs[cid]);self._save();return self.view(d)
+    def _send_job(self,d,job):
+        f=d["faults"]
+        sha="0"*64 if f["wrongDeclaredSha"] else d["sha256"]
+        body={"schemaVersion":"1.0","sourceSystem":"CSIT","eventType":"DocumentLibraryFileUploaded","documentFileId":d["id"],
+              "csitJobId":job["csitJobId"],"occurredAt":now(),
+              "file":{"originalFileName":d["name"],"standardFileName":d["name"],"contentType":d["contentType"],"fileSizeBytes":d["size"],
+                      "sha256":sha,"downloadUrl":f"{self.km}{BASE}/document-library/files/{d['id']}/content"},
+              "classification":d["classification"]}
+        job["sendCount"]+=1
+        path="/api/integrations/csit/v1/document-library/jobs"
+        self.ev(job,"CSIT→KM 派送通知",f"第 {job['sendCount']} 次")
+        t0=time.monotonic()
+        try:r=httpx.post(self.km+path,json=body,headers=self._headers(None if f["noIdempotencyKey"] else job["csitJobId"],f["badToken"]),timeout=self.timeout)
         except httpx.HTTPError as e:
-            self.verdict(d,False,"KM unreachable: "+type(e).__name__);return self.public(d)
-        self.ev(d,f"KM answered {r.status_code}",r.text[:300])
-        if r.status_code==202:
-            x=r.json()
-            self.verdict(d,x.get("deletionRequestId")==rid and x.get("status")=="Accepted" and bool(x.get("kmDeletionJobId")),"202 body is {deletionRequestId,kmDeletionJobId,status:Accepted}")
-            d["kmDeletionJobId"]=x.get("kmDeletionJobId");d["state"]="Accepted"
+            self.log("CSIT→KM","POST",path,None,body,{"error":type(e).__name__},d["id"],note="KM 無法連線")
+            self.ev(job,"KM 無法連線",type(e).__name__);self.verdict(job,False,"KM unreachable: "+type(e).__name__,d["name"]);self.ev(d,"派送失敗","KM 無法連線");return
+        ms=int((time.monotonic()-t0)*1000)
+        try:resp=r.json()
+        except ValueError:resp=r.text[:400]
+        self.log("CSIT→KM","POST",path,r.status_code,body,resp,d["id"],ms)
+        self.ev(job,f"KM 回應 {r.status_code}",resp if r.status_code!=202 else None)
+        if f["badToken"]:
+            self.verdict(job,r.status_code==401,f"invalid bearer token is rejected with 401 (got {r.status_code})",d["name"])
+        elif r.status_code==202:
+            ok=isinstance(resp,dict) and resp.get("csitJobId")==job["csitJobId"] and resp.get("status")=="Accepted" and bool(resp.get("kmJobId"))
+            self.verdict(job,ok,"202 body is {csitJobId,kmJobId,status:Accepted}",d["name"])
+            if job["kmJobId"]:
+                same=isinstance(resp,dict) and resp.get("kmJobId")==job["kmJobId"]
+                self.verdict(job,same,"resend returned the original kmJobId (idempotent)" if same else "resend returned a different kmJobId (must be idempotent)",d["name"])
+            if isinstance(resp,dict):job["kmJobId"]=resp.get("kmJobId");d["kmJobId"]=resp.get("kmJobId")
+            if job["state"]=="New":job["state"]="Accepted"
+            if d["kmStatus"] is None:d["kmStatus"]="Accepted"
+            self.ev(d,"KM 已受理(202)",job["kmJobId"])
         else:
-            d["state"]="Rejected";self.verdict(d,False,f"KM refused the deletion with {r.status_code}")
-        return self.public(d)
+            job["state"]="Rejected";d["kmStatus"]="Rejected"
+            self.verdict(job,r.status_code in (409,422,503),f"KM refused the job with {r.status_code}",d["name"]);self.ev(d,f"KM 拒絕通知({r.status_code})")
+    def set_faults(self,doc_id,faults):
+        d=self._doc(doc_id)
+        for k in ("download","downloadFailures","badToken","noIdempotencyKey","wrongDeclaredSha"):
+            if k in faults:d["faults"][k]=int(faults[k]) if k=="downloadFailures" else (faults[k] if k=="download" else bool(faults[k]))
+        self._save();return self.view(d)
+    def delete(self,doc_id,deletion_request_id=None):
+        d=self._doc(doc_id)
+        if not d["archived"]:raise HTTPException(409,"nothing was archived, so KM has nothing to delete")
+        rid=deletion_request_id or str(uuid.uuid4())
+        if rid in self.dels:return self._send_deletion(self.dels[rid])
+        res={"sourceType":"DocumentLibraryFile","documentFileId":d["id"],"documentId":None,"version":None,"sourceEntityId":None,"applicationId":None,"recordId":None}
+        x={"deletionRequestId":rid,"docId":d["id"],"resource":res,"kmDeletionJobId":None,"state":"New","callbacks":[],"verdicts":[],"timeline":[]}
+        with self.lock:self.dels[rid]=x;d["delIds"].append(rid)
+        d["stage"]="Deleting";d["deleteState"]="Requested";self.ev(d,"使用者刪除文件","通知 KM;KM 驗證清理完成後,CSIT 才刪自己的檔案")
+        return self._send_deletion(x)
+    def _send_deletion(self,x):
+        d=self.docs[x["docId"]]
+        body={"schemaVersion":"1.0","sourceSystem":"CSIT","eventType":"DocumentDeletionRequested","deletionRequestId":x["deletionRequestId"],
+              "requestedAt":now(),"reasonCode":"DocumentFileDeleted","resource":x["resource"]}
+        path="/api/integrations/csit/v1/document-deletions";self.ev(x,"CSIT→KM 刪除通知")
+        t0=time.monotonic()
+        try:r=httpx.post(self.km+path,json=body,headers=self._headers(x["deletionRequestId"]),timeout=self.timeout)
+        except httpx.HTTPError as e:
+            self.log("CSIT→KM","POST",path,None,body,{"error":type(e).__name__},d["id"],note="KM 無法連線")
+            self.verdict(x,False,"KM unreachable: "+type(e).__name__,d["name"]);self._save();return self.view(d)
+        ms=int((time.monotonic()-t0)*1000)
+        try:resp=r.json()
+        except ValueError:resp=r.text[:400]
+        self.log("CSIT→KM","POST",path,r.status_code,body,resp,d["id"],ms);self.ev(x,f"KM 回應 {r.status_code}")
+        if r.status_code==202:
+            ok=isinstance(resp,dict) and resp.get("deletionRequestId")==x["deletionRequestId"] and resp.get("status")=="Accepted" and bool(resp.get("kmDeletionJobId"))
+            self.verdict(x,ok,"202 body is {deletionRequestId,kmDeletionJobId,status:Accepted}",d["name"])
+            if isinstance(resp,dict):x["kmDeletionJobId"]=resp.get("kmDeletionJobId")
+            x["state"]="Accepted";d["deleteState"]="Accepted";self.ev(d,"KM 已受理刪除(202)",x["kmDeletionJobId"])
+        else:
+            x["state"]="Rejected";self.verdict(x,False,f"KM refused the deletion with {r.status_code}",d["name"])
+        self._save();return self.view(d)
 
     # ---------- KM -> CSIT ----------
     def serve_file(self,request,file_id):
-        if not self._auth_ok(request):
-            raise HTTPException(401,"service bearer required")
+        t0=time.monotonic();path=f"{BASE}/document-library/files/{file_id}/content"
+        def refuse(code,note,doc=None):
+            self.log("KM→CSIT","GET",path,code,None,{"detail":note},doc,int((time.monotonic()-t0)*1000),note)
+            raise HTTPException(code,note)
+        if not self._auth_ok(request):refuse(401,"service bearer required")
         with self.lock:
-            job=next((j for j in self.jobs.values() if j["documentFileId"]==file_id),None)
-            if job is None or job["deleted"]:
-                if job:self.ev(job,"download refused: file deleted",404)
-                raise HTTPException(404,"file not found")
-            job["downloads"].append(now());n=len(job["downloads"]);f=job["faults"]
+            d=self.docs.get(file_id)
+            if d is None or d["content"] is None or not d["archived"]:refuse(404,"file not found (not archived, deleted, or unknown)",file_id if d else None)
+            job=self.jobs.get(d["jobIds"][-1]) if d["jobIds"] else None
+            if job is not None:job["downloads"].append(now())
+            n=len(job["downloads"]) if job else 1;f=d["faults"]
             if f["download"]=="unavailable" and n<=f["downloadFailures"]:
-                self.ev(job,"download -> 503 (injected)",n);raise HTTPException(503,"temporarily unavailable")
-            if f["download"]=="forbidden":self.ev(job,"download -> 403 (injected)");raise HTTPException(403,"forbidden")
-            if f["download"]=="notfound":self.ev(job,"download -> 404 (injected)");raise HTTPException(404,"not found")
-            data=job["content"]
-            if f["download"]=="tamper":data=data[:-1]+bytes([data[-1]^1]);self.ev(job,"download served with altered bytes (injected)")
-            elif f["download"]=="truncate":data=data[:len(data)//2];self.ev(job,"download truncated (injected)")
-            else:self.ev(job,"download served",{"attempt":n,"bytes":len(data)})
-            if job["state"]=="Accepted":job["state"]="Downloading"
+                self.ev(d,f"KM 下載 → 503(注入,第 {n} 次)");refuse(503,"temporarily unavailable (injected)",d["id"])
+            if f["download"]=="forbidden":self.ev(d,"KM 下載 → 403(注入)");refuse(403,"forbidden (injected)",d["id"])
+            if f["download"]=="notfound":self.ev(d,"KM 下載 → 404(注入)");refuse(404,"not found (injected)",d["id"])
+            data=d["content"];note="served"
+            if f["download"]=="tamper":data=data[:-1]+bytes([data[-1]^1]);note="served with ALTERED bytes (injected)"
+            elif f["download"]=="truncate":data=data[:len(data)//2];note="served TRUNCATED (injected)"
+            self.ev(d,"KM 下載檔案",f"{len(data)} bytes · {note}")
+            if job and job["state"]=="Accepted":job["state"]="Downloading"
+            if d["kmStatus"]=="Accepted":d["kmStatus"]="Downloading"
+        self.log("KM→CSIT","GET",path,200,None,{"bytes":len(data),"sha256":hashlib.sha256(data).hexdigest(),"note":note},d["id"],int((time.monotonic()-t0)*1000))
+        self._save()
         return Response(data,media_type="application/octet-stream")
-    def _find(self,table,key,value):
-        return next((x for x in table.values() if x.get(key)==value),None)
     def receive(self,request,payload,kind):
-        if not self._auth_ok(request):raise HTTPException(401,"service bearer required")
-        with self.lock:
-            g=self.global_faults
-            if g["callbackFailures"]>0:
-                g["callbackFailures"]-=1
-                raise HTTPException(g["callbackStatus"],"injected failure")
-            if kind=="ingestion":
-                problems=check_ingestion_callback(payload);obj=self._find(self.jobs,"csitJobId",(payload or {}).get("csitJobId")) if isinstance(payload,dict) else None
-                label="ingestion"
-            else:
-                problems=check_deletion_callback(payload);obj=self._find(self.dels,"deletionRequestId",(payload or {}).get("deletionRequestId")) if isinstance(payload,dict) else None
-                label="deletion"
-            if obj is None:
-                self.violations.append({"ref":None,"what":f"{label} callback for an unknown job"})
-                raise HTTPException(404,"unknown job")
-            status=payload.get("status") if isinstance(payload,dict) else None
-            self.ev(obj,f"callback {status}",{"callbackId":(payload or {}).get("callbackId")})
-            if problems:
-                for pr in problems:self.verdict(obj,False,f"{status} callback: {pr}")
-                raise HTTPException(400,{"problems":problems})
-            self.verdict(obj,True,f"{status} callback matches the spec")
-            km_key="kmJobId" if kind=="ingestion" else "kmDeletionJobId"
-            if obj.get(km_key) and payload.get(km_key)!=obj[km_key]:
-                self.verdict(obj,False,f"{km_key} differs from the one returned in the 202");raise HTTPException(409,"correlation mismatch")
-            if kind=="ingestion" and payload["documentFileId"]!=obj["documentFileId"]:
-                self.verdict(obj,False,"documentFileId does not belong to this csitJobId");raise HTTPException(409,"correlation mismatch")
-            cid=payload["callbackId"];canon=json.dumps(payload,sort_keys=True)
-            if cid in self.seen_callbacks:
-                if self.seen_callbacks[cid]==canon:
-                    self.ev(obj,"duplicate callbackId, same body -> 204");return Response(status_code=204)
-                self.verdict(obj,False,"same callbackId reused with a different body");raise HTTPException(409,"callbackId conflict")
-            if obj["state"] in ("Completed","Failed") and status!=obj["state"]:
-                self.verdict(obj,False,f"{status} callback arrived after terminal {obj['state']} (must not overwrite)")
-                raise HTTPException(409,"late status after terminal")
-            if obj["state"]=="Processing" and status=="Processing":
-                self.verdict(obj,False,"second Processing callback (status must not regress)")
-            self.seen_callbacks[cid]=canon;obj["callbacks"].append(payload)
-            if status=="Completed" and kind=="deletion":self.verdict(obj,True,"cleanupVerified=true with seven verified items")
-            obj["state"]=status
+        t0=time.monotonic()
+        path=f"{BASE}/document-library/ingestion-status" if kind=="ingestion" else f"{BASE}/document-deletion-status"
+        def answer(code,note=None,doc=None,raise_=False):
+            self.log("KM→CSIT","POST",path,code,payload,{"note":note} if note else None,doc,int((time.monotonic()-t0)*1000))
+            self._save()
+            if raise_:raise HTTPException(code,note or "rejected")
             return Response(status_code=204)
+        if not self._auth_ok(request):return answer(401,"service bearer required",raise_=True)
+        with self.lock:
+            g=self.faults
+            if g["callbackFailures"]>0:
+                g["callbackFailures"]-=1;return answer(g["callbackStatus"],"injected CSIT failure",raise_=True)
+            if kind=="ingestion":
+                problems=check_ingestion_callback(payload);obj=self.jobs.get((payload or {}).get("csitJobId")) if isinstance(payload,dict) else None
+            else:
+                problems=check_deletion_callback(payload);obj=self.dels.get((payload or {}).get("deletionRequestId")) if isinstance(payload,dict) else None
+            if obj is None:
+                self.violations.append({"ref":None,"what":f"{kind} callback for an unknown job"});return answer(404,"unknown job",raise_=True)
+            d=self.docs[obj["docId"]];status=payload.get("status")
+            self.ev(obj,f"KM→CSIT 回報 {status}",{"callbackId":payload.get("callbackId")})
+            if problems:
+                for pr in problems:self.verdict(obj,False,f"{status} callback: {pr}",d["name"])
+                return answer(400,"; ".join(problems)[:300],d["id"],True)
+            self.verdict(obj,True,f"{status} callback matches the spec",d["name"])
+            kmkey="kmJobId" if kind=="ingestion" else "kmDeletionJobId"
+            if obj.get(kmkey) and payload.get(kmkey)!=obj[kmkey]:
+                self.verdict(obj,False,f"{kmkey} differs from the one returned in the 202",d["name"]);return answer(409,"correlation mismatch",d["id"],True)
+            if kind=="ingestion" and payload["documentFileId"]!=obj["docId"]:
+                self.verdict(obj,False,"documentFileId does not belong to this csitJobId",d["name"]);return answer(409,"correlation mismatch",d["id"],True)
+            cid=payload["callbackId"];canon=json.dumps(payload,sort_keys=True)
+            if cid in self.seen:
+                if self.seen[cid]==canon:
+                    self.ev(obj,"重複的 callbackId(內容相同)→ 204");return answer(204,"duplicate, idempotent",d["id"])
+                self.verdict(obj,False,"same callbackId reused with a different body",d["name"]);return answer(409,"callbackId conflict",d["id"],True)
+            if obj["state"] in ("Completed","Failed") and status!=obj["state"]:
+                self.verdict(obj,False,f"{status} callback arrived after terminal {obj['state']} (must not overwrite)",d["name"])
+                return answer(409,"late status after terminal",d["id"],True)
+            if obj["state"]=="Processing" and status=="Processing":self.verdict(obj,False,"second Processing callback (status must not regress)",d["name"])
+            self.seen[cid]=canon;obj["callbacks"].append(payload);obj["state"]=status
+            if kind=="ingestion":
+                d["kmStatus"]=status
+                if status=="Completed":d["result"]=payload["result"];self.ev(d,"KM 完成:取得 AI Metadata","索引已持久化")
+                elif status=="Failed":d["error"]=payload["error"];self.ev(d,"KM 失敗",payload["error"])
+                else:self.ev(d,"KM 開始處理(Processing)")
+            else:
+                if status=="Completed":
+                    self.verdict(obj,True,"cleanupVerified=true with seven verified items",d["name"])
+                    d["stage"]="Purged";d["deleteState"]="Verified";d["content"]=None
+                    self.ev(d,"KM 驗證清理完成 → CSIT 才刪自己的檔案","CSIT NAS 檔案已移除")
+                    if self.dir:(self.dir/"content"/(d["id"]+".bin")).unlink(missing_ok=True)
+                elif status=="Failed":d["deleteState"]="Failed";self.ev(d,"KM 刪除失敗",payload["error"])
+                else:d["deleteState"]="Processing";self.ev(d,"KM 開始清理(Processing)")
+            return answer(204,None,d["id"])
 
-    # ---------- reporting ----------
-    def public(self,o):
-        view={k:v for k,v in o.items() if k not in ("content","callbacks")}
-        view["callbackStatuses"]=[c.get("status") for c in o["callbacks"]]
-        view["result"]=next((c.get("result") for c in o["callbacks"] if c.get("status")=="Completed"),None)
-        view["sizeBytes"]=len(o["content"]) if "content" in o else None
-        return view
+    # ---------- views ----------
+    def _dview(self,x):
+        v={k:val for k,val in x.items() if k!="callbacks"}
+        v["callbackStatuses"]=[c.get("status") for c in x["callbacks"]]
+        v["result"]=next((c.get("result") for c in x["callbacks"] if c.get("status")=="Completed"),None)
+        v["error"]=next((c.get("error") for c in x["callbacks"] if c.get("status")=="Failed"),None)
+        return v
+    def view(self,d):
+        v={k:val for k,val in d.items() if k!="content"}
+        v["hasContent"]=d["content"] is not None
+        v["jobs"]=[self._dview(self.jobs[c]) for c in d["jobIds"]]
+        v["dels"]=[self._dview(self.dels[c]) for c in d["delIds"]]
+        v["allVerdicts"]=d["verdicts"]+[x for j in v["jobs"] for x in j["verdicts"]]+[x for j in v["dels"] for x in j["verdicts"]]
+        return v
     def state(self):
         with self.lock:
-            return {"jobs":[self.public(j) for j in self.jobs.values()],"deletions":[self.public(d) for d in self.dels.values()],
-                    "violations":list(self.violations),"faults":self.global_faults}
+            return {"docs":[self.view(d) for d in self.docs.values()],"violations":list(self.violations),"faults":dict(self.faults),
+                    "settings":{"kmBaseUrl":self.km,"hasToken":bool(self.token),"inspectAvailable":self.inspect is not None}}
     def report(self):
-        s=self.state();allv=[v for x in s["jobs"]+s["deletions"] for v in x["verdicts"]]
-        return {"passed":sum(1 for v in allv if v["ok"]),"failed":sum(1 for v in allv if not v["ok"]),"violations":s["violations"],
-                "jobs":len(s["jobs"]),"deletions":len(s["deletions"])}
-
-def create_app(sim:Sim):
-    app=FastAPI(title="CSIT simulator",docs_url="/docs")
-    @app.get(BASE+"/document-library/files/{file_id}/content")
-    def content(file_id:str,request:Request):return sim.serve_file(request,file_id)
-    @app.post(BASE+"/document-library/ingestion-status")
-    async def ingestion(request:Request):return sim.receive(request,await _json(request),"ingestion")
-    @app.post(BASE+"/document-deletion-status")
-    async def deletion(request:Request):return sim.receive(request,await _json(request),"deletion")
-    async def _json(request):
-        try:return await request.json()
-        except ValueError:raise HTTPException(400,"body is not JSON") from None
-    # control API used by the UI and the drill
-    @app.post("/sim/jobs")
-    async def new_job(request:Request):return sim.create_job(await request.json())
-    @app.post("/sim/jobs/{csit_job_id}/resend")
-    def resend(csit_job_id:str):
-        if csit_job_id not in sim.jobs:raise HTTPException(404)
-        return sim.send_job(csit_job_id)
-    @app.post("/sim/deletions")
-    async def new_deletion(request:Request):return sim.create_deletion(await request.json())
-    @app.post("/sim/faults")
-    async def faults(request:Request):
-        d=await request.json()
-        with sim.lock:sim.global_faults.update({k:int(d[k]) for k in ("callbackFailures","callbackStatus") if k in d})
-        return sim.global_faults
-    @app.get("/sim/state")
-    def state():return sim.state()
-    @app.get("/sim/report")
-    def report():return sim.report()
-    @app.post("/sim/reset")
-    def reset():sim.reset();return {"ok":True}
-    @app.get("/",response_class=HTMLResponse)
-    def ui():return (Path(__file__).parent/"ui.html").read_text(encoding="utf-8")
-    return app
+        with self.lock:
+            vs=[v for d in self.docs.values() for v in self.view(d)["allVerdicts"]]
+            return {"passed":sum(1 for v in vs if v["ok"]),"failed":sum(1 for v in vs if not v["ok"]),"violations":list(self.violations),"docs":len(self.docs)}
+    def traffic_since(self,after=0):
+        with self.lock:return [t for t in self.traffic if t["id"]>after]
+    def ping(self):
+        try:
+            r=httpx.get(self.km+"/health",timeout=5);return {"ok":r.status_code==200,"status":r.status_code,"body":r.text[:200]}
+        except httpx.HTTPError as e:return {"ok":False,"error":type(e).__name__}
+    def configure(self,km_base_url=None,token=None):
+        if km_base_url:self.km=km_base_url.rstrip("/")
+        if token:self.token=token
