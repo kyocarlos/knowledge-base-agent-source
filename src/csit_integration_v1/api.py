@@ -32,7 +32,7 @@ def request_metadata(raw):
     if type(p.get('version')) is int and 0<p['version']<=2147483647:result['version']=p['version']
     return result
 
-def create_app(settings, repository, validator=None):
+def create_app(settings, repository, validator=None, doclib=None):
     settings.validate()
     app=FastAPI(title='KM CSIT Integration v1',docs_url=None,redoc_url=None)
     # Authentication remains active for harmless invalid-body probes while ingestion is disabled.
@@ -81,4 +81,7 @@ def create_app(settings, repository, validator=None):
         try:return repository.response(repository.submit(payload))
         except IntegrationError as e:raise HTTPException(409,{'code':e.code,'message':e.message}) from None
         except Exception:raise HTTPException(503,'Metadata DB unavailable') from None
+    if doclib is not None:
+        from .doclib_api import register
+        register(app,settings,doclib,lambda:validator)
     return app

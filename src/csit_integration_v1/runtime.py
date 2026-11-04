@@ -8,7 +8,16 @@ from .api import create_app
 
 def application():
     s=Settings.from_env();s.validate()
-    return create_app(s,Repository(s.db_url))
+    doclib=None
+    if s.doclib_enabled or os.getenv("KM_CSIT_DOCLIB_ROUTES")=="1":
+        from .doclib_repository import DocLibRepository
+        doclib=DocLibRepository(s.db_url)
+    return create_app(s,Repository(s.db_url),doclib=doclib)
+
+def _cache_clear(resource):
+    """Search/answer caches are keyed by query text, so a deleted source invalidates the search cache wholesale (the file-based QA cache is not Redis and is not covered)."""
+    from src.web_api.cache import cache_clear_pattern
+    return sum(cache_clear_pattern(p) for p in ("search:*",))
 
 def worker():
     from .auth import ClientCredentialsProvider
@@ -42,9 +51,38 @@ def worker():
         from .report_adapter import ReportAdapter
         reports=ReportAdapter(lambda:psycopg.connect(dsn,autocommit=True),driver,vector.client)
     pipeline=Pipeline(s,repo,client,writers,numeric_rules=rules,reports=reports)
+    doclib_worker=None
+    if s.doclib_enabled:
+        # Spec v1.3 document-library ingestion + verified deletion. Same M2M identity, own tables, own switch.
+        from .doclib_repository import DocLibRepository
+        from .doclib_client import DocLibClient
+        from .doclib_pipeline import DocLibPipeline,DocLibQdrantWriter
+        from .doclib_deletion import DeletionExecutor
+        from .doclib_worker import DocLibWorker
+        from .doclib_metadata import make_semantic_extractor
+        drepo=DocLibRepository(s.db_url);drepo.check_schema()
+        collection=os.getenv("KM_CSIT_DOCLIB_QDRANT_COLLECTION") or os.environ["KM_CSIT_QDRANT_COLLECTION"]
+        qwriter=DocLibQdrantWriter(vector.client,collection,vector.encode,s.chunk_size);qwriter.ensure_index()
+        semantic=None
+        if os.getenv("KM_CSIT_DOCLIB_LLM")=="1":
+            from .doclib_llm import complete
+            semantic=make_semantic_extractor(complete)
+        dclient=DocLibClient(s,auth)
+        report_collections=tuple(x for x in (os.getenv("KM_CSIT_QDRANT_COLLECTION"),"ai_km_knowledge_v1") if x)
+        executor=DeletionExecutor(drepo,s.storage_root,qdrant=vector.client,doclib_collection=collection,report_collections=report_collections,
+            neo4j_driver=driver if os.getenv("KM_CSIT_NEO4J_URI") else None,neo4j_database=os.getenv("KM_CSIT_NEO4J_DATABASE"),
+            timescale_connect=(lambda:psycopg.connect(dsn)) if os.getenv("KM_CSIT_TIMESCALE_DSN_FILE") else None,cache_clear=_cache_clear)
+        doclib_worker=DocLibWorker(s,drepo,dclient,DocLibPipeline(s,drepo,dclient,qwriter,semantic=semantic),executor)
+        worker_obj_tombstones=drepo
     stop=threading.Event()
     for sig in (signal.SIGTERM,signal.SIGINT):signal.signal(sig,lambda *_:stop.set())
     logging.basicConfig(level=logging.INFO)
-    try:Worker(s,repo,client,pipeline).run(stop)
-    finally:client.close();auth.close()
+    threads=[]
+    if doclib_worker is not None:
+        t=threading.Thread(target=doclib_worker.run,args=(stop,),daemon=True);t.start();threads.append(t)
+    try:Worker(s,repo,client,pipeline,tombstones=worker_obj_tombstones if doclib_worker is not None else None).run(stop)
+    finally:
+        stop.set()
+        for t in threads:t.join(10)
+        client.close();auth.close()
 if __name__=="__main__":worker()

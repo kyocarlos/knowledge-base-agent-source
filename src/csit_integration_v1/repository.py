@@ -165,6 +165,12 @@ class Repository:
              next_retry_at=CASE WHEN %s::integer IS NULL THEN NULL ELSE clock_timestamp()+%s*interval '1 second' END
              WHERE job_id=%s RETURNING *""",(error.code,error.message,delay,delay,job["job_id"])).fetchone()
             self._outbox(c,r,"Failed",error)
+    def cancel_deleted(self,job):
+        """The source was deleted after it was queued: stop quietly and withdraw callbacks that were never sent."""
+        with self.connect() as c:
+            c.execute("""UPDATE km_csit_ingestion_jobs SET status='Failed',phase='Deleted',lease_token=NULL,lease_until=NULL,
+                next_retry_at=NULL,updated_at=clock_timestamp() WHERE job_id=%s AND lease_token=%s""",(job["job_id"],job["lease_token"]))
+            c.execute("DELETE FROM km_csit_callback_deliveries WHERE job_id=%s AND status='Pending'",(job["job_id"],))
     def claim_callback(self,seconds):
         with self.connect() as c:
             return c.execute("""WITH candidate AS(

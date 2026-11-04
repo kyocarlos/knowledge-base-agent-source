@@ -6,6 +6,7 @@ from urllib.parse import urlparse
 @dataclass(frozen=True)
 class Settings:
     enabled: bool = False
+    doclib_enabled: bool = False
     db_url: str = field(default="", repr=False)
     csit_base_url: str = ""
     authority: str = ""

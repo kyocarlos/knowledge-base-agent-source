@@ -18,13 +18,16 @@ class LeaseHeartbeat:
     def __exit__(self,*args):
         self.stop_event.set();self.thread.join()
 class Worker:
-    def __init__(self,settings,repository,client,pipeline):
+    def __init__(self,settings,repository,client,pipeline,tombstones=None):
         self.settings,self.repo,self.client,self.pipeline=settings,repository,client,pipeline
+        self.tombstones=tombstones # DocLibRepository: a deleted report version must not be reprocessed (spec v1.3 section 7.2)
         self.id=uuid.uuid4().hex
     def process_one(self):
         s=self.settings
         job=self.repo.claim(self.id,s.lease_seconds)
         if not job:return False
+        if self.tombstones is not None and self.tombstones.v1_report_is_tombstoned(job["document_id"],job["version"]):
+            self.repo.cancel_deleted(job);return True
         start=time.monotonic()
         try:
             with LeaseHeartbeat(self.repo,job,s.lease_seconds):
