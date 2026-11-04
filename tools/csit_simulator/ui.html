@@ -1,0 +1,58 @@
+<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>CSIT 模擬器</title>
+<style>
+:root{--bg:#f6f7f9;--fg:#1c2330;--card:#fff;--line:#d9dee7;--ok:#127a3d;--bad:#b3261e;--mute:#667085;--acc:#1d5fd6}
+@media(prefers-color-scheme:dark){:root{--bg:#10151d;--fg:#e6e9ef;--card:#182030;--line:#2b3547;--ok:#4cc582;--bad:#ff8a80;--mute:#98a2b3;--acc:#7aa7ff}}
+body{margin:0;font:15px/1.5 system-ui,"Noto Sans TC",sans-serif;background:var(--bg);color:var(--fg)}
+main{max-width:1100px;margin:0 auto;padding:16px}
+h1{font-size:20px;margin:0 0 12px}h2{font-size:16px;margin:0 0 8px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:12px 14px;margin-bottom:12px}
+.row{display:flex;flex-wrap:wrap;gap:10px;align-items:end}
+label{display:flex;flex-direction:column;font-size:13px;color:var(--mute);gap:3px}
+input,select,button{font:inherit;padding:6px 8px;border:1px solid var(--line);border-radius:6px;background:var(--card);color:var(--fg)}
+button{cursor:pointer;background:var(--acc);color:#fff;border-color:var(--acc)}button.alt{background:var(--card);color:var(--fg);border-color:var(--line)}
+table{width:100%;border-collapse:collapse;font-size:14px}td,th{text-align:left;padding:5px 6px;border-bottom:1px solid var(--line);vertical-align:top}
+.ok{color:var(--ok)}.bad{color:var(--bad)}.mute{color:var(--mute)}.mono{font-family:ui-monospace,Consolas,monospace;font-size:12px;word-break:break-all}
+details{margin-top:4px}pre{margin:4px 0;white-space:pre-wrap;font-size:12px}
+.pill{display:inline-block;padding:1px 8px;border-radius:99px;border:1px solid var(--line);font-size:12px}
+</style></head><body><main>
+<h1>CSIT 模擬器 <span class="mute" style="font-size:13px">規格 v1.3 · 扮演 CSIT 對 KM 演練</span></h1>
+<div class="card"><h2>送出文件通知</h2><div class="row">
+<label>檔案<input id="file" type="file"></label>
+<label>或直接輸入文字<input id="text" value="CSIT 測試文件。This document describes the Wi-Fi 7 access point setup procedure." size="46"></label>
+<label>檔名<input id="name" value="manual.txt" size="14"></label>
+<label>下載情境<select id="fault"><option value="none">正常</option><option value="tamper">內容被改動(SHA256 不符)</option>
+<option value="truncate">內容被截斷</option><option value="unavailable">前 N 次回 503</option><option value="forbidden">回 403</option><option value="notfound">回 404</option></select></label>
+<label>N<input id="n" type="number" value="2" min="0" style="width:60px"></label>
+<label>認證<select id="tok"><option value="">正確 token</option><option value="bad">錯誤 token(應被拒絕)</option></select></label>
+<button onclick="send()">送出</button></div></div>
+<div class="card"><h2>情境:KM 回報時 CSIT 端故障</h2><div class="row">
+<label>接下來 N 次回報回<input id="cf" type="number" value="0" min="0" style="width:70px"></label>
+<label>狀態碼<select id="cs"><option>503</option><option>409</option><option>500</option></select></label>
+<button class="alt" onclick="faults()">設定</button><button class="alt" onclick="reset()">全部清除</button></div></div>
+<div class="card"><h2>驗收結果</h2><div id="report" class="mute">…</div></div>
+<div class="card"><h2>文件工作</h2><div id="jobs"></div></div>
+<div class="card"><h2>刪除工作</h2><div id="dels"></div></div>
+</main><script>
+const $=id=>document.getElementById(id);
+const b64=buf=>{let s='';new Uint8Array(buf).forEach(c=>s+=String.fromCharCode(c));return btoa(s)};
+async function send(){const f=$('file').files[0];const spec={fileName:f?f.name:$('name').value,downloadFault:$('fault').value,downloadFailures:+$('n').value,badToken:$('tok').value==='bad'};
+ if(f){spec.contentBase64=b64(await f.arrayBuffer());spec.contentType=f.type||'application/octet-stream'}else spec.contentText=$('text').value;
+ await fetch('/sim/jobs',{method:'POST',body:JSON.stringify(spec)});load()}
+async function del(fid){await fetch('/sim/deletions',{method:'POST',body:JSON.stringify({documentFileId:fid})});load()}
+async function resend(id){await fetch('/sim/jobs/'+id+'/resend',{method:'POST'});load()}
+async function faults(){await fetch('/sim/faults',{method:'POST',body:JSON.stringify({callbackFailures:+$('cf').value,callbackStatus:+$('cs').value})});load()}
+async function reset(){await fetch('/sim/reset',{method:'POST'});load()}
+const esc=s=>String(s??'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+function verd(x){return x.verdicts.map(v=>`<div class="${v.ok?'ok':'bad'}">${v.ok?'✔':'✘'} ${esc(v.what)}</div>`).join('')}
+function tl(x){return `<details><summary>時間線 (${x.timeline.length})</summary><pre>${x.timeline.map(e=>esc(e.t.slice(11,23)+'  '+e.kind+(e.detail?'  '+JSON.stringify(e.detail):''))).join('\n')}</pre></details>`}
+async function load(){const s=await (await fetch('/sim/state')).json();const r=await (await fetch('/sim/report')).json();
+ $('report').innerHTML=`<b class="${r.failed?'bad':'ok'}">${r.failed?'有 '+r.failed+' 項不符':'全部符合'}</b> · 通過 ${r.passed} · 不符 ${r.failed} · 文件 ${r.jobs} · 刪除 ${r.deletions}`;
+ $('jobs').innerHTML=s.jobs.length?`<table><tr><th>狀態</th><th>檔案 / ID</th><th>回報</th><th>判定</th><th></th></tr>`+s.jobs.map(j=>`<tr><td><span class="pill">${esc(j.state)}${j.deleted?' · 已刪':''}</span></td>
+ <td>${esc(j.fileName)}<div class="mono">${j.documentFileId}<br>${j.kmJobId||''}</div></td><td>${esc(j.callbackStatuses.join(' → '))}</td>
+ <td>${verd(j)}${tl(j)}${j.result?`<details><summary>Completed.result</summary><pre>${esc(JSON.stringify(j.result,null,1))}</pre></details>`:''}</td>
+ <td><button class="alt" onclick="resend('${j.csitJobId}')">重送</button> <button class="alt" onclick="del('${j.documentFileId}')">刪除</button></td></tr>`).join('')+'</table>':'<span class="mute">尚無</span>';
+ $('dels').innerHTML=s.deletions.length?`<table><tr><th>狀態</th><th>ID</th><th>回報</th><th>判定</th></tr>`+s.deletions.map(d=>`<tr><td><span class="pill">${esc(d.state)}</span></td>
+ <td class="mono">${d.deletionRequestId}<br>${d.kmDeletionJobId||''}</td><td>${esc(d.callbackStatuses.join(' → '))}</td><td>${verd(d)}${tl(d)}${d.result?`<pre>${esc(JSON.stringify(d.result,null,1))}</pre>`:''}</td></tr>`).join('')+'</table>':'<span class="mute">尚無</span>'}
+load();setInterval(load,2000)
+</script></body></html>
