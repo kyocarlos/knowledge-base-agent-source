@@ -14,5 +14,7 @@ def analyze(connect: Callable, roles: list[str], llm: Callable[[list[dict]], str
     try:
         out = rca.run_rca(pack, llm, question=(question or "").strip())
     except Exception as exc:  # noqa: BLE001 - network, timeout, malformed client reply
-        out = {"status": "unavailable", "analysis": None, "violations": ["模型暫時無法使用（" + type(exc).__name__ + "）"], "warnings": [], "attempts": 0}
+        name = type(exc).__name__
+        reason = "模型回應逾時" if "Timeout" in name else "模型暫時無法使用（" + name + "）"
+        out = {"status": "unavailable", "analysis": None, "violations": [reason], "warnings": [], "attempts": 0}
     return {"pack": pack, "rca": out}

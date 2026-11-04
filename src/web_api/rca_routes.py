@@ -86,6 +86,8 @@ def default_llm() -> Callable[[list[dict]], str]:
     client, _label = _build_primary_client(load_config())
     if client is None:
         raise RuntimeError("no primary LLM configured")
+    # The shared default (60 s) suits short chat answers; an analysis of a large comparison needs longer. Only this task's own client is changed.
+    client.timeout = float(os.getenv("KM_RCA_LLM_TIMEOUT_SECONDS", "240"))
     return lambda messages: client.chat.completions.create(messages=messages, temperature=0).choices[0].message.content or ""
 
 

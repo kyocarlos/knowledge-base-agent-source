@@ -37,3 +37,10 @@
 - 送出 202 → 輪詢 → 97 秒完成,`rca.status=ok`,模型第一次回答被檢查擋下、第二次修正後通過
 - 另一個帳號讀取同一個 task id → 404
 - 既有的 `tasks.wifi8_agent_task` 仍已註冊;web、worker、其他容器狀態正常
+
+## 修正:模型讀取逾時(2026-11-04 稍後)
+使用者在畫面上看到「模型暫時無法使用」。原因:worker 日誌顯示 `OpenAI-compatible request failed … ReadTimeout`,共用的主要 LLM 逾時預設只有 60 秒,報告較多時模型一次回答超過 60 秒。
+- `default_llm()` 現在只對 RCA 自己的 client 把逾時設為 `KM_RCA_LLM_TIMEOUT_SECONDS`(預設 240 秒);共用設定與 WiFi 助理不受影響。Celery 上限是 600/720 秒,足以容納兩次嘗試。
+- 逾時時頁面顯示「模型回應逾時」並建議重試或減少報告;頁面等待上限由 330 秒改為 540 秒。
+- 只重建 search worker(映像 `km-test-web:rca-20261104c-on-diagram-c7869ce`,override `b/kb-test.rca-c.image.override.yml`),web 不變。重建前確認沒有執行中的任務。
+- 驗證:三份 Throughput 報告走完整流程,60 秒完成、第一次即通過檢查。

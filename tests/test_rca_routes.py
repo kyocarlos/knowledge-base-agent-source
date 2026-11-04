@@ -141,3 +141,29 @@ def test_the_celery_task_is_registered_and_answers_without_a_model_or_store():
     lines=out.stdout.strip().splitlines()
     assert lines[-2]=="True"
     r=json.loads(lines[-1]);assert r["status"]=="failed" and r["owner"]=={"user_id":"u"} and "ProblemError" not in r["detail"]   # a missing store never leaks details
+
+def test_the_analysis_model_client_gets_a_long_timeout_without_touching_the_shared_default(monkeypatch):
+    import types,sys
+    from src.web_api import rca_routes
+    client=types.SimpleNamespace(timeout=60.0,chat=types.SimpleNamespace(completions=types.SimpleNamespace(create=lambda **k:types.SimpleNamespace(choices=[types.SimpleNamespace(message=types.SimpleNamespace(content="{}"))]))))
+    fake=types.ModuleType("src.web_api.ollama_client");fake._build_primary_client=lambda cfg:(client,"x")
+    monkeypatch.setitem(sys.modules,"src.web_api.ollama_client",fake)
+    monkeypatch.setattr("src.main.load_config",lambda:{},raising=False)
+    monkeypatch.setenv("KM_RCA_LLM_TIMEOUT_SECONDS","200")
+    rca_routes.default_llm();assert client.timeout==200.0
+
+def test_a_model_timeout_is_reported_as_a_timeout():
+    import httpx
+    from src.report_numeric import rca_service
+    class Conn:
+        def __enter__(self):return self
+        def __exit__(self,*a):return False
+    import src.report_numeric.compare as cmp
+    pack={"evidence":{},"factors":[],"diffs":[],"coverage":[],"result_changes":[],"criteria_changes":[],"quality":[],"runs":[],"counts":{}}
+    orig=(cmp.load_runs,cmp.compare_runs,cmp.load_directions)
+    cmp.load_runs=lambda *a,**k:[];cmp.compare_runs=lambda *a,**k:pack;cmp.load_directions=lambda *a,**k:{}
+    try:
+        def slow(messages):raise httpx.ReadTimeout("slow")
+        out=rca_service.analyze(lambda:Conn(),["R"],slow,["a","b"],"")
+    finally:cmp.load_runs,cmp.compare_runs,cmp.load_directions=orig
+    assert out["rca"]["status"]=="unavailable" and out["rca"]["violations"]==["模型回應逾時"]

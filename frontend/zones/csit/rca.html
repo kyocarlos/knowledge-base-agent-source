@@ -118,7 +118,7 @@ function drawPack(p){PACK=p;const c=p.counts;let h='';
  ${p.quality.map(r=>`<div id="ev-${r.id}">${evChip(r.id)} ${r.duplicate_keys?`${runName(r.run)} 有 ${r.duplicate_keys} 筆重複的量測鍵`:`${runName(r.run)} <span class="mono">${esc(p.runs[r.run].dut_model)}</span>:${esc(qualityText(p.runs[r.run].error_summary||[],r.formula_errors)).split(String.fromCharCode(10)).join('<br>')}`}</div>`).join('')}</div>`;
  return h}
 function drawRca(r,p){if(!r)return'';let h='<div class="card"><h2>③ 可能的原因分析 <span class="pill warn">待驗證的假設,不是結論</span></h2>';
- if(r.status==='unavailable')return h+'<div class="banner bad">模型暫時無法使用;上面的比較結果仍然有效。</div></div>';
+ if(r.status==='unavailable')return h+`<div class="banner bad">${esc((r.violations&&r.violations[0])||'模型暫時無法使用')}。上面的比較結果仍然有效;可以稍後再按一次「比較並分析可能原因」,或先選較少的報告。</div></div>`;
  if(r.status==='rejected')return h+`<div class="banner bad">模型的回答沒有通過檢查,所以不顯示(避免顯示沒有依據的內容)。<ul>${r.violations.map(v=>`<li>${esc(v)}</li>`).join('')}</ul>上面的比較結果仍然有效,可以直接參考。</div></div>`;
  const a=r.analysis;const ev=l=>(l||[]).map(i=>evChip(i)).join('');
  h+=`<p>${esc(a.summary)}</p>${r.warnings.length?`<div class="banner info">${r.warnings.map(esc).join('<br>')}</div>`:''}<h3>觀察到的事實</h3><ul>${a.observations.map(o=>`<li>${esc(o.text)} ${ev(o.evidence)}</li>`).join('')}</ul><h3>候選原因</h3>`+
@@ -139,11 +139,11 @@ async function go(withModel){if(picked.length<2)return;const token=++runToken;co
  }catch(e){$('out').innerHTML=`<div class="banner bad">${esc(e.message)}</div>`}
  finally{drawRuns();$('btnCmp').disabled=picked.length<2;applyCaps()}}
 async function runAnalysis(pack,token){const card=$('rcaCard');
- const wait=(msg,t)=>card.innerHTML=`<div class="card"><h2>③ 可能的原因分析 <span class="pill warn">待驗證的假設,不是結論</span></h2><div><span class="spin"></span> ${esc(msg)} <span class="mute">已等待 ${t} 秒(通常 20 到 90 秒;可以先看上面的比較結果)</span></div></div>`;
+ const wait=(msg,t)=>card.innerHTML=`<div class="card"><h2>③ 可能的原因分析 <span class="pill warn">待驗證的假設,不是結論</span></h2><div><span class="spin"></span> ${esc(msg)} <span class="mute">已等待 ${t} 秒(通常 20 到 120 秒,報告多時更久;可以先看上面的比較結果)</span></div></div>`;
  wait('正在送出分析工作…',0);
  let sub;try{sub=await api('/api/rca/v1/analyze',{run_ids:picked,question:$('ask').value})}catch(e){card.innerHTML=`<div class="card"><h2>③ 可能的原因分析</h2><div class="banner bad">${esc(e.message)}。上面的比較結果仍然有效。</div></div>`;return}
  const t0=Date.now();
- while(token===runToken&&Date.now()-t0<330000){
+ while(token===runToken&&Date.now()-t0<540000){
   await sleep(2000);if(token!==runToken)return;
   let d;try{d=await api('/api/rca/v1/analyze/'+encodeURIComponent(sub.task_id))}catch(e){card.innerHTML=`<div class="card"><h2>③ 可能的原因分析</h2><div class="banner bad">${esc(e.message)}。上面的比較結果仍然有效。</div></div>`;return}
   if(d.status==='running'){wait('模型分析中…',Math.round((Date.now()-t0)/1000));continue}
