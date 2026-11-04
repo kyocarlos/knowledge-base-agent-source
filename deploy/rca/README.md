@@ -44,3 +44,9 @@
 - 逾時時頁面顯示「模型回應逾時」並建議重試或減少報告;頁面等待上限由 330 秒改為 540 秒。
 - 只重建 search worker(映像 `km-test-web:rca-20261104c-on-diagram-c7869ce`,override `b/kb-test.rca-c.image.override.yml`),web 不變。重建前確認沒有執行中的任務。
 - 驗證:三份 Throughput 報告走完整流程,60 秒完成、第一次即通過檢查。
+
+## 修正:證據檢查誤擋、模型等待拉長到 5 分鐘(2026-11-04 稍晚)
+1. **「出現證據包以外的數字:4.3」**:模型引用了隱藏工作表名稱「4.3 Concurrent Test」,這串文字在提示的「執行資訊」裡(模型看得到),但不在編號證據中,檢查只比對編號證據,因此誤判為捏造數字。現在檢查的允許範圍包含模型實際看到的全部內容(`rca.prompt_view`);完全不在證據包也不在提示裡的數字仍會被擋(有測試)。
+2. **等待時間**:RCA 的模型連線逾時由 240 秒改為 300 秒(`KM_RCA_LLM_TIMEOUT_SECONDS`);整個分析另有總預算 540 秒(`KM_RCA_TOTAL_SECONDS`,低於 Celery 軟上限 600 秒),修正輪只會用剩下的時間。頁面等待上限 9 分鐘。
+3. 只重建 search worker(`km-test-web:rca-20261104d-on-diagram-c7869ce`,override `b/kb-test.rca-d.image.override.yml`),重建前確認沒有執行中任務;頁面更新(備份 `rca.styleB.html`)。
+4. 驗證:三份 Throughput 報告、要求說明資料品質位置,103 秒完成並通過檢查。

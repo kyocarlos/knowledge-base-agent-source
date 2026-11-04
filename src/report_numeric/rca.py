@@ -134,7 +134,8 @@ def verify(analysis: Any, pack: dict, texts: dict[str, dict] | None = None, ques
         violations.append("多個變因同時變動，data_gaps 必須說明如何拆開變因")
     if pack.get("quality") and not any("品質" in str(g) or "公式" in str(g) or "錯誤" in str(g) for g in analysis["data_gaps"]):
         warnings.append("證據包有資料品質旗標，但 data_gaps 沒有提到")
-    allowed = allowed_numbers(evidence, question)
+    # everything the model was shown counts as given: sheet names such as "4.3 Concurrent Test" or cell addresses are in the run info, not in an evidence entry
+    allowed = allowed_numbers({"evidence": evidence, "shown": prompt_view(pack)}, question)
     stray = sorted({m for s in _strings(analysis) for m in re.findall(r"(?<![A-Za-z#\[])-?\d+(?:\.\d+)?", re.sub(r"\[[A-Z]\d+\]", "", s))
                     if _norm(float(m)) not in allowed and not (float(m).is_integer() and int(float(m)) in FREE_INTEGERS)})
     if stray:
@@ -148,12 +149,17 @@ def verify(analysis: Any, pack: dict, texts: dict[str, dict] | None = None, ques
     return {"ok": not violations, "violations": violations, "warnings": warnings, "analysis": analysis if not violations else None}
 
 
+PROMPT_KEYS = ("runs", "factors", "confounded", "confounded_note", "counts", "diffs", "coverage", "result_changes", "criteria_changes", "quality", "directions_defined")
+
+
+def prompt_view(pack: dict) -> dict:
+    return {k: pack[k] for k in PROMPT_KEYS if k in pack}
+
+
 def pack_for_prompt(pack: dict, texts: dict[str, dict] | None = None) -> str:
     """The evidence the model sees: findings with ids, not the raw rows. Text evidence (T#) from the knowledge base is appended when supplied."""
-    view = {k: pack[k] for k in ("runs", "factors", "confounded", "confounded_note", "counts", "diffs", "coverage", "result_changes", "criteria_changes", "quality", "directions_defined")
-            if k in pack}
-    for d in view.get("diffs", []):
-        d.pop("key", None)
+    view = {k: v for k, v in prompt_view(pack).items()}
+    view["diffs"] = [{k: v for k, v in d.items() if k != "key"} for d in view.get("diffs", [])]  # the raw key dict is not sent; the caller's pack is not edited
     if texts:
         view["knowledge_texts"] = list(texts.values())
     return json.dumps(view, ensure_ascii=False, default=str)

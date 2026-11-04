@@ -82,3 +82,12 @@ def test_prompt_carries_the_evidence_ids_but_not_raw_rows(pack):
     user=msgs[0][1]["content"]
     assert ids(pack)["d"] in user and "source_cell_range" not in user and "規則" not in user
     assert "higher_is_better" in rca.SYSTEM_PROMPT
+
+def test_numbers_the_model_was_shown_are_allowed_even_when_they_are_not_in_an_evidence_entry():
+    """Run info (sheet names such as '4.3 Concurrent Test', cell addresses) is in the prompt; quoting it is not an invented number."""
+    p=compare.compare_runs([run("A","1.0.0",900),run("B","1.1.0",650)])
+    for r in p["runs"]:r["error_summary"]=[{"sheet":"4.3 Concurrent Test","hidden":True,"count":18,"values":["#REF!"],"cells":["I9","I10"]}]
+    a=good(p);a["data_gaps"]=["兩份報告在隱藏工作表「4.3 Concurrent Test」各有 18 個 #REF!,品質需確認。"]
+    r=rca.verify(a,p);assert r["ok"],r["violations"]
+    a["data_gaps"]=["另外有 7.7 個問題"]
+    assert any("7.7" in v for v in rca.verify(a,p)["violations"])      # a number that appears nowhere is still rejected

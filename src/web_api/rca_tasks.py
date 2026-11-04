@@ -3,6 +3,8 @@ read-only role (KM_RCA_DSN_FILE) and answers with the comparison pack and the ve
 from __future__ import annotations
 
 import logging
+import os
+import time
 
 from ..report_numeric import compare, rca_service
 from .tasks import celery_app
@@ -14,10 +16,18 @@ logger = logging.getLogger("km.rca")
 def rca_analyze_task(self, run_ids: list, question: str = "", owner: dict | None = None):
     from .rca_routes import default_connect, default_llm, default_roles
     llm_holder: dict = {}
+    started = time.monotonic()
+    budget = float(os.getenv("KM_RCA_TOTAL_SECONDS", "540"))  # below Celery's soft limit (600 s)
 
     def llm(messages):  # built on first use so a missing model setting is an 'unavailable' analysis, not a crashed task
         if "fn" not in llm_holder:
             llm_holder["fn"] = default_llm()
+        left = budget - (time.monotonic() - started)
+        if left < 30:
+            raise TimeoutError("analysis time budget used up")
+        client = getattr(llm_holder["fn"], "client", None)
+        if client is not None:  # the correction round never waits longer than what is left of the budget
+            client.timeout = min(client.timeout, left)
         return llm_holder["fn"](messages)
 
     try:

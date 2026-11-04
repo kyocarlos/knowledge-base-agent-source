@@ -190,7 +190,7 @@ async function go(withModel){if(picked.length<2)return;const token=++runToken;[$
  }catch(e){$('out').innerHTML=alertRow('bad',esc(e.message))}
  finally{drawRuns()}}
 async function runAnalysis(pack,token){const card=$('rcaCard');
- const wait=(msg,t)=>card.innerHTML=panel(RCA_TITLE,`<div><span class="spin"></span> ${esc(msg)} <span class="mute">已等待 ${t} 秒(通常 20 到 120 秒,報告多時更久;可以先看上面的比較結果)</span></div>`,RCA_NOTE);
+ const wait=(msg,t)=>card.innerHTML=panel(RCA_TITLE,`<div><span class="spin"></span> ${esc(msg)} <span class="mute">已等待 ${t} 秒(通常 20 到 120 秒,最久約 9 分鐘;可以先看上面的比較結果)</span></div>`,RCA_NOTE);
  const fail=m=>card.innerHTML=panel(RCA_TITLE,alertRow('bad',esc(m)+'。上面的比較結果仍然有效。'));
  wait('正在送出分析工作…',0);
  let sub;try{sub=await api('/api/rca/v1/analyze',{run_ids:picked,question:$('ask').value})}catch(e){fail(e.message);return}

@@ -87,8 +87,10 @@ def default_llm() -> Callable[[list[dict]], str]:
     if client is None:
         raise RuntimeError("no primary LLM configured")
     # The shared default (60 s) suits short chat answers; an analysis of a large comparison needs longer. Only this task's own client is changed.
-    client.timeout = float(os.getenv("KM_RCA_LLM_TIMEOUT_SECONDS", "240"))
-    return lambda messages: client.chat.completions.create(messages=messages, temperature=0).choices[0].message.content or ""
+    client.timeout = float(os.getenv("KM_RCA_LLM_TIMEOUT_SECONDS", "300"))
+    call = lambda messages: client.chat.completions.create(messages=messages, temperature=0).choices[0].message.content or ""
+    call.client = client  # lets the task shorten a later call so the whole analysis stays inside its budget
+    return call
 
 
 def create_router(connect: Callable | None = None, tasks: TaskQueue | None = None, roles: Callable[[], list[str]] | None = None,
