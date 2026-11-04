@@ -1,0 +1,6 @@
+FROM km-test-web:diagram-20261031-on-feed-c7869ce
+COPY ctx-worker/ /app/
+COPY patch_tasks.py /tmp/patch_tasks.py
+RUN python /tmp/patch_tasks.py /app/src/web_api/tasks.py \
+ && python -m py_compile /app/src/web_api/tasks.py /app/src/web_api/rca_routes.py /app/src/web_api/rca_tasks.py /app/src/report_numeric/compare.py /app/src/report_numeric/rca.py /app/src/report_numeric/rca_service.py \
+ && rm /tmp/patch_tasks.py

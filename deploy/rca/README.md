@@ -19,3 +19,21 @@
 ## 未驗證
 - 登入後的完整畫面(需要真實登入帳號);da40 資料區的使用者連到產品驗證專區時,會得到「RCA 後端尚未啟用」(da40 尚未部署)
 - `/analyze`(LLM)尚未部署到這個容器的工作流程,階段 B 處理
+
+---
+
+# 階段 B(LLM 原因分析)— 同日部署到 TEST 平面
+
+| 項目 | 內容 |
+|---|---|
+| web 映像 | `km-chat-v2-secure:rca-20261104b-on-open-files-c7869ce`(階段 A 的內容加上非同步分析路由、`KM_RCA_ANALYZE=1`) |
+| search worker 映像 | `km-test-web:rca-20261104b-on-diagram-c7869ce`:疊加在 `diagram-20261031-on-feed-c7869ce` 上。**原映像沒有 `src/report_numeric` 套件**,所以一併加入 `__init__.py`、`query.py`、`compare.py`、`rca.py`、`rca_service.py`;並以 `patch_tasks.py` 在 `tasks.py` 結尾註冊 `tasks.rca_analyze_task` |
+| 容器設定 | worker 與 web 都唯讀掛載 `km-rca-dsn`(read-only 角色),`KM_RCA_ROLES=CSIT_ENGINEER,CSIT_MANAGER` |
+| 操作 | 先 `deploy-worker.sh test <override>` 重建 search worker(重建前確認沒有執行中的任務),驗證 `tasks.rca_analyze_task` 已註冊,再 `deploy.sh test <override>` 重建 web |
+| 回滾 | 兩個都用 `…/open-files-deploy-20261031/deploy.sh test` 與 `deploy-worker.sh test`,override 指向 `~/.km-control/compose/kb-test.open-files.image.override.yml`;頁面還原用 `~/.km-control/backups/rca-menu-20261104/rca.phaseA.html` |
+| 前端 | `zones/csit/rca.html` 更新(公式錯誤標籤說明、先顯示比較再輪詢分析結果) |
+
+## 驗證(`verify_analyze.py`,在 web 容器內經真實 HTTP 層、Celery 佇列、worker 與真實模型)
+- 送出 202 → 輪詢 → 97 秒完成,`rca.status=ok`,模型第一次回答被檢查擋下、第二次修正後通過
+- 另一個帳號讀取同一個 task id → 404
+- 既有的 `tasks.wifi8_agent_task` 仍已註冊;web、worker、其他容器狀態正常
