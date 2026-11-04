@@ -1198,6 +1198,12 @@ from .legacy_routes import router as legacy_router
 app.include_router(legacy_router)
 from .keeper_routes import router as keeper_router
 app.include_router(keeper_router)
+if os.getenv("KM_RCA_ENABLED") == "1":  # RCA report comparison (product-verification zone); a failure here must never stop the app
+    try:
+        from .rca_routes import create_router as _create_rca_router
+        app.include_router(_create_rca_router())
+    except Exception:  # noqa: BLE001
+        logging.getLogger("km.rca").exception("RCA routes were not registered")
 
 # CORS 允許前端跨域
 app.add_middleware(

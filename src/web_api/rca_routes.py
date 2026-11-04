@@ -41,10 +41,15 @@ def default_roles() -> list[str]:
     return [r.strip() for r in os.getenv("KM_RCA_ROLES", "CSIT_ENGINEER").split(",") if r.strip()]
 
 
-def default_connect() -> Callable:
+def default_connect():
+    """A connection to the report store, opened per request so a missing or wrong setting is a 503 for RCA only, never a startup failure of the app."""
     import psycopg
-    dsn = Path(os.environ["KM_RCA_DSN_FILE"]).read_text().strip() if os.getenv("KM_RCA_DSN_FILE") else os.environ["KM_RCA_DSN"]
-    return lambda: psycopg.connect(dsn, autocommit=True)
+    try:
+        dsn = Path(os.environ["KM_RCA_DSN_FILE"]).read_text().strip() if os.getenv("KM_RCA_DSN_FILE") else os.environ["KM_RCA_DSN"]
+        return psycopg.connect(dsn, autocommit=True, connect_timeout=5)
+    except (KeyError, OSError, psycopg.Error):
+        logger.warning("RCA report store unavailable", exc_info=True)
+        raise HTTPException(status_code=503, detail="RCA report store is not available") from None
 
 
 def default_llm() -> Callable[[list[dict]], str]:
@@ -58,7 +63,7 @@ def default_llm() -> Callable[[list[dict]], str]:
 
 def create_router(connect: Callable | None = None, llm_factory: Callable | None = None, roles: Callable[[], list[str]] | None = None) -> APIRouter:
     router = APIRouter(prefix="/api/rca/v1", tags=["RCA"])
-    connect_ = connect or default_connect()
+    connect_ = connect or default_connect
     roles_ = roles or default_roles
 
     def _guard(request: Request) -> None:
