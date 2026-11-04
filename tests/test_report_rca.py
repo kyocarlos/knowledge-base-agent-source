@@ -91,3 +91,27 @@ def test_numbers_the_model_was_shown_are_allowed_even_when_they_are_not_in_an_ev
     r=rca.verify(a,p);assert r["ok"],r["violations"]
     a["data_gaps"]=["另外有 7.7 個問題"]
     assert any("7.7" in v for v in rca.verify(a,p)["violations"])      # a number that appears nowhere is still rejected
+
+def test_numbers_outside_the_evidence_remove_only_the_offending_items_after_the_correction_round(pack):
+    """The model computed new numbers twice (1529.6 and 764.8 were nowhere in the data): keep what is sound, drop what is not, and say so."""
+    def answer():
+        a=good(pack)
+        a["observations"].append({"text":"兩邊合計 1529.6 Mbps，單邊 764.8 Mbps。","evidence":[ids(pack)["d"]]})
+        a["hypotheses"].append({"cause":"鏈路上限約為 764.8 Mbps","mechanism":"推算出的上限","supports":[ids(pack)["d"]],"against":[],"missing_evidence":[],"confidence":"low","verify_steps":["重測"]})
+        return a
+    calls=[]
+    out=rca.run_rca(pack,lambda m:calls.append(m) or json.dumps(answer(),ensure_ascii=False))
+    assert len(calls)==2                                                   # the model got its correction round first
+    assert out["status"]=="ok" and out["redacted"]==2
+    text=json.dumps(out["analysis"],ensure_ascii=False)
+    assert "1529.6" not in text and "764.8" not in text                    # the invented numbers never reach the page
+    assert len(out["analysis"]["observations"])==2 and len(out["analysis"]["hypotheses"])==1   # the sound parts stay
+    assert "已整項移除" in out["warnings"][0]
+
+def test_nothing_is_salvaged_when_the_problem_is_more_than_stray_numbers(pack):
+    a=good(pack);a["summary"]="吞吐量下降 37%";a["observations"][0]["evidence"]=["D99"]
+    out=rca.run_rca(pack,lambda m:json.dumps(a,ensure_ascii=False))
+    assert out["status"]=="rejected" and out["analysis"] is None
+
+def test_the_prompt_forbids_deriving_new_numbers():
+    assert "相加、相乘" in rca.SYSTEM_PROMPT

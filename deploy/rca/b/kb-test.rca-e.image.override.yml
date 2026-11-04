@@ -1,0 +1,21 @@
+# RCA phase B on the TEST plane (2026-11-04, user-authorised): the analysis runs in the search worker, the page polls through web.
+# web    : overlay of the running web image (open-files-20261031) + RCA modules + flag-gated router; KM_RCA_ANALYZE=1 tells the page analysis is available.
+# worker : overlay of km-test-web:diagram-20261031 + RCA modules + tasks.rca_analyze_task; reads km_test with the read-only role km_rca_ro.
+# Rollback: deploy.sh test and deploy-worker.sh test with $HOME/.km-control/compose/kb-test.open-files.image.override.yml
+services:
+  web:
+    image: km-chat-v2-secure:rca-20261104b-on-open-files-c7869ce
+    environment:
+      KM_RCA_ENABLED: "1"
+      KM_RCA_ANALYZE: "1"
+      KM_RCA_DSN_FILE: /run/secrets/km-rca-dsn
+      KM_RCA_ROLES: CSIT_ENGINEER,CSIT_MANAGER
+    volumes:
+      - /home/da40_ai_gb10/.km-control/rca-deploy-20261104/km-rca-dsn:/run/secrets/km-rca-dsn:ro
+  celery_search_worker:
+    image: km-test-web:rca-20261104e-on-diagram-c7869ce
+    environment:
+      KM_RCA_DSN_FILE: /run/secrets/km-rca-dsn
+      KM_RCA_ROLES: CSIT_ENGINEER,CSIT_MANAGER
+    volumes:
+      - /home/da40_ai_gb10/.km-control/rca-deploy-20261104/km-rca-dsn:/run/secrets/km-rca-dsn:ro

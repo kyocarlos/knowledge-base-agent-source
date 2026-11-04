@@ -18,7 +18,7 @@ FREE_INTEGERS = range(0, 11)  # "2 項", "第 3" and similar counting words are 
 SYSTEM_PROMPT = """你是 CSIT 測試報告的根因分析（RCA）助理。你只會拿到一份由程式整理好的「差異證據包」，不能查資料庫，也不能計算。
 規則：
 1. 只能根據證據包回答。每一條觀察與每一個假設都要在 evidence / supports 欄位列出證據編號（F#、D#、R#、C#、Q#、T#），只能使用證據包裡存在的編號。
-2. 數值、單位、版本、通道、頻段一律原樣照抄證據包；不要自行計算、換算、四捨五入或估計，沒有出現在證據包的數字不要寫。
+2. 數值、單位、版本、通道、頻段一律原樣照抄證據包；不要自行計算、換算、四捨五入或估計，沒有出現在證據包的數字不要寫。尤其不要把兩個數值相加、相乘、取倍數或平均得到新的數字；要說明差異時，只引用證據包已列出的數值與百分比。
 3. 先陳述事實（observations），再提出假設（hypotheses）。假設只是「待驗證的候選原因」，不是結論；每個假設要寫機制（mechanism）、支持與反對的證據、缺少什麼證據、信心等級（low/medium/high），以及具體的驗證步驟（verify_steps）。
 4. confounded 為 true 時，代表韌體、硬體、晶片或乙太網路類型同時變動，無法歸因到單一因素：信心不得高於 medium，並在 data_gaps 說明需要如何拆開變因（例如只換一個變因重測）。
 5. 沒有證據支持的機制只能是 low，且 supports 可以只引用觀察到的差異；不要把一般工程常識當成證據，也不要為它編造引用。
@@ -156,6 +156,38 @@ def prompt_view(pack: dict) -> dict:
     return {k: pack[k] for k in PROMPT_KEYS if k in pack}
 
 
+NUMBER_VIOLATION = "出現證據包以外的數字："
+OMITTED_SUMMARY = "（模型的摘要含有證據包以外的數字，已省略；請參考下方的觀察與假設。）"
+
+
+def _stray(text: str, allowed: set[str]) -> list[str]:
+    return [m for m in re.findall(r"(?<![A-Za-z#\[])-?\d+(?:\.\d+)?", re.sub(r"\[[A-Z]\d+\]", "", text or ""))
+            if _norm(float(m)) not in allowed and not (float(m).is_integer() and int(float(m)) in FREE_INTEGERS)]
+
+
+def salvage(analysis: dict, pack: dict, texts: dict[str, dict] | None = None, question: str = "") -> tuple[dict, int] | None:
+    """Drop only the items that quote numbers the model was never given, keep everything else, and say how much was dropped.
+    Returns (cleaned analysis, removed count) or None when there is nothing safe to keep. The numbers themselves are never shown."""
+    allowed = allowed_numbers({"evidence": {**pack.get("evidence", {}), **(texts or {})}, "shown": prompt_view(pack)}, question)
+    clean = copy.deepcopy(analysis)
+    removed = 0
+    if _stray(str(clean.get("summary") or ""), allowed):
+        clean["summary"] = OMITTED_SUMMARY; removed += 1
+    def keep(item, fields):
+        nonlocal removed
+        text = " ".join(str(x) for f in fields for x in ((item.get(f) if isinstance(item.get(f), list) else [item.get(f)]) or []))
+        if _stray(text, allowed):
+            removed += 1; return False
+        return True
+    clean["observations"] = [o for o in clean.get("observations", []) if isinstance(o, dict) and keep(o, ("text",))]
+    clean["hypotheses"] = [h for h in clean.get("hypotheses", []) if isinstance(h, dict) and keep(h, ("cause", "mechanism", "missing_evidence", "verify_steps"))]
+    clean["unexplained"] = [u for u in clean.get("unexplained", []) if isinstance(u, dict) and keep(u, ("text",))]
+    clean["data_gaps"] = [g for g in clean.get("data_gaps", []) if not _stray(str(g), allowed) or not (removed := removed + 1)]
+    if not removed or not (clean["observations"] or clean["hypotheses"]):
+        return None
+    return clean, removed
+
+
 def pack_for_prompt(pack: dict, texts: dict[str, dict] | None = None) -> str:
     """The evidence the model sees: findings with ids, not the raw rows. Text evidence (T#) from the knowledge base is appended when supplied."""
     view = {k: v for k, v in prompt_view(pack).items()}
@@ -170,6 +202,7 @@ def run_rca(pack: dict, llm: Callable[[list[dict]], str], *, texts: dict[str, di
     messages = [{"role": "system", "content": SYSTEM_PROMPT},
                 {"role": "user", "content": (f"使用者關心：{question}\n" if question else "") + "證據包：\n" + pack_for_prompt(pack, texts)}]
     violations: list[str] = []
+    last_raw = None
     result: dict = {"ok": False, "violations": ["未取得回答"], "warnings": [], "analysis": None}
     for attempt in range(1, retries + 2):
         reply = llm(messages)
@@ -181,6 +214,15 @@ def run_rca(pack: dict, llm: Callable[[list[dict]], str], *, texts: dict[str, di
         if result["ok"]:
             return {"status": "ok", "analysis": result["analysis"], "violations": [], "warnings": result["warnings"], "attempts": attempt}
         violations = result["violations"]
+        last_raw = raw
         messages += [{"role": "assistant", "content": (reply or "")[:4000]},
                      {"role": "user", "content": "你的輸出未通過檢查，請只修正下列問題後重新輸出完整 JSON：\n- " + "\n- ".join(violations[:10])}]
+    if violations and all(v.startswith(NUMBER_VIOLATION) for v in violations) and isinstance(last_raw, dict):
+        kept = salvage(last_raw, pack, texts, question)
+        if kept:
+            cleaned, removed = kept
+            again = verify(cleaned, pack, texts, question)   # what is left must pass every check on its own
+            if again["ok"]:
+                note = f"模型有 {removed} 項內容引用了證據包以外的數字，已整項移除（數字不會顯示）；以下是通過檢查的部分。"
+                return {"status": "ok", "analysis": again["analysis"], "violations": [], "warnings": [note, *again["warnings"]], "attempts": retries + 1, "redacted": removed}
     return {"status": "rejected", "analysis": None, "violations": violations, "warnings": result["warnings"], "attempts": retries + 1}
