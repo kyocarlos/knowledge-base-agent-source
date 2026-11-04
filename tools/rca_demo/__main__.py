@@ -11,6 +11,7 @@ ROOT=Path(__file__).resolve().parents[2];sys.path.insert(0,str(ROOT))
 import psycopg,uvicorn
 from fastapi import FastAPI
 from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from src.report_numeric import timescale
 from src.web_api.rca_routes import create_router
 from src.report_numeric import rca_service,compare
@@ -115,8 +116,9 @@ def main():
     @app.get("/api/rca/v1/demo-info")
     def info():return {"demo":True}
     @app.get("/")
-    @app.get("/zones/csit/rca.html")
     def page():return FileResponse(PAGE)
+    # the zone style sheets, icons and the other zone pages, so the page is judged next to the real ones
+    app.mount("/",StaticFiles(directory=str(ROOT/"frontend")),name="frontend")
     print(f"\n  RCA 示範  http://127.0.0.1:{a.port}/   (合成資料;分析為規則產生的替身)\n  Ctrl+C 結束\n",flush=True)
     if not a.no_browser:webbrowser.open(f"http://127.0.0.1:{a.port}/")
     uvicorn.run(app,host="127.0.0.1",port=a.port,log_level="warning")

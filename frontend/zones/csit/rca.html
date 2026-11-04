@@ -1,158 +1,210 @@
 <!doctype html>
 <html lang="zh-Hant" data-zone="csit">
 <head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="theme-color" content="#06161d"><meta http-equiv="Cache-Control" content="no-store">
-<title>RCA 報告分析 · 產品驗證專區</title>
-<style>
-:root{--bg:#06161d;--bg2:#0b2630;--panel:#0f2f3b;--panel2:#123a48;--line:#1f4b5b;--fg:#e8f6f8;--mute:#9dbcc6;--acc:#5ee0d0;--acc2:#143f48;--ok:#6fe3a0;--bad:#ff8a80;--warn:#f3c969;--chg:#8cb8ff}
-*{box-sizing:border-box}body{margin:0;background:radial-gradient(1200px 500px at 20% -10%,#0d3a47 0,var(--bg) 60%);color:var(--fg);font:15px/1.6 "Noto Sans TC",Inter,system-ui,sans-serif}
-a{color:var(--acc)}
-.shell{display:grid;grid-template-columns:230px minmax(0,1fr);min-height:100vh}
-aside{background:#08202a;border-right:1px solid var(--line);padding:16px 12px;position:sticky;top:0;height:100vh}
-aside .brand{font-weight:700;font-size:16px;margin-bottom:2px}aside small{color:var(--mute)}
-aside nav{margin-top:18px}aside nav a{display:block;padding:9px 12px;border-radius:9px;color:var(--mute);text-decoration:none;margin-bottom:3px}
-aside nav a.on{background:#e8f9f7;color:#06303a;font-weight:700}aside nav a:hover:not(.on){background:#ffffff12}
-main{padding:20px 26px 60px;min-width:0}
-h1{font-size:28px;margin:0 0 2px}.sub{color:var(--mute);margin:0 0 16px}
-.card{background:linear-gradient(180deg,var(--panel),var(--bg2));border:1px solid var(--line);border-radius:14px;padding:16px 18px;margin-bottom:16px}
-.card h2{font-size:17px;margin:0 0 10px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-.row{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end}
-label{display:flex;flex-direction:column;font-size:12px;color:var(--mute);gap:4px}
-input,select,textarea,button{font:inherit;color:var(--fg);background:#0a2530;border:1px solid var(--line);border-radius:9px;padding:7px 10px}
-button{cursor:pointer;font-weight:600}button.primary{background:linear-gradient(180deg,#7be9dd,#4fc9ba);color:#052b33;border:0}
-button.ghost{background:transparent}button:disabled{opacity:.45;cursor:not-allowed}
-table{width:100%;border-collapse:collapse;font-size:14px}th{color:var(--mute);font-weight:600;font-size:12px;text-align:left}
-td,th{padding:7px 8px;border-bottom:1px solid #17404d;vertical-align:top}tr.pick{cursor:pointer}tr.pick:hover{background:#ffffff0a}tr.sel{background:#5ee0d01c}
-.scroll{overflow:auto;max-height:340px}
-.pill{display:inline-block;padding:1px 9px;border-radius:99px;font-size:12px;font-weight:700;background:var(--acc2);color:var(--acc);white-space:nowrap}
-.pill.chg{background:#1b3358;color:var(--chg)}.pill.bad{background:#4a1f24;color:var(--bad)}.pill.ok{background:#164633;color:var(--ok)}.pill.warn{background:#4a3a12;color:var(--warn)}.pill.mute{background:#16323b;color:var(--mute)}
-.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px}.stat{background:#0a2530;border:1px solid var(--line);border-radius:11px;padding:10px 12px}
-.stat b{display:block;font-size:24px}.stat span{color:var(--mute);font-size:12px}
-.banner{border-radius:11px;padding:10px 13px;margin:10px 0;border:1px solid}.banner.warn{background:#3a2f12;border-color:#6b5420;color:#ffe3a0}.banner.info{background:#0d3441;border-color:#1f5568}.banner.bad{background:#401a1e;border-color:#7a2f37;color:#ffc1bb}
-.mono{font-family:ui-monospace,Consolas,monospace;font-size:12px}.mute{color:var(--mute)}.nowrap{white-space:nowrap}
-.chip{display:inline-block;margin:1px 3px 1px 0;padding:0 8px;border-radius:7px;border:1px solid var(--line);background:#0a2530;color:var(--acc);font:12px ui-monospace,Consolas,monospace;cursor:pointer}
-.chip:hover{background:var(--acc2)}.chip.f{color:#f3c969}.chip.r{color:#ff9d94}.chip.c{color:#c6a2ff}.chip.q{color:#9fb6bd}
-.hyp{border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin:10px 0;background:#0a2530}
-.hyp h3{margin:0 0 6px;font-size:16px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-.hyp .k{color:var(--mute);font-size:12px;margin-top:8px}.hyp ul{margin:3px 0 0 18px;padding:0}
-.delta-neg{color:var(--bad)}.delta-pos{color:var(--ok)}.delta-neu{color:var(--chg)}
-.bar{height:6px;border-radius:4px;background:#15414e;position:relative;margin-top:4px}.bar i{position:absolute;left:0;top:0;bottom:0;border-radius:4px;background:var(--acc)}
-.flash{animation:fl 1.6s ease-out}@keyframes fl{from{background:#5ee0d055}to{background:transparent}}
-.ev-pop{position:fixed;right:18px;bottom:18px;max-width:420px;background:#0b2a35;border:1px solid var(--acc);border-radius:12px;padding:12px 14px;box-shadow:0 10px 30px #0008;z-index:20}
-.ev-pop pre{margin:6px 0 0;white-space:pre-wrap;font-size:12px;max-height:220px;overflow:auto}
-.spin{display:inline-block;width:14px;height:14px;border:2px solid #ffffff44;border-top-color:#fff;border-radius:50%;animation:sp .8s linear infinite;vertical-align:-2px}@keyframes sp{to{transform:rotate(360deg)}}
-.topbar{display:flex;gap:14px;align-items:flex-start;justify-content:space-between;flex-wrap:wrap}
-.topbar .actions{display:flex;gap:10px;flex-wrap:wrap}
-a.btn{display:inline-flex;align-items:center;gap:6px;padding:8px 14px;border-radius:10px;border:1px solid var(--line);background:#0a2530;color:var(--fg);text-decoration:none;font-weight:600;font-size:14px}
-a.btn:hover{background:var(--acc2);border-color:var(--acc)}a.btn.home{background:linear-gradient(180deg,#7be9dd,#4fc9ba);color:#052b33;border:0}
-aside .brand a{color:inherit;text-decoration:none}
-@media(max-width:860px){.shell{grid-template-columns:1fr}aside{position:static;height:auto}}
-</style></head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#06161d">
+  <meta http-equiv="Cache-Control" content="no-store">
+  <title>RCA 報告分析 · 產品驗證專區</title>
+  <link rel="stylesheet" href="/zones/zone.2fa8b6864ac8.css">
+  <link rel="stylesheet" href="/km-select-dark.fb2dfa66e6a4.css">
+  <link rel="stylesheet" href="/km-theme.89b56142d291.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
+  <script src="/km-icons.8af640b761fc.js" defer></script>
+  <style>
+    /* Only what the zone style sheet has no component for; every colour and size comes from the zone tokens. */
+    .section-intro > div { min-width: 0; flex: 1; flex-direction: column; align-items: flex-start; gap: 2px; } /* a long description sits under the heading, not beside it */
+    .section-intro .inline-note, .section-intro .tag { flex: none; white-space: nowrap; }
+    .section-intro h2 { white-space: normal; }
+    .rca-filters { display: grid; grid-template-columns: minmax(220px,2fr) minmax(150px,1fr) auto; gap: 12px; align-items: end; }
+    .rca-scroll { max-height: 360px; overflow: auto; }
+    .rca-table { table-layout: auto; min-width: 760px; }
+    .rca-table tr.pick { cursor: pointer; }
+    .rca-table tr.pick:hover td { background: rgba(127,255,227,.06); }
+    .rca-table tr.sel td { background: var(--green-soft); }
+    .rca-table .mono { color: var(--muted); font-size: .72rem; }
+    .mono { font-family: ui-monospace, Consolas, monospace; word-break: break-all; }
+    .mute { color: var(--muted); }
+    .nowrap { white-space: nowrap; }
+    .rca-actions { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; }
+    .rca-actions label { flex: 1; min-width: 260px; }
+    .tag.bad { color: var(--red); background: var(--red-soft); }
+    .tag.chg { color: var(--blue); background: var(--blue-soft); }
+    .tag.mute { color: var(--muted); background: rgba(255,255,255,.07); }
+    .tag.warn { color: var(--amber); background: var(--amber-soft); }
+    .alert-row { align-items: flex-start; margin-top: 12px; line-height: 1.6; }
+    .alert-row.info { border-color: var(--line); color: var(--ink-soft); background: var(--green-soft); }
+    .alert-row.bad { border-color: rgba(255,100,100,.4); color: var(--red); background: var(--red-soft); }
+    .alert-row.warning { color: var(--amber); border-color: rgba(255,190,64,.4); background: var(--amber-soft); }
+    .alert-row ul { margin: 6px 0 0 18px; padding: 0; }
+    .rca-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; }
+    .rca-stat { padding: 12px 14px; border: 1px solid var(--line-soft); border-radius: 12px; background: rgba(0,0,0,.12); }
+    .rca-stat strong { display: block; font-size: 1.72rem; letter-spacing: -.035em; line-height: 1.1; }
+    .rca-stat span { color: var(--ink-soft); font-size: .8rem; font-weight: 700; }
+    main > * + *, #out > * + * { margin-top: 18px; }
+    .panel h3 { margin: 16px 0 6px; font-size: .95rem; color: var(--ink-soft); }
+    .panel ul { margin: 4px 0 4px 20px; padding: 0; }
+    .panel li + li { margin-top: 4px; }
+    .chip { display: inline-block; margin: 1px 4px 1px 0; padding: 1px 8px; border: 1px solid var(--line); border-radius: 8px; background: rgba(0,0,0,.18); color: var(--green); font: .72rem ui-monospace, Consolas, monospace; cursor: pointer; }
+    .chip:hover { background: var(--green-soft); }
+    .chip.f { color: var(--amber); } .chip.r { color: var(--red); } .chip.c { color: var(--purple); } .chip.q { color: var(--muted); }
+    .hyp { margin: 12px 0; padding: 14px 16px; border: 1px solid var(--line); border-radius: 12px; background: rgba(0,0,0,.14); }
+    .hyp h3 { margin: 0 0 6px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; color: var(--ink); font-size: 1rem; }
+    .hyp .k { margin-top: 10px; color: var(--muted); font-size: .76rem; font-weight: 700; }
+    .delta-neg { color: var(--red); } .delta-pos { color: var(--green); } .delta-neu { color: var(--blue); }
+    .bar { height: 6px; margin-top: 5px; border-radius: 4px; background: rgba(255,255,255,.1); position: relative; }
+    .bar i { position: absolute; inset: 0 auto 0 0; border-radius: 4px; background: var(--green); }
+    .flash { animation: fl 1.6s ease-out; } @keyframes fl { from { background: rgba(127,255,227,.3); } to { background: transparent; } }
+    .ev-pop { position: fixed; right: 18px; bottom: 18px; z-index: 20; max-width: 440px; padding: 14px 16px; border: 1px solid var(--green); border-radius: 14px; background: #0b2a35; box-shadow: 0 10px 30px rgba(0,0,0,.45); }
+    .ev-pop pre { margin: 8px 0 0; max-height: 240px; overflow: auto; white-space: pre-wrap; font-size: .72rem; }
+    .spin { display: inline-block; width: 14px; height: 14px; border: 2px solid rgba(255,255,255,.3); border-top-color: #fff; border-radius: 50%; animation: sp .8s linear infinite; vertical-align: -2px; } @keyframes sp { to { transform: rotate(360deg); } }
+    .rca-note { margin: 10px 0 0; color: var(--muted); font-size: .76rem; line-height: 1.6; }
+    @media (max-width: 760px) { .rca-filters { grid-template-columns: 1fr; } }
+  </style>
+</head>
 <body>
-<div class="shell">
-<aside><div class="brand"><a href="/zones/csit/#/overview" title="回到專區首頁">產品驗證專區</a></div><small>CSIT KNOWLEDGE ZONE</small>
-<nav><a href="/zones/csit/#/overview">總覽</a><a href="/zones/csit/#/documents">文件瀏覽</a><a href="/zones/csit/#/ai">產品驗證助理</a><a class="on" href="/zones/csit/rca.html">RCA 分析</a></nav></aside>
-<main>
-<div class="topbar"><div><h1>RCA 報告分析</h1><p class="sub">選 2 份以上的測試報告,先看程式比對出的差異與變因,再讓模型提出「待驗證」的候選原因。</p></div>
-<div class="actions"><a class="btn home" href="/zones/csit/#/overview">← 回到專區首頁</a><a class="btn" href="/hub/">返回知識中樞</a></div></div>
-<div id="demo"></div>
-
-<div class="card"><h2>① 選擇報告 <span class="pill mute" id="selcount">已選 0</span></h2>
-<div class="row"><label>設備或型號<input id="q" placeholder="例如 RTF7907VW-D223" size="26"></label>
-<label>報告類型<select id="rt"><option value="">全部</option></select></label><button class="ghost" onclick="loadRuns()">搜尋</button></div>
-<div class="scroll" style="margin-top:10px"><table id="runs"></table></div>
-<div class="mute" style="margin-top:6px">第一個勾選的是<b>基準</b>(其餘與它比較)。不同類型的報告(例如 Throughput 與 RvR)不能互比。</div>
-<div class="mute" style="margin-top:4px">「資料品質」欄的意思:報告的原始 Excel 裡有公式錯誤(例如 <span class="mono">#REF!</span>,通常是範本的引用被刪除)。這些儲存格不會被當成數值,報告其餘資料照常使用;滑鼠移到標籤上可看位置,「隱藏頁」代表錯誤都在隱藏的工作表。</div></div>
-
-<div class="card"><h2>② 比較與分析</h2>
-<div class="row"><label style="flex:1;min-width:260px">想釐清的問題(選填)<input id="ask" placeholder="例如:ch36 的下行吞吐量為什麼下降?" maxlength="500"></label>
-<button id="btnCmp" class="ghost" onclick="go(false)">只做比較(不用模型)</button><button id="btnRca" class="primary" onclick="go(true)">比較並分析可能原因</button></div><div class="mute" id="capnote" style="margin-top:6px"></div></div>
-<div id="out"></div>
-</main></div>
-<div id="pop"></div>
+  <div id="app" class="app-shell">
+    <aside class="sidebar" aria-label="產品驗證專區導覽">
+      <a class="brand brand-zone" href="/zones/csit/#/overview" aria-label="回到產品驗證專區首頁">
+        <span class="brand-mark bm-clipboard" aria-hidden="true">K</span>
+        <span><strong>產品驗證專區</strong><small>CSIT knowledge zone</small></span>
+      </a>
+      <nav id="primary-nav" class="primary-nav"><section class="nav-group"><p class="nav-label">知識專區</p>
+        <a class="nav-item" href="/zones/csit/#/overview"><span class="nav-icon" aria-hidden="true">◈</span><span>總覽</span></a>
+        <a class="nav-item" href="/zones/csit/#/documents"><span class="nav-icon" aria-hidden="true">▤</span><span>文件瀏覽</span></a>
+        <a class="nav-item" href="/zones/csit/#/ai"><span class="nav-icon" aria-hidden="true">♙</span><span>產品驗證助理</span></a>
+        <a class="nav-item active" href="/zones/csit/rca.html" aria-current="page"><span class="nav-icon" aria-hidden="true">⇄</span><span>RCA 分析</span></a>
+      </section></nav>
+      <div class="sidebar-footer">
+        <span class="computer-icon" aria-hidden="true"></span>
+        <span><strong>KM DEV</strong><small><i></i><span id="zone-status">RCA 報告分析</span></small></span>
+      </div>
+    </aside>
+    <section class="workspace">
+      <header class="topbar">
+        <div class="page-title"><h1>產品驗證專區</h1><p>RCA 報告分析</p></div>
+        <div class="topbar-actions">
+          <a class="primary-button" href="/zones/csit/#/overview">← 回到專區首頁</a>
+          <a class="back-link" href="/hub/">返回知識中樞</a>
+        </div>
+      </header>
+      <div class="workspace-body">
+        <main id="page-content" tabindex="-1">
+          <div id="demo"></div>
+          <section class="panel">
+            <div class="section-intro"><div><h2>① 選擇報告</h2><p>選 2 份以上同類型的測試報告;第一個勾選的是基準,其餘與它比較。先看程式比對出的差異與變因,再讓模型提出「待驗證」的候選原因。</p></div><span class="inline-note" id="selcount">已選 0</span></div>
+            <div class="rca-filters">
+              <label>設備或型號<input id="q" placeholder="例如 RTF7907VW-D223"></label>
+              <label>報告類型<select id="rt"><option value="">全部</option></select></label>
+              <button class="secondary-button" type="button" onclick="loadRuns()">搜尋</button>
+            </div>
+            <div class="table-wrap rca-scroll" style="margin-top:14px"><table id="runs" class="rca-table"></table></div>
+            <p class="rca-note">不同類型的報告(例如 Throughput 與 RvR)不能互比。「資料品質」欄:報告的原始 Excel 裡有公式錯誤(例如 <span class="mono">#REF!</span>,通常是範本的引用被刪除),這些儲存格不會被當成數值,報告其餘資料照常使用;滑鼠移到標籤上可看位置,「隱藏頁」代表錯誤都在隱藏的工作表。</p>
+          </section>
+          <section class="panel">
+            <div class="section-intro"><div><h2>② 比較與分析</h2><p>比較由程式計算,立即顯示;模型分析需要較長時間,完成後顯示在下方。</p></div></div>
+            <div class="rca-actions">
+              <label>想釐清的問題(選填)<input id="ask" placeholder="例如:ch36 的下行吞吐量為什麼下降?" maxlength="500"></label>
+              <button id="btnCmp" class="secondary-button" type="button" onclick="go(false)">只做比較(不用模型)</button>
+              <button id="btnRca" class="primary-button" type="button" onclick="go(true)">比較並分析可能原因</button>
+            </div>
+            <p class="rca-note" id="capnote"></p>
+          </section>
+          <div id="out"></div>
+        </main>
+      </div>
+      <footer class="page-footer"><span>CSIT Knowledge Zone · KM DEV</span><span>RCA 結果為待驗證的假設,內容依目前匯入的報告提供</span></footer>
+    </section>
+  </div>
+  <div id="pop"></div>
 <script>
 const $=id=>document.getElementById(id),esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const NL=String.fromCharCode(10);
 const api=async(p,b)=>{const r=await fetch(p,b?{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b)}:{});let d=null;try{d=await r.json()}catch(e){}
  if(r.status===401){location.assign('/login.html?next='+encodeURIComponent(location.pathname));throw new Error('登入已過期')}
  if(r.status===404||r.status===503&&(!d||d.detail==='RCA is not enabled'))throw new Error('RCA 後端尚未啟用,目前只有畫面可以預覽。請管理員啟用後再使用。');
  if(!r.ok)throw new Error(typeof d?.detail==='string'?d.detail:(d?.detail?JSON.stringify(d.detail):('錯誤 '+r.status)));return d};
-let runs=[],picked=[],PACK=null;
-
-const plural=(n)=>n+' 個';
-function qualityText(sum,total){const vals=[...new Set(sum.flatMap(g=>g.values))].join('、');
- const lines=sum.map(g=>`• ${g.hidden?'隱藏':'可見'}工作表「${g.sheet}」:${g.count} 個 ${g.values.join('、')}(${g.cells.join('、')}${g.count>g.cells.length?' …':''})`);
- return `來源 Excel 有 ${total} 個公式錯誤儲存格(${vals}):`+String.fromCharCode(10)+lines.join(String.fromCharCode(10))+String.fromCharCode(10)+'這些格子沒有被當成數值,報告其餘資料仍可使用。'}
-function qualityPill(r){const n=r.formula_error_count||0;if(!n&&r.quality_status==='clean')return '<span class="pill ok">無公式錯誤</span>';
- const sum=r.error_summary||[];const allHidden=sum.length&&sum.every(g=>g.hidden);const vals=[...new Set(sum.flatMap(g=>g.values))].join('、');
- const label=allHidden?`隱藏頁 ${n} 個 ${vals}`:`公式錯誤 ${n} 個 ${vals}`;
- return `<span class="pill ${allHidden?'mute':'warn'}" title="${esc(qualityText(sum,n))}">${esc(label)}</span>`}
+let runs=[],picked=[],PACK=null,canAnalyze=false,runToken=0;
+// small builders so every block uses the zone components (panel / section-intro / tag / alert-row)
+const tag=(cls,text,title)=>`<span class="tag${cls?' '+cls:''}"${title?` title="${esc(title)}"`:''}>${text}</span>`;
+const alertRow=(cls,html)=>`<div class="alert-row ${cls}">${html}</div>`;
+const panel=(title,body,note)=>`<section class="panel"><div class="section-intro"><h2>${title}</h2>${note||''}</div>${body}</section>`;
 const fmt=(v,d=2)=>v==null?'—':(typeof v==='number'?(Math.abs(v)>=1000?v.toFixed(0):+v.toFixed(d)):esc(v));
 const FNAME={firmware_version:'韌體版本',hardware_version:'硬體版本',chipset_vendor:'晶片廠商',ethernet_type:'乙太網路類型',npi_stage:'NPI 階段',test_date:'測試日期',report_type:'報告類型',technology:'技術',dut_model:'設備型號',report_revision:'報告修訂',document_version:'文件版本'};
+function qualityText(sum,total){const vals=[...new Set(sum.flatMap(g=>g.values))].join('、');
+ const lines=sum.map(g=>`• ${g.hidden?'隱藏':'可見'}工作表「${g.sheet}」:${g.count} 個 ${g.values.join('、')}(${g.cells.join('、')}${g.count>g.cells.length?' …':''})`);
+ return `來源 Excel 有 ${total} 個公式錯誤儲存格(${vals}):`+NL+lines.join(NL)+NL+'這些格子沒有被當成數值,報告其餘資料仍可使用。'}
+function qualityPill(r){const n=r.formula_error_count||0;if(!n&&r.quality_status==='clean')return tag('','無公式錯誤');
+ const sum=r.error_summary||[];const allHidden=sum.length&&sum.every(g=>g.hidden);const vals=[...new Set(sum.flatMap(g=>g.values))].join('、');
+ return tag(allHidden?'mute':'warn',esc(allHidden?`隱藏頁 ${n} 個 ${vals}`:`公式錯誤 ${n} 個 ${vals}`),qualityText(sum,n))}
 async function loadRuns(){try{const d=await api('/api/rca/v1/runs?product='+encodeURIComponent($('q').value)+'&report_type='+encodeURIComponent($('rt').value));runs=d.runs;
  if($('rt').options.length===1)d.report_types.forEach(t=>$('rt').add(new Option(t,t)));drawRuns()}catch(e){$('runs').innerHTML='<tr><td class="mute">'+esc(e.message)+'</td></tr>'}}
-function drawRuns(){$('runs').innerHTML='<tr><th></th><th>順序</th><th>設備</th><th>類型</th><th>韌體</th><th>硬體</th><th>日期</th><th>判定</th><th>資料品質</th></tr>'+(runs.length?runs.map(r=>{const i=picked.indexOf(r.test_run_id);
- return `<tr class="pick ${i>=0?'sel':''}" onclick="toggle('${esc(r.test_run_id)}')"><td><input type="checkbox" ${i>=0?'checked':''} tabindex="-1"></td><td>${i>=0?(i===0?'<span class="pill">基準</span>':'#'+(i+1)):''}</td>
- <td><b>${esc(r.dut_model)}</b><div class="mono mute">${esc(r.test_run_id)}</div></td><td>${esc(r.report_type)}</td><td>${esc(r.firmware_version||'—')}</td><td>${esc(r.hardware_version||'—')}</td><td class="nowrap">${esc(r.test_date||'—')}</td>
- <td><span class="pill ${r.overall_result==='pass'?'ok':r.overall_result==='fail'?'bad':'mute'}">${esc(r.overall_result||'—')}</span></td><td>${qualityPill(r)}</td></tr>`}).join(''):'<tr><td colspan="9" class="mute">沒有符合的報告</td></tr>');
- $('selcount').textContent='已選 '+picked.length;$('btnCmp').disabled=picked.length<2;if(typeof applyCaps==='function')applyCaps()}
+function drawRuns(){$('runs').innerHTML='<tr><th style="width:44px"></th><th style="width:70px">順序</th><th>設備</th><th>類型</th><th>韌體</th><th>硬體</th><th>日期</th><th>判定</th><th>資料品質</th></tr>'+(runs.length?runs.map(r=>{const i=picked.indexOf(r.test_run_id);
+ return `<tr class="pick ${i>=0?'sel':''}" onclick="toggle('${esc(r.test_run_id)}')"><td><input type="checkbox" style="margin:0" ${i>=0?'checked':''} tabindex="-1"></td><td>${i>=0?(i===0?tag('','基準'):'#'+(i+1)):''}</td>
+ <td><div class="document-title">${esc(r.dut_model)}</div><div class="mono">${esc(r.test_run_id)}</div></td><td>${esc(r.report_type)}</td><td>${esc(r.firmware_version||'—')}</td><td>${esc(r.hardware_version||'—')}</td><td class="nowrap">${esc(r.test_date||'—')}</td>
+ <td>${tag(r.overall_result==='pass'?'':r.overall_result==='fail'?'bad':'mute',esc(r.overall_result||'—'))}</td><td>${qualityPill(r)}</td></tr>`}).join(''):'<tr><td colspan="9" class="mute">沒有符合的報告</td></tr>');
+ $('selcount').textContent='已選 '+picked.length;$('btnCmp').disabled=picked.length<2;applyCaps()}
 function toggle(id){const i=picked.indexOf(id);if(i>=0)picked.splice(i,1);else if(picked.length<6)picked.push(id);drawRuns()}
-function evChip(id,pack){const k=id[0].toLowerCase();return `<span class="chip ${k}" onclick="showEv('${id}')">${id}</span>`}
+function evChip(id){return `<span class="chip ${id[0].toLowerCase()}" onclick="showEv('${id}')">${id}</span>`}
 function showEv(id){const e=PACK?.evidence?.[id];if(!e)return;const t=document.getElementById('ev-'+id);if(t){t.scrollIntoView({block:'center',behavior:'smooth'});t.classList.remove('flash');void t.offsetWidth;t.classList.add('flash')}
- $('pop').innerHTML=`<div class="ev-pop"><div class="row" style="justify-content:space-between"><b>${id} · ${esc(e.kind)}</b><button class="ghost" onclick="$('pop').innerHTML=''">關閉</button></div><pre>${esc(JSON.stringify(e,null,1))}</pre></div>`}
-const runName=(i)=>{const r=PACK.runs[i];return `#${i+1}${i===0?'(基準)':''} ${esc(r.firmware_version||'')}`};
-function badge(a){return a==='regression'?'<span class="pill bad">退步</span>':a==='improvement'?'<span class="pill ok">進步</span>':a==='changed'?'<span class="pill chg">有變化</span>':a==='baseline'?'':'<span class="pill mute">持平</span>'}
+ $('pop').innerHTML=`<div class="ev-pop"><div style="display:flex;justify-content:space-between;align-items:center;gap:12px"><b>${id} · ${esc(e.kind)}</b><button class="secondary-button" type="button" onclick="$('pop').innerHTML=''">關閉</button></div><pre>${esc(JSON.stringify(e,null,1))}</pre></div>`}
+const runName=i=>{const r=PACK.runs[i];return `#${i+1}${i===0?'(基準)':''} ${esc(r.firmware_version||'')}`};
+const badge=a=>a==='regression'?tag('bad','退步'):a==='improvement'?tag('','進步'):a==='changed'?tag('chg','有變化'):a==='baseline'?'':tag('mute','持平');
+const heads=p=>p.runs.map((_,i)=>`<th>${runName(i)}</th>`).join('');
 function drawPack(p){PACK=p;const c=p.counts;let h='';
- h+=`<div class="card"><h2>比較結果</h2><div class="stats"><div class="stat"><b>${c.aligned}</b><span>對齊的量測</span></div><div class="stat"><b>${c.notable}</b><span>顯著差異</span></div><div class="stat"><b>${c.unchanged}</b><span>持平</span></div>
- <div class="stat"><b>${c.coverage_gaps}</b><span>只出現在部分報告</span></div><div class="stat"><b>${p.result_changes.length}</b><span>Pass/Fail 變化</span></div><div class="stat"><b>${p.factors.length}</b><span>不同的變因</span></div></div>
- ${p.confounded?`<div class="banner warn">⚠ ${esc(p.confounded_note)}</div>`:''}
- ${p.directions_defined.length?'':`<div class="banner info">這些指標的「越高越好」方向尚未定義,所以只標示「有變化」,不判斷好壞。顯著門檻目前是預設值(${p.thresholds.pct}%,部分指標用絕對值)。</div>`}</div>`;
- h+=`<div class="card"><h2>變因:這幾份報告哪裡不一樣</h2>${p.factors.length?`<table><tr><th>編號</th><th>項目</th>${p.runs.map((_,i)=>`<th>${runName(i)}</th>`).join('')}</tr>`+p.factors.map(f=>`<tr id="ev-${f.id}"><td>${evChip(f.id)}</td><td>${esc(FNAME[f.factor]||f.factor)}</td>${f.values.map(v=>`<td>${fmt(v)}</td>`).join('')}</tr>`).join('')+'</table>':'<span class="mute">所選報告在這些欄位上完全相同</span>'}</div>`;
+ h+=panel('比較結果',`<div class="rca-stats">${[[c.aligned,'對齊的量測'],[c.notable,'顯著差異'],[c.unchanged,'持平'],[c.coverage_gaps,'只出現在部分報告'],[p.result_changes.length,'Pass/Fail 變化'],[p.factors.length,'不同的變因']].map(x=>`<div class="rca-stat"><strong>${x[0]}</strong><span>${x[1]}</span></div>`).join('')}</div>
+ ${p.confounded?alertRow('warning','⚠ '+esc(p.confounded_note)):''}
+ ${p.directions_defined.length?'':alertRow('info',`這些指標的「越高越好」方向尚未定義,所以只標示「有變化」,不判斷好壞。顯著門檻目前是預設值(${p.thresholds.pct}%,部分指標用絕對值)。`)}`);
+ h+=panel('變因:這幾份報告哪裡不一樣',p.factors.length?`<div class="table-wrap"><table class="rca-table"><tr><th style="width:70px">編號</th><th>項目</th>${heads(p)}</tr>`+p.factors.map(f=>`<tr id="ev-${f.id}"><td>${evChip(f.id)}</td><td>${esc(FNAME[f.factor]||f.factor)}</td>${f.values.map(v=>`<td>${fmt(v)}</td>`).join('')}</tr>`).join('')+'</table></div>':'<span class="mute">所選報告在這些欄位上完全相同</span>');
  const maxm=Math.max(1,...p.diffs.map(d=>d.magnitude));
- h+=`<div class="card"><h2>量測差異 <span class="pill mute">顯著 ${p.diffs_total} 筆${p.diffs_total>p.diffs.length?',顯示前 '+p.diffs.length:''}</span></h2>${p.diffs.length?`<div class="scroll" style="max-height:460px"><table><tr><th>編號</th><th>量測</th>${p.runs.map((_,i)=>`<th>${runName(i)}</th>`).join('')}<th>幅度</th></tr>`+
- p.diffs.map(d=>`<tr id="ev-${d.id}"><td>${evChip(d.id)}</td><td>${esc(d.label)}<div class="mute">${esc(d.unit)}</div></td>${d.per_run.map(r=>`<td title="來源 ${esc(r.source)}">${fmt(r.value)}${r.delta_pct!=null?`<div class="${r.delta<0?'delta-neg':r.delta>0?'delta-pos':'delta-neu'}">${r.delta>0?'+':''}${fmt(r.delta_pct,1)}% ${badge(r.assessment)}</div>`:(r.delta!=null?`<div>${r.delta>0?'+':''}${fmt(r.delta)} ${badge(r.assessment)}</div>`:'')}<div class="mono mute">${esc(r.source)}</div></td>`).join('')}
- <td style="min-width:90px">${fmt(d.magnitude,1)}<div class="bar"><i style="width:${Math.max(4,d.magnitude/maxm*100)}%"></i></div></td></tr>`).join('')+'</table></div>':'<span class="mute">沒有超過門檻的差異</span>'}</div>`;
- if(p.result_changes.length)h+=`<div class="card"><h2>Pass / Fail 變化</h2><table><tr><th>編號</th><th>項目</th>${p.runs.map((_,i)=>`<th>${runName(i)}</th>`).join('')}</tr>`+p.result_changes.map(r=>`<tr id="ev-${r.id}"><td>${evChip(r.id)}</td><td>${esc(r.label)}</td>${r.outcomes.map(o=>`<td><span class="pill ${o==='pass'?'ok':o==='fail'?'bad':'mute'}">${esc(o||'無')}</span></td>`).join('')}</tr>`).join('')+'</table></div>';
- if(p.criteria_changes.length)h+=`<div class="card"><h2>判定門檻不同</h2><table><tr><th>編號</th><th>條件</th>${p.runs.map((_,i)=>`<th>${runName(i)}</th>`).join('')}</tr>`+p.criteria_changes.map(r=>`<tr id="ev-${r.id}"><td>${evChip(r.id)}</td><td>${esc(r.label)}</td>${r.criteria.map((v,i)=>`<td>${fmt(v)}${r.reference_rate_mbps[i]!=null?`<div class="mute">參考 ${fmt(r.reference_rate_mbps[i])} Mbps</div>`:''}</td>`).join('')}</tr>`).join('')+'</table></div>';
- if(p.coverage.length||p.quality.length)h+=`<div class="card"><h2>資料缺口與品質</h2>${p.coverage.map(r=>`<div id="ev-${r.id}">${evChip(r.id)} ${esc(r.label)} — ${r.unit_mismatch?'單位不一致 '+esc(r.unit_mismatch.join('/')):'只出現在 '+r.present_in.map(i=>runName(i)).join('、')}</div>`).join('')}
- ${p.quality.map(r=>`<div id="ev-${r.id}">${evChip(r.id)} ${r.duplicate_keys?`${runName(r.run)} 有 ${r.duplicate_keys} 筆重複的量測鍵`:`${runName(r.run)} <span class="mono">${esc(p.runs[r.run].dut_model)}</span>:${esc(qualityText(p.runs[r.run].error_summary||[],r.formula_errors)).split(String.fromCharCode(10)).join('<br>')}`}</div>`).join('')}</div>`;
+ h+=panel('量測差異',p.diffs.length?`<div class="table-wrap rca-scroll" style="max-height:480px"><table class="rca-table"><tr><th style="width:70px">編號</th><th>量測</th>${heads(p)}<th style="width:110px">幅度</th></tr>`+
+ p.diffs.map(d=>`<tr id="ev-${d.id}"><td>${evChip(d.id)}</td><td>${esc(d.label)}<div class="mono">${esc(d.unit)}</div></td>${d.per_run.map(r=>`<td title="來源 ${esc(r.source)}">${fmt(r.value)}${r.delta_pct!=null?`<div class="${r.delta<0?'delta-neg':r.delta>0?'delta-pos':'delta-neu'}">${r.delta>0?'+':''}${fmt(r.delta_pct,1)}% ${badge(r.assessment)}</div>`:(r.delta!=null?`<div>${r.delta>0?'+':''}${fmt(r.delta)} ${badge(r.assessment)}</div>`:'')}<div class="mono">${esc(r.source)}</div></td>`).join('')}
+ <td>${fmt(d.magnitude,1)}<div class="bar"><i style="width:${Math.max(4,d.magnitude/maxm*100)}%"></i></div></td></tr>`).join('')+'</table></div>':'<span class="mute">沒有超過門檻的差異</span>',
+ `<span class="inline-note">顯著 ${p.diffs_total} 筆${p.diffs_total>p.diffs.length?',顯示前 '+p.diffs.length:''}</span>`);
+ if(p.result_changes.length)h+=panel('Pass / Fail 變化',`<div class="table-wrap"><table class="rca-table"><tr><th style="width:70px">編號</th><th>項目</th>${heads(p)}</tr>`+p.result_changes.map(r=>`<tr id="ev-${r.id}"><td>${evChip(r.id)}</td><td>${esc(r.label)}</td>${r.outcomes.map(o=>`<td>${tag(o==='pass'?'':o==='fail'?'bad':'mute',esc(o||'無'))}</td>`).join('')}</tr>`).join('')+'</table></div>');
+ if(p.criteria_changes.length)h+=panel('判定門檻不同',`<div class="table-wrap"><table class="rca-table"><tr><th style="width:70px">編號</th><th>條件</th>${heads(p)}</tr>`+p.criteria_changes.map(r=>`<tr id="ev-${r.id}"><td>${evChip(r.id)}</td><td>${esc(r.label)}</td>${r.criteria.map((v,i)=>`<td>${fmt(v)}${r.reference_rate_mbps[i]!=null?`<div class="mono">參考 ${fmt(r.reference_rate_mbps[i])} Mbps</div>`:''}</td>`).join('')}</tr>`).join('')+'</table></div>');
+ if(p.coverage.length||p.quality.length)h+=panel('資料缺口與品質',p.coverage.map(r=>`<div id="ev-${r.id}">${evChip(r.id)} ${esc(r.label)} — ${r.unit_mismatch?'單位不一致 '+esc(r.unit_mismatch.join('/')):'只出現在 '+r.present_in.map(i=>runName(i)).join('、')}</div>`).join('')
+ +p.quality.map(r=>`<div id="ev-${r.id}" style="margin-top:8px">${evChip(r.id)} ${r.duplicate_keys?`${runName(r.run)} 有 ${r.duplicate_keys} 筆重複的量測鍵`:`${runName(r.run)} <span class="mono">${esc(p.runs[r.run].dut_model)}</span>:${esc(qualityText(p.runs[r.run].error_summary||[],r.formula_errors)).split(NL).join('<br>')}`}</div>`).join(''));
  return h}
-function drawRca(r,p){if(!r)return'';let h='<div class="card"><h2>③ 可能的原因分析 <span class="pill warn">待驗證的假設,不是結論</span></h2>';
- if(r.status==='unavailable')return h+`<div class="banner bad">${esc((r.violations&&r.violations[0])||'模型暫時無法使用')}。上面的比較結果仍然有效;可以稍後再按一次「比較並分析可能原因」,或先選較少的報告。</div></div>`;
- if(r.status==='rejected')return h+`<div class="banner bad">模型的回答沒有通過檢查,所以不顯示(避免顯示沒有依據的內容)。<ul>${r.violations.map(v=>`<li>${esc(v)}</li>`).join('')}</ul>上面的比較結果仍然有效,可以直接參考。</div></div>`;
- const a=r.analysis;const ev=l=>(l||[]).map(i=>evChip(i)).join('');
- h+=`<p>${esc(a.summary)}</p>${r.warnings.length?`<div class="banner info">${r.warnings.map(esc).join('<br>')}</div>`:''}<h3>觀察到的事實</h3><ul>${a.observations.map(o=>`<li>${esc(o.text)} ${ev(o.evidence)}</li>`).join('')}</ul><h3>候選原因</h3>`+
- a.hypotheses.map((x,i)=>`<div class="hyp"><h3>假設 ${i+1}:${esc(x.cause)} <span class="pill ${x.confidence==='high'?'ok':x.confidence==='medium'?'chg':'mute'}">信心 ${x.confidence==='high'?'高':x.confidence==='medium'?'中':'低'}</span></h3>
+const RCA_TITLE='③ 可能的原因分析';const RCA_NOTE=tag('warn','待驗證的假設,不是結論');
+function drawRca(r,p){if(!r)return'';
+ if(r.status==='unavailable')return panel(RCA_TITLE,alertRow('bad',`${esc((r.violations&&r.violations[0])||'模型暫時無法使用')}。上面的比較結果仍然有效;可以稍後再按一次「比較並分析可能原因」,或先選較少的報告。`),RCA_NOTE);
+ if(r.status==='rejected')return panel(RCA_TITLE,alertRow('bad',`<div>模型的回答沒有通過檢查,所以不顯示(避免顯示沒有依據的內容)。<ul>${r.violations.map(v=>`<li>${esc(v)}</li>`).join('')}</ul>上面的比較結果仍然有效,可以直接參考。</div>`),RCA_NOTE);
+ const a=r.analysis;const ev=l=>(l||[]).map(evChip).join('');
+ let h=`<p>${esc(a.summary)}</p>${r.warnings.length?alertRow('info',r.warnings.map(esc).join('<br>')):''}<h3>觀察到的事實</h3><ul>${a.observations.map(o=>`<li>${esc(o.text)} ${ev(o.evidence)}</li>`).join('')}</ul><h3>候選原因</h3>`+
+ (a.hypotheses.map((x,i)=>`<div class="hyp"><h3>假設 ${i+1}:${esc(x.cause)} ${tag(x.confidence==='high'?'':x.confidence==='medium'?'chg':'mute','信心 '+(x.confidence==='high'?'高':x.confidence==='medium'?'中':'低'))}</h3>
  <div>${esc(x.mechanism)}</div><div class="k">支持的證據</div><div>${ev(x.supports)||'—'}</div>${x.against.length?`<div class="k">相反的證據</div><div>${ev(x.against)}</div>`:''}
- ${x.missing_evidence.length?`<div class="k">還缺少的證據</div><ul>${x.missing_evidence.map(m=>`<li>${esc(m)}</li>`).join('')}</ul>`:''}<div class="k">建議的驗證步驟</div><ul>${x.verify_steps.map(m=>`<li>${esc(m)}</li>`).join('')}</ul></div>`).join('')||'<div class="mute">模型沒有提出假設</div>';
+ ${x.missing_evidence.length?`<div class="k">還缺少的證據</div><ul>${x.missing_evidence.map(m=>`<li>${esc(m)}</li>`).join('')}</ul>`:''}<div class="k">建議的驗證步驟</div><ul>${x.verify_steps.map(m=>`<li>${esc(m)}</li>`).join('')}</ul></div>`).join('')||'<div class="mute">模型沒有提出假設</div>');
  if(a.unexplained.length)h+=`<h3>沒有被解釋的差異</h3><ul>${a.unexplained.map(u=>`<li>${esc(u.text)} ${ev(u.evidence)}</li>`).join('')}</ul>`;
  if(a.data_gaps.length)h+=`<h3>資料不足與限制</h3><ul>${a.data_gaps.map(g=>`<li>${esc(g)}</li>`).join('')}</ul>`;
- return h+'<div class="mute">每個編號都可以點開看原始證據。程式已檢查:引用的編號存在、文中的數字都來自證據包、多變因時信心不超過「中」。</div></div>'}
-let canAnalyze=false,runToken=0;
+ return panel(RCA_TITLE,h+'<p class="rca-note">每個編號都可以點開看原始證據。程式已檢查:引用的編號存在、文中的數字都來自證據包、多變因時信心不超過「中」。</p>',RCA_NOTE)}
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
-async function go(withModel){if(picked.length<2)return;const token=++runToken;const b=[$('btnCmp'),$('btnRca')];b.forEach(x=>x.disabled=true);$('out').innerHTML='';
+async function go(withModel){if(picked.length<2)return;const token=++runToken;[$('btnCmp'),$('btnRca')].forEach(x=>x.disabled=true);$('out').innerHTML='';
  try{
-  // The comparison is computed by code and answers at once, so it is shown first; the model's analysis (slow) arrives into its own card.
+  // The comparison is computed by code and answers at once, so it is shown first; the model's analysis (slow) arrives into its own panel.
   const pack=await api('/api/rca/v1/compare',{run_ids:picked});PACK=pack;
   $('out').innerHTML=drawPack(pack)+'<div id="rcaCard"></div>';$('out').scrollIntoView({behavior:'smooth'});
   if(withModel)await runAnalysis(pack,token);
- }catch(e){$('out').innerHTML=`<div class="banner bad">${esc(e.message)}</div>`}
- finally{drawRuns();$('btnCmp').disabled=picked.length<2;applyCaps()}}
+ }catch(e){$('out').innerHTML=alertRow('bad',esc(e.message))}
+ finally{drawRuns()}}
 async function runAnalysis(pack,token){const card=$('rcaCard');
- const wait=(msg,t)=>card.innerHTML=`<div class="card"><h2>③ 可能的原因分析 <span class="pill warn">待驗證的假設,不是結論</span></h2><div><span class="spin"></span> ${esc(msg)} <span class="mute">已等待 ${t} 秒(通常 20 到 120 秒,報告多時更久;可以先看上面的比較結果)</span></div></div>`;
+ const wait=(msg,t)=>card.innerHTML=panel(RCA_TITLE,`<div><span class="spin"></span> ${esc(msg)} <span class="mute">已等待 ${t} 秒(通常 20 到 120 秒,報告多時更久;可以先看上面的比較結果)</span></div>`,RCA_NOTE);
+ const fail=m=>card.innerHTML=panel(RCA_TITLE,alertRow('bad',esc(m)+'。上面的比較結果仍然有效。'));
  wait('正在送出分析工作…',0);
- let sub;try{sub=await api('/api/rca/v1/analyze',{run_ids:picked,question:$('ask').value})}catch(e){card.innerHTML=`<div class="card"><h2>③ 可能的原因分析</h2><div class="banner bad">${esc(e.message)}。上面的比較結果仍然有效。</div></div>`;return}
+ let sub;try{sub=await api('/api/rca/v1/analyze',{run_ids:picked,question:$('ask').value})}catch(e){fail(e.message);return}
  const t0=Date.now();
  while(token===runToken&&Date.now()-t0<540000){
   await sleep(2000);if(token!==runToken)return;
-  let d;try{d=await api('/api/rca/v1/analyze/'+encodeURIComponent(sub.task_id))}catch(e){card.innerHTML=`<div class="card"><h2>③ 可能的原因分析</h2><div class="banner bad">${esc(e.message)}。上面的比較結果仍然有效。</div></div>`;return}
+  let d;try{d=await api('/api/rca/v1/analyze/'+encodeURIComponent(sub.task_id))}catch(e){fail(e.message);return}
   if(d.status==='running'){wait('模型分析中…',Math.round((Date.now()-t0)/1000));continue}
-  if(d.status==='failed'){card.innerHTML=`<div class="card"><h2>③ 可能的原因分析</h2><div class="banner bad">${esc(d.detail||'分析失敗')}。上面的比較結果仍然有效。</div></div>`;return}
+  if(d.status==='failed'){fail(d.detail||'分析失敗');return}
   card.innerHTML=drawRca(d.rca,d.pack||pack);return}
- if(token===runToken)card.innerHTML='<div class="card"><h2>③ 可能的原因分析</h2><div class="banner bad">等待逾時,分析可能仍在進行。請稍後重新按「比較並分析可能原因」。上面的比較結果仍然有效。</div></div>'}
+ if(token===runToken)card.innerHTML=panel(RCA_TITLE,alertRow('bad','等待逾時,分析可能仍在進行。請稍後重新按「比較並分析可能原因」。上面的比較結果仍然有效。'))}
 function applyCaps(){const b=$('btnRca');b.disabled=picked.length<2||!canAnalyze;b.title=canAnalyze?'':'這個環境尚未啟用模型分析,目前只能做比較';
  $('capnote').textContent=canAnalyze?'':'(模型分析尚未啟用,目前只提供比較)'}
-(async()=>{try{const d=await api('/api/rca/v1/demo-info');if(d.demo)$('demo').innerHTML='<div class="banner info">示範模式:資料是合成的,原因分析由規則產生的替身模型回答,不代表真實的 AI 分析品質。</div>'}catch(e){}
+(async()=>{try{const d=await api('/api/rca/v1/demo-info');if(d.demo)$('demo').innerHTML=alertRow('info','示範模式:資料是合成的,原因分析由規則產生的替身模型回答,不代表真實的 AI 分析品質。')}catch(e){}
  try{canAnalyze=!!(await api('/api/rca/v1/status')).analyze}catch(e){canAnalyze=false}
  applyCaps();loadRuns()})();
 </script></body></html>
