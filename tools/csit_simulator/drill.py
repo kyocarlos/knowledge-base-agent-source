@@ -111,6 +111,74 @@ def main():
     check("9 late upload notice for a deleted file is refused",late["jobs"][-1]["state"]=="Rejected",late["jobs"][-1]["timeline"][-1:])
     check("9 nothing was re-indexed",h1["id"] not in km.q.ids())
 
+    # ---------- spec v1.4: the three new sources, every format, replacement, metadata change, v2 deletion ----------
+    import base64
+    SRC=("VerificationApplicationAttachment","VendorFile","EquipmentAttachment")
+    fetched=lambda i:[t for t in httpx.get(S+"/api/traffic").json() if t["direction"]=="KM→CSIT" and t["method"]=="GET" and t["docId"]==i]
+    v2={}
+    for st in SRC:
+        x=new(st[:6]+".txt",text,sourceType=st,autoRun=True);v2[st]=x["id"]
+    for st in SRC:
+        i=v2[st];ok=final(i) and kms(i)=="Completed"
+        check("10 "+st+": KM accepts, fetches and completes",ok,kms(i))
+        j=doc(i)["jobs"][-1]
+        check("10 "+st+": callbacks Processing -> Completed, every verdict passes",j["callbackStatuses"]==["Processing","Completed"] and not bad(i),bad(i) or j["callbackStatuses"])
+        got=[t["path"] for t in fetched(i)]
+        check("10 "+st+": KM fetched the file from the route for this source ("+doc(i)["downloadPath"].split("/v1/")[-1].split("/")[0]+")",got and got[0]==doc(i)["downloadPath"],got)
+        r=j["result"] or {}
+        check("10 "+st+": result is v2 with sourceSpecific",r.get("metadataSchemaVersion")=="2.0" and isinstance(r.get("sourceSpecific"),dict),r.get("metadataSchemaVersion"))
+        check("10 "+st+": points carry the exact source identity",i in km.q.ids())
+    # two attachments, same name and same bytes, are two jobs (spec 10)
+    t1=new("same.txt",text,sourceType="VerificationApplicationAttachment",autoRun=True);t2=new("same.txt",text,sourceType="VerificationApplicationAttachment",autoRun=True)
+    check("10 same name + same SHA256 from two attachments: two jobs, both Completed",final(t1["id"]) and final(t2["id"]) and kms(t1["id"])==kms(t2["id"])=="Completed"
+          and doc(t1["id"])["jobs"][0]["kmJobId"]!=doc(t2["id"])["jobs"][0]["kmJobId"])
+
+    # 11 formats: nothing is skipped; unreadable ones fail with a code
+    def fmt(name,raw,st="EquipmentAttachment"):
+        return new(name,sourceType=st,contentBase64=base64.b64encode(raw).decode(),autoRun=True)["id"]
+    md=fmt("notes.md",b"# FSW26 notes\nspectrum analyzer calibration steps\n")
+    check("11 markdown completes",final(md) and kms(md)=="Completed",doc(md)["jobs"][-1].get("error"))
+    png=fmt("photo.png",b"\x89PNG\r\n\x1a\n"+b"0"*60)
+    check("11 an image is accepted, then Failed UNSUPPORTED_FORMAT, never downloaded",final(png) and doc(png)["jobs"][-1]["error"]["code"]=="UNSUPPORTED_FORMAT" and not fetched(png),doc(png)["jobs"][-1].get("error"))
+    enc=fmt("locked.xlsx",b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1"+b"0"*60)
+    check("11 a password-protected workbook -> Failed ENCRYPTED_DOCUMENT",final(enc) and doc(enc)["jobs"][-1]["error"]["code"]=="ENCRYPTED_DOCUMENT",doc(enc)["jobs"][-1].get("error"))
+    exe=fmt("run.txt",b"MZ"+b"0"*60)
+    check("11 executable content -> Failed MALWARE_DETECTED",final(exe) and doc(exe)["jobs"][-1]["error"]["code"]=="MALWARE_DETECTED",doc(exe)["jobs"][-1].get("error"))
+    check("11 every failure was judged against the spec",not (bad(png) or bad(enc) or bad(exe)),bad(png) or bad(enc) or bad(exe))
+
+    # 12 replacement: the old index goes only after the new one is Completed
+    old=v2["VendorFile"]
+    nv=new("vendor-v2.txt",text+" revised edition",sourceType="VendorFile",supersedesDocId=old,autoRun=True)["id"]
+    check("12 the replacement completes",final(nv) and kms(nv)=="Completed",kms(nv))
+    check("12 the old version's index is retired, the new one is active",wait(lambda:km.q.states().get(old)=="Superseded") and km.q.states().get(nv)=="Active",km.q.states())
+    bad_new=new("vendor-v3.exe","MZ not a document",sourceType="VendorFile",supersedesDocId=nv,autoRun=True)["id"]
+    final(bad_new);time.sleep(.5)
+    check("12 a replacement that fails leaves the previous index active",kms(bad_new)=="Failed" and km.q.states().get(nv)=="Active",km.q.states())
+
+    # 13 metadata change: no re-fetch, index filters updated, revision reported
+    eq=v2["EquipmentAttachment"];before=len(fetched(eq))
+    r=post(f"/api/docs/{eq}/change",{"classification":{"l1":"10","l2":"11"},"tags":["wifi","fsw"],"displayName":"FSW26 guide"})
+    check("13 the change is accepted (202)",r.status_code==200 and doc(eq)["changes"][-1]["state"] in ("Accepted","Processing","Completed"),r.text[:200])
+    check("13 KM reports Completed with appliedRevision = sourceRevision",wait(lambda:doc(eq)["changes"][-1]["state"]=="Completed") and not bad(eq),bad(eq))
+    pl=[p["payload"] for p in km.q.points.values() if p["payload"].get("document_id")==eq]
+    check("13 the index payload carries the new classification and tags",pl and all(p.get("tags")==["wifi","fsw"] and p["classification"]["l1"]=="設備儀器" for p in pl),pl[:1])
+    check("13 the file was not fetched again",len(fetched(eq))==before)
+    post(f"/api/docs/{eq}/stale-change")
+    check("13 an older revision is refused with 409",not bad(eq) and any("stale" in v["what"] and v["ok"] for v in doc(eq)["allVerdicts"]),bad(eq))
+
+    # 14 v2 deletion
+    vd=v2["VendorFile"];dl=post(f"/api/docs/{vd}/delete").json()
+    check("14 v2 deletion accepted with 202",dl["dels"][0]["state"]=="Accepted" and not bad(vd),bad(vd))
+    check("14 KM verifies the cleanup, then CSIT purges its file",wait(lambda:doc(vd)["stage"]=="Purged"),doc(vd)["stage"])
+    dd=doc(vd)["dels"][0]
+    check("14 callbacks Processing -> Completed, resource echoed unchanged, every verdict passes",dd["callbackStatuses"]==["Processing","Completed"] and not bad(vd),bad(vd))
+    cl=(dd["result"] or {}).get("cleanup",{})
+    check("14 seven cleanup items, chunks Deleted, graphRelations NotPresent",len(cl)==7 and cl.get("chunks")=="Deleted" and cl.get("graphRelations")=="NotPresent",cl)
+    check("14 the index of that version is gone",vd not in km.q.ids())
+    late=post(f"/api/docs/{vd}/dispatch").json()
+    check("14 a late upload notice for the deleted version is refused with 410",late["jobs"][-1]["state"]=="Rejected" and not bad(vd),bad(vd))
+    check("14 nothing was re-indexed",vd not in km.q.ids())
+
     rep=httpx.get(S+"/api/report").json()
     unexpected=[v for v in rep["violations"] if "unreachable" in v["what"]]
     check("overall: no KM spec violations recorded",not unexpected and not [v for v in rep["violations"] if "refused" not in v["what"] and "rejected" not in v["what"]],rep["violations"])

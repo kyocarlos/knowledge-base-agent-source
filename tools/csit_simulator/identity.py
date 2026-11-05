@@ -23,6 +23,9 @@ from urllib.parse import parse_qs
 
 SUBMIT_SCOPE = "km.ingestion.submit"
 OUTBOUND_SCOPES = ("csit.document.read", "csit.ingestion.status.write")
+# Spec v1.4 section 3.2 suggests these instead; the simulator issues whichever set KM asks for, from the union.
+OUTBOUND_SCOPES_V14 = ("csit.documents.read", "csit.km.status.write", "csit.km.deletion-status.write")
+INBOUND_SCOPES_V14 = {"jobs": "km.ingestion.write", "changes": "km.metadata.write", "deletions": "km.deletion.write"}
 
 
 def _b64u(n: int) -> str:
@@ -64,10 +67,10 @@ class Identity:
         body = {"iss": self.issuer, "iat": now, "nbf": now - 5, "exp": now + self.ttl, "jti": uuid.uuid4().hex, **claims}
         return self.jwt.encode(body, self._key, algorithm="RS256", headers={"kid": self.kid})
 
-    def mint_for_km(self) -> str:
-        """CSIT -> KM calls."""
+    def mint_for_km(self, scope: str | None = None) -> str:
+        """CSIT -> KM calls. scope defaults to the v1.3 scope; v1.4 passes the endpoint-specific one."""
         return self._sign({"aud": self.km_audience, "sub": self.service_client_id, "client_id": self.service_client_id,
-                           "principal_type": "service", "scope": SUBMIT_SCOPE})
+                           "principal_type": "service", "scope": scope or SUBMIT_SCOPE})
 
     def token_endpoint(self, authorization: str, body: bytes) -> tuple[int, dict]:
         """RFC 6749 client_credentials with HTTP Basic, as KM's provider calls it. Never echoes the secret."""
@@ -86,15 +89,17 @@ class Identity:
         if client != self.km_client_id or not hmac.compare_digest(secret.encode(), self._secret.encode()):
             return err(401, "invalid_client")
         wanted = set(form.get("scope", "").split()) or set(OUTBOUND_SCOPES)
-        if not wanted <= set(OUTBOUND_SCOPES):
+        allowed = OUTBOUND_SCOPES + OUTBOUND_SCOPES_V14
+        if not wanted <= set(allowed):
             return err(400, "invalid_scope")
-        scope = " ".join(s for s in OUTBOUND_SCOPES if s in wanted)
+        scope = " ".join(s for s in allowed if s in wanted)
         token = self._sign({"aud": self.outbound_audience, "sub": client, "client_id": client, "principal_type": "service", "scope": scope})
         self.issued.append({"t": time.time(), "client": client, "scope": scope})
         del self.issued[:-100]
         return 200, {"access_token": token, "token_type": "Bearer", "expires_in": self.ttl, "scope": scope}
 
-    def verify_from_km(self, header: str, scope: str | None = None) -> bool:
+    def verify_from_km(self, header: str, scope=None) -> bool:
+        """scope: one scope name, or a tuple of names where any one is enough (v1.3 and v1.4 spell them differently)."""
         if not header.startswith("Bearer "):
             return False
         try:
@@ -104,4 +109,5 @@ class Identity:
             return False
         if claims.get("client_id") != self.km_client_id or claims.get("principal_type") != "service":
             return False
-        return scope is None or scope in str(claims.get("scope", "")).split()
+        have = str(claims.get("scope", "")).split()
+        return scope is None or any(x in have for x in ((scope,) if isinstance(scope, str) else scope))

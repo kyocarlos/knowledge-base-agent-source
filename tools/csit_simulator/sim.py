@@ -9,6 +9,7 @@ from pathlib import Path
 import httpx
 from fastapi import HTTPException,Request,Response
 from .checks import check_ingestion_callback,check_deletion_callback
+from .v2 import V2Mixin,READ_SCOPES,file_route
 
 BASE="/api/integrations/km/v1"
 TAXONOMY=[
@@ -26,9 +27,13 @@ def _find_class(node_id,nodes):
         if r:return r
     return None
 
-class Sim:
-    def __init__(self,km_base_url,token,timeout=15,data_dir=None,inspect=None,identity=None):
+FAMILY={"library":"DocumentLibraryFile","documents":"VerificationApplicationAttachment","vendor":"VendorFile","equipment":"EquipmentAttachment"}
+
+class Sim(V2Mixin):
+    def __init__(self,km_base_url,token,timeout=15,data_dir=None,inspect=None,identity=None,public_base="",scope_style="v13"):
         self.km=km_base_url.rstrip("/");self.token=token;self.timeout=timeout
+        self.public_base=public_base.rstrip("/") # the address KM reaches this simulator at; shown in downloadUrl (KM fetches by id from its configured CSIT address)
+        self.scope_style=scope_style # v13: km.ingestion.submit everywhere; v14: the endpoint-specific names of spec 3.2
         self.identity=identity # tools.csit_simulator.identity.Identity: signed tokens instead of the shared DEV bearer
         self.inspect=inspect # callable -> dict (only the local demo can look inside KM)
         self.dir=Path(data_dir) if data_dir else None
@@ -39,7 +44,7 @@ class Sim:
     # ---------- state ----------
     def reset(self,clear_disk=True):
         with self.lock:
-            self.docs={};self.jobs={};self.dels={};self.seen={};self.traffic=[];self.tid=0;self.violations=[]
+            self.docs={};self.jobs={};self.dels={};self.changes={};self.analyses=[];self.seen={};self.traffic=[];self.tid=0;self.violations=[]
             self.faults={"callbackFailures":0,"callbackStatus":503}
             if clear_disk and self.dir and (self.dir/"content").is_dir():
                 for f in (self.dir/"content").glob("*"):f.unlink()
@@ -50,16 +55,17 @@ class Sim:
             self.dir.mkdir(parents=True,exist_ok=True);(self.dir/"content").mkdir(exist_ok=True)
             for d in self.docs.values():
                 if d["content"] is not None:(self.dir/"content"/(d["id"]+".bin")).write_bytes(d["content"])
-            snap={"docs":{k:{x:y for x,y in v.items() if x!="content"} for k,v in self.docs.items()},"jobs":self.jobs,"dels":self.dels,
+            snap={"docs":{k:{x:y for x,y in v.items() if x!="content"} for k,v in self.docs.items()},"jobs":self.jobs,"dels":self.dels,"changes":self.changes,"analyses":self.analyses[-50:],
                   "seen":self.seen,"traffic":self.traffic[-300:],"tid":self.tid,"violations":self.violations}
             tmp=self.dir/"state.tmp";tmp.write_text(json.dumps(snap,ensure_ascii=False),encoding="utf-8");tmp.replace(self.dir/"state.json")
     def _load(self):
         f=self.dir/"state.json"
         if not f.is_file():return
         s=json.loads(f.read_text(encoding="utf-8"))
-        self.docs=s["docs"];self.jobs=s["jobs"];self.dels=s["dels"];self.seen=s["seen"];self.traffic=s["traffic"];self.tid=s["tid"];self.violations=s["violations"]
+        self.docs=s["docs"];self.jobs=s["jobs"];self.dels=s["dels"];self.changes=s.get("changes",{});self.analyses=s.get("analyses",[]);self.seen=s["seen"];self.traffic=s["traffic"];self.tid=s["tid"];self.violations=s["violations"]
         for k,d in self.docs.items():
             p=self.dir/"content"/(k+".bin");d["content"]=p.read_bytes() if p.is_file() else None
+            d.setdefault("sourceType","DocumentLibraryFile");d.setdefault("version",1);d.setdefault("changeIds",[]);d.setdefault("entityId",d["id"])
 
     # ---------- bookkeeping ----------
     def ev(self,obj,kind,detail=None):obj["timeline"].append({"t":now(),"kind":kind,"detail":detail})
@@ -72,8 +78,13 @@ class Sim:
             self.traffic.append({"id":self.tid,"t":now(),"direction":direction,"method":method,"path":path,"status":status,"ms":ms,
                                  "request":req,"response":resp,"docId":doc,"note":note})
             del self.traffic[:-500]
-    def _headers(self,key,bad=False):
-        token="not-the-real-token" if bad else (self.identity.mint_for_km() if self.identity else self.token)
+    def _now(self):return now()
+    def _headers(self,key,bad=False,endpoint=None):
+        scope=None
+        if self.scope_style=="v14" and endpoint:
+            from .identity import INBOUND_SCOPES_V14
+            scope=INBOUND_SCOPES_V14[endpoint]
+        token="not-the-real-token" if bad else (self.identity.mint_for_km(scope) if self.identity else self.token)
         h={"Authorization":"Bearer "+token,"Content-Type":"application/json"}
         if key:h["Idempotency-Key"]=key
         return h
@@ -93,6 +104,7 @@ class Sim:
            "uploader":spec.get("uploader","simulator.user"),"stage":"PendingApproval","archived":False,"approvedBy":None,
            "faults":{"download":"none","downloadFailures":2,"badToken":False,"noIdempotencyKey":False,"wrongDeclaredSha":False},
            "jobIds":[],"delIds":[],"timeline":[],"verdicts":[],"content":content,"uploadedAt":now(),"kmStatus":None,"deleteState":None}
+        self._v2_fields(spec,d)
         if "downloadFault" in spec:d["faults"]["download"]=spec["downloadFault"]
         if "downloadFailures" in spec:d["faults"]["downloadFailures"]=int(spec["downloadFailures"])
         for k in ("badToken","noIdempotencyKey","wrongDeclaredSha"):
@@ -108,7 +120,8 @@ class Sim:
     def approve(self,doc_id,by="manager.sim"):
         d=self._doc(doc_id)
         if d["stage"]!="PendingApproval":raise HTTPException(409,"only a pending document can be approved")
-        d["stage"]="Approved";d["approvedBy"]=by;self.ev(d,"主管核准",by);self._save();return self.view(d)
+        d["stage"]="Approved";d["approvedBy"]=by
+        d["approval"]={"mode":d.get("approvalMode","Approved"),"referenceId":str(uuid.uuid4()),"approvedAt":now()};self.ev(d,"主管核准",by);self._save();return self.view(d)
     def reject(self,doc_id):
         d=self._doc(doc_id)
         if d["stage"]!="PendingApproval":raise HTTPException(409,"only a pending document can be rejected")
@@ -116,7 +129,7 @@ class Sim:
     def archive(self,doc_id):
         d=self._doc(doc_id)
         if d["stage"]!="Approved":raise HTTPException(409,"approve first: KM is notified only after the NAS archive")
-        d["stage"]="Archived";d["archived"]=True;self.ev(d,"CSIT NAS 正式入庫","ArchiveStatus=Completed,建立 KM Outbox");self._save();return self.view(d)
+        d["stage"]="Archived";d["archived"]=True;d["archivedAt"]=now();self.ev(d,"CSIT NAS 正式入庫","ArchiveStatus=Completed,建立 KM Outbox");self._save();return self.view(d)
     def run_all(self,doc_id):
         d=self._doc(doc_id)
         if d["stage"]=="PendingApproval":self.approve(doc_id)
@@ -133,6 +146,7 @@ class Sim:
         if not d["archived"]:raise HTTPException(409,"NAS archive must complete before KM is notified")
         if d["stage"]=="Rejected":raise HTTPException(409,"document was rejected")
         # A Purged document may still be dispatched on purpose: KM must refuse it (tombstone), which is exactly what we want to observe.
+        if d["sourceType"]!="DocumentLibraryFile":return self._dispatch_v2(d,new_job)
         with self.lock:
             if d["jobIds"] and not new_job:cid=d["jobIds"][-1]
             else:
@@ -186,6 +200,7 @@ class Sim:
     def delete(self,doc_id,deletion_request_id=None):
         d=self._doc(doc_id)
         if not d["archived"]:raise HTTPException(409,"nothing was archived, so KM has nothing to delete")
+        if d["sourceType"]!="DocumentLibraryFile":return self._delete_v2(d,deletion_request_id)
         rid=deletion_request_id or str(uuid.uuid4())
         if rid in self.dels:return self._send_deletion(self.dels[rid])
         res={"sourceType":"DocumentLibraryFile","documentFileId":d["id"],"documentId":None,"version":None,"sourceEntityId":None,"applicationId":None,"recordId":None}
@@ -217,14 +232,17 @@ class Sim:
         self._save();return self.view(d)
 
     # ---------- KM -> CSIT ----------
-    def serve_file(self,request,file_id):
-        t0=time.monotonic();path=f"{BASE}/document-library/files/{file_id}/content"
+    def serve_file(self,request,file_id,family="library",version=None):
+        t0=time.monotonic()
+        path={"library":f"{BASE}/document-library/files/{file_id}/content","documents":f"{BASE}/documents/{file_id}/versions/{version}/content",
+              "vendor":f"{BASE}/vendor-files/{file_id}/content","equipment":f"{BASE}/equipment-documents/{file_id}/content"}[family]
         def refuse(code,note,doc=None):
             self.log("KM→CSIT","GET",path,code,None,{"detail":note},doc,int((time.monotonic()-t0)*1000),note)
             raise HTTPException(code,note)
-        if not self._auth_ok(request,"csit.document.read"):refuse(401,"service bearer required")
+        if not self._auth_ok(request,READ_SCOPES):refuse(401,"service bearer required")
         with self.lock:
             d=self.docs.get(file_id)
+            if d is not None and (d["sourceType"]!=FAMILY[family] or (version is not None and d["version"]!=version)):d=None
             if d is None or d["content"] is None or not d["archived"]:refuse(404,"file not found (not archived, deleted, or unknown)",file_id if d else None)
             job=self.jobs.get(d["jobIds"][-1]) if d["jobIds"] else None
             if job is not None:job["downloads"].append(now())
@@ -309,7 +327,9 @@ class Sim:
         v["hasContent"]=d["content"] is not None
         v["jobs"]=[self._dview(self.jobs[c]) for c in d["jobIds"]]
         v["dels"]=[self._dview(self.dels[c]) for c in d["delIds"]]
-        v["allVerdicts"]=d["verdicts"]+[x for j in v["jobs"] for x in j["verdicts"]]+[x for j in v["dels"] for x in j["verdicts"]]
+        v["changes"]=[self._dview(self.changes[c]) for c in d.get("changeIds",[])]
+        v["downloadPath"]=file_route(d)
+        v["allVerdicts"]=d["verdicts"]+[x for j in v["jobs"] for x in j["verdicts"]]+[x for j in v["dels"] for x in j["verdicts"]]+[x for j in v["changes"] for x in j["verdicts"]]
         return v
     def state(self):
         with self.lock:

@@ -1,4 +1,4 @@
-# CSIT 模擬器(規格 v1.3)
+# CSIT 模擬器(規格 v1.3 + v1.4)
 
 一套有操作介面的「CSIT 文件管理系統」模擬:你在畫面上上傳文件、核准、歸檔、派送給 KM、刪除,同時看到 KM 在每個時間點收到什麼、回了什麼、
 回報的內容是否符合規格。不連 CSIT 資料庫。
@@ -35,6 +35,20 @@ python -m tools.csit_simulator serve --km-base-url https://<KM> --token <DEV bea
 
 KM 端要把 CSIT 的 base URL 指到模擬器、並接受同一個 bearer。此模式沒有「KM 內部觀察」,請用「API 流量」。
 
+## 規格 v1.4(/v2/)
+
+上傳時「來源」可選:文件專區(v1.3 流程,不變)、驗證申請附件、廠商檔案、設備附件。後三種走 v1.4:
+
+- **派送**:核准 → NAS 歸檔 → 送 `POST /api/integrations/csit/v2/document-jobs`(schemaVersion 2.0、`eventId` 與 `csitJobId` 分開、`source`、`document.approval`、`supersedes`,`Idempotency-Key`=`eventId`)。
+- **KM 取檔的位置**:模擬器自己的路由,KM 以「設定的 CSIT 位址 + 檔案 ID」去抓,**不會**照通知裡的 `downloadUrl` 走(規格要求只用逐檔授權路由)。
+  驗證附件 `GET /api/integrations/km/v1/documents/{id}/versions/{v}/content`、廠商 `…/vendor-files/{id}/content`、設備 `…/equipment-documents/{id}/content`。每個來源只能從自己的路由取到,詳情頁會顯示「KM 取檔位置」。
+- **KM 回報**:`document-jobs/status`、`document-metadata-changes/status`、`document-deletions/status`、`analysis-results`。判定:欄位與 `result`(v2、`sourceSpecific`、method 含 Visual/None)、`Idempotency-Key`=`callbackId`、回報帶回的識別值與原通知逐字相同、終態後不可再來、`appliedRevision`=`sourceRevision`、刪除的 `resource` 與請求相同。
+- **換版**:上傳時選「取代舊版本」,通知帶 `supersedes`;可驗證 KM 在新版完成後才停用舊索引、新版失敗時舊索引不動。
+- **改標籤(v2)**:`POST …/document-metadata-changes`,`sourceRevision` 每次遞增;「送舊修訂」按鈕用舊修訂再送,KM 應回 409。
+- **v2 刪除**:`POST …/v2/document-deletions`(含 `sha256`、`canonicalIngestionEventId`、`scope=DocumentVersion`);對已刪版本再送上傳通知,KM 應回 410。
+- `--scope-style v14`:送給 KM 的 token 用 v1.4 的分端點 scope(`km.ingestion.write` 等);`--identity` 模式可簽發 v1.4 的外送 scope 名稱(`csit.documents.read` 等)。`--public-url` 設定通知裡 `downloadUrl` 顯示的位址。
+- 未涵蓋:Test Report 的 v1 通知與其 v2 `analysis-results` 的發起端(只接收並檢查格式)。
+
 ## 模擬器的判定(依規格 v1.3 獨立撰寫,不 import KM 程式)
 
 欄位齊全(含 Completed.result 全部 key)、時間戳三鍵、callbackId 冪等(同內容 204、不同內容 409)、終態後不可再收狀態、Processing 不可重複、
@@ -44,7 +58,7 @@ KM 驗證刪除完成後,CSIT 才移除自己的檔案。
 ## 自動化演練與測試
 
 ```bash
-TEST_DATABASE_URL=postgresql://user:pass@host/db python -m tools.csit_simulator.drill   # 30 項,真實 HTTP
+TEST_DATABASE_URL=postgresql://user:pass@host/db python -m tools.csit_simulator.drill   # 66 項(v1.3 + v1.4),真實 HTTP
 python -m pytest tests/csit_simulator -q
 ```
 

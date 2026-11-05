@@ -38,7 +38,7 @@ details{margin:4px 0}summary{cursor:pointer;color:var(--acc)}pre{margin:4px 0;pa
 .pill{display:inline-block;background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:0 7px;margin:2px 4px 2px 0;font-size:12px}
 .empty{color:var(--mute);padding:14px;text-align:center}
 </style></head><body>
-<header><h1>CSIT 文件管理系統</h1><span class="tag">模擬器 · 規格 v1.3</span><span class="sp"></span>
+<header><h1>CSIT 文件管理系統</h1><span class="tag">模擬器 · 規格 v1.3 + v1.4</span><span class="sp"></span>
 <span id="kmstat"><span class="dot"></span>KM …</span><span id="score" class="tag">…</span></header>
 <div class="layout"><nav id="nav"></nav><main id="main"></main></div>
 <script>
@@ -74,21 +74,23 @@ function draw(){drawNav();({docs:drawDocs,traffic:drawTraffic,km:drawKm,set:draw
 
 // ---------- 文件專區 ----------
 function taxOpts(nodes,sel){return '<option value="">—</option>'+nodes.map(n=>`<option value="${n.id}" ${n.id===sel?'selected':''}>${esc(n.name)}</option>`).join('')}
-let up={l1:'',l2:'',l3:'',text:'CSIT 測試文件。This manual describes the Wi-Fi 7 access point FSW26 setup procedure. Spectrum analyzer calibration steps are listed in section 3.',name:'manual.txt',auto:false};
+let up={l1:'',l2:'',l3:'',text:'CSIT 測試文件。This manual describes the Wi-Fi 7 access point FSW26 setup procedure. Spectrum analyzer calibration steps are listed in section 3.',name:'manual.txt',auto:false,st:'DocumentLibraryFile',sup:''};
 function drawUp(){const e=$('upc');if(!e)return;const f=$('f')?.files?.[0];e.innerHTML=uploadCard();if(f){try{const dt=new DataTransfer();dt.items.add(f);$('f').files=dt.files}catch(x){}}}
 function uploadCard(){
   const l1=taxo.find(n=>n.id===up.l1),l2=l1?.children.find(n=>n.id===up.l2);
   return `<div class="card"><h2>上傳文件</h2><div class="row">
-  <label>選擇檔案(txt / csv / xlsx / pdf / docx)<input id="f" type="file"></label>
+  <label>選擇檔案(txt / csv / md / xlsx / pptx / pdf / docx;其他格式 KM 會回 Failed)<input id="f" type="file"></label>
   <label>或輸入文字內容<input id="txt" size="40" value="${esc(up.text)}" oninput="up.text=this.value"></label>
-  <label>檔名<input id="nm" size="14" value="${esc(up.name)}" oninput="up.name=this.value"></label></div>
+  <label>檔名<input id="nm" size="14" value="${esc(up.name)}" oninput="up.name=this.value"></label>
+  <label>來源<select onchange="up.st=this.value;up.sup='';drawUp()">${[['DocumentLibraryFile','文件專區(v1.3)'],['VerificationApplicationAttachment','驗證申請附件(v1.4)'],['VendorFile','廠商檔案(v1.4)'],['EquipmentAttachment','設備附件(v1.4)']].map(([v,t])=>`<option value="${v}" ${up.st===v?'selected':''}>${t}</option>`).join('')}</select></label>
+  ${up.st!=='DocumentLibraryFile'?`<label>取代舊版本<select onchange="up.sup=this.value"><option value="">—(新文件)</option>${S.docs.filter(x=>x.sourceType===up.st&&x.stage!=='Purged').map(x=>`<option value="${x.id}" ${up.sup===x.id?'selected':''}>${esc(x.name)} v${x.version} · ${x.id.slice(0,8)}</option>`).join('')}</select></label>`:''}</div>
   <div class="row" style="margin-top:8px"><label>分類 L1<select onchange="up.l1=this.value;up.l2='';up.l3='';drawUp()">${taxOpts(taxo,up.l1)}</select></label>
   <label>L2<select onchange="up.l2=this.value;up.l3='';drawUp()">${taxOpts(l1?.children||[],up.l2)}</select></label>
   <label>L3<select onchange="up.l3=this.value">${taxOpts(l2?.children||[],up.l3)}</select></label>
   <label style="flex-direction:row;align-items:center;gap:6px;color:var(--fg)"><input type="checkbox" ${up.auto?'checked':''} onchange="up.auto=this.checked"> 上傳後自動核准 / 歸檔 / 派送</label>
   <button onclick="upload()">上傳</button></div>
   <div class="mute" style="margin-top:6px">預設停在「待核准」,每一步由你手動按,方便觀察 KM 在哪個時間點收到什麼。</div></div>`}
-async function upload(){const f=$('f').files[0],spec={fileName:f?f.name:up.name,classification:{l1:up.l1,l2:up.l2,l3:up.l3},autoRun:up.auto};
+async function upload(){const f=$('f').files[0],spec={fileName:f?f.name:up.name,classification:{l1:up.l1,l2:up.l2,l3:up.l3},autoRun:up.auto,sourceType:up.st,supersedesDocId:up.sup||undefined};
   if(f){const buf=new Uint8Array(await f.arrayBuffer());let s='';for(let i=0;i<buf.length;i+=8192)s+=String.fromCharCode.apply(null,buf.subarray(i,i+8192));spec.contentBase64=btoa(s);spec.contentType=f.type||'application/octet-stream'}
   else spec.contentText=up.text;
   const d=await api('/api/docs',spec);if(d){sel=d.id;await load()}}
@@ -110,10 +112,13 @@ function drawDetail(){const el=$('detail');if(!el)return;const d=S.docs.find(x=>
    ${d.stage==='PendingApproval'?`<button class="alt" onclick="act('${d.id}','reject')">退回</button>`:''}
    ${['PendingApproval','Approved','Archived'].includes(d.stage)?`<button class="alt" onclick="act('${d.id}','run-all')">一鍵跑完</button>`:''}
    ${d.archived&&d.stage!=='Purged'&&d.stage!=='Deleting'&&d.jobIds.length?`<button class="alt" onclick="act('${d.id}','dispatch')" title="同一個 csitJobId,驗證冪等">重送(同工作)</button><button class="alt" onclick="act('${d.id}','dispatch',{newJob:true})" title="新的 csitJobId">新工作重送</button>`:''}
+   ${d.archived&&d.jobIds.length&&!['Purged','Deleting'].includes(d.stage)?`<button class="alt" onclick="chg('${d.id}')" title="規格 §6.2:只改分類/標籤,KM 不重新取檔">改標籤(v2)</button>${(d.changes||[]).length?`<button class="alt" onclick="act('${d.id}','stale-change')" title="用舊的 sourceRevision 再送,KM 應回 409">送舊修訂(應被拒)</button>`:''}`:''}
    ${d.archived&&!['Purged','Deleting'].includes(d.stage)?`<button class="danger" onclick="if(confirm('通知 KM 刪除這份文件?'))act('${d.id}','delete')">刪除</button>`:''}
    ${d.stage==='Deleting'||d.stage==='Purged'?`<button class="alt" onclick="act('${d.id}','delete',{deletionRequestId:'${d.delIds[0]}'})">重送刪除通知(同請求)</button>`:''}
    ${d.stage==='Purged'?`<button class="alt" onclick="act('${d.id}','dispatch')" title="KM 應回 409">再派送上傳通知(應被拒絕)</button>`:''}</div>
-  <div class="kv"><div>documentFileId</div><div class="mono">${d.id}</div><div>sha256</div><div class="mono">${d.sha256}</div><div>分類</div><div>${cls(d)}</div>
+  <div class="kv"><div>來源</div><div>${esc(d.sourceType||'DocumentLibraryFile')}${d.sourceType&&d.sourceType!=='DocumentLibraryFile'?` · v${d.version}`:''}</div>
+   ${d.sourceType&&d.sourceType!=='DocumentLibraryFile'?`<div>sourceEntityId</div><div class="mono">${d.entityId}</div><div>KM 取檔位置</div><div class="mono">${esc(d.downloadPath)}</div>${d.supersedesDocId?`<div>取代</div><div class="mono">${d.supersedesDocId}</div>`:''}`:''}
+   <div>documentFileId / documentId</div><div class="mono">${d.id}</div><div>sha256</div><div class="mono">${d.sha256}</div><div>分類</div><div>${cls(d)}</div>
    ${last?`<div>csitJobId</div><div class="mono">${last.csitJobId}</div><div>kmJobId</div><div class="mono">${esc(last.kmJobId||'—')}</div>`:''}
    ${d.dels[0]?`<div>deletionRequestId</div><div class="mono">${d.dels[0].deletionRequestId}</div><div>kmDeletionJobId</div><div class="mono">${esc(d.dels[0].kmDeletionJobId||'—')}</div>`:''}</div></div>
   <div class="card"><h2>情境注入(影響這份文件)</h2><div class="row">
@@ -127,8 +132,9 @@ function drawDetail(){const el=$('detail');if(!el)return;const d=S.docs.find(x=>
    ${d.allVerdicts.length?d.allVerdicts.map(v=>`<div class="v ${v.ok?'ok':'bad'}">${v.ok?'✔':'✘'} ${esc(v.what)}</div>`).join(''):'<span class="mute">尚無</span>'}</div>
   ${last?.result?metaCard(last.result):''}${last?.error?`<div class="card"><h2>KM 回報失敗</h2><pre>${J(last.error)}</pre></div>`:''}
   ${d.dels.some(x=>x.result)?delCard(d.dels.find(x=>x.result).result):''}
-  <div class="card"><h2>時間線</h2><div class="tl">${[...d.timeline,...d.jobs.flatMap(j=>j.timeline),...d.dels.flatMap(j=>j.timeline)].sort((a,b)=>a.t<b.t?-1:1).map(e=>`<div><span class="mono mute">${e.t.slice(11,23)}</span> ${esc(e.kind)}${e.detail?` <span class="mute">${esc(typeof e.detail==='string'?e.detail:JSON.stringify(e.detail))}</span>`:''}</div>`).join('')}</div></div>
+  <div class="card"><h2>時間線</h2><div class="tl">${[...d.timeline,...d.jobs.flatMap(j=>j.timeline),...d.dels.flatMap(j=>j.timeline),...(d.changes||[]).flatMap(j=>j.timeline)].sort((a,b)=>a.t<b.t?-1:1).map(e=>`<div><span class="mono mute">${e.t.slice(11,23)}</span> ${esc(e.kind)}${e.detail?` <span class="mute">${esc(typeof e.detail==='string'?e.detail:JSON.stringify(e.detail))}</span>`:''}</div>`).join('')}</div></div>
   <div class="card"><h2>這份文件的 API 往返(${calls.length})</h2>${calls.length?calls.map(trow).join(''):'<span class="mute">尚無</span>'}</div>`}
+async function chg(id){const t=prompt('新的標籤(以逗號分隔;留空表示清除)','wifi');if(t===null)return;act(id,'change',{tags:t.split(',').map(x=>x.trim()).filter(Boolean)})}
 async function fault(id,b){const d=await api('/api/docs/'+id+'/faults',b);if(d)await load()}
 function metaCard(r){const D=r.document,X=r.extraction,I=r.indexing,Tc=r.technical;
   const list=a=>a.length?a.map(x=>`<span class="pill">${esc(typeof x==='string'?x:JSON.stringify(x))}</span>`).join(''):'<span class="mute">[]</span>';
@@ -158,6 +164,8 @@ async function drawKm(){
   const tbl=(title,rows,cols)=>`<div class="card"><h2>${title}(${rows.length})</h2>${rows.length?`<div style="overflow:auto"><table><tr>${cols.map(c=>`<th>${c}</th>`).join('')}</tr>${rows.map(r=>`<tr>${cols.map(c=>`<td class="${c.includes('id')||c.includes('Id')||c==='sha'?'mono':''}">${esc(r[c]??'')}</td>`).join('')}</tr>`).join('')}</table></div>`:'<div class="empty">空</div>'}</div>`;
   $('main').innerHTML=`<div class="hint">這是 KM 這一側的真實資料(本機 demo 的 PostgreSQL 與向量庫),用來對照 CSIT 這邊看到的流程。</div>`+
    tbl('文件專區工作 km_csit_doclib_jobs',k.jobs,['kmJobId','status','phase','attempts','lastError','nextRetry','fileId']) +
+   tbl('v2 文件工作 km_csit_v2_jobs(驗證附件 / 廠商 / 設備)',k.v2Jobs||[],['kmJobId','sourceType','version','status','phase','indexState','lastError','docId']) +
+   tbl('分類 / 標籤變更 km_csit_v2_changes',k.metadataChanges||[],['kmChangeJobId','status','revision','lastError']) +
    tbl('向量庫(依文件統計)',k.vectors,['documentFileId','chunks','sample']) +
    tbl('刪除工作',k.deletions,['kmDeletionJobId','status','phase','attempts','lastError','sourceKey']) +
    tbl('Tombstone(已刪除,不可復活)',k.tombstones,['sourceType','sourceKey']) +
