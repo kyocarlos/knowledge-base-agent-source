@@ -19,11 +19,13 @@ def confounded():
     return compare.compare_runs([run("A","1.0.0",900),run("B","1.1.0",650,hw="B")])
 
 def ids(p):
-    return {"f":next(f["id"] for f in p["factors"] if f["factor"]=="firmware_version"),"d":p["diffs"][0]["id"]}
+    return {"f":next(f["id"] for f in p["factors"] if f["factor"]=="firmware_version"),"d":p["findings"]["scopes"][0]["id"]}   # the model is shown findings (P#), not the aligned rows
 def good(p):
     i=ids(p)
-    return {"summary":"韌體由 1.0.0 變為 1.1.0，5GHz 80MHz ch36 下行吞吐量由 900 Mbps 變為 650 Mbps。",
-            "observations":[{"text":"ch36 下行 900 Mbps → 650 Mbps，差 -250 Mbps。","evidence":[i["d"]]},{"text":"韌體版本不同。","evidence":[i["f"]]}],
+    row=p["findings"]["scopes"][0]["per_run"]
+    a,b,pct=row[0]["median"],row[1]["median"],row[1]["median_delta_pct"]
+    return {"summary":f"韌體由 1.0.0 變為 1.1.0，5GHz 80MHz 下行吞吐量由 {a:g} Mbps 變為 {b:g} Mbps。",
+            "observations":[{"text":f"5GHz 80MHz 下行吞吐量中位數 {a:g} Mbps → {b:g} Mbps，變動 {pct:g}%。","evidence":[i["d"]]},{"text":"韌體版本不同。","evidence":[i["f"]]}],
             "hypotheses":[{"cause":"新韌體對 5GHz ch36 的資料路徑有改動","mechanism":"同一硬體、同一條件下只有韌體不同，數值下降","supports":[i["f"],i["d"]],"against":[],
                            "missing_evidence":["韌體 1.1.0 的釋出說明"],"confidence":"high","verify_steps":["以 1.0.0 韌體在同一環境重測 ch36"]}],
             "unexplained":[],"data_gaps":["只有兩份報告，尚未排除環境差異"]}
@@ -54,7 +56,7 @@ def test_confounded_runs_cap_confidence_and_require_a_plan_to_separate_factors(c
     a=good(confounded);r=rca.verify(a,confounded)
     assert not r["ok"] and any("拆開變因" in v for v in r["violations"])
     a["data_gaps"]=["韌體與硬體同時變動，需要只換一個變因重測"]
-    r=rca.verify(a,confounded);assert r["ok"] and r["analysis"]["hypotheses"][0]["confidence"]=="medium" and r["warnings"]
+    r=rca.verify(a,confounded);assert r["ok"] and r["analysis"]["hypotheses"][0]["confidence"]=="low" and r["warnings"]   # describe mode: several factors changed, so only low-confidence candidates
 
 def test_high_confidence_without_a_factor_is_downgraded(pack):
     a=good(pack);a["hypotheses"][0]["supports"]=[ids(pack)["d"]]

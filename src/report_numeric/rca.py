@@ -13,18 +13,22 @@ import re
 from typing import Any, Callable
 
 CONFIDENCE = ("low", "medium", "high")
-MAX_HYPOTHESES = 5
+MAX_HYPOTHESES = 3
+MAX_OBSERVATIONS = 5
 FREE_INTEGERS = range(0, 11)  # "2 項", "第 3" and similar counting words are not data
 SYSTEM_PROMPT = """你是 CSIT 測試報告的根因分析（RCA）助理。你只會拿到一份由程式整理好的「差異證據包」，不能查資料庫，也不能計算。
 規則：
-1. 只能根據證據包回答。每一條觀察與每一個假設都要在 evidence / supports 欄位列出證據編號（F#、D#、R#、C#、Q#、T#），只能使用證據包裡存在的編號。
+1. 只能根據證據包回答。每一條觀察與每一個假設都要在 evidence / supports 欄位列出證據編號（F#、P#、D#、R#、C#、Q#、T#），只能使用證據包裡存在的編號。
 2. 數值、單位、版本、通道、頻段一律原樣照抄證據包；不要自行計算、換算、四捨五入或估計，沒有出現在證據包的數字不要寫。尤其不要把兩個數值相加、相乘、取倍數或平均得到新的數字；要說明差異時，只引用證據包已列出的數值與百分比。
 3. 先陳述事實（observations），再提出假設（hypotheses）。假設只是「待驗證的候選原因」，不是結論；每個假設要寫機制（mechanism）、支持與反對的證據、缺少什麼證據、信心等級（low/medium/high），以及具體的驗證步驟（verify_steps）。
 4. confounded 為 true 時，代表韌體、硬體、晶片或乙太網路類型同時變動，無法歸因到單一因素：信心不得高於 medium，並在 data_gaps 說明需要如何拆開變因（例如只換一個變因重測）。
 5. 沒有證據支持的機制只能是 low，且 supports 可以只引用觀察到的差異；不要把一般工程常識當成證據，也不要為它編造引用。
 6. 指標的 higher_is_better 未定義時（assessment 為 changed），只描述差異，不要使用「較佳、較差、進步、退步、劣化」。
-7. 證據包沒有解釋到的差異放進 unexplained；資料品質問題（Q#）、涵蓋缺口與單位不符放進 data_gaps，不要略過。
-8. 以繁體中文回答，輸出單一 JSON 物件，不要加說明文字或程式碼區塊。格式：
+7. 證據包若有 findings，那是程式整理好的重點（P#）：每個 P# 是一個「頻段＋頻寬＋方向」範圍。只談 findings 裡的範圍，不要另外找題目；observations 最多 5 條、hypotheses 最多 3 個、summary 最多 2 句。每個假設的 supports 至少要有一個 P#，說明它在解釋哪個範圍的變化。
+   RvR 的 peak 是曲線最高的吞吐量，cliff 是吞吐量掉到峰值一半以下的衰減值（dB，數字越小代表越早掉）；Throughput 的 agreement 表示兩份報告都測到的通道中，變動達門檻的筆數，higher/lower 一致代表整個範圍同向變動，混雜代表只是個別通道的波動。
+   證據包的 mode 為 describe 時（報告之間不只一個變因不同），這是「差異描述」而非根因分析：重點放在 observations；hypotheses 最多 2 個，信心一律 low，且只能寫成「待驗證的候選因素」。
+8. 證據包沒有解釋到的差異放進 unexplained；資料品質問題（Q#）、涵蓋缺口與單位不符放進 data_gaps，不要略過。
+9. 以繁體中文回答，輸出單一 JSON 物件，不要加說明文字或程式碼區塊。格式：
 {"summary": "...", "observations": [{"text": "...", "evidence": ["D1"]}],
  "hypotheses": [{"cause": "...", "mechanism": "...", "supports": ["F1","D1"], "against": [], "missing_evidence": ["..."], "confidence": "low", "verify_steps": ["..."]}],
  "unexplained": [{"text": "...", "evidence": ["D3"]}], "data_gaps": ["..."]}"""
@@ -80,6 +84,8 @@ def verify(analysis: Any, pack: dict, texts: dict[str, dict] | None = None, ques
     violations: list[str] = []
     warnings: list[str] = []
     evidence = {**pack.get("evidence", {}), **(texts or {})}
+    if pack.get("model_ids") is not None:  # D# rows the model was not shown cannot be cited
+        evidence = {k: v for k, v in evidence.items() if k in pack["model_ids"] or k not in pack.get("evidence", {})}
     if not isinstance(analysis, dict):
         return {"ok": False, "violations": ["輸出不是 JSON 物件"], "warnings": [], "analysis": None}
     analysis = copy.deepcopy(analysis)  # the caller's object is never edited
@@ -102,6 +108,8 @@ def verify(analysis: Any, pack: dict, texts: dict[str, dict] | None = None, ques
                 violations.append(f"{where} 引用了不存在的證據編號 {i}")
         return good
 
+    if isinstance(analysis["observations"], list) and len(analysis["observations"]) > MAX_OBSERVATIONS:
+        warnings.append(f"觀察超過 {MAX_OBSERVATIONS} 條，只保留前 {MAX_OBSERVATIONS} 條"); analysis["observations"] = analysis["observations"][:MAX_OBSERVATIONS]
     for n, o in enumerate(analysis["observations"], 1):
         if not isinstance(o, dict) or not str(o.get("text") or "").strip():
             violations.append(f"observations[{n}] 格式不正確"); continue
@@ -122,8 +130,12 @@ def verify(analysis: Any, pack: dict, texts: dict[str, dict] | None = None, ques
         if conf not in CONFIDENCE:
             violations.append(f"hypotheses[{n}].confidence 必須是 {CONFIDENCE}"); continue
         kinds = {evidence[i].get("kind") for i in h["supports"] if i in evidence}
-        if conf == "high" and (len(h["supports"]) < 2 or not ({"factor", "condition"} & kinds) or not ({"measurement", "result"} & kinds)):
+        if conf == "high" and (len(h["supports"]) < 2 or not ({"factor", "condition"} & kinds) or not ({"measurement", "pattern", "result"} & kinds)):
             h["confidence"] = "medium"; warnings.append(f"hypotheses[{n}] 的信心由 high 降為 medium：需要同時有變因與量測兩類證據")
+        if pack.get("findings") and not any(i.startswith("P") for i in h["supports"]):
+            warnings.append(f"hypotheses[{n}] 沒有引用任何 findings 範圍（P#）")
+        if pack.get("findings") and pack.get("confounded") and h["confidence"] != "low":
+            h["confidence"] = "low"; warnings.append(f"hypotheses[{n}] 的信心降為 low：報告之間不只一個變因不同，只做差異描述")
         if pack.get("confounded") and h["confidence"] == "high":
             h["confidence"] = "medium"; warnings.append(f"hypotheses[{n}] 的信心由 high 降為 medium：多個變因同時變動，無法歸因")
     analysis["hypotheses"] = hyps
@@ -149,11 +161,26 @@ def verify(analysis: Any, pack: dict, texts: dict[str, dict] | None = None, ques
     return {"ok": not violations, "violations": violations, "warnings": warnings, "analysis": analysis if not violations else None}
 
 
-PROMPT_KEYS = ("runs", "factors", "confounded", "confounded_note", "counts", "diffs", "coverage", "result_changes", "criteria_changes", "quality", "directions_defined")
+PROMPT_KEYS = ("runs", "factors", "confounded", "confounded_note", "counts", "diffs", "coverage", "result_changes", "criteria_changes", "quality", "directions_defined", "findings")
 
 
 def prompt_view(pack: dict) -> dict:
-    return {k: pack[k] for k in PROMPT_KEYS if k in pack}
+    view = {k: pack[k] for k in PROMPT_KEYS if k in pack}
+    if pack.get("findings"):
+        # the model reasons over the reduced scopes, not the aligned rows; the page still shows the rows
+        view.pop("diffs", None)
+        view.pop("coverage", None)  # only the count of coverage gaps and the partial scopes go to the model
+        view["result_changes"] = view.get("result_changes", [])[:10]
+        view["criteria_changes"] = view.get("criteria_changes", [])[:10]
+        f = pack["findings"]
+        view["findings"] = {k: f[k] for k in ("focus", "method", "thresholds", "scopes_total", "scopes_complete", "scopes_notable", "scopes_unchanged", "scopes_partial") if k in f}
+        view["findings"]["scopes"] = [{k: v for k, v in sc.items() if k not in ("key", "magnitude", "complete", "notable")} for sc in f["scopes"]]
+        view["mode"] = analysis_mode(pack)
+    return view
+
+
+def analysis_mode(pack: dict) -> str:
+    return "describe" if pack.get("confounded") else "rca"
 
 
 NUMBER_VIOLATION = "出現證據包以外的數字："
@@ -191,7 +218,8 @@ def salvage(analysis: dict, pack: dict, texts: dict[str, dict] | None = None, qu
 def pack_for_prompt(pack: dict, texts: dict[str, dict] | None = None) -> str:
     """The evidence the model sees: findings with ids, not the raw rows. Text evidence (T#) from the knowledge base is appended when supplied."""
     view = {k: v for k, v in prompt_view(pack).items()}
-    view["diffs"] = [{k: v for k, v in d.items() if k != "key"} for d in view.get("diffs", [])]  # the raw key dict is not sent; the caller's pack is not edited
+    if "diffs" in view:
+        view["diffs"] = [{k: v for k, v in d.items() if k != "key"} for d in view["diffs"]]  # the raw key dict is not sent; the caller's pack is not edited
     if texts:
         view["knowledge_texts"] = list(texts.values())
     return json.dumps(view, ensure_ascii=False, default=str)

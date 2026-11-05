@@ -10,12 +10,12 @@ pytestmark=pytest.mark.skipif(not os.environ.get("TEST_DATABASE_URL"),reason="TE
 class InlineTasks:
     """Runs the analysis at submit time in-process and keeps the result, like the Celery worker would, so owner checks and states can be tested."""
     def __init__(self,llm,roles):self.llm,self.roles,self.done,self.n,self.hold=llm,roles,{},0,False
-    def submit(self,run_ids,question,owner):
+    def submit(self,run_ids,question,owner,focus=None):
         from src.report_numeric import rca_service,compare
         self.n+=1;tid="t%d"%self.n
         if self.hold:return tid                      # simulates a task that has not finished yet
         try:
-            r=rca_service.analyze(lambda:psycopg.connect(os.environ["TEST_DATABASE_URL"],autocommit=True),self.roles,self.llm,run_ids,question)
+            r=rca_service.analyze(lambda:psycopg.connect(os.environ["TEST_DATABASE_URL"],autocommit=True),self.roles,self.llm,run_ids,question,focus)
             self.done[tid]={"owner":owner,"status":"done",**r}
         except compare.CompareError as e:self.done[tid]={"owner":owner,"status":"failed","detail":str(e)}
         return tid

@@ -7,10 +7,10 @@ from typing import Callable
 from . import compare, rca
 
 
-def analyze(connect: Callable, roles: list[str], llm: Callable[[list[dict]], str], run_ids: list[str], question: str = "") -> dict:
+def analyze(connect: Callable, roles: list[str], llm: Callable[[list[dict]], str], run_ids: list[str], question: str = "", focus: dict | None = None) -> dict:
     """Raises compare.CompareError for a bad selection. A model failure never loses the comparison: it is reported as status 'unavailable'."""
     with connect() as conn:
-        pack = compare.compare_runs(compare.load_runs(conn, run_ids, roles), compare.load_directions(conn))
+        pack = compare.compare_runs(compare.load_runs(conn, run_ids, roles), compare.load_directions(conn), focus=focus)
     try:
         out = rca.run_rca(pack, llm, question=(question or "").strip())
     except Exception as exc:  # noqa: BLE001 - network, timeout, malformed client reply

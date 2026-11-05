@@ -106,6 +106,7 @@
           <section class="panel">
             <div class="section-intro"><div><h2>② 比較與分析</h2><p>比較由程式計算,立即顯示;模型分析需要較長時間,完成後顯示在下方。</p></div></div>
             <div class="rca-actions">
+              <label>分析焦點<select id="focus" onchange="onFocus()"><option value="">全部範圍</option></select></label>
               <label>想釐清的問題(選填)<input id="ask" placeholder="例如:ch36 的下行吞吐量為什麼下降?" maxlength="500"></label>
               <button id="btnCmp" class="secondary-button" type="button" onclick="go(false)">只做比較(不用模型)</button>
               <button id="btnRca" class="primary-button" type="button" onclick="go(true)">比較並分析可能原因</button>
@@ -126,7 +127,8 @@ const api=async(p,b)=>{const r=await fetch(p,b?{method:'POST',headers:{'Content-
  if(r.status===401){location.assign('/login.html?next='+encodeURIComponent(location.pathname));throw new Error('登入已過期')}
  if(r.status===404||r.status===503&&(!d||d.detail==='RCA is not enabled'))throw new Error('RCA 後端尚未啟用,目前只有畫面可以預覽。請管理員啟用後再使用。');
  if(!r.ok)throw new Error(typeof d?.detail==='string'?d.detail:(d?.detail?JSON.stringify(d.detail):('錯誤 '+r.status)));return d};
-let runs=[],picked=[],PACK=null,canAnalyze=false,runToken=0;
+let runs=[],picked=[],PACK=null,canAnalyze=false,runToken=0,FOCUS={};
+const focusBody=()=>Object.keys(FOCUS).length?{focus:FOCUS}:{};
 // small builders so every block uses the zone components (panel / section-intro / tag / alert-row)
 const tag=(cls,text,title)=>`<span class="tag${cls?' '+cls:''}"${title?` title="${esc(title)}"`:''}>${text}</span>`;
 const alertRow=(cls,html)=>`<div class="alert-row ${cls}">${html}</div>`;
@@ -146,7 +148,12 @@ function drawRuns(){$('runs').innerHTML='<tr><th style="width:44px"></th><th sty
  <td><div class="document-title">${esc(r.dut_model)}</div><div class="mono">${esc(r.test_run_id)}</div></td><td>${esc(r.report_type)}</td><td>${esc(r.firmware_version||'—')}</td><td>${esc(r.hardware_version||'—')}</td><td class="nowrap">${esc(r.test_date||'—')}</td>
  <td>${tag(r.overall_result==='pass'?'':r.overall_result==='fail'?'bad':'mute',esc(r.overall_result||'—'))}</td><td>${qualityPill(r)}</td></tr>`}).join(''):'<tr><td colspan="9" class="mute">沒有符合的報告</td></tr>');
  $('selcount').textContent='已選 '+picked.length;$('btnCmp').disabled=picked.length<2;applyCaps()}
-function toggle(id){const i=picked.indexOf(id);if(i>=0)picked.splice(i,1);else if(picked.length<6)picked.push(id);drawRuns()}
+function toggle(id){const i=picked.indexOf(id);if(i>=0)picked.splice(i,1);else if(picked.length<6)picked.push(id);FOCUS={};resetFocus();drawRuns()}
+function resetFocus(){$('focus').innerHTML='<option value="">全部範圍</option>'}
+function fillFocus(p){const f=p.findings;if(!f){resetFocus();return}
+ const cur=JSON.stringify(FOCUS);$('focus').innerHTML='<option value="">全部範圍</option>'+f.available.scopes.filter(s=>s.in_all).map(s=>{const v={band:s.band,bandwidth_mhz:s.bandwidth_mhz,direction:s.direction};return `<option value='${esc(JSON.stringify(v))}'>${esc(s.label)}</option>`}).join('');
+ for(const o of $('focus').options)if(o.value&&JSON.stringify(JSON.parse(o.value))===cur)o.selected=true}
+function onFocus(){const v=$('focus').value;FOCUS=v?JSON.parse(v):{};if(picked.length>=2)go(false)}
 function evChip(id){return `<span class="chip ${id[0].toLowerCase()}" onclick="showEv('${id}')">${id}</span>`}
 function showEv(id){const e=PACK?.evidence?.[id];if(!e)return;const t=document.getElementById('ev-'+id);if(t){t.scrollIntoView({block:'center',behavior:'smooth'});t.classList.remove('flash');void t.offsetWidth;t.classList.add('flash')}
  $('pop').innerHTML=`<div class="ev-pop"><div style="display:flex;justify-content:space-between;align-items:center;gap:12px"><b>${id} · ${esc(e.kind)}</b><button class="secondary-button" type="button" onclick="$('pop').innerHTML=''">關閉</button></div><pre>${esc(JSON.stringify(e,null,1))}</pre></div>`}
@@ -155,13 +162,21 @@ const badge=a=>a==='regression'?tag('bad','退步'):a==='improvement'?tag('','�
 const heads=p=>p.runs.map((_,i)=>`<th>${runName(i)}</th>`).join('');
 function drawPack(p){PACK=p;const c=p.counts;let h='';
  h+=panel('比較結果',`<div class="rca-stats">${[[c.aligned,'對齊的量測'],[c.notable,'顯著差異'],[c.unchanged,'持平'],[c.coverage_gaps,'只出現在部分報告'],[p.result_changes.length,'Pass/Fail 變化'],[p.factors.length,'不同的變因']].map(x=>`<div class="rca-stat"><strong>${x[0]}</strong><span>${x[1]}</span></div>`).join('')}</div>
- ${p.confounded?alertRow('warning','⚠ '+esc(p.confounded_note)):''}
+ ${p.confounded?alertRow('warning','⚠ '+esc(p.confounded_note)+(p.findings?' 因此這是「差異描述」,不是根因分析:模型提出的候選原因信心一律為「低」。想做根因分析,請改選只有一個變因不同的報告(例如同一設備、只換韌體)。':'')):''}
  ${p.directions_defined.length?'':alertRow('info',`這些指標的「越高越好」方向尚未定義,所以只標示「有變化」,不判斷好壞。顯著門檻目前是預設值(${p.thresholds.pct}%,部分指標用絕對值)。`)}`);
  h+=panel('變因:這幾份報告哪裡不一樣',p.factors.length?`<div class="table-wrap"><table class="rca-table"><tr><th style="width:70px">編號</th><th>項目</th>${heads(p)}</tr>`+p.factors.map(f=>`<tr id="ev-${f.id}"><td>${evChip(f.id)}</td><td>${esc(FNAME[f.factor]||f.factor)}</td>${f.values.map(v=>`<td>${fmt(v)}</td>`).join('')}</tr>`).join('')+'</table></div>':'<span class="mute">所選報告在這些欄位上完全相同</span>');
+ const sign=x=>x==null?'':(x>0?'+':'')+fmt(x,1);
+ const cls=x=>x==null?'delta-neu':x<0?'delta-neg':x>0?'delta-pos':'delta-neu';
+ const tpCell=r=>!r.present?'<span class="mute">這份沒有測</span>':`<b>${fmt(r.median)}</b> Mbps<div class="mono">${fmt(r.min)} – ${fmt(r.max)} · ${r.channels} 個通道</div>`+(r.median_delta_pct!=null?`<div class="${cls(r.median_delta_pct)}">${sign(r.median_delta_pct)}%</div>`:'')+(r.agreement?`<div class="mono">共同通道 ${r.agreement.common_points}:較高 ${r.agreement.higher}、較低 ${r.agreement.lower}、持平 ${r.agreement.within_threshold}</div>`:'');
+ const rvCell=r=>!r.present?'<span class="mute">這份沒有測</span>':`峰值 <b>${fmt(r.peak_median)}</b> Mbps`+(r.peak_delta_pct!=null?` <span class="${cls(r.peak_delta_pct)}">${sign(r.peak_delta_pct)}%</span>`:'')+`<div>斷崖 <b>${r.cliff_median_db==null?'未掉到一半':fmt(r.cliff_median_db)+' dB'}</b>`+(r.cliff_delta_db!=null?` <span class="${cls(r.cliff_delta_db)}">${sign(r.cliff_delta_db)} dB</span>`:'')+(r.cliff_note?` <span class="mono">${esc(r.cliff_note)}</span>`:'')+`</div><div class="mono">平均 ${fmt(r.mean_median)} Mbps${r.mean_delta_pct!=null?' ('+sign(r.mean_delta_pct)+'%)':''} · ${r.curves} 條曲線</div>`;
+ if(p.findings){const f=p.findings,cell=f.report_type==='wifi_rvr'?rvCell:tpCell;
+  h+=panel('重點範圍:模型只會分析這裡',f.scopes.length?`<div class="table-wrap"><table class="rca-table"><tr><th style="width:70px">編號</th><th>範圍</th>${heads(p)}</tr>`+f.scopes.map(s=>`<tr id="ev-${s.id}"><td>${evChip(s.id)}</td><td>${esc(s.scope)}<div class="mono">${esc(s.unit)}</div></td>${s.per_run.map(r=>`<td>${cell(r)}</td>`).join('')}</tr>`).join('')+'</table></div>':'<span class="mute">所選範圍內沒有超過門檻的變化</span>',
+  `<span class="inline-note">${f.scopes_notable} 個有顯著變化 · ${f.scopes_unchanged} 個持平${f.scopes_partial.length?' · '+f.scopes_partial.length+' 個只出現在部分報告':''}</span>`)
+  +`<p class="rca-note">${esc(f.method)}${f.scopes_partial.length?' 只出現在部分報告的範圍不做比較:'+f.scopes_partial.map(esc).join('、')+'。':''}${Object.keys(f.focus).length?'':' 若要讓分析更集中,可以在下方選一個「分析焦點」。'}</p>`}
  const maxm=Math.max(1,...p.diffs.map(d=>d.magnitude));
- h+=panel('量測差異',p.diffs.length?`<div class="table-wrap rca-scroll" style="max-height:480px"><table class="rca-table"><tr><th style="width:70px">編號</th><th>量測</th>${heads(p)}<th style="width:110px">幅度</th></tr>`+
+ h+=panel(p.findings?'原始量測差異(明細,模型看不到)':'量測差異',p.diffs.length?(p.findings?'<details><summary class="mute">展開 '+p.diffs_total+' 筆明細</summary>':'')+`<div class="table-wrap rca-scroll" style="max-height:480px"><table class="rca-table"><tr><th style="width:70px">編號</th><th>量測</th>${heads(p)}<th style="width:110px">幅度</th></tr>`+
  p.diffs.map(d=>`<tr id="ev-${d.id}"><td>${evChip(d.id)}</td><td>${esc(d.label)}<div class="mono">${esc(d.unit)}</div></td>${d.per_run.map(r=>`<td title="來源 ${esc(r.source)}">${fmt(r.value)}${r.delta_pct!=null?`<div class="${r.delta<0?'delta-neg':r.delta>0?'delta-pos':'delta-neu'}">${r.delta>0?'+':''}${fmt(r.delta_pct,1)}% ${badge(r.assessment)}</div>`:(r.delta!=null?`<div>${r.delta>0?'+':''}${fmt(r.delta)} ${badge(r.assessment)}</div>`:'')}<div class="mono">${esc(r.source)}</div></td>`).join('')}
- <td>${fmt(d.magnitude,1)}<div class="bar"><i style="width:${Math.max(4,d.magnitude/maxm*100)}%"></i></div></td></tr>`).join('')+'</table></div>':'<span class="mute">沒有超過門檻的差異</span>',
+ <td>${fmt(d.magnitude,1)}<div class="bar"><i style="width:${Math.max(4,d.magnitude/maxm*100)}%"></i></div></td></tr>`).join('')+'</table></div>'+(p.findings?'</details>':''):'<span class="mute">沒有超過門檻的差異</span>',
  `<span class="inline-note">顯著 ${p.diffs_total} 筆${p.diffs_total>p.diffs.length?',顯示前 '+p.diffs.length:''}</span>`);
  if(p.result_changes.length)h+=panel('Pass / Fail 變化',`<div class="table-wrap"><table class="rca-table"><tr><th style="width:70px">編號</th><th>項目</th>${heads(p)}</tr>`+p.result_changes.map(r=>`<tr id="ev-${r.id}"><td>${evChip(r.id)}</td><td>${esc(r.label)}</td>${r.outcomes.map(o=>`<td>${tag(o==='pass'?'':o==='fail'?'bad':'mute',esc(o||'無'))}</td>`).join('')}</tr>`).join('')+'</table></div>');
  if(p.criteria_changes.length)h+=panel('判定門檻不同',`<div class="table-wrap"><table class="rca-table"><tr><th style="width:70px">編號</th><th>條件</th>${heads(p)}</tr>`+p.criteria_changes.map(r=>`<tr id="ev-${r.id}"><td>${evChip(r.id)}</td><td>${esc(r.label)}</td>${r.criteria.map((v,i)=>`<td>${fmt(v)}${r.reference_rate_mbps[i]!=null?`<div class="mono">參考 ${fmt(r.reference_rate_mbps[i])} Mbps</div>`:''}</td>`).join('')}</tr>`).join('')+'</table></div>');
@@ -179,12 +194,12 @@ function drawRca(r,p){if(!r)return'';
  ${x.missing_evidence.length?`<div class="k">還缺少的證據</div><ul>${x.missing_evidence.map(m=>`<li>${esc(m)}</li>`).join('')}</ul>`:''}<div class="k">建議的驗證步驟</div><ul>${x.verify_steps.map(m=>`<li>${esc(m)}</li>`).join('')}</ul></div>`).join('')||'<div class="mute">模型沒有提出假設</div>');
  if(a.unexplained.length)h+=`<h3>沒有被解釋的差異</h3><ul>${a.unexplained.map(u=>`<li>${esc(u.text)} ${ev(u.evidence)}</li>`).join('')}</ul>`;
  if(a.data_gaps.length)h+=`<h3>資料不足與限制</h3><ul>${a.data_gaps.map(g=>`<li>${esc(g)}</li>`).join('')}</ul>`;
- return panel(RCA_TITLE,h+'<p class="rca-note">每個編號都可以點開看原始證據。程式已檢查:引用的編號存在、文中的數字都來自證據包、多變因時信心不超過「中」。</p>',RCA_NOTE)}
+ return panel(RCA_TITLE,h+'<p class="rca-note">每個編號都可以點開看原始證據。程式已檢查:引用的編號存在、文中的數字都來自證據包、多個變因同時不同時,候選原因信心一律為「低」;模型最多列 5 條觀察、3 個假設,且只談上方「重點範圍」。</p>',RCA_NOTE)}
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 async function go(withModel){if(picked.length<2)return;const token=++runToken;[$('btnCmp'),$('btnRca')].forEach(x=>x.disabled=true);$('out').innerHTML='';
  try{
   // The comparison is computed by code and answers at once, so it is shown first; the model's analysis (slow) arrives into its own panel.
-  const pack=await api('/api/rca/v1/compare',{run_ids:picked});PACK=pack;
+  const pack=await api('/api/rca/v1/compare',{run_ids:picked,...focusBody()});PACK=pack;fillFocus(pack);
   $('out').innerHTML=drawPack(pack)+'<div id="rcaCard"></div>';$('out').scrollIntoView({behavior:'smooth'});
   if(withModel)await runAnalysis(pack,token);
  }catch(e){$('out').innerHTML=alertRow('bad',esc(e.message))}
@@ -193,7 +208,7 @@ async function runAnalysis(pack,token){const card=$('rcaCard');
  const wait=(msg,t)=>card.innerHTML=panel(RCA_TITLE,`<div><span class="spin"></span> ${esc(msg)} <span class="mute">已等待 ${t} 秒(通常 20 到 120 秒,最久約 9 分鐘;可以先看上面的比較結果)</span></div>`,RCA_NOTE);
  const fail=m=>card.innerHTML=panel(RCA_TITLE,alertRow('bad',esc(m)+'。上面的比較結果仍然有效。'));
  wait('正在送出分析工作…',0);
- let sub;try{sub=await api('/api/rca/v1/analyze',{run_ids:picked,question:$('ask').value})}catch(e){fail(e.message);return}
+ let sub;try{sub=await api('/api/rca/v1/analyze',{run_ids:picked,question:$('ask').value,...focusBody()})}catch(e){fail(e.message);return}
  const t0=Date.now();
  while(token===runToken&&Date.now()-t0<540000){
   await sleep(2000);if(token!==runToken)return;

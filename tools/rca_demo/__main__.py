@@ -63,6 +63,18 @@ def stub_llm(messages):
     """Rephrases the evidence pack in the required JSON shape. It cannot reason about causes; it exists to exercise the page and the checks."""
     pack=json.loads(messages[1]["content"].split("證據包：\n",1)[1])
     fac={f["factor"]:f for f in pack["factors"]}
+    if pack.get("findings"):   # the real model sees findings (P#) instead of the aligned rows; the stand-in does the same
+        sc=pack["findings"]["scopes"][:3]
+        obs=[{"text":f"{x['scope']}：基準 "+" / ".join(f"{k}={v}" for k,v in x['per_run'][0].items() if k in ('median','peak_median','cliff_median_db'))+"。","evidence":[x["id"]]} for x in sc]
+        for key,name in (("firmware_version","韌體版本"),("hardware_version","硬體版本")):
+            f=next((f for f in pack["factors"] if f["factor"]==key),None)
+            if f:obs.append({"text":f"{name}不同。","evidence":[f["id"]]})
+        hyps=[{"cause":"設備或版本差異造成範圍內的變化","mechanism":"待驗證的候選因素","supports":[sc[0]["id"]]+[f["id"] for f in pack["factors"][:1]],"against":[],"missing_evidence":["釋出說明"],
+               "confidence":"low","verify_steps":["只改變一個變因後重測相同範圍"]}] if sc else []
+        gaps=["報告之間有多個變因不同，需要拆開變因、只換一個再重測"] if pack["confounded"] else ["只有少數報告，無法排除量測環境差異"]
+        if pack["quality"]:gaps.append("有報告的來源檔含公式錯誤儲存格，資料品質需先確認")
+        return json.dumps({"summary":"程式整理出 %d 個有顯著變化的範圍。"%len(pack["findings"]["scopes"]),"observations":obs or [{"text":"沒有顯著變化。","evidence":[pack["factors"][0]["id"]] if pack["factors"] else []}],
+                           "hypotheses":hyps,"unexplained":[],"data_gaps":gaps},ensure_ascii=False)
     top=pack["diffs"][:3]
     obs=[{"text":f"{d['label']}：基準 {d['per_run'][0]['value']} {d['unit']}，另一份為 {d['per_run'][1]['value']} {d['unit']}。","evidence":[d["id"]]} for d in top]
     for key,name in (("firmware_version","韌體版本"),("hardware_version","硬體版本"),("ethernet_type","乙太網路類型")):
@@ -85,11 +97,11 @@ def stub_llm(messages):
 class ThreadTasks:
     """Stands in for the Celery worker: runs the analysis in a thread after a short delay so the page's polling can be seen."""
     def __init__(self,connect,roles,llm,delay=4):self.connect,self.roles,self.llm,self.delay,self.done,self.n=connect,roles,llm,delay,{},0
-    def submit(self,run_ids,question,owner):
+    def submit(self,run_ids,question,owner,focus=None):
         self.n+=1;tid="demo-%d"%self.n
         def work():
             time.sleep(self.delay)
-            try:self.done[tid]={"owner":owner,"status":"done",**rca_service.analyze(self.connect,self.roles,self.llm,run_ids,question)}
+            try:self.done[tid]={"owner":owner,"status":"done",**rca_service.analyze(self.connect,self.roles,self.llm,run_ids,question,focus)}
             except compare.CompareError as e:self.done[tid]={"owner":owner,"status":"failed","detail":str(e)}
         threading.Thread(target=work,daemon=True).start();return tid
     def fetch(self,tid):return self.done.get(tid)

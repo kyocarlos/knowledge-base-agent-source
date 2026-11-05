@@ -13,7 +13,7 @@ logger = logging.getLogger("km.rca")
 
 
 @celery_app.task(name="tasks.rca_analyze_task", bind=True)
-def rca_analyze_task(self, run_ids: list, question: str = "", owner: dict | None = None):
+def rca_analyze_task(self, run_ids: list, question: str = "", owner: dict | None = None, focus: dict | None = None):
     from .rca_routes import default_connect, default_llm, default_roles
     llm_holder: dict = {}
     started = time.monotonic()
@@ -31,7 +31,7 @@ def rca_analyze_task(self, run_ids: list, question: str = "", owner: dict | None
         return llm_holder["fn"](messages)
 
     try:
-        result = rca_service.analyze(default_connect, default_roles(), llm, [str(r) for r in run_ids], question or "")
+        result = rca_service.analyze(default_connect, default_roles(), llm, [str(r) for r in run_ids], question or "", focus)
     except compare.CompareError as exc:
         return {"owner": owner, "status": "failed", "detail": str(exc)}
     except Exception as exc:  # noqa: BLE001 - e.g. the report store is unreachable; never leak details to the page

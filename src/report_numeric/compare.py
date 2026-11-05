@@ -10,6 +10,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
+from . import findings as fnd_mod
 from . import query as q
 
 MAX_RUNS = 6
@@ -133,7 +134,8 @@ def _assess(metric: str, base: float, value: float, directions: dict[str, bool |
     return "improvement" if (value > base) == bool(better) else "regression"
 
 
-def compare_runs(runs: list[dict], directions: dict[str, bool | None] | None = None, thresholds: Thresholds | None = None, top: int = 40) -> dict:
+def compare_runs(runs: list[dict], directions: dict[str, bool | None] | None = None, thresholds: Thresholds | None = None, top: int = 40,
+                 focus: dict | None = None) -> dict:
     """runs[0] is the baseline. Returns the evidence pack described in the module docstring."""
     if not 2 <= len(runs) <= MAX_RUNS:
         raise CompareError(f"需要 2 到 {MAX_RUNS} 份報告")
@@ -252,6 +254,13 @@ def compare_runs(runs: list[dict], directions: dict[str, bool | None] | None = N
         if tables[i][1]:
             quality.append({"id": add("Q", {"kind": "duplicate_keys", "run": i, "count": tables[i][1]}), "run": i, "duplicate_keys": tables[i][1]})
 
+    # ---- findings: the few scopes (band / bandwidth / direction) the model is shown instead of every aligned row ----
+    fnd = fnd_mod.build(runs, runs[0]["report_type"], focus)
+    if fnd:
+        for sc in fnd["scopes"]:
+            sc["id"] = add("P", {"kind": "pattern", "label": sc["scope"], "unit": sc["unit"], "per_run": sc["per_run"]})
+    model_ids = sorted(k for k, v in evidence.items() if v.get("kind") != "measurement") if fnd else None
+
     counts = {"aligned": len(all_keys) - len(only_some), "notable": len(diffs), "unchanged": unchanged, "coverage_gaps": len(only_some),
               "regression": sum(1 for d in diffs if d["worst_assessment"] == "regression"),
               "changed_direction_undefined": sum(1 for d in diffs if d["worst_assessment"] == "changed")}
@@ -261,4 +270,5 @@ def compare_runs(runs: list[dict], directions: dict[str, bool | None] | None = N
             "criteria_changes": criteria_changes[:top], "quality": quality, "evidence": evidence,
             "thresholds": {"pct": thresholds.pct, "per_metric": thresholds.per_metric},
             "directions_defined": sorted(m for m, v in directions.items() if v is not None),
+            "findings": fnd, "model_ids": model_ids,
             "note": "higher_is_better 未定義的指標只標示『changed』，不判斷好壞。"}

@@ -27,6 +27,7 @@ ANALYZE_TASK = "tasks.rca_analyze_task"
 
 class CompareRequest(BaseModel):
     run_ids: list[str] = Field(min_length=2, max_length=compare.MAX_RUNS)
+    focus: dict | None = None  # band / bandwidth_mhz / direction: narrows what is compared and what the model sees
 
 
 class AnalyzeRequest(CompareRequest):
@@ -34,15 +35,15 @@ class AnalyzeRequest(CompareRequest):
 
 
 class TaskQueue(Protocol):
-    def submit(self, run_ids: list[str], question: str, owner: dict) -> str: ...
+    def submit(self, run_ids: list[str], question: str, owner: dict, focus: dict | None = None) -> str: ...
     def fetch(self, task_id: str) -> dict | None: ...   # None = not finished (or unknown); else the task's result dict
 
 
 class CeleryTasks:
     """The analysis runs in the search worker (same queue as the Wi-Fi agent), so a slow model never occupies a web worker."""
-    def submit(self, run_ids, question, owner):
+    def submit(self, run_ids, question, owner, focus=None):
         from .tasks import celery_app
-        return celery_app.send_task(ANALYZE_TASK, args=[run_ids, question, owner], queue="search").id
+        return celery_app.send_task(ANALYZE_TASK, args=[run_ids, question, owner, focus], queue="search").id
 
     def fetch(self, task_id):
         from celery.result import AsyncResult
@@ -107,9 +108,9 @@ def create_router(connect: Callable | None = None, tasks: TaskQueue | None = Non
             raise HTTPException(status_code=503, detail="RCA is not enabled")
         return identity
 
-    def _pack(conn, run_ids: list[str]) -> dict:
+    def _pack(conn, run_ids: list[str], focus: dict | None = None) -> dict:
         try:
-            return compare.compare_runs(compare.load_runs(conn, run_ids, roles_()), compare.load_directions(conn))
+            return compare.compare_runs(compare.load_runs(conn, run_ids, roles_()), compare.load_directions(conn), focus=focus)
         except compare.CompareError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from None
 
@@ -137,7 +138,7 @@ def create_router(connect: Callable | None = None, tasks: TaskQueue | None = Non
     def compare_endpoint(body: CompareRequest, request: Request):
         _guard(request)
         with connect_() as conn:
-            return _pack(conn, body.run_ids)
+            return _pack(conn, body.run_ids, body.focus)
 
     @router.post("/analyze", status_code=202)
     def analyze(body: AnalyzeRequest, request: Request):
@@ -145,9 +146,9 @@ def create_router(connect: Callable | None = None, tasks: TaskQueue | None = Non
         if not can_analyze():
             raise HTTPException(status_code=503, detail="RCA analysis is not enabled")
         with connect_() as conn:
-            _pack(conn, body.run_ids)  # an impossible selection fails here, at once, instead of after a queue wait
+            _pack(conn, body.run_ids, body.focus)  # an impossible selection fails here, at once, instead of after a queue wait
         try:
-            task_id = queue.submit(body.run_ids, body.question.strip(), _owner(identity))
+            task_id = queue.submit(body.run_ids, body.question.strip(), _owner(identity), body.focus)
         except Exception:  # noqa: BLE001 - broker down: the comparison still works
             logger.warning("RCA analysis could not be queued", exc_info=True)
             raise HTTPException(status_code=503, detail="分析佇列暫時無法使用") from None
