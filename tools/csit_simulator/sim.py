@@ -27,8 +27,9 @@ def _find_class(node_id,nodes):
     return None
 
 class Sim:
-    def __init__(self,km_base_url,token,timeout=15,data_dir=None,inspect=None):
+    def __init__(self,km_base_url,token,timeout=15,data_dir=None,inspect=None,identity=None):
         self.km=km_base_url.rstrip("/");self.token=token;self.timeout=timeout
+        self.identity=identity # tools.csit_simulator.identity.Identity: signed tokens instead of the shared DEV bearer
         self.inspect=inspect # callable -> dict (only the local demo can look inside KM)
         self.dir=Path(data_dir) if data_dir else None
         self.lock=threading.RLock()
@@ -72,10 +73,13 @@ class Sim:
                                  "request":req,"response":resp,"docId":doc,"note":note})
             del self.traffic[:-500]
     def _headers(self,key,bad=False):
-        h={"Authorization":"Bearer "+("not-the-real-token" if bad else self.token),"Content-Type":"application/json"}
+        token="not-the-real-token" if bad else (self.identity.mint_for_km() if self.identity else self.token)
+        h={"Authorization":"Bearer "+token,"Content-Type":"application/json"}
         if key:h["Idempotency-Key"]=key
         return h
-    def _auth_ok(self,request):return request.headers.get("authorization")=="Bearer "+self.token
+    def _auth_ok(self,request,scope=None):
+        header=request.headers.get("authorization","")
+        return self.identity.verify_from_km(header,scope) if self.identity else header=="Bearer "+self.token
 
     # ---------- documents (CSIT's own workflow) ----------
     def create_doc(self,spec):
@@ -218,7 +222,7 @@ class Sim:
         def refuse(code,note,doc=None):
             self.log("KM→CSIT","GET",path,code,None,{"detail":note},doc,int((time.monotonic()-t0)*1000),note)
             raise HTTPException(code,note)
-        if not self._auth_ok(request):refuse(401,"service bearer required")
+        if not self._auth_ok(request,"csit.document.read"):refuse(401,"service bearer required")
         with self.lock:
             d=self.docs.get(file_id)
             if d is None or d["content"] is None or not d["archived"]:refuse(404,"file not found (not archived, deleted, or unknown)",file_id if d else None)
@@ -246,7 +250,7 @@ class Sim:
             self._save()
             if raise_:raise HTTPException(code,note or "rejected")
             return Response(status_code=204)
-        if not self._auth_ok(request):return answer(401,"service bearer required",raise_=True)
+        if not self._auth_ok(request,"csit.ingestion.status.write"):return answer(401,"service bearer required",raise_=True)
         with self.lock:
             g=self.faults
             if g["callbackFailures"]>0:
@@ -310,7 +314,7 @@ class Sim:
     def state(self):
         with self.lock:
             return {"docs":[self.view(d) for d in self.docs.values()],"violations":list(self.violations),"faults":dict(self.faults),
-                    "settings":{"kmBaseUrl":self.km,"hasToken":bool(self.token),"inspectAvailable":self.inspect is not None}}
+                    "settings":{"kmBaseUrl":self.km,"hasToken":bool(self.token) or bool(self.identity),"identity":bool(self.identity),"inspectAvailable":self.inspect is not None}}
     def report(self):
         with self.lock:
             vs=[v for d in self.docs.values() for v in self.view(d)["allVerdicts"]]

@@ -1,7 +1,7 @@
 """HTTP surface of the simulator: the CSIT-facing routes KM calls, plus the /api/* routes the UI uses."""
 from pathlib import Path
 from fastapi import FastAPI,HTTPException,Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse,JSONResponse
 from .sim import Sim,BASE,TAXONOMY
 
 def create_app(sim:Sim)->FastAPI:
@@ -17,6 +17,16 @@ def create_app(sim:Sim)->FastAPI:
     async def ingestion(request:Request):return sim.receive(request,await body(request),"ingestion")
     @app.post(BASE+"/document-deletion-status")
     async def deletion(request:Request):return sim.receive(request,await body(request),"deletion")
+
+    # ----- the identity authority KM trusts (only when the simulator was started with --identity) -----
+    if sim.identity is not None:
+        @app.get("/.well-known/jwks")
+        def jwks():return sim.identity.jwks()
+        @app.post("/oauth/token")
+        async def token(request:Request):
+            status,payload=sim.identity.token_endpoint(request.headers.get("authorization",""),await request.body())
+            sim.log("KM→CSIT-IdP","POST","/oauth/token",status,None,{k:v for k,v in payload.items() if k!="access_token"},None,None,"client credentials")
+            return JSONResponse(payload,status_code=status,headers={"Cache-Control":"no-store"})
 
     # ----- what the UI does -----
     @app.get("/api/taxonomy")

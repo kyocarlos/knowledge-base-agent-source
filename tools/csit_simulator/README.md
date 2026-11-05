@@ -27,6 +27,8 @@ python -m tools.csit_simulator.demo
 
 ## 對外部 KM(DEV)驗證
 
+已部署的 KM 要用「身分模式」:見 `deploy/csit-mode/README.md`(`--identity`、HTTPS、模式切換腳本、`remote_drill.py`)。下面是只用固定 bearer 的簡易方式。
+
 ```bash
 python -m tools.csit_simulator serve --km-base-url https://<KM> --token <DEV bearer> --port 8765 --data-dir ./sim-data
 ```
@@ -48,6 +50,6 @@ python -m pytest tests/csit_simulator -q
 
 ## 尚未涵蓋
 
-- 真實 M2M(JWKS、client credentials、audience/scope):這版用固定 bearer。
+- 真實 M2M:`--identity` 模式已提供自簽的 JWKS 與 client credentials(給 KM 信任模擬器用);仍不是 CSIT 真實的身分服務。
 - 7444 TLS 入口與 allowlist。
 - Test Report v1 通知、v1.3 §8 / §9.2 的提案介面。

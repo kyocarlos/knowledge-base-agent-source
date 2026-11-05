@@ -1,0 +1,17 @@
+# Real CSIT mode: the base deploy/csit-integration-v1/compose.yaml (real identity authority, real CSIT, public schema) with spec v1.3 on.
+# Used as: docker compose -p km-csit-v1-dev --env-file <deploy-da40.env> -f compose.yaml -f compose-real.override.yml
+services:
+  api:
+    image: ${KM_CSIT_API_IMAGE:?}
+    environment:
+      KM_CSIT_MODE: real
+      KM_CSIT_ENABLED: "true"
+      KM_CSIT_DOCLIB_ENABLED: "true"
+  worker:
+    image: ${KM_CSIT_WORKER_IMAGE:?}
+    environment:
+      KM_CSIT_MODE: real
+      KM_CSIT_ENABLED: "true"
+      KM_CSIT_DOCLIB_ENABLED: "true"
+      KM_CSIT_DOCLIB_QDRANT_COLLECTION: km_csit_docs
+      KM_CSIT_DOCLIB_REDIS_URL: redis://km-da40-redis-1:6379/0

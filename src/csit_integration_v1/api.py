@@ -2,7 +2,7 @@ from fastapi import FastAPI, Request, HTTPException
 from .auth import authorize, JwtServiceTokenValidator
 from .models import IngestionRequest, JobResponse
 from .errors import IntegrationError
-import json,logging,uuid
+import json,logging,os,uuid
 from pydantic import ValidationError
 from datetime import datetime,timezone
 
@@ -56,7 +56,8 @@ def create_app(settings, repository, validator=None, doclib=None):
     def health():
         try:repository.check_schema()
         except Exception:raise HTTPException(503,'Metadata DB unavailable') from None
-        return {'status':'ok','integrationEnabled':settings.enabled}
+        # csitMode says which CSIT this KM is wired to (real | sim); set by deploy/csit-mode, never switchable at runtime
+        return {'status':'ok','integrationEnabled':settings.enabled,'csitMode':os.getenv('KM_CSIT_MODE','real')}
     @app.post(ROUTE,status_code=202,response_model=JobResponse)
     async def submit(request:Request):
         authorize(request,validator)

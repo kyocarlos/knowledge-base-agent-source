@@ -1,0 +1,28 @@
+# The CSIT simulator as the identity authority and CSIT for KM's simulated mode. Runs only while KM is in sim mode (csit-mode.sh starts and stops it).
+# The UI is plain HTTP on the server's loopback only (ssh -L 8765:127.0.0.1:8765 <server>); the HTTPS port 8443 is reachable from containers on km-control-private only.
+services:
+  csit-sim:
+    image: ${KM_CSIT_SIM_IMAGE:?}
+    container_name: csit-sim
+    restart: "no"
+    command: ["python","-m","tools.csit_simulator","serve","--identity","--host","0.0.0.0","--port","8765","--tls-port","8443","--km-base-url","http://km-csit-integration-api:8000","--data-dir","/data","--tls-dir","/data/tls"]
+    environment:
+      SIM_ISSUER: https://csit-sim:8443/
+      SIM_KM_AUDIENCE: km.integration.sim
+      SIM_OUTBOUND_AUDIENCE: csit.integration.sim
+      SIM_KM_CLIENT_ID: km-csit-integration-sim
+      SIM_KM_CLIENT_SECRET_FILE: /run/secrets/km-client-secret
+      SIM_SERVICE_CLIENT_ID: csit-km-ingestion-sim
+      SIM_TLS_NAMES: csit-sim
+    networks:
+      control:
+        aliases: [csit-sim]
+    ports:
+      - "127.0.0.1:8765:8765"
+    volumes:
+      - ${KM_MODE_DIR:?}/sim-data:/data
+      - ${KM_MODE_DIR}/sim/km-client-secret:/run/secrets/km-client-secret:ro
+networks:
+  control:
+    external: true
+    name: km-control-private

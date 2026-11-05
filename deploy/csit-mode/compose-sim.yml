@@ -1,0 +1,68 @@
+# Simulated CSIT mode: the same KM containers, trusting the CSIT simulator (container csit-sim) instead of the real CSIT.
+# Everything that could touch real data is separated: own PostgreSQL schema (csit_sim, via search_path in sim.db.env), own Qdrant collection, own
+# storage directory, no Neo4j and no Timescale (spec v1.3 document library only), no search-cache clearing. The simulator's CA is trusted through SSL_CERT_FILE.
+# Used as: docker compose -p km-csit-v1-dev --env-file <deploy-da40.env> -f compose-sim.yml   (KM_MODE_DIR, KM_CSIT_API_IMAGE, KM_CSIT_WORKER_IMAGE exported by csit-mode.sh)
+x-sim-env: &sim-env
+  KM_CSIT_MODE: sim
+  KM_CSIT_ENABLED: "true"
+  KM_CSIT_DOCLIB_ENABLED: "true"
+  KM_CSIT_AUTHORITY: https://csit-sim:8443/
+  KM_CSIT_JWKS_URI: https://csit-sim:8443/.well-known/jwks
+  KM_CSIT_TOKEN_URL: https://csit-sim:8443/oauth/token
+  KM_CSIT_CSIT_BASE_URL: https://csit-sim:8443
+  KM_CSIT_AUDIENCE: km.integration.sim
+  KM_CSIT_OUTBOUND_AUDIENCE: csit.integration.sim
+  KM_CSIT_CLIENT_ID: km-csit-integration-sim
+  KM_CSIT_SERVICE_CLIENTS: csit-km-ingestion-sim
+  KM_CSIT_SECRET_FILE: /run/secrets/km-csit-service
+  KM_CSIT_STORAGE_ROOT: /var/lib/km/data/csit-integration-sim
+  KM_CSIT_QDRANT_COLLECTION: km_csit_docs_sim
+  KM_CSIT_DOCLIB_QDRANT_COLLECTION: km_csit_docs_sim
+  KM_CSIT_DOCLIB_REDIS_URL: ""
+  KM_CSIT_NEO4J_URI: ""
+  KM_CSIT_TIMESCALE_DSN_FILE: ""
+  SSL_CERT_FILE: /run/secrets/csit-sim-ca.pem
+services:
+  api:
+    image: ${KM_CSIT_API_IMAGE:?}
+    container_name: km-csit-integration-api
+    restart: unless-stopped
+    env_file:
+      - ${KM_CSIT_ENV_FILE:?protected external environment file required}
+      - ${KM_MODE_DIR:?}/sim.db.env
+    environment: *sim-env
+    networks: [control]
+    volumes:
+      - ${KM_MODE_DIR}/sim/km-client-secret:/run/secrets/km-csit-service:ro
+      - ${KM_MODE_DIR}/sim/ca.pem:/run/secrets/csit-sim-ca.pem:ro
+    read_only: true
+    tmpfs: [/tmp]
+    healthcheck:
+      test: ["CMD","python","-c","import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health',timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+  worker:
+    image: ${KM_CSIT_WORKER_IMAGE:?}
+    restart: unless-stopped
+    profiles: [m2m-ready]
+    healthcheck: {"test": ["CMD", "python", "-c", "import os;from src.csit_integration_v1.config import Settings;from src.csit_integration_v1.repository import Repository;os.kill(1,0);s=Settings.from_env();s.validate();assert s.enabled;Repository(s.db_url).check_schema()"], "interval": "15s", "timeout": "10s", "retries": 3, "start_period": "60s"}
+    env_file:
+      - ${KM_CSIT_ENV_FILE:?protected external environment file required}
+      - ${KM_MODE_DIR}/sim.db.env
+    environment: *sim-env
+    networks: [control, da40]
+    volumes:
+      - km-da40_instance_data:/var/lib/km/data
+      - ${KM_MODE_DIR}/sim/km-client-secret:/run/secrets/km-csit-service:ro
+      - ${KM_MODE_DIR}/sim/ca.pem:/run/secrets/csit-sim-ca.pem:ro
+networks:
+  control:
+    external: true
+    name: km-control-private
+  da40:
+    external: true
+    name: km-da40_default
+volumes:
+  km-da40_instance_data:
+    external: true
