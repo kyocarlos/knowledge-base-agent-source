@@ -15,9 +15,17 @@ def application():
     return create_app(s,Repository(s.db_url),doclib=doclib)
 
 def _cache_clear(resource):
-    """Search/answer caches are keyed by query text, so a deleted source invalidates the search cache wholesale (the file-based QA cache is not Redis and is not covered)."""
-    from src.web_api.cache import cache_clear_pattern
-    return sum(cache_clear_pattern(p) for p in ("search:*",))
+    """Search results are cached in Redis by query text, so a deleted source invalidates the whole search cache (entries also expire by TTL).
+    The worker has no application cache module; it clears through KM_CSIT_DOCLIB_REDIS_URL. Without that setting nothing is cleared and 0 is returned.
+    The file-based QA cache is not Redis and is not covered."""
+    url=os.getenv("KM_CSIT_DOCLIB_REDIS_URL")
+    if not url:
+        logging.getLogger("km.csit.doclib").warning("KM_CSIT_DOCLIB_REDIS_URL is not set: the search cache was not cleared")
+        return 0
+    import redis
+    client=redis.from_url(url,decode_responses=True)
+    try:return sum(1 for key in client.scan_iter("search:*",count=500) if client.delete(key))
+    finally:client.close()
 
 def worker():
     from .auth import ClientCredentialsProvider
