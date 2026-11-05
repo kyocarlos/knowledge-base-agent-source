@@ -10,6 +10,11 @@ x-sim-env: &sim-env
   # and, since the simulator has the Correlation Resolver, sends Test Report analysis-results.
   KM_CSIT_OUTBOUND_SCOPES: csit.document.read,csit.ingestion.status.write,csit.km.status.write,csit.km.deletion-status.write
   KM_CSIT_ANALYSIS_RESULTS_ENABLED: "true"
+  # Semantic extraction (documentType, summary, keywords) through the same LLM gateway KM uses; the key is a file, never an env value.
+  KM_CSIT_DOCLIB_LLM: "1"
+  KM_CSIT_LLM_BASE_URL: http://host.docker.internal:18080/v1
+  KM_CSIT_LLM_MODEL: gpt-5.6-luna
+  KM_CSIT_LLM_API_KEY_FILE: /run/secrets/llm-api-key
   KM_CSIT_AUTHORITY: https://csit-sim:8443/
   KM_CSIT_JWKS_URI: https://csit-sim:8443/.well-known/jwks
   KM_CSIT_TOKEN_URL: https://csit-sim:8443/oauth/token
@@ -56,11 +61,13 @@ services:
       - ${KM_MODE_DIR}/sim.db.env
     environment: *sim-env
     networks: [control, da40]
+    extra_hosts: ["host.docker.internal:host-gateway"]
     volumes:
       - km-da40_instance_data:/var/lib/km/data
       - ${KM_MODE_DIR}/sim/km-client-secret:/run/secrets/km-csit-service:ro
       - ${KM_MODE_DIR}/sim/ca.pem:/run/secrets/csit-sim-ca.pem:ro
       - ${KM_MODE_DIR}/hf-cache:/root/.cache/huggingface   # the embedding model, seeded once: a recreated worker must not download it again
+      - ${KM_MODE_DIR}/llm/api-key:/run/secrets/llm-api-key:ro
 networks:
   control:
     external: true

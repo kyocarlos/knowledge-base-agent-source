@@ -23,6 +23,9 @@
 
 備註:部署時把備份資料夾裡的 `compose-sim.yml`、`setup-sim.sh` 的「部署前」版本誤覆蓋成新版(其他備份沒有);舊版即 git 提交 `2fe62cc` 的內容,另備份了 `compose-simulator.yml.before`、`compose-real.override.yml.before`、`compose-sim.yml.before-hf`。
 
+## 模擬器模式的 LLM 抽取(2026-11-05,使用者授權複製金鑰)
+sim 模式的 worker 現在用 KM 同一個 LLM 閘道(sub2api,`gpt-5.6-luna`)產生 `documentType`、`summary`、`keywords`:映像 `km-csit-worker:v14c-llm-20261105`,`compose-sim.yml` 設 `KM_CSIT_DOCLIB_LLM=1`、`KM_CSIT_LLM_BASE_URL`、`KM_CSIT_LLM_MODEL`、`KM_CSIT_LLM_API_KEY_FILE`,金鑰檔 `~/.km-control/csit-mode/llm/api-key`(權限 600,內容複製自 `kb-web` 的 `KM_SUB2API_API_KEY`,以唯讀檔案掛載、不放環境變數),並加 `host.docker.internal`。實測:模擬器上傳一份 SOP 文字檔,KM 回 `documentType=SOP`、摘要與 18 個關鍵字(KM 會檢查每個關鍵字真的出現在文件中),`warnings` 為空。**real 模式沒有啟用**(`compose-real.override.yml` 未動):啟用會把 CSIT 的真實文件送給模型,需另行決定。測試報告走 v1 一般解析,沒有 LLM。
+
 ## 已驗證
 - 離線匯入(`--network none`):api、worker、模擬器映像皆通過;worker 內 `pypdf` 5.9.0 可用;預設值(送出 scope 為 v1.3、analysis 關閉)正確;v2 合約檢查(事件與來源不符被拒、`reasonCode` 大小寫)正確
 - `csit-mode.sh reapply` 後 api / worker 皆 healthy,`/health` 為 `integrationEnabled:true`、`csitMode:real`;日誌無錯誤
