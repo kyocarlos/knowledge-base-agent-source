@@ -60,11 +60,13 @@ def validate_v2_file(path,suffix,name,settings):
         raise IntegrationError("ENCRYPTED_DOCUMENT","The document is password protected")
     if suffix==".pdf":
         if not head.startswith(b"%PDF-"):raise IntegrationError("CORRUPT_FILE","PDF signature invalid")
-        try:
-            from pypdf import PdfReader
-            if PdfReader(str(path)).is_encrypted:raise IntegrationError("ENCRYPTED_DOCUMENT","The document is password protected")
-        except IntegrationError:raise
-        except Exception:raise IntegrationError("CORRUPT_FILE","PDF cannot be read") from None
+        try:from pypdf import PdfReader
+        except ImportError:PdfReader=None # without pypdf the encryption check is skipped and the parser decides
+        if PdfReader is not None:
+            try:
+                if PdfReader(str(path)).is_encrypted:raise IntegrationError("ENCRYPTED_DOCUMENT","The document is password protected")
+            except IntegrationError:raise
+            except Exception:raise IntegrationError("CORRUPT_FILE","PDF cannot be read") from None
     if suffix==".pptx":check_ooxml(path,"ppt/presentation.xml",settings)
     elif suffix in FORMAT_MIME:
         validate_file(path,{"file_name":name,"content_type":FORMAT_MIME[suffix]},settings) # MIME is advisory; extension and signature decide
