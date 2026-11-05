@@ -272,3 +272,17 @@ def test_the_feature_stays_off_until_the_resolver_exists(dsettings):
     assert dsettings.analysis_results_enabled is False
     assert "v2-analysis" not in [l for _,l in V2Processor(dsettings,None,None,None).steps()]
     assert "v2-analysis" in [l for _,l in V2Processor(replace(dsettings,analysis_results_enabled=True),None,None,None).steps()]
+
+# ---------- LLM extraction through the gateway (worker image has no src.web_api) ----------
+def test_semantic_extraction_calls_the_configured_gateway(tmp_path,monkeypatch):
+    from src.csit_integration_v1 import doclib_llm
+    key=tmp_path/"k";key.write_text("secret-key\n")
+    monkeypatch.setenv("KM_CSIT_LLM_BASE_URL","http://gw.invalid/v1/");monkeypatch.setenv("KM_CSIT_LLM_MODEL","m1");monkeypatch.setenv("KM_CSIT_LLM_API_KEY_FILE",str(key))
+    seen={}
+    def handler(r):
+        seen["url"]=str(r.url);seen["auth"]=r.headers["authorization"];seen["body"]=json.loads(r.content)
+        return httpx.Response(200,json={"choices":[{"message":{"content":"{\"documentType\":\"Manual\"}"}}]})
+    real=httpx.post
+    monkeypatch.setattr(httpx,"post",lambda url,**k:httpx.Client(transport=httpx.MockTransport(handler)).post(url,**k))
+    assert doclib_llm.complete("hi")=="{\"documentType\":\"Manual\"}"
+    assert seen["url"]=="http://gw.invalid/v1/chat/completions" and seen["auth"]=="Bearer secret-key" and seen["body"]["model"]=="m1" and seen["body"]["messages"][0]["content"]=="hi"
