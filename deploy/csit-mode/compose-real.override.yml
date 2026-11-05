@@ -15,3 +15,5 @@ services:
       KM_CSIT_DOCLIB_ENABLED: "true"
       KM_CSIT_DOCLIB_QDRANT_COLLECTION: km_csit_docs
       KM_CSIT_DOCLIB_REDIS_URL: redis://km-da40-redis-1:6379/0
+    volumes:
+      - ${KM_MODE_DIR}/hf-cache:/root/.cache/huggingface   # the embedding model, seeded once: a recreated worker must not download it again

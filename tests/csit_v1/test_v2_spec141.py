@@ -54,6 +54,15 @@ def test_replacing_a_v1_test_report_marks_its_report_points_superseded(dsettings
     w.set_state(old_doc,1,"a"*64,"Superseded")
     assert q.points[("reports","p1")]["payload"]["index_state"]=="Superseded"
 
+def test_report_points_are_retired_even_when_the_report_collection_is_the_library_collection(dsettings,vrepo):
+    from src.csit_integration_v1.v2_pipeline import V2QdrantWriter
+    q=FakeQdrant();old_doc=str(uuid.uuid4())
+    q.points[("docs","p1")]={"collection":"docs","payload":{"document_id":old_doc,"document_version":1,"content":"x"}}   # written by the v1 pipeline: no sha256
+    q.points[("docs","p2")]={"collection":"docs","payload":{"document_id":str(uuid.uuid4()),"document_version":1,"content":"y"}}
+    w=V2QdrantWriter(q,"docs",lambda c:[],400,extra_collections=("docs",))
+    w.set_state(old_doc,1,"a"*64,"Superseded")
+    assert q.points[("docs","p1")]["payload"]["index_state"]=="Superseded" and "index_state" not in q.points[("docs","p2")]["payload"]
+
 # ---------- reason codes (answer 9) ----------
 @pytest.mark.parametrize("reason",["sourcedeleted","DocumentFileDeleted","TestReportVersionDeleted","Other","","SourceDeleted "[:-1]+"x"])
 def test_v2_deletion_reason_code_is_a_closed_case_sensitive_enum(client,reason):

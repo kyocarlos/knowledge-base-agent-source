@@ -4,7 +4,7 @@
 
 | 項目 | 內容 |
 |---|---|
-| 映像 | `km-csit-integration:v14-spec141-20261105-on-v13b`、`km-csit-worker:v14-spec141-20261105-on-v13b`:疊加在運行中的 v1.3 映像上,只加入 14 個檔案(`v2_*` 五個新模組,以及 api / auth / config / pipeline / runtime / doclib_client / doclib_deletion / doclib_repository / doclib_worker 的修改)。worker 映像另裝 `pypdf`(PDF 加密偵測與頁數)。模擬器映像 `km-csit-simulator:20261105-v141` 已建好,real 模式不執行 |
+| 映像 | `km-csit-integration:v14b-spec141-20261105`、`km-csit-worker:v14b-spec141-20261105`(遠端演練後再疊一層 `runtime.py` 的修正,見下方「遠端演練」;底層為 `…v14-spec141-20261105-on-v13b`):疊加在運行中的 v1.3 映像上,只加入 14 個檔案(`v2_*` 五個新模組,以及 api / auth / config / pipeline / runtime / doclib_client / doclib_deletion / doclib_repository / doclib_worker 的修改)。worker 映像另裝 `pypdf`(PDF 加密偵測與頁數)。模擬器映像 `km-csit-simulator:20261105-v141` 已建好,real 模式不執行 |
 | 基底 | v14 分支原本從 v1.3 提交 `c5d0585` 分出,沒有運行中映像裡的「以 Redis 清搜尋快取」修正。已把 `c1a079c`、`ff7ec42` cherry-pick 進來,再逐檔與運行映像比對,差異只剩本次的修改(含 `ReportAdapter` 掛點,預設不啟用) |
 | Migration | `migrations/20261105_csit_integration_v2.sql` 套在 `km_control` 的 `public` 與 `csit_sim`:4 張新表(`km_csit_v2_jobs`、`_checkpoints`、`_changes`、`_analysis`)、2 個 sequence、`km_csit_deletion_jobs` 加 `api_version` 並放寬來源種類、`km_csit_v13_callbacks.kind` 加 4 個 v2 值。純加法,舊資料不變(v1 兩筆 Completed,其餘為 0) |
 | nginx | `~/.km-control/nginx.runtime.conf` 原地新增三個精確路徑:`/api/integrations/csit/v2/document-jobs`、`/document-metadata-changes`、`/document-deletions`(inode 不變,`nginx -t` 通過後 reload) |
@@ -12,6 +12,16 @@
 | 模式腳本 | `~/.km-control/csit-mode/`:`images.env` 指向新映像;`compose-sim.yml` 增加 sim 模式專用的 `KM_CSIT_OUTBOUND_SCOPES`(v1.3 + v2 的聯集)與 `KM_CSIT_ANALYSIS_RESULTS_ENABLED=true`;`setup-sim.sh` 套用新的 migration |
 | 備份 | `~/.km-control/csit-v14-20261105/`:`control_db_before_v14.dump`、`nginx.runtime.conf.before-v14`、`images.env`、`compose-sim.yml`、`setup-sim.sh`、`api.inspect.before.json`、`worker.inspect.before.json` |
 | 回滾 | 把 `images.env` 還原成備份的內容,`csit-mode.sh reapply`;nginx 以 `nginx.runtime.conf.before-v14` 原地寫回(`cat 備份 > 檔案`,保持 inode)後 reload;資料表可保留(舊程式與新約束相容) |
+
+## 遠端演練(2026-11-05,對已部署的 KM,sim 模式)
+`remote_drill.py` 擴充為涵蓋 v1.3 + v1.4 + v1.4.1(模擬器為 CSIT,身分模式、HTTPS、簽章 token、KM 的真實解析器、真實 Qdrant `km_csit_docs_sim`,模擬器送給 KM 的 token 用 v1.4.1 的分端點 scope)。**84 / 84 通過**(含 `--slow` 的 CSIT 503 中斷情境):三種新來源各自的取檔路由、md / 圖片 / 加密 / 執行檔、換版(含 v1 寫入的舊測試報告與舊文件庫檔案)、標籤變更不重新取檔且回報 `appliedRevision`、v2 刪除七項清理、已刪版本再通知回 410、測試報告 v1 → Correlation Resolver → `analysis-results`(及 Resolver 未部署時不猜 id)、v2 回報 409 不重試、無文字檔案回 `EMPTY_EXTRACTION`。演練後已切回 real 模式(`last switch` 09:09 UTC),real 的資料筆數不變。
+
+演練發現並修掉三個問題:
+1. **worker 重建要重新下載嵌入模型,且曾卡住**(下載停在 67 MB,工作一直 Accepted)。現在模型快取 `~/.km-control/csit-mode/hf-cache`(從 TEST 區的快取複製,782 MB)掛進 worker(real 與 sim 的 compose 都加了),重建不再下載。這同時消除了 real 模式重建 worker 時的同一風險
+2. **sim 的 `csit_sim` schema 缺 `km_audit_events`**:v1 worker 領取測試報告工作時會讀它,缺表使每次領取失敗(`metadata store unavailable`)。已在 `csit_sim` 建立空表(`LIKE public.km_audit_events`,不放寬 search_path),`setup-sim.sh` 已加入
+3. **換版時,舊的 v1 測試報告向量在 sim 模式沒被停用**(報告 collection 與文件庫 collection 同名時被我排除了)。已修 `runtime.py` 並加測試;`public` 的真實設定中兩者不同名,不受影響
+
+備註:部署時把備份資料夾裡的 `compose-sim.yml`、`setup-sim.sh` 的「部署前」版本誤覆蓋成新版(其他備份沒有);舊版即 git 提交 `2fe62cc` 的內容,另備份了 `compose-simulator.yml.before`、`compose-real.override.yml.before`、`compose-sim.yml.before-hf`。
 
 ## 已驗證
 - 離線匯入(`--network none`):api、worker、模擬器映像皆通過;worker 內 `pypdf` 5.9.0 可用;預設值(送出 scope 為 v1.3、analysis 關閉)正確;v2 合約檢查(事件與來源不符被拒、`reasonCode` 大小寫)正確
@@ -21,8 +31,8 @@
 - v1 / 文件庫 / 刪除 / callback / tombstone 筆數部署前後相同
 
 ## 尚未驗證 / 已知限制
-- 沒有真實 CSIT 的 v2 通知:下載(vendor / equipment 路徑 CSIT 尚未開放)、Completed 回報、換版、標籤變更、v2 刪除只在本機以模擬器與假 CSIT 驗證過(84 項演練、147 項測試)
-- 沒有以模擬器對已部署的 KM 做遠端演練(`remote_drill.py` 尚未涵蓋 v1.4 / v1.4.1,且需切到 sim 模式);要做需先擴充腳本
+- 沒有真實 CSIT 的 v2 通知:下載(vendor / equipment 路徑 CSIT 尚未開放)、Completed 回報、換版、標籤變更、v2 刪除只以模擬器驗證過(本機 84 項演練、147 項測試;已部署 KM 的 sim 模式 84 項演練)
+- 模擬器的 CSIT 不是真實 CSIT:真實 CSIT 的身分服務、7444、真實檔案與核准流程都沒有在這次驗證中出現
 - 沒有有效的 CSIT→KM 入站 token,無法在伺服器上驗證 400 / 409 / 410 的 HTTP 行為
 - 測試報告的 v2 `analysis-results` 保持關閉,等 CSIT 的 Correlation Resolver(任務 C)
 - CSIT 的 7444:vendor / equipment 取檔(任務 B)、`metadata-changes/status`(C)、`deletions/status`(D)尚未開放

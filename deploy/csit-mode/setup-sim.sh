@@ -30,6 +30,10 @@ for f in 20261007_csit_integration_v1.sql 20261014_csit_integration_v1_nullable_
   docker exec -e PGOPTIONS="-c search_path=csit_sim" -i "$DB_CONTAINER" psql -U km_control_app -d km_control -v ON_ERROR_STOP=1 -q < "$MIG/$f"
   echo "applied $f to csit_sim"
 done
+# The Test Report v1 worker reads km_audit_events when it claims a job (resume bookkeeping). An empty copy of its structure keeps that lookup inside csit_sim
+# instead of widening the search_path to the real tables.
+docker exec -e PGOPTIONS="-c search_path=csit_sim" -i "$DB_CONTAINER" psql -U km_control_app -d km_control -v ON_ERROR_STOP=1 -q \
+  -c "CREATE TABLE IF NOT EXISTS km_audit_events (LIKE public.km_audit_events INCLUDING ALL)"
 docker exec -e PGOPTIONS="-c search_path=csit_sim" -i "$DB_CONTAINER" psql -U km_control_app -d km_control -At \
   -c "select count(*) || ' km_csit tables in csit_sim' from information_schema.tables where table_schema='csit_sim' and table_name like 'km_csit_%'"
 

@@ -60,6 +60,7 @@ services:
       - km-da40_instance_data:/var/lib/km/data
       - ${KM_MODE_DIR}/sim/km-client-secret:/run/secrets/km-csit-service:ro
       - ${KM_MODE_DIR}/sim/ca.pem:/run/secrets/csit-sim-ca.pem:ro
+      - ${KM_MODE_DIR}/hf-cache:/root/.cache/huggingface   # the embedding model, seeded once: a recreated worker must not download it again
 networks:
   control:
     external: true

@@ -14,6 +14,7 @@ services:
       SIM_KM_CLIENT_SECRET_FILE: /run/secrets/km-client-secret
       SIM_SERVICE_CLIENT_ID: csit-km-ingestion-sim
       SIM_TLS_NAMES: csit-sim
+      SIM_SCOPE_STYLE: v14   # tokens to KM carry the v1.4.1 per-endpoint scopes on the v2 routes (v1 routes keep km.ingestion.submit)
     networks:
       control:
         aliases: [csit-sim]

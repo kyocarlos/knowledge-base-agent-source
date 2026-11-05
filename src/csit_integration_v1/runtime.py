@@ -73,7 +73,7 @@ def worker():
         drepo=V2Repository(s.db_url);drepo.check_schema()
         collection=os.getenv("KM_CSIT_DOCLIB_QDRANT_COLLECTION") or os.environ["KM_CSIT_QDRANT_COLLECTION"]
         qwriter=DocLibQdrantWriter(vector.client,collection,vector.encode,s.chunk_size);qwriter.ensure_index()
-        v2writer=V2QdrantWriter(vector.client,collection,vector.encode,s.chunk_size,extra_collections=tuple(x for x in (os.getenv("KM_CSIT_QDRANT_COLLECTION"),"ai_km_knowledge_v1") if x and x!=collection));v2writer.ensure_index()
+        v2writer=V2QdrantWriter(vector.client,collection,vector.encode,s.chunk_size,extra_collections=tuple(x for x in (os.getenv("KM_CSIT_QDRANT_COLLECTION"),"ai_km_knowledge_v1") if x));v2writer.ensure_index()
         semantic=None
         if os.getenv("KM_CSIT_DOCLIB_LLM")=="1":
             from .doclib_llm import complete
