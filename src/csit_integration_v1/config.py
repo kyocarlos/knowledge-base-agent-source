@@ -17,11 +17,12 @@ class Settings:
     client_id: str = ""
     secret_file: str = ""
     service_clients: tuple[str,...] = ()
-    # Scopes requested for the outbound token. Spec v1.3 names are the default; v1.4 suggests csit.documents.read,
-    # csit.km.status.write and csit.km.deletion-status.write (CSIT IT maps them), set via KM_CSIT_OUTBOUND_SCOPES.
+    # Scopes requested for the outbound token. The v1.3 names stay the default (spec v1.4.1 C.3: no one-sided switch of tokens).
+    # The official v2 set is csit.document.read (singular), csit.km.status.write, csit.km.deletion-status.write; once both sides passed
+    # the M2M contract test, set KM_CSIT_OUTBOUND_SCOPES to it (add csit.ingestion.status.write while v1 callbacks are still sent).
     outbound_scopes: tuple[str,...] = ("csit.document.read","csit.ingestion.status.write")
-    # Spec 5.4: v2 analysis-results for Test Report. Off until CSIT confirms which id is sourceEntityId; "documentId" uses it.
-    analysis_source_entity: str = ""
+    # Spec 5.4 / v1.4.1 C.2: v2 analysis-results for Test Report. Off until CSIT has deployed the Correlation Resolver (task C).
+    analysis_results_enabled: bool = False
     service_claim: str = "principal_type"
     service_claim_value: str = "service"
     client_claim: str = "client_id"

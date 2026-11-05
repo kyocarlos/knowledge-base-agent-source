@@ -122,6 +122,34 @@ def _error_ok(p,problems):
     if not isinstance(e,dict) or not {"code","message","retryable"}<=set(e) or not isinstance(e.get("retryable"),bool) or not e.get("code"):
         problems.append("Failed needs error={code,message,retryable}")
 
+# Spec v1.4.1 answers 6-8 and C.4: these are integrity / capability failures; retrying cannot change the outcome.
+NEVER_RETRY={"UNSUPPORTED_FORMAT","ENCRYPTED_DOCUMENT","CORRUPT_FILE","MALWARE_DETECTED","SHA256_MISMATCH","FILE_TOO_LARGE"}
+
+def check_report_callback_v1(p):
+    """POST /km/v1/ingestion-status (Test Report): unchanged v1 contract, and no result (spec v1.4 appendix A.4)."""
+    problems=[]
+    if not isinstance(p,dict):return ["body is not an object"]
+    for k in ("jobId","sourceSystem","documentId","version","status","timestamps"):
+        if k not in p:problems.append("missing key "+k)
+    if not isinstance(p.get("jobId"),str) or not p.get("jobId"):problems.append("jobId must be a non-empty string")
+    if p.get("sourceSystem")!="CSIT":problems.append("sourceSystem must be CSIT")
+    if not (isinstance(p.get("documentId"),str) and UUID_RE.match(p["documentId"])):problems.append("documentId must be a UUID")
+    if not (isinstance(p.get("version"),int) and not isinstance(p.get("version"),bool) and p["version"]>=1):problems.append("version must be an integer >= 1")
+    ts=p.get("timestamps") if isinstance(p.get("timestamps"),dict) else {}
+    if not _ts(ts.get("updatedAt")):problems.append("timestamps.updatedAt must be a timestamp with zone")
+    st=p.get("status")
+    if st=="Processing":
+        if not _ts(ts.get("startedAt")):problems.append("Processing needs timestamps.startedAt")
+    elif st=="Completed":
+        if not _ts(ts.get("completedAt")):problems.append("Completed needs timestamps.completedAt")
+        if "result" in p:problems.append("the v1 status callback carries no result (the full result goes to v2 analysis-results)")
+    elif st=="Failed":
+        if not _ts(ts.get("failedAt")):problems.append("Failed needs timestamps.failedAt")
+        e=p.get("error")
+        if not isinstance(e,dict) or not e.get("code") or "message" not in e:problems.append("Failed needs error={code,message}")
+    else:problems.append("status must be Processing, Completed or Failed")
+    return problems
+
 def check_job_callback_v2(p):
     """POST /km/v2/document-jobs/status (spec 5.1-5.3)."""
     problems=[]
@@ -130,7 +158,7 @@ def check_job_callback_v2(p):
     for k in ("eventId","csitJobId","sourceEntityId","documentId"):
         if not (isinstance(p.get(k),str) and UUID_RE.match(p[k])):problems.append(k+" must be a UUID")
     if not isinstance(p.get("kmJobId"),str) or not p.get("kmJobId"):problems.append("kmJobId must be a non-empty string")
-    if p.get("sourceType") not in SOURCE_TYPES_V2:problems.append("sourceType is not a registered source")
+    if p.get("sourceType") not in SOURCE_TYPES_V2+("TestReport","DocumentLibraryFile"):problems.append("sourceType is not a registered source")
     if not (isinstance(p.get("version"),int) and not isinstance(p.get("version"),bool) and p["version"]>=1):problems.append("version must be an integer >= 1")
     if not _sha(p.get("sourceSha256")):problems.append("sourceSha256 must be 64 lowercase hex")
     status=p.get("status")
@@ -140,11 +168,17 @@ def check_job_callback_v2(p):
     elif status=="Failed":
         if not ts.get("failedAt"):problems.append("Failed needs timestamps.failedAt")
         _error_ok(p,problems)
+        e=p.get("error")
+        if isinstance(e,dict) and e.get("code") in NEVER_RETRY and e.get("retryable") is not False:
+            problems.append(f"{e.get('code')} must be retryable=false")
         if p.get("result") is not None:problems.append("Failed needs result=null")
     elif status=="Completed":
         if not ts.get("completedAt"):problems.append("Completed needs timestamps.completedAt")
         if p.get("error") is not None:problems.append("Completed needs error=null")
         problems+=check_result(p.get("result"),v2=True)
+        r=p.get("result") if isinstance(p.get("result"),dict) else {}
+        if (r.get("extraction") or {}).get("method")=="None" or (r.get("indexing") or {}).get("chunkCount")==0:
+            problems.append("Completed with method=None or chunkCount=0 is a false success (v1.4.1 C.4): nothing was parsed and indexed")
     else:problems.append("status must be Processing, Completed or Failed")
     return problems
 

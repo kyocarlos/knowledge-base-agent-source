@@ -27,7 +27,7 @@ def _find_class(node_id,nodes):
         if r:return r
     return None
 
-FAMILY={"library":"DocumentLibraryFile","documents":"VerificationApplicationAttachment","vendor":"VendorFile","equipment":"EquipmentAttachment"}
+FAMILY={"library":("DocumentLibraryFile",),"documents":("VerificationApplicationAttachment","TestReport"),"vendor":("VendorFile",),"equipment":("EquipmentAttachment",)}
 
 class Sim(V2Mixin):
     def __init__(self,km_base_url,token,timeout=15,data_dir=None,inspect=None,identity=None,public_base="",scope_style="v13"):
@@ -45,7 +45,7 @@ class Sim(V2Mixin):
     def reset(self,clear_disk=True):
         with self.lock:
             self.docs={};self.jobs={};self.dels={};self.changes={};self.analyses=[];self.seen={};self.traffic=[];self.tid=0;self.violations=[]
-            self.faults={"callbackFailures":0,"callbackStatus":503}
+            self.faults={"callbackFailures":0,"callbackStatus":503,"resolver":"ok"}
             if clear_disk and self.dir and (self.dir/"content").is_dir():
                 for f in (self.dir/"content").glob("*"):f.unlink()
                 (self.dir/"state.json").unlink(missing_ok=True)
@@ -146,7 +146,8 @@ class Sim(V2Mixin):
         if not d["archived"]:raise HTTPException(409,"NAS archive must complete before KM is notified")
         if d["stage"]=="Rejected":raise HTTPException(409,"document was rejected")
         # A Purged document may still be dispatched on purpose: KM must refuse it (tombstone), which is exactly what we want to observe.
-        if d["sourceType"]!="DocumentLibraryFile":return self._dispatch_v2(d,new_job)
+        if self.route(d)=="v2":return self._dispatch_v2(d,new_job)
+        if self.route(d)=="report1":return self._dispatch_report_v1(d)
         with self.lock:
             if d["jobIds"] and not new_job:cid=d["jobIds"][-1]
             else:
@@ -200,7 +201,8 @@ class Sim(V2Mixin):
     def delete(self,doc_id,deletion_request_id=None):
         d=self._doc(doc_id)
         if not d["archived"]:raise HTTPException(409,"nothing was archived, so KM has nothing to delete")
-        if d["sourceType"]!="DocumentLibraryFile":return self._delete_v2(d,deletion_request_id)
+        if self.route(d)=="v2":return self._delete_v2(d,deletion_request_id)
+        if self.route(d)=="report1":return self._delete_report_v1(d,deletion_request_id)
         rid=deletion_request_id or str(uuid.uuid4())
         if rid in self.dels:return self._send_deletion(self.dels[rid])
         res={"sourceType":"DocumentLibraryFile","documentFileId":d["id"],"documentId":None,"version":None,"sourceEntityId":None,"applicationId":None,"recordId":None}
@@ -211,7 +213,7 @@ class Sim(V2Mixin):
     def _send_deletion(self,x):
         d=self.docs[x["docId"]]
         body={"schemaVersion":"1.0","sourceSystem":"CSIT","eventType":"DocumentDeletionRequested","deletionRequestId":x["deletionRequestId"],
-              "requestedAt":now(),"reasonCode":"DocumentFileDeleted","resource":x["resource"]}
+              "requestedAt":now(),"reasonCode":x.get("reason","DocumentFileDeleted"),"resource":x["resource"]}
         path="/api/integrations/csit/v1/document-deletions";self.ev(x,"CSIT→KM 刪除通知")
         t0=time.monotonic()
         try:r=httpx.post(self.km+path,json=body,headers=self._headers(x["deletionRequestId"]),timeout=self.timeout)
@@ -242,7 +244,7 @@ class Sim(V2Mixin):
         if not self._auth_ok(request,READ_SCOPES):refuse(401,"service bearer required")
         with self.lock:
             d=self.docs.get(file_id)
-            if d is not None and (d["sourceType"]!=FAMILY[family] or (version is not None and d["version"]!=version)):d=None
+            if d is not None and (d["sourceType"] not in FAMILY[family] or (version is not None and d["version"]!=version)):d=None
             if d is None or d["content"] is None or not d["archived"]:refuse(404,"file not found (not archived, deleted, or unknown)",file_id if d else None)
             job=self.jobs.get(d["jobIds"][-1]) if d["jobIds"] else None
             if job is not None:job["downloads"].append(now())
@@ -259,6 +261,11 @@ class Sim(V2Mixin):
             if d["kmStatus"]=="Accepted":d["kmStatus"]="Downloading"
         self.log("KM→CSIT","GET",path,200,None,{"bytes":len(data),"sha256":hashlib.sha256(data).hexdigest(),"note":note},d["id"],int((time.monotonic()-t0)*1000))
         self._save()
+        if family=="documents":
+            # The v1 Test Report download checks the Content-Type and the filename against the notice; the v2 clients ignore both.
+            from urllib.parse import quote
+            name=d["name"];cd=f'attachment; filename="{name}"' if name.isascii() else f"attachment; filename*=UTF-8''{quote(name)}"
+            return Response(data,media_type=d["contentType"],headers={"Content-Disposition":cd})
         return Response(data,media_type="application/octet-stream")
     def receive(self,request,payload,kind):
         t0=time.monotonic()

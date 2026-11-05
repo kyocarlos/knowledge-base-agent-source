@@ -1,3 +1,5 @@
+> **已回覆(2026-11-05)**:本文件的 11 題已由 CSIT 以 v1.4.1 定案(見 `CSIT_KM_v1.4.1_Anderson_11題正式回覆.md`)。KM 端的處理見 `csit-v14-implementation-record-20261105.md`。以下保留原提問僅供對照;其中 scope 名稱 `csit.documents.read` 以 v1.4.1 的 `csit.document.read`(單數)為準。
+
 # CSIT × AI KM 介接規格 v1.4：KM 端待 CSIT 確認事項
 
 KM 端已依 v1.4 規格完成實作，目前僅在內部測試，尚未部署到 DEV。以下是規格未寫死、需要 CSIT 確認的項目。

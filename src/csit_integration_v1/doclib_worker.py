@@ -63,8 +63,11 @@ class DocLibWorker:
             error=e if isinstance(e,IntegrationError) else IntegrationError("CALLBACK_FAILED","Status callback unavailable",True)
         try:self.repo.callback_result(delivery,error,s.callback_retry_delays)
         except LeaseLost:pass
-        logger.info(json.dumps({"callbackId":str(delivery["callback_id"]),"kind":delivery["kind"],"attempt":delivery["attempt_count"],
-            "status":delivery["payload"]["status"],"lastErrorCode":error.code if error else None}))
+        p=delivery["payload"]
+        ids={k:p[k] for k in ("eventId","csitJobId","kmJobId","changeId","kmChangeJobId","deletionRequestId","kmDeletionJobId","analysisResultId","documentId","version") if k in p}
+        entry={"callbackId":str(delivery["callback_id"]),"kind":delivery["kind"],"attempt":delivery["attempt_count"],
+               "status":p.get("status"),"lastErrorCode":error.code if error else None,**({"ids":ids} if error else {})}
+        (logger.warning if error else logger.info)(json.dumps(entry))
         return True
     def run(self,stop_event):
         def loop(step,label):

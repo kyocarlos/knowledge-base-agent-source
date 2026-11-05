@@ -179,6 +179,53 @@ def main():
     check("14 a late upload notice for the deleted version is refused with 410",late["jobs"][-1]["state"]=="Rejected" and not bad(vd),bad(vd))
     check("14 nothing was re-indexed",vd not in km.q.ids())
 
+    # ---------- spec v1.4.1: Test Report v1 + Correlation Resolver + analysis-results, replacement events, 409 policy ----------
+    traffic=lambda:httpx.get(S+"/api/traffic").json()
+    tr=new("report.txt",text+" throughput 9.2 Gbps",sourceType="TestReport",autoRun=True)["id"]
+    check("15 Test Report: KM accepts the v1 notice, fetches the file and reports Completed on v1",final(tr) and kms(tr)=="Completed",kms(tr))
+    jt=doc(tr)["jobs"][-1]
+    check("15 v1 callbacks are Processing -> Completed, with no result in them",jt["callbackStatuses"]==["Processing","Completed"] and not bad(tr),bad(tr))
+    check("15 KM fetched it from the documents route, once",[t["path"] for t in traffic() if t["direction"]=="KM→CSIT" and t["method"]=="GET" and t["docId"]==tr][:1]==[doc(tr)["downloadPath"]])
+    check("15 the full result arrives afterwards in v2 analysis-results",wait(lambda:bool(doc(tr).get("analysis"))),[v for v in doc(tr)["allVerdicts"] if not v["ok"]])
+    check("15 KM asked the Correlation Resolver (after v1 Completed) and used the ids it returned",not bad(tr) and any("Correlation Resolver asked only after v1 Completed" in v["what"] for v in doc(tr)["allVerdicts"]),bad(tr))
+    check("15 sourceEntityId is not documentId and csitJobId is not eventId in what KM sent",any("ids are the ones the Resolver gave" in v["what"] and v["ok"] for v in doc(tr)["allVerdicts"]))
+    ar=doc(tr).get("analysis") or {}
+    check("15 the analysis result is v2 metadata with sourceSpecific, documentType TestReport, indexed",ar.get("metadataSchemaVersion")=="2.0" and ar.get("sourceSpecific") is not None
+          and ar["document"]["documentType"]=="TestReport" and ar["indexing"]["chunkCount"]>0,ar.get("document"))
+
+    # 16 the Resolver is not deployed yet: KM must not guess and must not send analysis-results
+    post("/api/callback-faults",{"resolver":"notdeployed"})
+    tr2=new("report2.txt",text+" second report",sourceType="TestReport",autoRun=True)["id"]
+    check("16 the v1 flow completes even without the Resolver",final(tr2) and kms(tr2)=="Completed",kms(tr2))
+    check("16 KM asks the Resolver and gets 404",wait(lambda:any(t["method"]=="GET" and "test-report-correlations" in t["path"] and t["status"]==404 for t in traffic())))
+    time.sleep(1.5)
+    sent=[t for t in traffic() if t["method"]=="POST" and t["path"].endswith("/analysis-results") and (t["request"] or {}).get("documentId")==tr2]
+    check("16 no analysis-results for it, and no guessed ids",not sent and not doc(tr2).get("analysis") and not bad(tr2),sent[:1])
+    post("/api/callback-faults",{"resolver":"ok"})
+
+    # 17 replacement events: TestReportCommitted / DocumentLibraryFileUploaded on the v2 route, with supersedes
+    tn=new("report-v2.txt",text+" revised report",sourceType="TestReport",supersedesDocId=tr,autoRun=True)["id"]
+    check("17 a replacement Test Report goes on the v2 route and completes",final(tn) and kms(tn)=="Completed" and not bad(tn),bad(tn) or kms(tn))
+    posts=[t for t in traffic() if t["method"]=="POST" and t["path"].endswith("/v2/document-jobs") and (t["request"] or {}).get("document",{}).get("id")==tn]
+    check("17 its eventType is TestReportCommitted and it names supersedes",posts and posts[0]["request"]["eventType"]=="TestReportCommitted" and posts[0]["request"]["supersedes"]["oldDocumentId"]==tr)
+    check("17 the old report's index (written through v1) is retired, the new one is active",wait(lambda:km.q.states().get(tr)=="Superseded") and km.q.states().get(tn)=="Active",km.q.states())
+    lib=new("lib-old.txt",text+" library one",autoRun=True)["id"];final(lib)
+    ln=new("lib-new.txt",text+" library two",sourceType="DocumentLibraryFile",supersedesDocId=lib,autoRun=True)["id"]
+    check("17 a replacement library file goes on the v2 route as DocumentLibraryFileUploaded",final(ln) and kms(ln)=="Completed" and not bad(ln),bad(ln))
+    check("17 the previous library file's index is retired",wait(lambda:km.q.states().get(lib)=="Superseded") and km.q.states().get(ln)=="Active",km.q.states())
+
+    # 18 a 409 on a v2 status callback is not retried
+    post("/api/callback-faults",{"callbackFailures":1,"callbackStatus":409})
+    v409=new("conflict.txt",text,sourceType="VendorFile",autoRun=True)["id"]
+    check("18 the job still completes",final(v409) and kms(v409)=="Completed",kms(v409))
+    procs=[t for t in traffic() if t["method"]=="POST" and t["path"].endswith("/v2/document-jobs/status") and (t["request"] or {}).get("documentId")==v409 and (t["request"] or {}).get("status")=="Processing"]
+    check("18 the refused Processing callback was sent once and not repeated",len(procs)==1 and procs[0]["status"]==409,[(t["status"]) for t in procs])
+
+    # 19 an empty extraction is not a success
+    blank=new("blank.txt","   \n   ",sourceType="VendorFile",autoRun=True)["id"]
+    check("19 a file with no extractable text -> Failed EMPTY_EXTRACTION, retryable=false",final(blank) and doc(blank)["jobs"][-1]["error"]["code"]=="EMPTY_EXTRACTION"
+          and doc(blank)["jobs"][-1]["error"]["retryable"] is False and not bad(blank),doc(blank)["jobs"][-1].get("error"))
+
     rep=httpx.get(S+"/api/report").json()
     unexpected=[v for v in rep["violations"] if "unreachable" in v["what"]]
     check("overall: no KM spec violations recorded",not unexpected and not [v for v in rep["violations"] if "refused" not in v["what"] and "rejected" not in v["what"]],rep["violations"])

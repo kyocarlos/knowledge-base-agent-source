@@ -83,7 +83,6 @@ def build_result_v2(job,extraction,suffix,source_path,semantic,index_id,chunk_co
     sem=clean_semantic(semantic,text)
     warnings=list(warnings)
     if semantic is None:warnings.append("semantic extraction not available; documentType, summary and keywords left empty")
-    if not text.strip():warnings.append("no text could be extracted; nothing was indexed")
     result={
       "metadataSchemaVersion":"2.0",
       "document":{"title":None,"documentType":sem["documentType"],"summary":sem["summary"],"language":detect_language(text),
@@ -111,8 +110,9 @@ def metadata_payload(change_payload):
 class V2QdrantWriter:
     """Chunks go to the document-library collection stamped with the exact source identity (source, entity, document, version)."""
     FIELDS=("source_entity_id","document_id","document_version","source_type","csit_job_id","document_file_id")
-    def __init__(self,client,collection,embedder,chunk_size):
+    def __init__(self,client,collection,embedder,chunk_size,extra_collections=()):
         self.client,self.collection,self.embedder,self.chunk_size=client,collection,embedder,chunk_size
+        self.extra_collections=tuple(extra_collections) # Test Report v1 vectors live in the report collections
     def ensure_index(self):
         from qdrant_client.models import PayloadSchemaType
         for field in self.FIELDS:
@@ -153,6 +153,11 @@ class V2QdrantWriter:
               FieldCondition(key="document_version",match=MatchValue(value=int(version))),
               FieldCondition(key="sha256",match=MatchValue(value=sha256))]
         self.client.set_payload(self.collection,payload={"index_state":state},points=Filter(must=must),wait=True)
+        # A Test Report written through v1 carries document_id / document_version only (no sha256 in its points).
+        for collection in self.extra_collections:
+            try:self.client.set_payload(collection,payload={"index_state":state},wait=True,points=Filter(must=must[:2]))
+            except Exception as exc:
+                if "not found" not in str(exc).lower():raise
         # A version-less document-library file replaced through v2 is addressed by its file id.
         self.client.set_payload(self.collection,payload={"index_state":state},wait=True,
             points=Filter(must=[FieldCondition(key="document_file_id",match=MatchValue(value=str(document_id)))]))
@@ -182,6 +187,8 @@ class V2Pipeline:
         validate_v2_file(path,suffix,job["original_file_name"],s)
         self.repo.phase_job(job,"Parsing")
         extraction=normalize(self.parser.parse(path,suffix),job,())
+        # Spec v1.4.1 C.4: Completed means something was parsed and indexed. A file with no extractable text (a scan, an empty sheet) is not.
+        if not extraction.text.strip():raise IntegrationError("EMPTY_EXTRACTION","No text could be extracted from the document; nothing was indexed")
         semantic=None
         if self.semantic and extraction.text.strip():
             self.repo.phase_job(job,"Extracting")

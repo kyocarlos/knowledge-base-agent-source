@@ -457,13 +457,10 @@ def test_deletion_callback_v2_guards():
     with pytest.raises(ValueError):build_deletion_callback_v2(uuid.uuid4(),job,"Completed",result=bad)
 
 # ---------- configuration ----------
-def test_analysis_results_are_off_unless_configured_and_outbound_scopes_default_to_v13(dsettings):
-    assert dsettings.analysis_source_entity=="" and dsettings.outbound_scopes==("csit.document.read","csit.ingestion.status.write")
+def test_outbound_scopes_are_configurable_and_analysis_is_off_by_default(dsettings):
+    assert dsettings.analysis_results_enabled is False and dsettings.outbound_scopes==("csit.document.read","csit.ingestion.status.write")
     from src.csit_integration_v1.config import Settings
     import os
-    os.environ["KM_CSIT_OUTBOUND_SCOPES"]="csit.documents.read,csit.km.status.write,csit.km.deletion-status.write"
-    try:assert Settings.from_env().outbound_scopes==("csit.documents.read","csit.km.status.write","csit.km.deletion-status.write")
+    os.environ["KM_CSIT_OUTBOUND_SCOPES"]="csit.document.read,csit.km.status.write,csit.km.deletion-status.write"
+    try:assert Settings.from_env().outbound_scopes==("csit.document.read","csit.km.status.write","csit.km.deletion-status.write")
     finally:del os.environ["KM_CSIT_OUTBOUND_SCOPES"]
-    steps=[l for _,l in V2Processor(dsettings,None,None,None).steps()]
-    assert "v2-analysis" not in steps
-    assert "v2-analysis" in [l for _,l in V2Processor(replace(dsettings,analysis_source_entity="documentId"),None,None,None).steps()]

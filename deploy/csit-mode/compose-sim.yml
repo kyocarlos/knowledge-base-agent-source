@@ -6,6 +6,10 @@ x-sim-env: &sim-env
   KM_CSIT_MODE: sim
   KM_CSIT_ENABLED: "true"
   KM_CSIT_DOCLIB_ENABLED: "true"
+  # The simulator enforces the v1.4.1 scope names on the v2 endpoints, so KM asks for the union (v1 callbacks keep csit.ingestion.status.write)
+  # and, since the simulator has the Correlation Resolver, sends Test Report analysis-results.
+  KM_CSIT_OUTBOUND_SCOPES: csit.document.read,csit.ingestion.status.write,csit.km.status.write,csit.km.deletion-status.write
+  KM_CSIT_ANALYSIS_RESULTS_ENABLED: "true"
   KM_CSIT_AUTHORITY: https://csit-sim:8443/
   KM_CSIT_JWKS_URI: https://csit-sim:8443/.well-known/jwks
   KM_CSIT_TOKEN_URL: https://csit-sim:8443/oauth/token

@@ -29,7 +29,7 @@ def test_v2_job_callback_defects_are_caught():
     assert check_job_callback_v2(job_cb("Failed",d,j))==[]
     for mutate,needle in ((lambda p:p.update(schemaVersion="1.0"),"schemaVersion"),(lambda p:p["result"].pop("sourceSpecific"),"sourceSpecific"),
         (lambda p:p["result"]["extraction"].update(method="Magic"),"method"),(lambda p:p.update(sourceSha256="zz"),"sourceSha256"),
-        (lambda p:p.update(sourceType="TestReport"),"sourceType"),(lambda p:p["timestamps"].pop("failedAt"),"timestamps"),
+        (lambda p:p.update(sourceType="Nope"),"sourceType"),(lambda p:p["timestamps"].pop("failedAt"),"timestamps"),
         (lambda p:p.update(version=0),"version"),(lambda p:p.pop("eventId"),"eventId"),
         (lambda p:p["result"]["extraction"].update(ocrUsed=True),"ocrUsed")):
         p=job_cb("Completed",d,j);mutate(p)
@@ -158,7 +158,7 @@ def test_v14_scopes_are_accepted_by_the_identity_authority():
     assert status==200 and set(body["scope"].split())==set(OUTBOUND_SCOPES_V14)
     h="Bearer "+body["access_token"]
     assert ident.verify_from_km(h,("csit.document.read","csit.documents.read")) and ident.verify_from_km(h,("csit.km.deletion-status.write",))
-    assert not ident.verify_from_km(h,"csit.document.read")                                   # a single name still means exactly that name
+    assert not ident.verify_from_km(h,"csit.ingestion.status.write")                          # a name that was not granted
     assert ident.token_endpoint(basic,b"grant_type=client_credentials&scope=other.scope")[0]==400
     import jwt
     claims=jwt.decode(ident.mint_for_km(INBOUND_SCOPES_V14["jobs"]),options={"verify_signature":False})

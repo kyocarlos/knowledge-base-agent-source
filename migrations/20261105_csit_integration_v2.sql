@@ -10,7 +10,7 @@ CREATE TABLE IF NOT EXISTS km_csit_v2_jobs (
  csit_job_id uuid NOT NULL,
  km_job_id text NOT NULL UNIQUE,
  event_type text NOT NULL,
- source_type text NOT NULL CHECK(source_type IN ('VerificationApplicationAttachment','VendorFile','EquipmentAttachment')),
+ source_type text NOT NULL CHECK(source_type IN ('VerificationApplicationAttachment','VendorFile','EquipmentAttachment','TestReport','DocumentLibraryFile')),
  source_entity_id uuid NOT NULL,
  document_id uuid NOT NULL,
  version integer NOT NULL CHECK(version>=1),
@@ -75,12 +75,17 @@ CREATE TABLE IF NOT EXISTS km_csit_v2_changes (
 CREATE INDEX IF NOT EXISTS km_csit_v2_changes_ready ON km_csit_v2_changes(status,next_retry_at,lease_until);
 CREATE INDEX IF NOT EXISTS km_csit_v2_changes_source ON km_csit_v2_changes(source_type,source_entity_id,version);
 
--- Which Test Report v1 jobs already had their v2 analysis result queued (spec 5.4).
+-- Test Report v1 jobs and their v2 analysis result (spec 5.4 + v1.4.1 C.2). The ids CSIT alone knows come from the Correlation Resolver.
 CREATE TABLE IF NOT EXISTS km_csit_v2_analysis (
  v1_job_id uuid PRIMARY KEY,
- analysis_result_id uuid NOT NULL UNIQUE,
- callback_id uuid NOT NULL,
- created_at timestamptz NOT NULL DEFAULT clock_timestamp()
+ status text NOT NULL DEFAULT 'Pending' CHECK(status IN ('Pending','Queued','Skipped')),
+ attempt_count integer NOT NULL DEFAULT 0,
+ next_retry_at timestamptz,
+ last_error_code text,
+ analysis_result_id uuid UNIQUE,
+ callback_id uuid,
+ created_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+ updated_at timestamptz NOT NULL DEFAULT clock_timestamp()
 );
 
 -- Deletion: v2 requests use the same table and worker; they add sources and an api_version.

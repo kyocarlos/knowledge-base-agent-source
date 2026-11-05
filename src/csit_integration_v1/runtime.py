@@ -65,7 +65,7 @@ def worker():
         drepo=V2Repository(s.db_url);drepo.check_schema()
         collection=os.getenv("KM_CSIT_DOCLIB_QDRANT_COLLECTION") or os.environ["KM_CSIT_QDRANT_COLLECTION"]
         qwriter=DocLibQdrantWriter(vector.client,collection,vector.encode,s.chunk_size);qwriter.ensure_index()
-        v2writer=V2QdrantWriter(vector.client,collection,vector.encode,s.chunk_size);v2writer.ensure_index()
+        v2writer=V2QdrantWriter(vector.client,collection,vector.encode,s.chunk_size,extra_collections=tuple(x for x in (os.getenv("KM_CSIT_QDRANT_COLLECTION"),"ai_km_knowledge_v1") if x and x!=collection));v2writer.ensure_index()
         semantic=None
         if os.getenv("KM_CSIT_DOCLIB_LLM")=="1":
             from .doclib_llm import complete
@@ -75,7 +75,7 @@ def worker():
         executor=DeletionExecutor(drepo,s.storage_root,qdrant=vector.client,doclib_collection=collection,report_collections=report_collections,
             neo4j_driver=driver if os.getenv("KM_CSIT_NEO4J_URI") else None,neo4j_database=os.getenv("KM_CSIT_NEO4J_DATABASE"),
             timescale_connect=(lambda:psycopg.connect(dsn)) if os.getenv("KM_CSIT_TIMESCALE_DSN_FILE") else None,cache_clear=_cache_clear)
-        v2=V2Processor(s,drepo,V2Pipeline(s,drepo,dclient,v2writer,semantic=semantic),v2writer,report_collections=report_collections)
+        v2=V2Processor(s,drepo,V2Pipeline(s,drepo,dclient,v2writer,semantic=semantic),v2writer,report_collections=report_collections,client=dclient)
         doclib_worker=DocLibWorker(s,drepo,dclient,DocLibPipeline(s,drepo,dclient,qwriter,semantic=semantic),executor,extra_steps=v2.steps())
         worker_obj_tombstones=drepo
     stop=threading.Event()

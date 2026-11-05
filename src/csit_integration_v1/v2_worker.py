@@ -1,5 +1,5 @@
 """Spec v1.4 work loops: v2 ingestion, metadata changes, version replacement and Test Report analysis results."""
-import json,logging,uuid
+import json,logging,re,uuid
 from datetime import timezone
 from pathlib import Path
 from qdrant_client.models import FieldCondition,Filter,MatchValue
@@ -11,13 +11,14 @@ from .v2_models import SOURCE_SPECIFIC_DEFAULTS,validate_result_v2
 logger=logging.getLogger("km.csit.v2")
 
 class V2Processor:
-    def __init__(self,settings,repo,pipeline,qdrant,report_collections=()):
+    def __init__(self,settings,repo,pipeline,qdrant,report_collections=(),client=None):
         self.settings,self.repo,self.pipeline,self.qdrant=settings,repo,pipeline,qdrant
+        self.client=client # DocLibClient: the Correlation Resolver call of the analysis-results flow
         self.report_collections=tuple(report_collections)
         self.id=uuid.uuid4().hex
     def steps(self):
         out=[(self.ingest_one,"v2-ingest"),(self.change_one,"v2-change"),(self.supersede_one,"v2-supersede")]
-        if self.settings.analysis_source_entity:out.append((self.analysis_one,"v2-analysis"))
+        if self.settings.analysis_results_enabled:out.append((self.analysis_one,"v2-analysis"))
         return out
 
     def ingest_one(self):
@@ -77,25 +78,46 @@ class V2Processor:
         except Exception:raise IntegrationError("STORAGE_UNAVAILABLE","Vector index unavailable",True) from None
         return None
 
-    # -- spec 5.4: full AI result for a Test Report whose v1 status CSIT already acknowledged --
+    # -- spec 5.4 + v1.4.1 C.2: full AI result for a Test Report whose v1 status CSIT already acknowledged --
+    UUID_RE=re.compile(r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")
     def analysis_one(self):
         job=self.repo.next_unreported_report()
         if not job:return False
-        built=self.analysis_fields(job)
-        if built is None:
-            self.repo.skip_analysis(job);return True
+        try:
+            corr=self.client.resolve_report(job["event_id"],job["document_id"],job["version"],str(job["job_id"]))
+            self.check_correlation(job,corr)
+            built=self.analysis_fields(job,corr)
+        except IntegrationError as e:
+            if e.retryable:self.repo.retry_analysis(job,e.code,self.settings.callback_retry_delays)
+            else:
+                logger.warning(json.dumps({"analysisSkipped":e.code,"jobId":str(job["job_id"]),"eventId":str(job["event_id"]),"documentId":str(job["document_id"]),"version":job["version"]}))
+                self.repo.skip_analysis(job,e.code)
+            return True
         fields,result,analyzed_at=built
         self.repo.queue_analysis(job,fields,result,analyzed_at)
         return True
-    def analysis_fields(self,job):
-        if self.settings.analysis_source_entity!="documentId":return None # only the one mapping CSIT can confirm is implemented
+    def check_correlation(self,job,c):
+        """The Resolver answer must repeat what was asked and carry the ids only CSIT knows. A guess or a mismatch is never sent on."""
+        bad=lambda why:IntegrationError("CORRELATION_INVALID","CSIT correlation response rejected: "+why)
+        if not isinstance(c,dict):raise bad("not an object")
+        want={"schemaVersion":"2.0","sourceSystem":"CSIT","sourceType":"TestReport","status":"Completed","eventId":str(job["event_id"]).lower(),
+              "documentId":str(job["document_id"]).lower(),"version":job["version"],"kmJobId":str(job["job_id"])}
+        for k,v in want.items():
+            got=c.get(k)
+            if (got.lower() if isinstance(got,str) and k in ("eventId","documentId") else got)!=v:raise bad(k+" differs from the request")
+        for k in ("sourceEntityId","csitJobId"):
+            if not (isinstance(c.get(k),str) and self.UUID_RE.match(c[k])):raise bad(k+" is not a UUID")
+        sha=c.get("sourceSha256")
+        if not (isinstance(sha,str) and re.fullmatch(r"[0-9a-f]{64}",sha)):raise bad("sourceSha256 is not 64 lowercase hex")
+        if job["content_sha256"] and sha!=job["content_sha256"]:
+            raise IntegrationError("SHA256_MISMATCH","The source hash CSIT reports differs from the file KM downloaded")
+    def analysis_fields(self,job,corr):
         try:
             refs=job["storage_references"] or {}
             artifact=Path((refs.get("Storage") or {})["artifact"])
             text=json.loads(artifact.read_text(encoding="utf-8"))["extraction"]["text"]
         except Exception:
-            logger.warning("analysis result skipped: no readable extraction for job %s",job["job_id"]);return None
-        if not job["content_sha256"]:return None
+            raise IntegrationError("NO_EXTRACTION","No readable extraction for this Test Report; nothing to report") from None
         points=(refs.get("Qdrant") or {}).get("pointIds") or []
         suffix=Path(job["file_name"]).suffix.lower()
         done=job["updated_at"].astimezone(timezone.utc)
@@ -110,7 +132,8 @@ class V2Processor:
             "indexedAt":done.strftime("%Y-%m-%dT%H:%M:%SZ")},
           "warnings":["semantic extraction not available; fields left empty"],
           "sourceSpecific":dict(SOURCE_SPECIFIC_DEFAULTS["TestReport"])}
+        if not points or not text.strip():raise IntegrationError("NO_EXTRACTION","The Test Report was not indexed as text; nothing to report")
         validate_result_v2(result)
-        fields={"source_entity_id":job["document_id"],"document_id":job["document_id"],"version":job["version"],
-                "csit_job_id":job["event_id"],"km_job_id":str(job["job_id"]),"source_sha256":job["content_sha256"]}
+        fields={"source_entity_id":corr["sourceEntityId"],"document_id":job["document_id"],"version":job["version"],
+                "csit_job_id":corr["csitJobId"],"km_job_id":str(job["job_id"]),"source_sha256":corr["sourceSha256"]}
         return fields,result,done

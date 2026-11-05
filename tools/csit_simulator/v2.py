@@ -6,41 +6,204 @@ takes the paths below. The places KM fetches files from are the simulator's own 
 import json,time,uuid
 import httpx
 from fastapi import HTTPException
-from .checks import (check_job_callback_v2,check_change_callback,check_deletion_callback_v2,check_analysis_result,SOURCE_TYPES_V2)
+from fastapi.responses import JSONResponse
+from .checks import (check_job_callback_v2,check_change_callback,check_deletion_callback_v2,check_analysis_result,check_report_callback_v1,SOURCE_TYPES_V2)
 
 KM_V2="/api/integrations/csit/v2"
+# v1.4.1 C.4: the closed event set. TestReportCommitted / DocumentLibraryFileUploaded on the v2 route only carry a replacement (supersedes).
 EVENT_TYPE={"VerificationApplicationAttachment":"VerificationApplicationAttachmentArchived","VendorFile":"VendorFileArchived",
-            "EquipmentAttachment":"EquipmentAttachmentArchived"}
-MODULE={"VerificationApplicationAttachment":"verification-applications","VendorFile":"vendor-files","EquipmentAttachment":"equipment"}
+            "EquipmentAttachment":"EquipmentAttachmentArchived","TestReport":"TestReportCommitted","DocumentLibraryFile":"DocumentLibraryFileUploaded"}
+MODULE={"VerificationApplicationAttachment":"verification-applications","VendorFile":"vendor-files","EquipmentAttachment":"equipment",
+        "TestReport":"test-reports","DocumentLibraryFile":"document-library"}
+REPORT_V1="/api/integrations/csit/v1/ingestion-jobs"
+CORRELATION="/api/integrations/km/v2/test-report-correlations/"
 # route family -> (source types served, scope aliases that allow the download)
-READ_SCOPES=("csit.document.read","csit.documents.read")
-STATUS_SCOPES=("csit.ingestion.status.write","csit.km.status.write")
-DELETION_SCOPES=("csit.ingestion.status.write","csit.km.deletion-status.write")
+# v1.4.1 C.3: csit.document.read (singular) for GET, csit.km.status.write for v2 job / change / analysis callbacks, csit.km.deletion-status.write
+# for v2 deletion callbacks. The v1 callbacks keep csit.ingestion.status.write.
+READ_SCOPES=("csit.document.read",)
+STATUS_SCOPES=("csit.km.status.write",)
+DELETION_SCOPES=("csit.km.deletion-status.write",)
+V1_STATUS_SCOPES=("csit.ingestion.status.write",)
 V2_PATHS={"jobs":"/api/integrations/km/v2/document-jobs/status","changes":"/api/integrations/km/v2/document-metadata-changes/status",
           "deletions":"/api/integrations/km/v2/document-deletions/status","analysis":"/api/integrations/km/v2/analysis-results"}
 
 def file_route(d,public=""):
     """Where KM fetches this document from (spec section 2). Relative to the CSIT base URL."""
     t,i=d.get("sourceType","DocumentLibraryFile"),d["id"]
-    if t=="VerificationApplicationAttachment":return public+f"/api/integrations/km/v1/documents/{i}/versions/{d.get('version',1)}/content"
+    if t in ("VerificationApplicationAttachment","TestReport"):return public+f"/api/integrations/km/v1/documents/{i}/versions/{d.get('version',1)}/content"
     if t=="VendorFile":return public+f"/api/integrations/km/v1/vendor-files/{i}/content"
     if t=="EquipmentAttachment":return public+f"/api/integrations/km/v1/equipment-documents/{i}/content"
     return public+f"/api/integrations/km/v1/document-library/files/{i}/content"
 
 class V2Mixin:
+    # ---------- how a document is delivered ----------
+    @staticmethod
+    def route(d):
+        """v1 = the v1.3 document-library route; report1 = the existing Test Report v1 route; v2 = /v2/document-jobs.
+        A Test Report or library file is only sent on v2 when it replaces an older version (spec v1.4.1 answer 5)."""
+        st,sup=d.get("sourceType","DocumentLibraryFile"),d.get("supersedesDocId")
+        if st=="DocumentLibraryFile" and not sup:return "v1"
+        if st=="TestReport" and not sup:return "report1"
+        return "v2"
+
+    # ---------- Test Report v1 (unchanged by v1.4) ----------
+    def _dispatch_report_v1(self,d):
+        with self.lock:
+            if d["jobIds"]:cid=d["jobIds"][-1]   # one outbox entry per source version: a resend reuses it
+            else:
+                cid=d["outboxId"]
+                self.jobs[cid]={"csitJobId":cid,"eventId":d["eventId"],"v1report":True,"docId":d["id"],"kmJobId":None,"state":"New","callbacks":[],
+                                "downloads":[],"verdicts":[],"timeline":[],"sendCount":0,"resolverCalls":0}
+                d["jobIds"].append(cid)
+        if d["stage"]=="Archived":d["stage"]="Dispatched"
+        self._send_report_v1(d,self.jobs[cid]);self._save();return self.view(d)
+    def _send_report_v1(self,d,job):
+        f=d["faults"]
+        body={"eventId":d["eventId"],"eventType":"TestReportCommitted","sourceSystem":"CSIT","documentId":d["id"],"version":d["version"],
+              "project":d["project"],"case":d["case"],"task":d["task"],
+              "document":{"fileName":d["name"],"contentType":d["contentType"],"sizeBytes":d["size"]},"committedAt":self._now()}
+        job["sendCount"]+=1;self.ev(job,"CSIT→KM v1 測試報告通知",f"第 {job['sendCount']} 次")
+        t0=time.monotonic()
+        try:r=httpx.post(self.km+REPORT_V1,json=body,headers=self._headers(None if f["noIdempotencyKey"] else d["eventId"],f["badToken"]),timeout=self.timeout)
+        except httpx.HTTPError as e:
+            self.log("CSIT→KM","POST",REPORT_V1,None,body,{"error":type(e).__name__},d["id"],note="KM 無法連線")
+            self.verdict(job,False,"KM unreachable: "+type(e).__name__,d["name"]);return
+        try:resp=r.json()
+        except ValueError:resp=r.text[:400]
+        self.log("CSIT→KM","POST",REPORT_V1,r.status_code,body,resp,d["id"],int((time.monotonic()-t0)*1000))
+        self.ev(job,f"KM 回應 {r.status_code}",resp if r.status_code!=202 else None)
+        if f["badToken"]:
+            self.verdict(job,r.status_code==401,f"invalid bearer token is rejected with 401 (got {r.status_code})",d["name"])
+        elif r.status_code==202:
+            ok=isinstance(resp,dict) and resp.get("documentId")==d["id"] and resp.get("version")==d["version"] and resp.get("sourceSystem")=="CSIT" \
+               and resp.get("status") in ("Accepted","Processing","Completed","Failed") and bool(resp.get("jobId"))
+            self.verdict(job,ok,"202 body is {jobId,sourceSystem,documentId,version,status}",d["name"])
+            if job["kmJobId"] and isinstance(resp,dict):
+                self.verdict(job,resp.get("jobId")==job["kmJobId"],"resend returned the original jobId (idempotent)",d["name"])
+            if isinstance(resp,dict):job["kmJobId"]=resp.get("jobId");d["kmJobId"]=resp.get("jobId")
+            if job["state"]=="New":job["state"]="Accepted"
+            if d["kmStatus"] is None:d["kmStatus"]="Accepted"
+            self.ev(d,"KM 已受理(202)",job["kmJobId"])
+        else:
+            job["state"]="Rejected";d["kmStatus"]="Rejected"
+            self.verdict(job,r.status_code in (409,410,422,503),f"KM refused the job with {r.status_code}",d["name"]);self.ev(d,f"KM 拒絕通知({r.status_code})")
+
+    def receive_report_v1(self,request,payload):
+        """POST /km/v1/ingestion-status for a Test Report. No callbackId in v1: the same content again is idempotent."""
+        t0=time.monotonic();path="/api/integrations/km/v1/ingestion-status"
+        from fastapi import Response
+        def answer(code,note=None,doc=None,raise_=False):
+            self.log("KM→CSIT","POST",path,code,payload,{"note":note} if note else None,doc,int((time.monotonic()-t0)*1000));self._save()
+            if raise_:raise HTTPException(code,note or "rejected")
+            return Response(status_code=204)
+        if not self._auth_ok(request,V1_STATUS_SCOPES):return answer(401,"service bearer required",raise_=True)
+        with self.lock:
+            g=self.faults
+            if g["callbackFailures"]>0:
+                g["callbackFailures"]-=1;return answer(g["callbackStatus"],"injected CSIT failure",raise_=True)
+            problems=check_report_callback_v1(payload)
+            job=next((j for j in self.jobs.values() if j.get("v1report") and isinstance(payload,dict) and j["docId"]==payload.get("documentId")
+                      and self.docs[j["docId"]]["version"]==payload.get("version")),None)
+            if job is None:
+                self.violations.append({"ref":None,"what":"v1 Test Report callback for an unknown document / version"});return answer(404,"unknown job",raise_=True)
+            d=self.docs[job["docId"]];status=payload.get("status");self.ev(job,f"KM→CSIT v1 回報 {status}")
+            if problems:
+                for pr in problems:self.verdict(job,False,f"{status} v1 callback: {pr}",d["name"])
+                return answer(400,"; ".join(problems)[:300],d["id"],True)
+            self.verdict(job,True,f"{status} v1 callback matches the spec",d["name"])
+            if job["kmJobId"] and payload["jobId"]!=job["kmJobId"]:
+                self.verdict(job,False,"jobId differs from the one returned in the 202",d["name"]);return answer(409,"correlation mismatch",d["id"],True)
+            canon=json.dumps(payload,sort_keys=True)
+            if canon in self.seen:self.ev(job,"重複的回報(內容相同)→ 204");return answer(204,"duplicate, idempotent",d["id"])
+            if job["state"] in ("Completed","Failed") and status!=job["state"]:
+                self.verdict(job,False,f"{status} callback arrived after terminal {job['state']} (must not overwrite)",d["name"])
+                return answer(409,"late status after terminal",d["id"],True)
+            self.seen[canon]=canon;job["callbacks"].append(payload);job["state"]=status;d["kmStatus"]=status
+            if status=="Completed":self.ev(d,"KM 完成(v1 狀態,不含 Metadata)","完整分析結果之後由 v2 analysis-results 另送")
+            elif status=="Failed":d["error"]=payload.get("error");self.ev(d,"KM 失敗",payload.get("error"))
+            else:self.ev(d,"KM 開始處理(Processing)")
+            return answer(204,None,d["id"])
+
+    # ---------- Test Report Correlation Resolver (spec v1.4.1 C.2) ----------
+    def resolve_report(self,request,event_id,document_id,version,km_job_id):
+        t0=time.monotonic();path=CORRELATION+event_id
+        q={"documentId":document_id,"version":version,"kmJobId":km_job_id}
+        def reply(code,body,doc=None,note=None):
+            self.log("KM→CSIT","GET",path+"?"+"&".join(f"{k}={v}" for k,v in q.items()),code,None,body if isinstance(body,dict) else {"detail":body},doc,int((time.monotonic()-t0)*1000),note)
+            self._save();return JSONResponse(body if isinstance(body,dict) else {"detail":body},status_code=code,headers={"Cache-Control":"no-store"})
+        with self.lock:
+            mode=self.faults.get("resolver","ok")
+            if mode=="notdeployed":return reply(404,"Not Found",note="Resolver not deployed (injected)")   # the route does not exist yet at CSIT
+            if not self._auth_ok(request,READ_SCOPES):return reply(401,"service bearer required")
+            d=next((x for x in self.docs.values() if x.get("sourceType")=="TestReport" and x.get("eventId")==event_id),None)
+            if d is None:return reply(404,"no such Test Report outbox entry")
+            job=self.jobs.get(d["outboxId"])
+            if (document_id,version,km_job_id)!=(d["id"],str(d["version"]),job["kmJobId"] if job else None):
+                if job:self.verdict(job,False,"KM asked the Correlation Resolver with values that do not match the notice it sent",d["name"])
+                return reply(409,"correlation mismatch",d["id"])
+            if d["stage"] in ("Deleting","Purged"):return reply(410,"document is being deleted",d["id"])
+            if job["state"]!="Completed":
+                self.verdict(job,False,"KM asked the Correlation Resolver before its v1 Completed status was recorded",d["name"])
+                return reply(409,{"code":"job_not_completed"},d["id"])
+            if mode=="unavailable":return reply(503,"temporarily unavailable (injected)",d["id"],"injected")
+            job["resolverCalls"]+=1;self.verdict(job,True,"Correlation Resolver asked only after v1 Completed, with the exact ids",d["name"])
+            self.ev(job,"KM 查詢 Correlation Resolver",{"sourceEntityId":d["entityId"],"csitJobId":d["outboxId"]})
+            return reply(200,{"schemaVersion":"2.0","sourceSystem":"CSIT","sourceType":"TestReport","eventId":d["eventId"],"sourceEntityId":d["entityId"],
+                "documentId":d["id"],"version":d["version"],"csitJobId":d["outboxId"],"kmJobId":job["kmJobId"],"sourceSha256":d["sha256"],"status":"Completed"},d["id"])
+
+    def _receive_analysis(self,request,payload,answer):
+        """POST /km/v2/analysis-results: judged against what CSIT knows, never against what KM could have guessed."""
+        problems=check_analysis_result(payload)
+        self.analyses.append({"t":self._now(),"payload":payload,"problems":problems})
+        d=next((x for x in self.docs.values() if x.get("sourceType")=="TestReport" and isinstance(payload,dict) and x["id"]==payload.get("documentId")
+                and x["version"]==payload.get("version")),None)
+        if d is None:
+            self.violations.append({"ref":None,"what":"analysis-results for an unknown Test Report document / version"});return answer(404,"unknown document",raise_=True)
+        job=self.jobs[d["outboxId"]];self.ev(job,"KM→CSIT analysis-results",{"callbackId":payload.get("callbackId")})
+        hdr=request.headers.get("idempotency-key");self.verdict(job,hdr==payload.get("callbackId"),"analysis-results carries Idempotency-Key = callbackId",d["name"])
+        if problems:
+            for pr in problems:self.verdict(job,False,"analysis-results: "+pr,d["name"])
+            return answer(400,"; ".join(problems)[:300],d["id"],True)
+        self.verdict(job,True,"analysis-results matches the spec",d["name"])
+        bad=[f"{k} is {payload.get(k)!r}, CSIT's value is {want!r}" for k,want in (("sourceEntityId",d["entityId"]),("csitJobId",d["outboxId"]),("kmJobId",job["kmJobId"]),
+              ("sourceSha256",d["sha256"])) if payload.get(k)!=want]
+        if payload.get("csitJobId")==d["eventId"]:bad.append("csitJobId was filled with the v1 eventId (they are different ids)")
+        if payload.get("sourceEntityId")==d["id"]:bad.append("sourceEntityId was filled with documentId (they are different ids)")
+        if bad:
+            for b in bad:self.verdict(job,False,"analysis-results correlation: "+b,d["name"])
+            return answer(409,"correlation mismatch",d["id"],True)
+        self.verdict(job,True,"analysis-results ids are the ones the Resolver gave (sourceEntityId, csitJobId, sourceSha256)",d["name"])
+        if not job["resolverCalls"]:self.verdict(job,False,"analysis-results was sent without asking the Correlation Resolver (the ids must not be guessed)",d["name"])
+        if d["stage"] in ("Deleting","Purged"):return answer(410,"document is being deleted",d["id"],True)
+        if job["state"]!="Completed":
+            self.verdict(job,False,"analysis-results arrived before the v1 Completed status",d["name"])
+            from fastapi import HTTPException as H
+            self.log("KM→CSIT","POST","/api/integrations/km/v2/analysis-results",409,payload,{"code":"job_not_completed"},d["id"],None);self._save()
+            raise H(409,{"code":"job_not_completed"})
+        cid=payload["callbackId"];canon=json.dumps(payload,sort_keys=True)
+        if cid in self.seen:
+            if self.seen[cid]==canon:self.ev(job,"重複的 callbackId(內容相同)→ 204");return answer(204,"duplicate, idempotent",d["id"])
+            self.verdict(job,False,"same callbackId reused with a different body",d["name"]);return answer(409,"callbackId conflict",d["id"],True)
+        self.seen[cid]=canon;d["analysis"]=payload["result"];self.ev(d,"KM 補送完整 AI 分析結果(analysis-results)","已存入 CSIT")
+        return answer(204,None,d["id"])
+
     # ---------- documents ----------
     def _v2_fields(self,spec,d):
         st=spec.get("sourceType","DocumentLibraryFile")
-        if st!="DocumentLibraryFile" and st not in SOURCE_TYPES_V2:raise HTTPException(400,"unknown sourceType "+str(st))
+        if st not in ("DocumentLibraryFile","TestReport") and st not in SOURCE_TYPES_V2:raise HTTPException(400,"unknown sourceType "+str(st))
         old=None
         if spec.get("supersedesDocId"):
             old=self.docs.get(spec["supersedesDocId"])
             if old is None or old["sourceType"]!=st:raise HTTPException(400,"supersedesDocId must name an existing document of the same source type")
         d.update(sourceType=st,version=int(spec.get("version") or ((old["version"]+1) if old else 1)),
-                 entityId=str(uuid.uuid4()) if st=="VerificationApplicationAttachment" else d["id"],
+                 entityId=str(uuid.uuid4()) if st in ("VerificationApplicationAttachment","TestReport") else d["id"],
                  applicationId=str(uuid.uuid4()) if st=="VerificationApplicationAttachment" else None,
                  vendorId=str(uuid.uuid4()) if st=="VendorFile" else None,equipmentId=str(uuid.uuid4()) if st=="EquipmentAttachment" else None,
                  supersedesDocId=old["id"] if old else None,revision=0,approval=None,archivedAt=None,changeIds=[],
+                 eventId=str(uuid.uuid4()),outboxId=str(uuid.uuid4()),
+                 project={"id":str(uuid.uuid4()),"number":"PRJ-001","name":"模擬專案"} if st=="TestReport" else None,
+                 case={"id":str(uuid.uuid4()),"number":"CASE-001","name":"模擬測試案例"} if st=="TestReport" else None,
+                 task={"id":str(uuid.uuid4()),"number":"TASK-001","name":"模擬測試任務"} if st=="TestReport" else None,
                  approvalMode="ApprovalBypassed" if spec.get("approvalBypass") else "Approved",
                  attributes={"tags":[],"keywords":[],"displayName":None,"modelNumbers":[],"vendorReference":None})
 
@@ -163,6 +326,16 @@ class V2Mixin:
         with self.lock:self.changes[cid]=x;d["changeIds"].append(cid)
         return self._send_change(x,last.get("changed"),bad_revision=last["revision"])
 
+    # ---------- Test Report v1 deletion (the v1 route and reason codes stay as they were) ----------
+    def _delete_report_v1(self,d,deletion_request_id):
+        rid=deletion_request_id or str(uuid.uuid4())
+        if rid in self.dels:return self._send_deletion(self.dels[rid])
+        res={"sourceType":"TestReport","documentFileId":None,"documentId":d["id"],"version":d["version"],"sourceEntityId":d["entityId"],"applicationId":None,"recordId":None}
+        x={"deletionRequestId":rid,"docId":d["id"],"resource":res,"reason":"TestReportVersionDeleted","kmDeletionJobId":None,"state":"New","callbacks":[],"verdicts":[],"timeline":[]}
+        with self.lock:self.dels[rid]=x;d["delIds"].append(rid)
+        d["stage"]="Deleting";d["deleteState"]="Requested";self.ev(d,"使用者刪除測試報告","v1 刪除通知;KM 驗證清理後 CSIT 才刪檔")
+        return self._send_deletion(x)
+
     # ---------- v2 deletion (spec 7.2) ----------
     def _delete_v2(self,d,deletion_request_id):
         rid=deletion_request_id or str(uuid.uuid4())
@@ -210,12 +383,7 @@ class V2Mixin:
             g=self.faults
             if g["callbackFailures"]>0:
                 g["callbackFailures"]-=1;return answer(g["callbackStatus"],"injected CSIT failure",raise_=True)
-            if kind=="analysis":
-                problems=check_analysis_result(payload)
-                self.analyses.append({"t":self._now(),"payload":payload,"problems":problems})
-                if problems:
-                    self.violations.append({"ref":None,"what":"analysis-results: "+"; ".join(problems)[:200]});return answer(400,"; ".join(problems)[:300],raise_=True)
-                return answer(204)
+            if kind=="analysis":return self._receive_analysis(request,payload,answer)
             table,checker,idkey=({"jobs":(self.jobs,check_job_callback_v2,"csitJobId"),"changes":(self.changes,check_change_callback,"changeId"),
                                   "deletions":(self.dels,check_deletion_callback_v2,"deletionRequestId")})[kind]
             problems=checker(payload)

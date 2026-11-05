@@ -33,6 +33,12 @@ class V2Repository(DocLibRepository):
             if c.execute("""SELECT 1 FROM km_csit_v2_jobs WHERE source_type=%s AND source_entity_id=%s AND version=%s
                 AND status IN ('Accepted','Processing','Completed')""", (src["type"], src["entityId"], d["version"])).fetchone():
                 raise IntegrationError("CANONICAL_JOB_EXISTS", "An active ingestion already exists for this source version")
+            # v1.4.1 C.4: one source version is delivered through v1 or through v2, never both.
+            if src["type"] == "TestReport" and c.execute("SELECT 1 FROM km_csit_ingestion_jobs WHERE document_id=%s AND version=%s",
+                                                          (str(d["id"]), d["version"])).fetchone():
+                raise IntegrationError("V1_JOB_EXISTS", "This source version was already delivered through the v1 route")
+            if src["type"] == "DocumentLibraryFile" and c.execute("SELECT 1 FROM km_csit_doclib_jobs WHERE document_file_id=%s", (d["id"],)).fetchone():
+                raise IntegrationError("V1_JOB_EXISTS", "This source version was already delivered through the v1 route")
             km_job = "KM-ING-%06d" % c.execute("SELECT nextval('km_csit_v2_job_seq') AS n").fetchone()["n"]
             return c.execute("""INSERT INTO km_csit_v2_jobs(event_id,csit_job_id,km_job_id,event_type,source_type,source_entity_id,document_id,
                   version,request_payload,original_file_name,content_type,file_size_bytes,expected_sha256,occurred_at,status)
@@ -310,26 +316,40 @@ class V2Repository(DocLibRepository):
               (result_json IS NOT NULL OR storage_references<>'{{}}' OR request_payload<>'{{}}' OR metadata_overrides<>'{{}}')""", args).fetchone()["n"]
         return n
 
-    # ---- Test Report v1 -> v2 analysis-results (spec 5.4) ----
+    # ---- Test Report v1 -> v2 analysis-results (spec 5.4, v1.4.1 C.2) ----
     def next_unreported_report(self):
-        """A v1 Test Report job whose Completed status the CSIT side already acknowledged and that has no v2 result queued yet."""
+        """A v1 Test Report job whose Completed status CSIT already acknowledged and whose v2 result is neither queued nor given up on."""
         with self.connect() as c:
-            return c.execute("""SELECT j.* FROM km_csit_ingestion_jobs j
-              WHERE j.status='Completed' AND NOT EXISTS(SELECT 1 FROM km_csit_v2_analysis a WHERE a.v1_job_id=j.job_id)
+            return c.execute("""SELECT j.*,COALESCE(a.attempt_count,0) AS analysis_attempts FROM km_csit_ingestion_jobs j
+              LEFT JOIN km_csit_v2_analysis a ON a.v1_job_id=j.job_id
+              WHERE j.status='Completed' AND (a.v1_job_id IS NULL OR (a.status='Pending' AND (a.next_retry_at IS NULL OR a.next_retry_at<=clock_timestamp())))
                 AND EXISTS(SELECT 1 FROM km_csit_callback_deliveries d WHERE d.job_id=j.job_id AND d.status='Delivered' AND d.payload->>'status'='Completed')
               ORDER BY j.updated_at LIMIT 1""").fetchone()
     def queue_analysis(self, v1_job, fields, result, analyzed_at):
         analysis_id, callback_id = uuid.uuid4(), uuid.uuid4()
         payload = build_analysis_payload(callback_id, analysis_id, result=result, analyzed_at=analyzed_at, **fields)
         with self.connect() as c:
-            if not c.execute("""INSERT INTO km_csit_v2_analysis(v1_job_id,analysis_result_id,callback_id) VALUES(%s,%s,%s)
-                ON CONFLICT DO NOTHING RETURNING v1_job_id""", (v1_job["job_id"], analysis_id, callback_id)).fetchone():
+            if not c.execute("""INSERT INTO km_csit_v2_analysis(v1_job_id,status,analysis_result_id,callback_id) VALUES(%s,'Queued',%s,%s)
+                ON CONFLICT(v1_job_id) DO UPDATE SET status='Queued',analysis_result_id=excluded.analysis_result_id,callback_id=excluded.callback_id,
+                  last_error_code=NULL,next_retry_at=NULL,updated_at=clock_timestamp() WHERE km_csit_v2_analysis.status='Pending' RETURNING v1_job_id""",
+                (v1_job["job_id"], analysis_id, callback_id)).fetchone():
                 return False
             c.execute("INSERT INTO km_csit_v13_callbacks(callback_id,kind,ref_id,payload) VALUES(%s,'analysis',%s,%s)",
                       (callback_id, str(v1_job["job_id"]), Jsonb(payload)))
             return True
-    def skip_analysis(self, v1_job):
-        """Nothing sendable for this job (no readable extraction); record it so the poller does not retry forever."""
+    def retry_analysis(self, v1_job, code, delays):
+        """A temporary failure: back off, and give up (Skipped) when the delays run out."""
+        attempt = int(v1_job.get("analysis_attempts") or 0) + 1
+        delay = delays[attempt - 1] if attempt <= len(delays) else None
         with self.connect() as c:
-            c.execute("INSERT INTO km_csit_v2_analysis(v1_job_id,analysis_result_id,callback_id) VALUES(%s,%s,%s) ON CONFLICT DO NOTHING",
-                      (v1_job["job_id"], uuid.uuid4(), uuid.uuid4()))
+            c.execute("""INSERT INTO km_csit_v2_analysis(v1_job_id,status,attempt_count,next_retry_at,last_error_code)
+              VALUES(%s,%s,%s,CASE WHEN %s::integer IS NULL THEN NULL ELSE clock_timestamp()+%s*interval '1 second' END,%s)
+              ON CONFLICT(v1_job_id) DO UPDATE SET status=excluded.status,attempt_count=excluded.attempt_count,next_retry_at=excluded.next_retry_at,
+                last_error_code=excluded.last_error_code,updated_at=clock_timestamp()""",
+              (v1_job["job_id"], "Pending" if delay is not None else "Skipped", attempt, delay, delay, code))
+    def skip_analysis(self, v1_job, code):
+        """Nothing sendable for this job and retrying cannot help: recorded with the reason so an operator can see why."""
+        with self.connect() as c:
+            c.execute("""INSERT INTO km_csit_v2_analysis(v1_job_id,status,last_error_code) VALUES(%s,'Skipped',%s)
+              ON CONFLICT(v1_job_id) DO UPDATE SET status='Skipped',last_error_code=excluded.last_error_code,next_retry_at=NULL,updated_at=clock_timestamp()""",
+              (v1_job["job_id"], code))

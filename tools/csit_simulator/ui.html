@@ -82,7 +82,7 @@ function uploadCard(){
   <label>選擇檔案(txt / csv / md / xlsx / pptx / pdf / docx;其他格式 KM 會回 Failed)<input id="f" type="file"></label>
   <label>或輸入文字內容<input id="txt" size="40" value="${esc(up.text)}" oninput="up.text=this.value"></label>
   <label>檔名<input id="nm" size="14" value="${esc(up.name)}" oninput="up.name=this.value"></label>
-  <label>來源<select onchange="up.st=this.value;up.sup='';drawUp()">${[['DocumentLibraryFile','文件專區(v1.3)'],['VerificationApplicationAttachment','驗證申請附件(v1.4)'],['VendorFile','廠商檔案(v1.4)'],['EquipmentAttachment','設備附件(v1.4)']].map(([v,t])=>`<option value="${v}" ${up.st===v?'selected':''}>${t}</option>`).join('')}</select></label>
+  <label>來源<select onchange="up.st=this.value;up.sup='';drawUp()">${[['DocumentLibraryFile','文件專區(v1.3)'],['TestReport','測試報告(v1;換版走 v2)'],['VerificationApplicationAttachment','驗證申請附件(v1.4)'],['VendorFile','廠商檔案(v1.4)'],['EquipmentAttachment','設備附件(v1.4)']].map(([v,t])=>`<option value="${v}" ${up.st===v?'selected':''}>${t}</option>`).join('')}</select></label>
   ${up.st!=='DocumentLibraryFile'?`<label>取代舊版本<select onchange="up.sup=this.value"><option value="">—(新文件)</option>${S.docs.filter(x=>x.sourceType===up.st&&x.stage!=='Purged').map(x=>`<option value="${x.id}" ${up.sup===x.id?'selected':''}>${esc(x.name)} v${x.version} · ${x.id.slice(0,8)}</option>`).join('')}</select></label>`:''}</div>
   <div class="row" style="margin-top:8px"><label>分類 L1<select onchange="up.l1=this.value;up.l2='';up.l3='';drawUp()">${taxOpts(taxo,up.l1)}</select></label>
   <label>L2<select onchange="up.l2=this.value;up.l3='';drawUp()">${taxOpts(l1?.children||[],up.l2)}</select></label>
@@ -165,6 +165,8 @@ async function drawKm(){
   $('main').innerHTML=`<div class="hint">這是 KM 這一側的真實資料(本機 demo 的 PostgreSQL 與向量庫),用來對照 CSIT 這邊看到的流程。</div>`+
    tbl('文件專區工作 km_csit_doclib_jobs',k.jobs,['kmJobId','status','phase','attempts','lastError','nextRetry','fileId']) +
    tbl('v2 文件工作 km_csit_v2_jobs(驗證附件 / 廠商 / 設備)',k.v2Jobs||[],['kmJobId','sourceType','version','status','phase','indexState','lastError','docId']) +
+   tbl('測試報告 v1 工作 km_csit_ingestion_jobs',k.reportJobs||[],['kmJobId','documentId','version','status','phase','lastError']) +
+   tbl('測試報告 v2 分析結果 km_csit_v2_analysis',k.analysis||[],['v1Job','status','attempts','lastError']) +
    tbl('分類 / 標籤變更 km_csit_v2_changes',k.metadataChanges||[],['kmChangeJobId','status','revision','lastError']) +
    tbl('向量庫(依文件統計)',k.vectors,['documentFileId','chunks','sample']) +
    tbl('刪除工作',k.deletions,['kmDeletionJobId','status','phase','attempts','lastError','sourceKey']) +
@@ -179,6 +181,8 @@ function drawSet(){$('main').innerHTML=`<div class="card"><h2>連線設定</h2><
   <div class="card"><h2>情境:KM 回報時 CSIT 端故障</h2><div class="row"><label>接下來 N 次 KM 回報,CSIT 回<input id="cf" type="number" min="0" value="${S.faults.callbackFailures||0}" style="width:70px"></label>
   <label>狀態碼<select id="cs"><option ${S.faults.callbackStatus==503?'selected':''}>503</option><option ${S.faults.callbackStatus==409?'selected':''}>409</option><option ${S.faults.callbackStatus==500?'selected':''}>500</option></select></label>
   <button onclick="cfault()">設定</button></div><div class="mute" style="margin-top:6px">用來驗證:KM 的回報被擋時會持久化重試,且順序不亂(Processing → Completed)。剩餘 ${S.faults.callbackFailures||0} 次。</div></div>
+  <div class="card"><h2>情境:測試報告的 Correlation Resolver(v1.4.1 C.2)</h2><div class="row"><label>KM 查詢時<select onchange="api('/api/callback-faults',{resolver:this.value}).then(load)">${[['ok','正常回 200'],['notdeployed','尚未部署(404)'],['unavailable','暫時不可用(503)']].map(([v,t])=>`<option value="${v}" ${(S.faults.resolver||'ok')===v?'selected':''}>${t}</option>`).join('')}</select></label></div>
+  <div class="mute" style="margin-top:6px">未部署時 KM 不得自行猜 sourceEntityId / csitJobId;503 時應退避重試。</div></div>
   <div class="card"><h2>清除</h2><button class="danger" onclick="if(confirm('清除所有文件與紀錄?(KM 那邊的資料不會被清除)'))api('/api/reset',{}).then(load)">清除模擬器資料</button></div>`}
 async function saveSet(){await api('/api/settings',{kmBaseUrl:$('kmurl').value,token:$('kmtok').value||undefined});await doPing();await load()}
 async function doPing(){const r=await api('/api/km/ping');$('pingout').innerHTML=r?(r.ok?`<span class="ok">✔ KM 可連線</span> ${esc(r.body)}`:`<span class="bad">✘ 無法連線</span> ${esc(r.error||r.status)}`):''}

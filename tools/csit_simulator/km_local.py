@@ -18,6 +18,10 @@ from src.csit_integration_v1.repository import Repository
 from src.csit_integration_v1.v2_repository import V2Repository
 from src.csit_integration_v1.v2_pipeline import V2Pipeline,V2QdrantWriter
 from src.csit_integration_v1.v2_worker import V2Processor
+from src.csit_integration_v1.client import CsitIntegrationClient
+from src.csit_integration_v1.pipeline import Pipeline
+from src.csit_integration_v1.worker import Worker
+from src.csit_integration_v1.writers import StorageWriter,QdrantWriter
 from src.csit_integration_v1.doclib_client import DocLibClient
 from src.csit_integration_v1.doclib_pipeline import DocLibPipeline,DocLibQdrantWriter
 from src.csit_integration_v1.doclib_deletion import DeletionExecutor
@@ -89,7 +93,8 @@ class LocalKm:
         Settings.validate=lambda self:None # the 0o077 secret-file check has no Windows meaning and no real secret is used
         self.store=Path(tempfile.mkdtemp(prefix="csit-km-"))
         self.settings=Settings(enabled=True,doclib_enabled=True,db_url=self.dsn,csit_base_url=csit_base_url,storage_root=str(self.store),
-            retry_delays=tuple(retry_delays),callback_retry_delays=tuple(callback_delays),poll_seconds=poll,timeout=10,chunk_size=400)
+            retry_delays=tuple(retry_delays),callback_retry_delays=tuple(callback_delays),poll_seconds=poll,timeout=10,chunk_size=400,
+            analysis_results_enabled=True) # the local KM stands in for a KM whose CSIT has deployed the Correlation Resolver
         self.repo=V2Repository(self.dsn);self.q=MemoryQdrant();self.port=km_port
         self.server=serve(km_app(self.settings,Repository(self.dsn),StaticValidator(token),doclib=self.repo),km_port)
         client=DocLibClient(self.settings,StaticAuth(token))
@@ -97,12 +102,18 @@ class LocalKm:
         if semantic=="stub":
             extractor=make_semantic_extractor(lambda p:json.dumps(stub_semantic(p.split("文件內容：\n",1)[-1]),ensure_ascii=False))
         else:extractor=semantic if callable(semantic) else None
-        v2writer=V2QdrantWriter(self.q,"docs",lambda chunks:[[.1,.2] for _ in chunks],self.settings.chunk_size)
-        self.v2=V2Processor(self.settings,self.repo,V2Pipeline(self.settings,self.repo,client,v2writer,semantic=extractor),v2writer,report_collections=("reports",))
+        v2writer=V2QdrantWriter(self.q,"docs",lambda chunks:[[.1,.2] for _ in chunks],self.settings.chunk_size,extra_collections=("reports",))
+        self.v2=V2Processor(self.settings,self.repo,V2Pipeline(self.settings,self.repo,client,v2writer,semantic=extractor),v2writer,report_collections=("reports",),client=client)
         self.worker=DocLibWorker(self.settings,self.repo,client,DocLibPipeline(self.settings,self.repo,client,writer,semantic=extractor),
             DeletionExecutor(self.repo,self.settings.storage_root,qdrant=self.q,doclib_collection="docs",report_collections=("reports",)),
             extra_steps=self.v2.steps())
-        self.stop=threading.Event();threading.Thread(target=self.worker.run,args=(self.stop,),daemon=True).start()
+        # Test Report v1 (route, worker, callbacks): generic parse -> storage + vectors; there is no Neo4j / TimescaleDB here.
+        v1client=CsitIntegrationClient(self.settings,StaticAuth(token))
+        v1writers={"storage":StorageWriter(self.settings.storage_root),"qdrant":QdrantWriter(self.q,"reports",lambda chunks:[[.1,.2] for _ in chunks],self.settings.chunk_size)}
+        self.v1worker=Worker(self.settings,Repository(self.dsn),v1client,Pipeline(self.settings,Repository(self.dsn),v1client,v1writers,numeric_rules=()),tombstones=self.repo)
+        self.stop=threading.Event()
+        threading.Thread(target=self.worker.run,args=(self.stop,),daemon=True).start()
+        threading.Thread(target=self.v1worker.run,args=(self.stop,),daemon=True).start()
     def inspect(self):
         with self.repo.connect() as c:
             jobs=[{"kmJobId":r["km_job_id"],"status":r["status"],"phase":r["phase"],"attempts":r["attempt_count"],"lastError":r["last_error_code"] or "",
@@ -118,9 +129,13 @@ class LocalKm:
                      "lastError":r["last_error_code"] or "","docId":str(r["document_id"])[:8],"version":r["version"]} for r in c.execute("SELECT * FROM km_csit_v2_jobs ORDER BY created_at DESC LIMIT 50")]
             changes=[{"kmChangeJobId":r["km_change_job_id"],"status":r["status"],"revision":r["source_revision"],"lastError":r["last_error_code"] or ""}
                      for r in c.execute("SELECT * FROM km_csit_v2_changes ORDER BY created_at DESC LIMIT 50")]
+        with self.repo.connect() as c:
+            reports=[{"kmJobId":str(r["job_id"])[:8],"documentId":r["document_id"][:8],"version":r["version"],"status":r["status"],"phase":r["phase"],"lastError":r["last_error_code"] or ""}
+                     for r in c.execute("SELECT * FROM km_csit_ingestion_jobs ORDER BY created_at DESC LIMIT 50")]
+            analysis=[{"v1Job":str(r["v1_job_id"])[:8],"status":r["status"],"attempts":r["attempt_count"],"lastError":r["last_error_code"] or ""} for r in c.execute("SELECT * FROM km_csit_v2_analysis")]
         by={}
         for p in list(self.q.points.values()):
             fid=p["payload"].get("document_file_id") or p["payload"].get("document_id");e=by.setdefault(fid,{"documentFileId":fid,"chunks":0,"sample":p["payload"]["content"][:70]});e["chunks"]+=1
         files=[{"path":str(f.relative_to(self.store)),"bytes":f.stat().st_size} for f in sorted(self.store.rglob("*")) if f.is_file()]
-        return {"jobs":jobs,"v2Jobs":v2jobs,"metadataChanges":changes,"deletions":dels,"tombstones":tombs,"outbox":out,"vectors":list(by.values()),"files":files}
+        return {"jobs":jobs,"reportJobs":reports,"analysis":analysis,"v2Jobs":v2jobs,"metadataChanges":changes,"deletions":dels,"tombstones":tombs,"outbox":out,"vectors":list(by.values()),"files":files}
     def close(self):self.stop.set()

@@ -9,12 +9,18 @@ from pydantic import BaseModel, Field, StrictInt, field_validator, model_validat
 from .doclib_models import (Wire, Classification, DOCUMENT_TYPES, CLEANUP_ITEMS, RESULT_SCHEMA, _ts)
 from .models import safe_filename
 
-JOB_SOURCE_TYPES = ("VerificationApplicationAttachment", "VendorFile", "EquipmentAttachment")
-ALL_SOURCE_TYPES = ("DocumentLibraryFile", "TestReport") + JOB_SOURCE_TYPES
+JOB_SOURCE_TYPES = ("VerificationApplicationAttachment", "VendorFile", "EquipmentAttachment", "TestReport", "DocumentLibraryFile")
+ALL_SOURCE_TYPES = ("DocumentLibraryFile", "TestReport", "VerificationApplicationAttachment", "VendorFile", "EquipmentAttachment")
+# Spec v1.4.1 C.4: the closed set. The last two are the existing v1 names, used here only for a new version that names `supersedes`.
 EVENT_SOURCE = {"VerificationApplicationAttachmentArchived": "VerificationApplicationAttachment",
                 "VendorFileArchived": "VendorFile",
                 "EquipmentDocumentArchived": "EquipmentAttachment",
-                "EquipmentAttachmentArchived": "EquipmentAttachment"}
+                "EquipmentAttachmentArchived": "EquipmentAttachment",
+                "TestReportCommitted": "TestReport",
+                "DocumentLibraryFileUploaded": "DocumentLibraryFile"}
+REPLACEMENT_EVENTS = ("TestReportCommitted", "DocumentLibraryFileUploaded")
+# Spec v1.4.1 C.4 / answer 9: closed and case sensitive. The v1 reason codes stay on the v1 route.
+DELETION_REASONS = ("SourceDeleted", "VersionSuperseded", "AdministrativeCleanup")
 
 def _tz(value):
     if value.tzinfo is None:
@@ -29,7 +35,7 @@ def _sha(value):
 
 # ---- CSIT -> KM: document-jobs (spec 4.2) ----
 class V2Source(Wire):
-    type: Literal["VerificationApplicationAttachment", "VendorFile", "EquipmentAttachment"]
+    type: Literal["VerificationApplicationAttachment", "VendorFile", "EquipmentAttachment", "TestReport", "DocumentLibraryFile"]
     entityId: UUID
     moduleCode: Optional[str] = Field(default=None, max_length=128)
     applicationId: Optional[UUID] = None
@@ -67,7 +73,8 @@ class DocumentJobRequest(Wire):
     schemaVersion: Literal["2.0"]
     eventId: UUID
     csitJobId: UUID
-    eventType: Literal["VerificationApplicationAttachmentArchived", "VendorFileArchived", "EquipmentDocumentArchived", "EquipmentAttachmentArchived"]
+    eventType: Literal["VerificationApplicationAttachmentArchived", "VendorFileArchived", "EquipmentDocumentArchived", "EquipmentAttachmentArchived",
+                       "TestReportCommitted", "DocumentLibraryFileUploaded"]
     sourceSystem: Literal["CSIT"]
     source: V2Source
     document: V2Document
@@ -79,8 +86,11 @@ class DocumentJobRequest(Wire):
     def consistent(self):
         if EVENT_SOURCE[self.eventType] != self.source.type:
             raise ValueError("eventType does not match source.type")
-        if self.source.type != "VerificationApplicationAttachment" and self.source.entityId != self.document.id:
+        if self.source.type in ("VendorFile", "EquipmentAttachment", "DocumentLibraryFile") and self.source.entityId != self.document.id:
             raise ValueError(self.source.type + " uses the same id for source.entityId and document.id")
+        # TestReport: sourceEntityId is ModuleCaseFile.Id and documentId is ModuleCaseFile.DocumentId, two different ids.
+        if self.eventType in REPLACEMENT_EVENTS and self.supersedes is None:
+            raise ValueError(self.eventType + " on the v2 route is only for a new version that names supersedes")
         if self.supersedes and (self.supersedes.oldDocumentId == self.document.id and self.supersedes.oldVersion == self.document.version):
             raise ValueError("supersedes must name an older version")
         return self
@@ -155,7 +165,7 @@ class V2DeletionRequest(Wire):
     eventType: Literal["DocumentDeletionRequested"]
     deletionRequestId: UUID
     requestedAt: datetime
-    reasonCode: str = Field(min_length=1, max_length=128)
+    reasonCode: Literal["SourceDeleted", "VersionSuperseded", "AdministrativeCleanup"]
     resource: V2Resource
     _tz = field_validator("requestedAt")(_tz)
 

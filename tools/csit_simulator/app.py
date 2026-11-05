@@ -27,6 +27,11 @@ def create_app(sim:Sim)->FastAPI:
     async def deletions_v2(request:Request):return sim.receive_v2(request,await body(request),"deletions")
     @app.post("/api/integrations/km/v2/analysis-results")
     async def analysis_v2(request:Request):return sim.receive_v2(request,await body(request),"analysis")
+    @app.post(BASE+"/ingestion-status")
+    async def report_status(request:Request):return sim.receive_report_v1(request,await body(request))
+    @app.get("/api/integrations/km/v2/test-report-correlations/{event_id}")
+    def correlation(event_id:str,request:Request,documentId:str="",version:str="",kmJobId:str=""):
+        return sim.resolve_report(request,event_id,documentId,version,kmJobId)
     @app.post(BASE+"/document-library/ingestion-status")
     async def ingestion(request:Request):return sim.receive(request,await body(request),"ingestion")
     @app.post(BASE+"/document-deletion-status")
@@ -82,7 +87,9 @@ def create_app(sim:Sim)->FastAPI:
     @app.post("/api/callback-faults")
     async def callback_faults(request:Request):
         d=await body(request)
-        with sim.lock:sim.faults.update({k:int(d[k]) for k in ("callbackFailures","callbackStatus") if k in d})
+        with sim.lock:
+            sim.faults.update({k:int(d[k]) for k in ("callbackFailures","callbackStatus") if k in d})
+            if d.get("resolver") in ("ok","notdeployed","unavailable"):sim.faults["resolver"]=d["resolver"]
         return sim.faults
     @app.post("/api/settings")
     async def settings(request:Request):

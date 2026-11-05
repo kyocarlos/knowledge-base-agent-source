@@ -23,8 +23,8 @@ from urllib.parse import parse_qs
 
 SUBMIT_SCOPE = "km.ingestion.submit"
 OUTBOUND_SCOPES = ("csit.document.read", "csit.ingestion.status.write")
-# Spec v1.4 section 3.2 suggests these instead; the simulator issues whichever set KM asks for, from the union.
-OUTBOUND_SCOPES_V14 = ("csit.documents.read", "csit.km.status.write", "csit.km.deletion-status.write")
+# Spec v1.4.1 C.3: the official v2 names (csit.document.read stays singular). The simulator issues whichever set KM asks for, from the union.
+OUTBOUND_SCOPES_V14 = ("csit.document.read", "csit.km.status.write", "csit.km.deletion-status.write")
 INBOUND_SCOPES_V14 = {"jobs": "km.ingestion.write", "changes": "km.metadata.write", "deletions": "km.deletion.write"}
 
 
@@ -89,7 +89,7 @@ class Identity:
         if client != self.km_client_id or not hmac.compare_digest(secret.encode(), self._secret.encode()):
             return err(401, "invalid_client")
         wanted = set(form.get("scope", "").split()) or set(OUTBOUND_SCOPES)
-        allowed = OUTBOUND_SCOPES + OUTBOUND_SCOPES_V14
+        allowed = tuple(dict.fromkeys(OUTBOUND_SCOPES + OUTBOUND_SCOPES_V14))
         if not wanted <= set(allowed):
             return err(400, "invalid_scope")
         scope = " ".join(s for s in allowed if s in wanted)

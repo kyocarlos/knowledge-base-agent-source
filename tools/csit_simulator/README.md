@@ -1,4 +1,4 @@
-# CSIT 模擬器(規格 v1.3 + v1.4)
+# CSIT 模擬器(規格 v1.3 + v1.4 + v1.4.1)
 
 一套有操作介面的「CSIT 文件管理系統」模擬:你在畫面上上傳文件、核准、歸檔、派送給 KM、刪除,同時看到 KM 在每個時間點收到什麼、回了什麼、
 回報的內容是否符合規格。不連 CSIT 資料庫。
@@ -46,8 +46,23 @@ KM 端要把 CSIT 的 base URL 指到模擬器、並接受同一個 bearer。此
 - **換版**:上傳時選「取代舊版本」,通知帶 `supersedes`;可驗證 KM 在新版完成後才停用舊索引、新版失敗時舊索引不動。
 - **改標籤(v2)**:`POST …/document-metadata-changes`,`sourceRevision` 每次遞增;「送舊修訂」按鈕用舊修訂再送,KM 應回 409。
 - **v2 刪除**:`POST …/v2/document-deletions`(含 `sha256`、`canonicalIngestionEventId`、`scope=DocumentVersion`);對已刪版本再送上傳通知,KM 應回 410。
-- `--scope-style v14`:送給 KM 的 token 用 v1.4 的分端點 scope(`km.ingestion.write` 等);`--identity` 模式可簽發 v1.4 的外送 scope 名稱(`csit.documents.read` 等)。`--public-url` 設定通知裡 `downloadUrl` 顯示的位址。
-- 未涵蓋:Test Report 的 v1 通知與其 v2 `analysis-results` 的發起端(只接收並檢查格式)。
+- `--scope-style v14`:送給 KM 的 token 用分端點 scope(`km.ingestion.write` / `km.metadata.write` / `km.deletion.write`)。`--identity` 模式簽發的外送 scope 為正式名稱 `csit.document.read`(**單數**)、`csit.km.status.write`、`csit.km.deletion-status.write`,**v2 的回報與取檔只認這些**(v1.4.1 C.3);v1 回報仍認 `csit.ingestion.status.write`。所以 KM 要同時要求兩組(見 `deploy/csit-mode/compose-sim.yml`)。`--public-url` 設定通知裡 `downloadUrl` 顯示的位址。
+
+## 規格 v1.4.1:測試報告與 Correlation Resolver
+
+上傳來源可選「測試報告」,流程照 v1.4.1:
+
+1. **v1 通知**:`POST /v1/ingestion-jobs`(`TestReportCommitted`,不帶 `sourceEntityId` / `csitJobId`)。模擬器內部有四個不同的 id:`documentId`、`ModuleCaseFile.Id`(sourceEntityId)、Outbox `EventId`(eventId)、Outbox `Id`(csitJobId)。
+2. KM 以 `documents/{id}/versions/{v}/content` 取檔(回應帶 Content-Type 與 Content-Disposition,v1 取檔會核對)。
+3. KM 以 v1 `ingestion-status` 回報(Processing → Completed,**不帶 result**)。
+4. KM 在 v1 Completed 被確認後,呼叫 **Correlation Resolver** `GET /v2/test-report-correlations/{eventId}?documentId=&version=&kmJobId=`;模擬器依 C.2 回 200(`Cache-Control: no-store`);KM 太早問、問的值不符、已刪除,分別回 409(`job_not_completed`)/ 409 / 410。
+5. KM 送 `POST /v2/analysis-results`。判定:`sourceEntityId` 不可是 `documentId`、`csitJobId` 不可是 `eventId`(兩者都是被禁止的猜法)、必須與 Resolver 給的一致、必須真的問過 Resolver、v1 未 Completed 時回 409 `job_not_completed`,同 `callbackId` 同內容 204。
+
+「情境與設定」可把 Resolver 設成「尚未部署(404)」或「暫時不可用(503)」,用來驗證 KM 不猜 id、不送 analysis-results。
+換版:測試報告或文件專區檔案上傳時選「取代舊版本」,改走 `/v2/document-jobs`,事件名仍是 `TestReportCommitted` / `DocumentLibraryFileUploaded` 並帶 `supersedes`。
+
+其他 v1.4.1 判定:圖片 / ZIP / 不明格式必須 `Failed UNSUPPORTED_FORMAT` 且 `retryable=false`;`Completed` 若是 `method=None` 或 `chunkCount=0` 視為假成功;完整性、惡意、加密、雜湊、過大等錯誤碼不可 `retryable=true`;`document-jobs/status` 被注入 409 後,KM 不得重送同一回報(演練 #18)。
+- 未涵蓋:本機 demo 的 KM 沒有 Neo4j / TimescaleDB,所以「測試報告」的刪除在本機 demo 不會完成(KM 要求報告用的圖譜與數值庫清理);請對有這些庫的 KM 驗證。
 
 ## 模擬器的判定(依規格 v1.3 獨立撰寫,不 import KM 程式)
 
@@ -58,7 +73,7 @@ KM 驗證刪除完成後,CSIT 才移除自己的檔案。
 ## 自動化演練與測試
 
 ```bash
-TEST_DATABASE_URL=postgresql://user:pass@host/db python -m tools.csit_simulator.drill   # 66 項(v1.3 + v1.4),真實 HTTP
+TEST_DATABASE_URL=postgresql://user:pass@host/db python -m tools.csit_simulator.drill   # 84 項(v1.3 + v1.4 + v1.4.1),真實 HTTP
 python -m pytest tests/csit_simulator -q
 ```
 
