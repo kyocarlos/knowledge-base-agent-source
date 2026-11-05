@@ -6,6 +6,10 @@ from psycopg.types.json import Jsonb
 from .errors import IntegrationError, LeaseLost
 from .doclib_models import build_ingestion_callback, build_deletion_callback
 
+def doc_file_id(resource):
+    """A document-library resource names its file by documentFileId (v1) or documentId (v2)."""
+    return resource.get("documentFileId") or resource.get("documentId")
+
 class DocLibRepository:
     def __init__(self, db_url):
         self.db_url = db_url
@@ -71,6 +75,16 @@ class DocLibRepository:
         payload = builder(callback_id, job, status, **kw)
         c.execute("INSERT INTO km_csit_v13_callbacks(callback_id,kind,ref_id,payload) VALUES(%s,%s,%s,%s)",
                   (callback_id, kind, ref_id, Jsonb(payload)))
+    def _enqueue_deletion(self, c, row, status, **kw):
+        """v1 and v2 deletions share one table and worker; the row says which callback contract to use."""
+        if row.get("api_version") == "v2":
+            from .v2_models import build_deletion_callback_v2
+            self._enqueue(c, "deletion2", str(row["deletion_request_id"]), build_deletion_callback_v2, row, status, **kw)
+        else:
+            self._enqueue(c, "deletion", str(row["deletion_request_id"]), build_deletion_callback, row, status, **kw)
+    def v2_jobs_for_resource(self, job):
+        """Overridden by the v2 repository: local v2 job rows (storage directories) of exactly this source."""
+        return []
     def claim_callback(self, seconds):
         with self.connect() as c:
             return c.execute("""WITH candidate AS(
@@ -219,7 +233,7 @@ class DocLibRepository:
               FROM candidate WHERE j.deletion_request_id=candidate.deletion_request_id RETURNING j.*""",
               (uuid.uuid4(), lease_seconds, worker_id)).fetchone()
             if r and r["attempt_count"] == 1:
-                self._enqueue(c, "deletion", str(r["deletion_request_id"]), build_deletion_callback, r, "Processing")
+                self._enqueue_deletion(c, r, "Processing")
             return r
     def renew_deletion(self, job, seconds):
         with self.connect() as c:
@@ -234,7 +248,7 @@ class DocLibRepository:
             return []
         with self.connect() as c:
             return c.execute("SELECT csit_job_id,km_job_id,storage_references FROM km_csit_doclib_jobs WHERE document_file_id=%s",
-                             (job["resource"]["documentFileId"],)).fetchall()
+                             (doc_file_id(job["resource"]),)).fetchall()
     def purge_doclib_metadata(self, job):
         """Drop the analysed content for this source; the row stays as an audit stub with no content."""
         if job["source_type"] != "DocumentLibraryFile":
@@ -244,9 +258,9 @@ class DocLibRepository:
               request_payload='{}',original_file_name='[deleted]',standard_file_name=NULL,
               status=CASE WHEN status='Completed' THEN 'Deleted' ELSE status END
               WHERE document_file_id=%s AND (result_json IS NOT NULL OR storage_references<>'{}' OR request_payload<>'{}')""",
-              (job["resource"]["documentFileId"],)).rowcount
+              (doc_file_id(job["resource"]),)).rowcount
             c.execute("""DELETE FROM km_csit_doclib_checkpoints WHERE csit_job_id IN
-              (SELECT csit_job_id FROM km_csit_doclib_jobs WHERE document_file_id=%s)""", (job["resource"]["documentFileId"],))
+              (SELECT csit_job_id FROM km_csit_doclib_jobs WHERE document_file_id=%s)""", (doc_file_id(job["resource"]),))
             return n
     def metadata_residue(self, job):
         if job["source_type"] != "DocumentLibraryFile":
@@ -254,7 +268,7 @@ class DocLibRepository:
         with self.connect() as c:
             return c.execute("""SELECT count(*) AS n FROM km_csit_doclib_jobs WHERE document_file_id=%s AND
               (result_json IS NOT NULL OR storage_references<>'{}' OR request_payload<>'{}')""",
-              (job["resource"]["documentFileId"],)).fetchone()["n"]
+              (doc_file_id(job["resource"]),)).fetchone()["n"]
     def _owned_deletion(self, c, job):
         r = c.execute("""SELECT * FROM km_csit_deletion_jobs WHERE deletion_request_id=%s AND lease_token=%s
             AND lease_until>clock_timestamp() AND status='Processing' FOR UPDATE""", (job["deletion_request_id"], job["lease_token"])).fetchone()
@@ -268,7 +282,7 @@ class DocLibRepository:
               completed_at=clock_timestamp(),lease_token=NULL,lease_until=NULL,next_retry_at=NULL,last_error_code=NULL,
               last_error_message=NULL,cleanup_result=%s WHERE deletion_request_id=%s RETURNING *""",
               (Jsonb(result), job["deletion_request_id"])).fetchone()
-            self._enqueue(c, "deletion", str(r["deletion_request_id"]), build_deletion_callback, r, "Completed", result=result)
+            self._enqueue_deletion(c, r, "Completed", result=result)
     def fail_deletion(self, job, error, retry_delays):
         with self.connect() as c:
             r = c.execute("SELECT * FROM km_csit_deletion_jobs WHERE deletion_request_id=%s AND lease_token=%s AND status='Processing' FOR UPDATE",
@@ -287,4 +301,4 @@ class DocLibRepository:
               last_error_at=clock_timestamp(),failed_at=clock_timestamp(),updated_at=clock_timestamp(),lease_token=NULL,
               lease_until=NULL,next_retry_at=NULL WHERE deletion_request_id=%s RETURNING *""",
               (error.code, error.message, job["deletion_request_id"])).fetchone()
-            self._enqueue(c, "deletion", str(r["deletion_request_id"]), build_deletion_callback, r, "Failed", error=error)
+            self._enqueue_deletion(c, r, "Failed", error=error)

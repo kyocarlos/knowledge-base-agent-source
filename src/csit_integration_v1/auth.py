@@ -65,7 +65,8 @@ class JwtServiceTokenValidator:
             d.setdefault('failure_check','JWT_VALIDATION_FAILED')
         raise HTTPException(401,'Invalid service access token',headers={'WWW-Authenticate':'Bearer error="invalid_token"'}) from None
 
-def authorize(request: Request, validator: TokenValidator|None):
+def authorize(request: Request, validator: TokenValidator|None, accepted=None):
+    accepted=frozenset(accepted) if accepted else frozenset({SUBMIT_SCOPE})
     header=request.headers.get('authorization','')
     d={'authorization_header_present':bool(header),'bearer_scheme':header.startswith('Bearer '),
        'jwt_principal_created':False,'signing_key':'NOT_CHECKED','signature':'NOT_CHECKED',
@@ -82,9 +83,9 @@ def authorize(request: Request, validator: TokenValidator|None):
     if not isinstance(identity,ServiceIdentity) or not identity.client_id:
         d['failure_check']='SERVICE_IDENTITY_REQUIRED'
         raise HTTPException(401,'Service identity required')
-    if SUBMIT_SCOPE not in identity.scopes:
+    if not accepted&identity.scopes:
         d.update(scope='FAIL',failure_check='SUBMIT_SCOPE_MISSING')
-        raise HTTPException(403,'Missing km.ingestion.submit scope')
+        raise HTTPException(403,'Missing required scope')
     d.update(scope='PASS',endpoint_authorization='PASS')
     return identity
 
@@ -130,7 +131,7 @@ class ClientCredentialsProvider:
             audiences=claims["aud"] if isinstance(claims["aud"],list) else [claims["aud"]]
             if audiences!=[s.outbound_audience]:raise ValueError()
             if claims["principal_type"]!="service" or claims["client_id"]!=s.client_id or claims["sub"]!=s.client_id:raise ValueError()
-            if not isinstance(claims["scope"],str) or set(claims["scope"].split())!=set(OUTBOUND_SCOPES):
+            if not isinstance(claims["scope"],str) or set(claims["scope"].split())!=set(s.outbound_scopes):
                 raise IntegrationError("M2M_SCOPE_MISSING","Outbound service token scopes invalid")
             return claims
         except IntegrationError:raise
@@ -143,7 +144,7 @@ class ClientCredentialsProvider:
                 s=self.settings
                 secret=Path(s.secret_file).read_text().strip()
                 try:
-                    r=self.http.post(s.token_url,data={"grant_type":"client_credentials","scope":" ".join(OUTBOUND_SCOPES)},
+                    r=self.http.post(s.token_url,data={"grant_type":"client_credentials","scope":" ".join(s.outbound_scopes)},
                         auth=httpx.BasicAuth(s.client_id,secret))
                     if r.status_code in (401,403):
                         raise self._response_error("M2M_AUTH_FAILED","Outbound service authentication rejected",r,secret)
@@ -154,7 +155,7 @@ class ClientCredentialsProvider:
                     ttl=int(d["expires_in"])
                     if ttl<=0:raise ValueError()
                     # The response scope field is optional. Signed JWT claims remain mandatory.
-                    if "scope" in d and (not isinstance(d["scope"],str) or set(d["scope"].split())!=set(OUTBOUND_SCOPES)):
+                    if "scope" in d and (not isinstance(d["scope"],str) or set(d["scope"].split())!=set(s.outbound_scopes)):
                         raise IntegrationError("M2M_SCOPE_MISSING","Outbound response scopes invalid")
                     claims=self._validate_token(d["access_token"])
                     self._token=d["access_token"]

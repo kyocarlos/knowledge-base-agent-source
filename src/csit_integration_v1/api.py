@@ -85,4 +85,7 @@ def create_app(settings, repository, validator=None, doclib=None):
     if doclib is not None:
         from .doclib_api import register
         register(app,settings,doclib,lambda:validator)
+        if hasattr(doclib,'submit_job'):
+            from .v2_api import register as register_v2
+            register_v2(app,settings,doclib,lambda:validator)
     return app

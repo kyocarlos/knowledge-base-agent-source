@@ -20,8 +20,9 @@ class _Heartbeat:
 
 class DocLibWorker:
     """Ingestion, deletion and callback delivery loops for spec v1.3."""
-    def __init__(self,settings,repo,client,pipeline,executor):
+    def __init__(self,settings,repo,client,pipeline,executor,extra_steps=()):
         self.settings,self.repo,self.client,self.pipeline,self.executor=settings,repo,client,pipeline,executor
+        self.extra_steps=tuple(extra_steps) # (step, label) pairs run in their own loops (spec v1.4 work)
         self.id=uuid.uuid4().hex
     def process_one(self):
         s=self.settings
@@ -73,8 +74,9 @@ class DocLibWorker:
                 except Exception:
                     logger.warning("KM CSIT doclib "+label+" store unavailable")
                     stop_event.wait(self.settings.poll_seconds)
-        with ThreadPoolExecutor(max_workers=self.settings.worker_concurrency+2) as pool:
+        with ThreadPoolExecutor(max_workers=self.settings.worker_concurrency+2+len(self.extra_steps)) as pool:
             futures=[pool.submit(loop,self.process_one,"ingest") for _ in range(self.settings.worker_concurrency)]
             futures.append(pool.submit(loop,self.delete_one,"deletion"))
             futures.append(pool.submit(loop,self.callback_one,"callback"))
+            futures.extend(pool.submit(loop,step,label) for step,label in self.extra_steps)
             for f in futures:f.result()

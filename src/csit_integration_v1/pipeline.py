@@ -17,6 +17,24 @@ def stable_id(*parts):
 def lineage(job):
     p=job["request_payload"]
     return {k:p[k] for k in ("sourceSystem","project","case","task","documentId","version")}
+def check_ooxml(path,required,settings):
+    """Zip structure and expansion limits for an Office Open XML package."""
+    try:
+        with zipfile.ZipFile(path) as z:
+            infos=z.infolist()
+            if len(infos)>settings.zip_max_members or sum(x.file_size for x in infos)>settings.zip_max_expanded:
+                raise IntegrationError("ARCHIVE_LIMIT_EXCEEDED","Archive expansion limits exceeded")
+            for x in infos:
+                if x.file_size/max(1,x.compress_size)>settings.zip_max_ratio:
+                    raise IntegrationError("ARCHIVE_LIMIT_EXCEEDED","Archive compression ratio exceeded")
+                if x.filename.startswith(("/","\\")) or ".." in x.filename.replace("\\","/").split("/"):
+                    raise IntegrationError("UNSAFE_ARCHIVE","Archive member path unsafe")
+            names=set(z.namelist())
+            if required not in names or "[Content_Types].xml" not in names:
+                raise IntegrationError("CORRUPT_DOCUMENT","Office document structure invalid")
+    except (zipfile.BadZipFile,RuntimeError):
+        raise IntegrationError("CORRUPT_DOCUMENT","Office archive invalid") from None
+
 def validate_file(path,job,settings):
     suffix=Path(job["file_name"]).suffix.lower()
     if suffix not in FORMAT_MIME:raise IntegrationError("UNSUPPORTED_DOCUMENT_FORMAT","Document format unsupported")
@@ -26,22 +44,7 @@ def validate_file(path,job,settings):
     if head.startswith((b"MZ",b"\x7fELF")):raise IntegrationError("INVALID_FILE_SIGNATURE","Executable content rejected")
     if suffix==".pdf" and not head.startswith(b"%PDF-"):raise IntegrationError("INVALID_FILE_SIGNATURE","PDF signature invalid")
     if suffix in (".docx",".xlsx"):
-        try:
-            with zipfile.ZipFile(path) as z:
-                infos=z.infolist()
-                if len(infos)>settings.zip_max_members or sum(x.file_size for x in infos)>settings.zip_max_expanded:
-                    raise IntegrationError("ARCHIVE_LIMIT_EXCEEDED","Archive expansion limits exceeded")
-                for x in infos:
-                    if x.file_size/max(1,x.compress_size)>settings.zip_max_ratio:
-                        raise IntegrationError("ARCHIVE_LIMIT_EXCEEDED","Archive compression ratio exceeded")
-                    if x.filename.startswith(("/","\\")) or ".." in x.filename.replace("\\","/").split("/"):
-                        raise IntegrationError("UNSAFE_ARCHIVE","Archive member path unsafe")
-                names=set(z.namelist())
-                required="word/document.xml" if suffix==".docx" else "xl/workbook.xml"
-                if required not in names or "[Content_Types].xml" not in names:
-                    raise IntegrationError("CORRUPT_DOCUMENT","Office document structure invalid")
-        except (zipfile.BadZipFile,RuntimeError):
-            raise IntegrationError("CORRUPT_DOCUMENT","Office archive invalid") from None
+        check_ooxml(path,"word/document.xml" if suffix==".docx" else "xl/workbook.xml",settings)
     return suffix
 
 class Entity(BaseModel):

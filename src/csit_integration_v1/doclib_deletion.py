@@ -11,6 +11,8 @@ from pathlib import Path
 from .errors import IntegrationError
 from .pipeline import stable_id
 from .doclib_pipeline import doclib_dir
+from .doclib_repository import doc_file_id
+from .v2_pipeline import v2_dir
 
 REPORT_TYPES=("TestReport","VerificationApplicationAttachment")
 
@@ -28,21 +30,32 @@ class DeletionExecutor:
     # -- identity helpers --
     @staticmethod
     def _is_doclib(job):return job["source_type"]=="DocumentLibraryFile"
+    def _needs_report_stores(self,job):
+        """Graph and numeric stores hold Test Report data (and legacy v1 verification attachments); v2 sources write neither."""
+        t=job["source_type"]
+        if t=="TestReport":return True
+        if t=="VerificationApplicationAttachment":
+            r=job["resource"];return bool(self.repo.v1_job_ids(r["documentId"],r["version"]))
+        return False
     def _dirs(self,job):
         r=job["resource"]
         if self._is_doclib(job):
             return [doclib_dir(self.root,x["csit_job_id"]) for x in self.repo.doclib_jobs_for_resource(job)]
-        return [self.root/x for x in self.repo.v1_job_ids(r["documentId"],r["version"])]
+        return [self.root/x for x in self.repo.v1_job_ids(r["documentId"],r["version"])]+[v2_dir(self.root,x["event_id"]) for x in self.repo.v2_jobs_for_resource(job)]
 
     # -- qdrant --
     def _qdrant_filters(self,job):
         from qdrant_client.models import FieldCondition,Filter,MatchValue
         r=job["resource"]
         if self._is_doclib(job):
-            return [(self.doclib_collection,Filter(must=[FieldCondition(key="document_file_id",match=MatchValue(value=r["documentFileId"]))]))] if self.doclib_collection else []
+            return [(self.doclib_collection,Filter(must=[FieldCondition(key="document_file_id",match=MatchValue(value=doc_file_id(r)))]))] if self.doclib_collection else []
         must=[FieldCondition(key="document_id",match=MatchValue(value=r["documentId"])),
               FieldCondition(key="document_version",match=MatchValue(value=r["version"]))]
-        return [(c,Filter(must=list(must))) for c in self.report_collections]
+        out=[(c,Filter(must=list(must))) for c in self.report_collections]
+        if self.doclib_collection and "sourceEntityId" in r:
+            # v2 documents live in the document-library collection, addressed by source, entity, document and version.
+            out.append((self.doclib_collection,Filter(must=[FieldCondition(key="source_entity_id",match=MatchValue(value=r["sourceEntityId"])),*must])))
+        return out
     def _qdrant_count(self,job):
         total=0
         for collection,flt in self._qdrant_filters(job):
@@ -62,7 +75,7 @@ class DeletionExecutor:
     def _graph_queries(self,job):
         r=job["resource"]
         if self._is_doclib(job):
-            sv=stable_id("CSIT","DocumentLibraryFile",r["documentFileId"])
+            sv=stable_id("CSIT","DocumentLibraryFile",doc_file_id(r))
             return ("MATCH (n) WHERE n.sourceVersion=$sv RETURN count(n) AS n","MATCH (n) WHERE n.sourceVersion=$sv DETACH DELETE n",{"sv":sv})
         sv=stable_id("CSIT",r["documentId"],r["version"])
         params={"sv":sv,"did":r["documentId"],"ver":r["version"]}
@@ -79,6 +92,7 @@ class DeletionExecutor:
                    DETACH DELETE a,x,tr,rep,d""")
         return count,delete,params
     def _graph(self,job,delete):
+        if not self._is_doclib(job) and not self._needs_report_stores(job):return 0 # v2 pipelines never write a graph
         if self.neo4j is None:
             if self._is_doclib(job):return 0 # the document-library pipeline never writes a graph
             raise IntegrationError("CLEANUP_STORE_UNAVAILABLE","Graph store required for this source is not configured",True)
@@ -93,7 +107,7 @@ class DeletionExecutor:
 
     # -- timescale (numeric points) --
     def _numeric(self,job,delete):
-        if self._is_doclib(job):return 0 # no numeric points are written for document-library files
+        if not self._needs_report_stores(job):return 0 # no numeric points are written for document-library or v2 files
         if self.timescale is None:
             raise IntegrationError("CLEANUP_STORE_UNAVAILABLE","Numeric store required for this source is not configured",True)
         r=job["resource"]

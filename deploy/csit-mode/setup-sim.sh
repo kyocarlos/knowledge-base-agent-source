@@ -26,7 +26,7 @@ printf 'KM_CSIT_DB_URL=%s?options=-c%%20search_path%%3Dcsit_sim\n' "$URL" > "$KM
 chmod 600 "$KM_MODE_DIR/sim.db.env"
 
 docker exec -i "$DB_CONTAINER" psql -U km_control_app -d km_control -v ON_ERROR_STOP=1 -q -c "CREATE SCHEMA IF NOT EXISTS csit_sim"
-for f in 20261007_csit_integration_v1.sql 20261014_csit_integration_v1_nullable_lineage.sql 20261104_csit_document_library_v1.sql; do
+for f in 20261007_csit_integration_v1.sql 20261014_csit_integration_v1_nullable_lineage.sql 20261104_csit_document_library_v1.sql 20261105_csit_integration_v2.sql; do
   docker exec -e PGOPTIONS="-c search_path=csit_sim" -i "$DB_CONTAINER" psql -U km_control_app -d km_control -v ON_ERROR_STOP=1 -q < "$MIG/$f"
   echo "applied $f to csit_sim"
 done

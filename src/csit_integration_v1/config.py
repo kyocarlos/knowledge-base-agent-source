@@ -17,6 +17,11 @@ class Settings:
     client_id: str = ""
     secret_file: str = ""
     service_clients: tuple[str,...] = ()
+    # Scopes requested for the outbound token. Spec v1.3 names are the default; v1.4 suggests csit.documents.read,
+    # csit.km.status.write and csit.km.deletion-status.write (CSIT IT maps them), set via KM_CSIT_OUTBOUND_SCOPES.
+    outbound_scopes: tuple[str,...] = ("csit.document.read","csit.ingestion.status.write")
+    # Spec 5.4: v2 analysis-results for Test Report. Off until CSIT confirms which id is sourceEntityId; "documentId" uses it.
+    analysis_source_entity: str = ""
     service_claim: str = "principal_type"
     service_claim_value: str = "service"
     client_claim: str = "client_id"
