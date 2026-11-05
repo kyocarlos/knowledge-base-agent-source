@@ -15,7 +15,19 @@
 - 三條路由經 3030 nginx 皆回 401(證明路由到達 KM);`/health` 為 `integrationEnabled:false`;v1 筆數不變,doclib 表為空
 - 兩個新映像離線匯入通過;worker 映像可匯入 `redis`
 
-## 未做(需要人員決定)
-- **未啟用。** 整合在 2026-10-15 驗收後被凍結(FROZEN,worker OFF),`readiness` 標註「HUMAN / DBA CONFIRMATION REQUIRED」:worker 掛載的 DA40 Timescale 帳號 `kb_timeseries_da40` 是共用且權限過大的帳號,尚未輪替。啟用會同時重新啟動 v1 測試報告通道
-- 沒有有效 M2M token,無法驗證 422、503 與實際收件;沒有跟真實 CSIT 對測
-- 啟用還需要:`KM_CSIT_ENABLED=true`、`KM_CSIT_DOCLIB_ENABLED=true`、`KM_CSIT_DOCLIB_REDIS_URL=redis://km-da40-redis-1:6379/0`(未設定時不清搜尋快取)、啟動 worker(`--profile m2m-ready`)
+## 已啟用(2026-11-05,使用者授權解除凍結)
+| 項目 | 內容 |
+|---|---|
+| 開關 | api 與 worker:`KM_CSIT_ENABLED=true`、`KM_CSIT_DOCLIB_ENABLED=true`(`compose-v13-enabled.yml`);worker 以 `--profile m2m-ready` 啟動 |
+| 向量庫 | 文件庫寫入獨立的 `km_csit_docs`(768 維、Cosine,與 `knowledge_base` 相同設定,啟用前手動建立,已有 `document_file_id`、`csit_job_id`、`source_type` 索引);尚未接進 KM 的搜尋 |
+| 搜尋快取 | `KM_CSIT_DOCLIB_REDIS_URL=redis://km-da40-redis-1:6379/0`,驗證式刪除時清除 `search:*` |
+| 驗證 | api/worker 皆 healthy;`/health` 為 `integrationEnabled:true`;worker 以 M2M 憑證向 CSIT 身分服務取得 token 成功;api 與 worker 日誌無錯誤;三條路由經 nginx 皆回 401;v1 筆數 2 不變,doclib、callback、tombstone 皆為 0;3 筆舊的 `Failed` callback 不會被重送(只領取 `Pending`) |
+| 回到探測階段 | 以 `compose-v13-probe.yml` 重建 api,並停止、移除 worker |
+
+## 尚未驗證 / 已知限制
+- 沒有收過真實 CSIT 的文件庫通知:上傳、SHA256 核對、Completed 回報、驗證式刪除都只在本機模擬器驗證過。第一份真實文件要有人盯著看 `km_csit_doclib_jobs` 與日誌
+- 沒有有效的 CSIT→KM 入站 token,無法在伺服器上驗證 422、重送冪等
+- **LLM 擷取未啟用**(`KM_CSIT_DOCLIB_LLM` 未設):worker 映像沒有 `src.web_api`,`doclib_llm` 會失敗並回退為 `documentType="Other"`、`summary=null`、`keywords=[]`。要啟用需讓 worker 能呼叫主要 LLM
+- 文件庫的向量不在 KM 搜尋範圍(獨立 collection)
+- 問答的檔案型快取無法依文件清除
+- 啟用同時也重新啟動了 v1 測試報告通道;`kb_timeseries_da40` 帳號權限過大、尚未輪替的問題沒有解決
