@@ -149,3 +149,4 @@ CSIT 的分類變更通知不再改專區。程式:`zones.py`、`doclib_metadata
 - A（`src/zone_pages/catalog.py`）：`spread()` 找出問題中提到、且候選段落也提到的名稱（NG、Xn、型號…，最多 4 個），每個名稱至少帶 3 段，不足時換掉排名最低且無人需要的段落。只有一個名稱或沒有段落提到的名稱時結果不變。
 - 部署：worker `km-csit-worker:v14j-handoveragg-20261106`（images.env 備份 `~/.km-control/agg-20261106/images.env.before`，`csit-mode.sh reapply`）；DA40 web `km-da40-web:zone-pages-20261106e`（override 備份 `~/.km-control/agg-20261106/override.before`，還原則把 image 改回 `…20261106c`）。
 - 既有報告不會自動補彙總段落：需先刪除再重新上傳。
+- 回答規則（`src/zone_pages/agent.py`）：比較時差距約 2% 以內或在逐次量測的正常波動內，寫「差距很小」而不下優劣結論；樣本只有幾次時，成功率差一兩次也不下結論。DA40 web 為 `km-da40-web:zone-pages-20261106f`（還原則把 override 的 image 改回 `…20261106e`）。
