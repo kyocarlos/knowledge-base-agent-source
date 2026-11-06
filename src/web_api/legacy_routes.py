@@ -16,7 +16,7 @@ router = APIRouter(prefix="/api/legacy", tags=["Legacy documents"])
 ZONE_NAMES = {
     "csit": "CSIT雜項專區", "wifi": "WiFi 知識專區", "mobile": "4G/5G 知識專區", 
     "equipment": "設備預約知識專區", "cert": "認證與法規知識專區", "lab": "實驗室與測試環境知識專區",
-    "broadband": "固網寬頻知識專區", "admin": "部門與公司文管專區",
+    "broadband": "固網寬頻知識專區", "admin": "部門與公司文管專區", "integrations": "Confluence / Jira / TestRail 查詢專區",
 }
 
 
@@ -33,6 +33,14 @@ def _zone(key: str) -> str:
     if key in ZONE_NAMES.values():
         return key
     raise HTTPException(status_code=404, detail="no such zone")
+
+
+def _csit_zones(key: str) -> list[str] | None:
+    """The topic_zone values documents delivered by CSIT carry for this page: the zone's name and the names it had before."""
+    from ..csit_integration_v1.zones import PAGE_KEY, ZONE_BY_ID, search_names
+    key = key if key in ZONE_NAMES else next((k for k, v in ZONE_NAMES.items() if v == key), key)   # the request may carry the page key or the name
+    zone_id = next((z for z in ZONE_BY_ID if (PAGE_KEY.get(z, z)) == key), None)
+    return search_names(zone_id) if zone_id else None
 
 
 @lru_cache(maxsize=1)
@@ -111,7 +119,7 @@ async def legacy_document(document_id: str, request: Request):
 async def legacy_search(body: QueryBody, request: Request):
     _identity(request)
     name = _zone(body.zone)
-    hits = await run_in_threadpool(lambda: _search().search(body.query, zone=name, l1=body.l1, l2=body.l2, l3=body.l3, top_k=body.top_k))
+    hits = await run_in_threadpool(lambda: _search().search(body.query, zone=name, l1=body.l1, l2=body.l2, l3=body.l3, top_k=body.top_k, csit_zones=_csit_zones(body.zone)))
     return {"zone": name, "results": hits}
 
 
@@ -121,7 +129,7 @@ async def legacy_answer(body: QueryBody, request: Request):
     name = _zone(body.zone)
 
     def work():
-        hits = _search().search(body.query, zone=name, l1=body.l1, l2=body.l2, l3=body.l3, top_k=body.top_k)
+        hits = _search().search(body.query, zone=name, l1=body.l1, l2=body.l2, l3=body.l3, top_k=body.top_k, csit_zones=_csit_zones(body.zone))
         return browse.answer(_llm_complete(), body.query, hits)
 
     return {"zone": name, **await run_in_threadpool(work)}

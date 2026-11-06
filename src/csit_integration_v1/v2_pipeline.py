@@ -10,7 +10,7 @@ from .errors import IntegrationError,LeaseLost
 from .pipeline import FORMAT_MIME,Parser,Extraction,validate_file,check_ooxml,normalize,stable_id
 from .doclib_metadata import detect_language,clean_semantic,_page_count
 from .v2_models import SOURCE_SPECIFIC_DEFAULTS,validate_result_v2
-from .zones import zone_payload
+from .doclib_metadata import zone_fields
 
 PARSER_VERSION="km-csit-v2-parser-v1"
 PARSEABLE=tuple(FORMAT_MIME)+(".md",".pptx")
@@ -107,7 +107,7 @@ def metadata_payload(change_payload):
     cls=change_payload["classification"]
     a=change_payload["attributes"]
     names={k:(cls.get(k) or {}).get("name") for k in ("l1","l2","l3")}
-    return {"classification":names,**zone_payload(change_payload.get("sourceType"),names), # a changed L1 moves the document to another zone
+    return {"classification":names, # the zone stays: KM decided it from the content, CSIT's classification is not the zone
             "tags":a["tags"],"keywords":a["keywords"],"display_name":a["displayName"],
             "model_numbers":a["modelNumbers"],"vendor_reference":a["vendorReference"]}
 
@@ -128,7 +128,7 @@ class V2QdrantWriter:
         return Filter(must=[FieldCondition(key="source_entity_id",match=MatchValue(value=str(source_entity_id))),
                             FieldCondition(key="document_id",match=MatchValue(value=str(document_id))),
                             FieldCondition(key="document_version",match=MatchValue(value=int(version)))])
-    def write(self,text,job,overrides=None):
+    def write(self,text,job,overrides=None,semantic=None):
         from qdrant_client.models import PointStruct
         ident=identity_payload(job)
         chunks=[text[i:i+self.chunk_size] for i in range(0,len(text),self.chunk_size) if text[i:i+self.chunk_size].strip()]
@@ -137,7 +137,7 @@ class V2QdrantWriter:
         req=job["request_payload"]
         cls={k:(v or {}).get("name") for k,v in (req.get("classification") or {}).items() if isinstance(v,dict) or v is None}
         src=req.get("source") or {}
-        extra={"classification":cls,**zone_payload(job["source_type"],cls),**(overrides or {})}
+        extra={"classification":cls,**zone_fields(job["source_type"],cls,semantic,text),**(overrides or {})}
         # A re-ingest of the same version replaces its points instead of accumulating stale ones.
         self.client.delete(self.collection,points_selector=self.flt(job["source_entity_id"],job["document_id"],job["version"]),wait=True)
         points=[PointStruct(id=stable_id("CSIT",job["source_type"],str(job["source_entity_id"]),str(job["document_id"]),job["version"],job["expected_sha256"],"chunk",i),
@@ -203,7 +203,7 @@ class V2Pipeline:
             "extraction":extraction.model_dump(mode="json")},ensure_ascii=False,sort_keys=True),encoding="utf-8")
         self.repo.phase_job(job,"Qdrant")
         try:
-            indexed=self.qdrant.write(extraction.text,job,self.repo.overrides_job(job))
+            indexed=self.qdrant.write(extraction.text,job,self.repo.overrides_job(job),semantic)
             indexed_at=datetime.now(timezone.utc) # the upsert used wait=True: the points are durable now
         except IntegrationError:raise
         except Exception:raise IntegrationError("STORAGE_UNAVAILABLE","Vector index unavailable",True) from None

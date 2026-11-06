@@ -1,7 +1,8 @@
 """Reading imported legacy documents back: topic-zone search and Q&A (Qdrant) and the zone / category / document lists (Neo4j).
 
-Only points tagged origin = legacy_nas are ever read, so documents written through the CSIT paths never show up here and the Wi-Fi zone's own
-collections are untouched. The sensitive-document rule is applied at import time: those files are not in any store.
+Legacy points (origin = legacy_nas) are read from the shared collection; the Wi-Fi zone's own collections are untouched. Documents CSIT delivered carry the
+zone KM decided for them (topic_zone) and are read from the collections they were written to (CSIT_SOURCES), only when the caller names the zone's
+topic_zone values (csit_zones). The sensitive-document rule is applied at import time: those files are not in any store.
 """
 from __future__ import annotations
 
@@ -10,6 +11,9 @@ from typing import Callable
 COLLECTION = "ai_km_knowledge_v1"
 DENSE, SPARSE = "dense", "text"
 ORIGIN = "legacy_nas"
+# Where documents delivered by CSIT live: (collection, named vector or None, payload key of the passage text, extra must conditions).
+# Test Reports of the registered templates share ai_km_knowledge_v1 with the legacy documents, so only their CSIT points are taken from it.
+CSIT_SOURCES = (("km_csit_docs", None, "content", ()), ("knowledge_base", None, "content", ()), ("ai_km_knowledge_v1", DENSE, "chunk_text", (("source_system", "CSIT"),)))
 RRF_K = 60
 CANDIDATES = 60
 CONTEXT_PASSAGES = 8
@@ -38,8 +42,34 @@ def qdrant_filter(zone=None, l1=None, l2=None, l3=None, document_type=None, docu
 class ZoneSearch:
     """Hybrid (dense + keyword) retrieval inside one topic zone, merged with reciprocal-rank fusion and grouped by document."""
 
-    def __init__(self, client, encode: Callable, query_sparse: Callable):
+    def __init__(self, client, encode: Callable, query_sparse: Callable, csit_sources=CSIT_SOURCES):
         self.client, self.encode, self.query_sparse = client, encode, query_sparse
+        self.csit_sources = csit_sources
+
+    def _csit_documents(self, query: str, csit_zones: list[str]) -> list[dict]:
+        """Dense retrieval over the collections CSIT documents were written to, restricted to the zone; one document per hit, best passage first.
+        A collection that does not exist yet (nothing delivered so far) contributes nothing."""
+        from qdrant_client.models import FieldCondition, Filter, MatchAny, MatchValue
+        vector = list(map(float, self.encode([query])[0]))
+        documents: dict[tuple, dict] = {}
+        for collection, using, text_key, extra in self.csit_sources:
+            flt = Filter(must=[FieldCondition(key="topic_zone", match=MatchAny(any=csit_zones)), *[FieldCondition(key=k, match=MatchValue(value=v)) for k, v in extra]],
+                         must_not=[FieldCondition(key="index_state", match=MatchValue(value="Superseded"))])
+            try:
+                points = self.client.query_points(collection, query=vector, using=using, query_filter=flt, limit=CANDIDATES, with_payload=True).points
+            except Exception:
+                continue
+            for point in points:
+                p = point.payload or {}
+                doc_id = p.get("document_file_id") or p.get("document_id")
+                name = p.get("doc_name") or p.get("title") or doc_id
+                cls = p.get("classification") or {}
+                doc = documents.setdefault((collection, doc_id), {
+                    "document_id": doc_id, "title": name, "source_paths": [name], "topic_zone": p.get("topic_zone"), "l1": cls.get("l1"), "l2": cls.get("l2"),
+                    "l3": cls.get("l3"), "document_type": p.get("document_type") or p.get("source_type"), "document_date": None, "needs_review": p.get("zone_basis") == "none",
+                    "origin": "csit", "passages": []})
+                doc["passages"].append({"chunk_index": p.get("chunk_index"), "text": p.get(text_key) or ""})
+        return list(documents.values())
 
     def _ranked(self, query: str, flt) -> list:
         from qdrant_client.models import SparseVector
@@ -60,7 +90,22 @@ class ZoneSearch:
                 points[point.id] = point
         return [(scores[pid], points[pid]) for pid in sorted(scores, key=scores.get, reverse=True)]
 
-    def search(self, query: str, *, zone=None, l1=None, l2=None, l3=None, document_type=None, top_k: int = 10) -> list[dict]:
+    def search(self, query: str, *, zone=None, l1=None, l2=None, l3=None, document_type=None, top_k: int = 10, csit_zones=None) -> list[dict]:
+        hits = self._legacy_search(query, zone=zone, l1=l1, l2=l2, l3=l3, document_type=document_type, top_k=top_k)
+        if not csit_zones or l1 or l2 or l3 or document_type:   # the category filters are the legacy taxonomy's; CSIT documents have none of it
+            return hits
+        theirs = self._csit_documents(query.strip(), list(csit_zones))
+        if not theirs:
+            return hits
+        # Two independent retrievers with different score scales: merge by rank (reciprocal-rank fusion), as the dense and keyword lists already are.
+        fused: dict[int, float] = {}
+        merged = hits + theirs
+        for group in (hits, theirs):
+            for rank, doc in enumerate(group):
+                fused[id(doc)] = 1.0 / (RRF_K + rank + 1)
+        return [doc for doc in sorted(merged, key=lambda d: fused[id(d)], reverse=True)][:top_k]
+
+    def _legacy_search(self, query: str, *, zone=None, l1=None, l2=None, l3=None, document_type=None, top_k: int = 10) -> list[dict]:
         ranked = self._ranked(query.strip(), qdrant_filter(zone, l1, l2, l3, document_type))
         documents: dict[str, dict] = {}
         for score, point in ranked:

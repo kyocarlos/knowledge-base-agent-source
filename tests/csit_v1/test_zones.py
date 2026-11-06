@@ -83,13 +83,10 @@ def test_v2_points_carry_the_zone(source,l1,zone):
     assert {p.payload["zone_id"] for p in c.points}=={zone}
 
 
-def test_a_metadata_change_moves_the_document_to_the_zone_of_its_new_l1():
+def test_a_metadata_change_never_moves_a_document_between_zones():
     p=metadata_payload({"sourceType":"DocumentLibraryFile","classification":{"l1":{"id":"40","name":"行動通訊知識專區"},"l2":None,"l3":None},
                         "attributes":{"tags":[],"keywords":[],"displayName":None,"modelNumbers":[],"vendorReference":None}})
-    assert (p["zone_id"],p["topic_zone"])==("mobile","行動通訊知識專區") and p["classification"]["l1"]=="行動通訊知識專區"
-    q=metadata_payload({"sourceType":"TestReport","classification":{"l1":{"id":"20","name":"WiFi 知識專區"},"l2":None,"l3":None},
-                        "attributes":{"tags":[],"keywords":[],"displayName":None,"modelNumbers":[],"vendorReference":None}})
-    assert q["zone_id"]=="verification"
+    assert "zone_id" not in p and "topic_zone" not in p and p["classification"]["l1"]=="行動通訊知識專區"
 
 
 def test_v1_test_report_points_are_product_verification():
@@ -109,3 +106,61 @@ def test_registered_template_reports_and_their_graph_document_are_product_verifi
     assert payload(pkg,chunk,"m","v1")["topic_zone"]=="產品驗證專區" and _zone("CSIT")=="產品驗證專區"
     pkg["policy"]["source_system"]="ManualUpload"
     assert "topic_zone" not in payload(pkg,chunk,"m","v1") and _zone("ManualUpload") is None
+
+
+# ---------- the content decides (CSIT does not classify): the LLM names the zone ----------
+from src.csit_integration_v1.doclib_metadata import clean_semantic, llm_prompt, zone_fields
+
+
+def test_a_document_the_llm_recognises_as_a_test_report_is_product_verification_whatever_its_technology_or_source():
+    assert resolve_zone("DocumentLibraryFile","WiFi 知識專區","TestReport","wifi")==("verification","產品驗證專區","document_type")
+    assert resolve_zone("VendorFile",None,"TestReport","equipment")[0]=="verification"
+
+
+def test_other_documents_go_to_the_zone_the_llm_named_even_against_the_csit_l1():
+    assert resolve_zone("DocumentLibraryFile","WiFi 知識專區","Specification","mobile")==("mobile","行動通訊知識專區","llm")
+    assert resolve_zone("VendorFile",None,"Manual","lab")[0]=="lab"
+
+
+def test_without_a_usable_hint_the_old_rules_apply():
+    assert resolve_zone("DocumentLibraryFile","認證知識專區","SOP",None)[2]=="classification"
+    assert resolve_zone("VendorFile",None,"SOP","nonsense")[2]=="source_default"
+    assert resolve_zone("DocumentLibraryFile",None,"SOP",None)[2]=="none"
+
+
+def test_clean_semantic_turns_the_llm_zone_into_an_id_and_drops_anything_else():
+    assert clean_semantic({"zone":"固網寬頻知識專區"},"t")["zone_hint"]=="broadband"
+    assert clean_semantic({"zone":"4G/5G 知識專區"},"t")["zone_hint"]=="mobile"
+    assert clean_semantic({"zone":"無法判斷"},"t")["zone_hint"] is None
+    assert clean_semantic({"zone":"某個不存在的專區"},"t")["zone_hint"] is None
+    assert clean_semantic({"zone":5},"t")["zone_hint"] is None and clean_semantic(None,"t")["zone_hint"] is None
+
+
+def test_the_prompt_lists_every_zone_and_the_test_report_rule():
+    prompt=llm_prompt("內容")
+    assert all(name in prompt for _,name in ZONES) and "無法判斷" in prompt and "TestReport" in prompt and "不看檔名" in prompt
+
+
+def test_zone_fields_combine_the_documents_type_and_the_llms_zone():
+    assert zone_fields("DocumentLibraryFile",{"l1":None},{"documentType":"TestReport","zone":"WiFi 知識專區"},"t")["zone_id"]=="verification"
+    assert zone_fields("DocumentLibraryFile",{"l1":None},{"documentType":"Manual","zone":"認證知識專區"},"t")=={"zone_id":"cert","topic_zone":"認證知識專區","zone_basis":"llm"}
+    assert zone_fields("DocumentLibraryFile",{"l1":None},None,"t")["zone_id"]=="unclassified"
+
+
+def test_library_points_follow_the_llm_zone_not_the_csit_l1():
+    c=Client()
+    DocLibQdrantWriter(c,"km_csit_docs",embed,1000).write("hello world",{"document_file_id":"f1","csit_job_id":"j","original_file_name":"a.txt","expected_sha256":"a"*64,
+        "request_payload":{"classification":{"l1":{"id":"20","name":"WiFi 知識專區"},"l2":None,"l3":None}}},{"documentType":"Manual","zone":"行動通訊知識專區"})
+    assert {(p.payload["zone_id"],p.payload["zone_basis"]) for p in c.points}=={("mobile","llm")}
+
+
+def test_v2_points_of_a_recognised_test_report_are_product_verification():
+    c=Client()
+    V2QdrantWriter(c,"km_csit_docs",embed,1000).write("hello world",v2_job("VendorFile",None),None,{"documentType":"TestReport","zone":"設備儀器專區"})
+    assert {(p.payload["zone_id"],p.payload["zone_basis"]) for p in c.points}=={("verification","document_type")}
+
+
+def test_search_names_include_the_names_a_zone_had_before():
+    from src.csit_integration_v1.zones import search_names
+    assert "4g/5g 知識專區" in search_names("mobile") and search_names("mobile")[0]=="行動通訊知識專區"
+    assert "csit雜項專區" in search_names("verification")

@@ -77,28 +77,25 @@ function draw(){drawNav();({docs:drawDocs,traffic:drawTraffic,km:drawKm,live:dra
 function taxOpts(nodes,sel){return '<option value="">—</option>'+nodes.map(n=>`<option value="${n.id}" ${n.id===sel?'selected':''}>${esc(n.name)}</option>`).join('')}
 let up={l1:'',l2:'',l3:'',text:'CSIT 測試文件。This manual describes the Wi-Fi 7 access point FSW26 setup procedure. Spectrum analyzer calibration steps are listed in section 3.',name:'manual.txt',auto:false,st:'DocumentLibraryFile',sup:''};
 function drawUp(){const e=$('upc');if(!e)return;const f=$('f')?.files?.[0];e.innerHTML=uploadCard();if(f){try{const dt=new DataTransfer();dt.items.add(f);$('f').files=dt.files}catch(x){}}}
-const HOME={VerificationApplicationAttachment:'產品驗證專區',VendorFile:'設備儀器專區',EquipmentAttachment:'設備儀器專區'};
-function homeL1(){up.l2='';up.l3='';up.l1={TestReport:'60',VerificationApplicationAttachment:'60',VendorFile:'10',EquipmentAttachment:'10'}[up.st]||up.l1}
-function zoneNow(){if(up.st==='TestReport')return'產品驗證專區';return taxo.find(n=>n.id===up.l1)?.name||HOME[up.st]||'待分類'}
 function uploadCard(){
   const l1=taxo.find(n=>n.id===up.l1),l2=l1?.children.find(n=>n.id===up.l2);
   return `<div class="card"><h2>上傳文件</h2><div class="row">
   <label>選擇檔案(txt / csv / md / xlsx / pptx / pdf / docx;其他格式 KM 會回 Failed)<input id="f" type="file"></label>
   <label>或輸入文字內容<input id="txt" size="40" value="${esc(up.text)}" oninput="up.text=this.value"></label>
   <label>檔名<input id="nm" size="14" value="${esc(up.name)}" oninput="up.name=this.value"></label>
-  <label>來源<select onchange="up.st=this.value;up.sup='';homeL1();drawUp()">${[['DocumentLibraryFile','文件專區(v1.3)'],['TestReport','測試報告(v1;換版走 v2)'],['VerificationApplicationAttachment','驗證申請附件(v1.4)'],['VendorFile','廠商檔案(v1.4)'],['EquipmentAttachment','設備附件(v1.4)']].map(([v,t])=>`<option value="${v}" ${up.st===v?'selected':''}>${t}</option>`).join('')}</select></label>
+  <label>來源<select onchange="up.st=this.value;up.sup='';drawUp()">${[['DocumentLibraryFile','文件專區(v1.3)'],['TestReport','測試報告(v1;換版走 v2)'],['VerificationApplicationAttachment','驗證申請附件(v1.4)'],['VendorFile','廠商檔案(v1.4)'],['EquipmentAttachment','設備附件(v1.4)']].map(([v,t])=>`<option value="${v}" ${up.st===v?'selected':''}>${t}</option>`).join('')}</select></label>
   ${up.st!=='DocumentLibraryFile'?`<label>取代舊版本<select onchange="up.sup=this.value"><option value="">—(新文件)</option>${S.docs.filter(x=>x.sourceType===up.st&&x.stage!=='Purged').map(x=>`<option value="${x.id}" ${up.sup===x.id?'selected':''}>${esc(x.name)} v${x.version} · ${x.id.slice(0,8)}</option>`).join('')}</select></label>`:''}</div>
-  <div class="row" style="margin-top:8px"><label>分類 L1(= KM 專區)<select ${up.st==='TestReport'?'disabled title="測試報告固定歸產品驗證專區"':''} onchange="up.l1=this.value;up.l2='';up.l3='';drawUp()">${taxOpts(taxo,up.l1)}</select></label>
+  <div class="row" style="margin-top:8px"><label>分類 L1<select onchange="up.l1=this.value;up.l2='';up.l3='';drawUp()">${taxOpts(taxo,up.l1)}</select></label>
   <label>L2<select onchange="up.l2=this.value;up.l3='';drawUp()">${taxOpts(l1?.children||[],up.l2)}</select></label>
   <label>L3<select onchange="up.l3=this.value">${taxOpts(l2?.children||[],up.l3)}</select></label>
   <label style="flex-direction:row;align-items:center;gap:6px;color:var(--fg)"><input type="checkbox" ${up.auto?'checked':''} onchange="up.auto=this.checked"> 上傳後自動核准 / 歸檔 / 派送</label>
   <button onclick="upload()">上傳</button></div>
-  <div class="mute" style="margin-top:6px">KM 會把文件抽取到 <b>${esc(zoneNow())}</b>${up.st==='TestReport'?'(測試報告固定歸產品驗證專區)':up.l1?'(依 L1)':'(未選 L1:'+(HOME[up.st]?'依來源預設':'待分類')+')'}。</div>
+  <div class="mute" style="margin-top:6px">專區由 KM 讀內容決定:${up.st==='TestReport'?'<b>測試報告固定歸產品驗證專區</b>':'測試報告類內容歸產品驗證專區,其他文件依內容主題歸入各專區(WiFi、行動通訊、固網寬頻、認證…)'};CSIT 這裡選的分類只是帶給 KM 的參考,不決定專區。</div>
   <div class="mute" style="margin-top:6px">預設停在「待核准」,每一步由你手動按,方便觀察 KM 在哪個時間點收到什麼。</div></div>`}
 async function upload(){const f=$('f').files[0],spec={fileName:f?f.name:up.name,classification:{l1:up.l1,l2:up.l2,l3:up.l3},autoRun:up.auto,sourceType:up.st,supersedesDocId:up.sup||undefined};
   if(f){const buf=new Uint8Array(await f.arrayBuffer());let s='';for(let i=0;i<buf.length;i+=8192)s+=String.fromCharCode.apply(null,buf.subarray(i,i+8192));spec.contentBase64=btoa(s);spec.contentType=f.type||'application/octet-stream'}
   else spec.contentText=up.text;
-  if(up.st==='TestReport')spec.classification.l1='60';const d=await api('/api/docs',spec);if(d){sel=d.id;await load()}}
+  const d=await api('/api/docs',spec);if(d){sel=d.id;await load()}}
 function drawDocs(){
   const m=$('main');sig='';
   m.innerHTML=`<div id="upc">${uploadCard()}</div><div class="split"><div class="card" style="overflow:auto"><h2>文件專區(${S.docs.length})</h2>${S.docs.length?`<table><tr><th>文件</th><th>分類</th><th>狀態</th><th>操作</th></tr>`+

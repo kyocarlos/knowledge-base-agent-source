@@ -5,7 +5,7 @@ from pathlib import Path
 from .errors import IntegrationError,LeaseLost
 from .pipeline import FORMAT_MIME,Parser,validate_file,normalize,stable_id
 from .doclib_metadata import build_result
-from .zones import zone_payload
+from .doclib_metadata import zone_fields
 
 PARSER_VERSION="km-csit-doclib-parser-v1"
 
@@ -24,7 +24,7 @@ class DocLibQdrantWriter:
     def flt(self,document_file_id):
         from qdrant_client.models import FieldCondition,Filter,MatchValue
         return Filter(must=[FieldCondition(key="document_file_id",match=MatchValue(value=str(document_file_id)))])
-    def write(self,text,job):
+    def write(self,text,job,semantic=None):
         from qdrant_client.models import PointStruct
         fid=str(job["document_file_id"])
         chunks=[text[i:i+self.chunk_size] for i in range(0,len(text),self.chunk_size) if text[i:i+self.chunk_size].strip()]
@@ -38,7 +38,7 @@ class DocLibQdrantWriter:
             payload={"content":t,"source_system":"CSIT","source_type":"DocumentLibraryFile","document_file_id":fid,
                 "csit_job_id":str(job["csit_job_id"]),"doc_name":job["original_file_name"],"source_name":job["original_file_name"],
                 "source_ext":Path(job["original_file_name"]).suffix.lower(),"chunk_index":i,"sha256":job["expected_sha256"],
-                "classification":names,**zone_payload("DocumentLibraryFile",names)}) for i,(t,v) in enumerate(zip(chunks,vectors))]
+                "classification":names,**zone_fields("DocumentLibraryFile",names,semantic,text)}) for i,(t,v) in enumerate(zip(chunks,vectors))]
         if points:self.client.upsert(collection_name=self.collection,points=points,wait=True)
         return {"collection":self.collection,"pointCount":len(points),"indexId":self.collection+"/"+fid}
     def delete(self,document_file_id):
@@ -74,7 +74,7 @@ class DocLibPipeline:
             "parserVersion":PARSER_VERSION,"extraction":extraction.model_dump(mode="json")},ensure_ascii=False,sort_keys=True),encoding="utf-8")
         self.repo.phase(job,"Qdrant")
         try:
-            indexed=self.qdrant.write(extraction.text,job)
+            indexed=self.qdrant.write(extraction.text,job,semantic)
             indexed_at=datetime.now(timezone.utc) # Qdrant upsert used wait=True: the points are durable now.
         except IntegrationError:raise
         except Exception:raise IntegrationError("STORAGE_UNAVAILABLE","Vector index unavailable",True) from None
