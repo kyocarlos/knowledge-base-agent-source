@@ -109,9 +109,21 @@ class ZoneAgent:
         turns = [{"role": t["role"], "content": str(t["content"])[:1500]} for t in history[-HISTORY_TURNS:] if t.get("role") in ("user", "assistant")]
         return [{"role": "system", "content": SYSTEM.format(zone=zone_label)}, *turns, {"role": "user", "content": f"資料：\n{context}\n\n問題：{question}"}]
 
+    def _ask_which(self, task_id: str, question: str, owner: dict, consult: dict, started: float, emit: Callable[[dict], None]) -> dict[str, Any]:
+        labels = [consult["labels"][rt] for rt in consult["clarify"]]
+        text = f"你的問題可以對應到這個專區的{'、'.join(f'「{label}」' for label in labels)}報告，但沒有說明是哪一種。請問要查哪一種？可以直接點下面的選項，或自己補充說明。"
+        emit({"type": "tool", "label": "確認要查的報告類型"})
+        emit({"type": "delta", "text": text})
+        return {"task_id": task_id, "owner": owner, "status": "completed", "question": question, "answer_main": text, "citations": [], "stop_reason": "clarification（需要補充）",
+                "trace": [{"tool": "ask_clarification"}], "grounding": grounding(text, "", 0, 0), "extension": {"related": "", "followups": [f"{question}（{label}）" for label in labels]},
+                "elapsed_ms": int((self.clock() - started) * 1000)}
+
     def answer(self, *, task_id: str, zone_label: str, zone_names: list[str], question: str, history: list[dict], owner: dict, file_records: dict[str, dict],
                emit: Callable[[dict], None], with_stats: bool = False) -> dict[str, Any]:
         started = self.clock()
+        consult = self.stats.consult(question, history) if with_stats and self.stats is not None and self.complete is not None else None
+        if consult and consult["clarify"]:       # more than one kind of report could be meant: ask, do not pick one
+            return self._ask_which(task_id, question, owner, consult, started, emit)
         trace = [{"tool": "search_documents"}]
         emit({"type": "tool", "label": "搜尋專區文件"})
         hits = self.catalog.search(question, zone_names, top_k=PASSAGES, include_history=bool(HISTORY_WORDS.search(question)))
@@ -122,8 +134,8 @@ class ZoneAgent:
             trace.append({"tool": "search_user_files"})
             passages += file_passages(file_records, question)
         passages = passages[:PASSAGES + FILE_PASSAGES]
-        if with_stats and self.stats is not None and self.complete is not None:
-            numbers = self.stats.passages(question)    # computed by the database from the stored measurements, cited like any passage
+        if consult:
+            numbers = consult["passages"]              # computed by the database from the stored measurements, cited like any passage
             if numbers:
                 emit({"type": "tool", "label": "查詢測試數據"})
                 trace.append({"tool": "query_test_data"})

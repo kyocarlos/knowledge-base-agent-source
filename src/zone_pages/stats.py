@@ -14,7 +14,9 @@ from typing import Any, Callable
 
 from ..report_numeric import stats as rs
 
-REPORT_ZH = {"wifi_throughput": "WiFi 吞吐量", "wifi_rvr": "WiFi RvR（吞吐量與 RSSI 隨衰減／角度）", "cellular_throughput": "蜂巢式吞吐量", "cellular_handover": "蜂巢式換手"}
+REPORT_ZH = {"wifi_throughput": "WiFi 吞吐量", "wifi_rvr": "WiFi RvR", "cellular_throughput": "5G 吞吐量", "cellular_handover": "5G 換手"}
+REPORT_NOTE = {"wifi_throughput": "各頻段、頻寬、通道的吞吐量；問題只說「吞吐量」又是 WiFi 時用這個", "wifi_rvr": "吞吐量與 RSSI 隨衰減、角度變化；問題提到 RvR、衰減、角度、距離才用",
+               "cellular_throughput": "5G／蜂巢式 Small Cell 的吞吐量；問題只說「吞吐量」又是 5G 時用這個", "cellular_handover": "5G 換手測試；問題提到換手或 Handover 才用"}
 METRIC_ZH = {"throughput": "吞吐量", "rssi": "RSSI", "latency_rtt": "RTT 延遲", "rsrp": "RSRP", "rsrq": "RSRQ", "sinr": "SINR", "udp_lost_ratio": "UDP 遺失率",
              "pass_count": "通過筆數", "fail_count": "失敗筆數", "total_count": "總筆數", "pass_rate": "通過率", "latency_rtt_before_ho": "換手前延遲",
              "latency_rtt_after_ho": "換手後延遲", "throughput_before_ho": "換手前下行吞吐量", "throughput_after_ho": "換手後下行吞吐量", "ho_success": "換手成功",
@@ -27,10 +29,13 @@ SHOWN_VALUES = 14
 
 PLAN_PROMPT = """你把問題轉成測試報告數據的查詢計畫，只輸出一個 JSON 物件，不要其他文字。
 需要「統計或比較測試報告的數值」（平均、最大、最小、成功率、總數、中位數、百分位數、某幾次到某幾次、某個條件下的數值、不同測試項目或設備的比較）才查；只問說明、流程、目的、規格文字時 needed 填 false。
-一個計畫只能查一種報告類型；問題要跨類型時選最主要的一種。所有值只能從下面「資料庫現有資料」選，沒有把握的欄位留空，不要猜。
+一個計畫只能查一種報告類型。所有值只能從下面「資料庫現有資料」選，沒有把握的欄位留空，不要猜。
+如果問題沒有說明技術（例如 WiFi 或 5G／蜂巢式）、沒有點名設備，而資料庫裡有兩種以上的報告類型都可能是它要的（例如同時有 wifi_throughput 與 cellular_throughput），不要自己挑：needed 填 true、report_type 留空、clarify 填這些候選報告類型代碼；問題已經說明技術、點名了只屬於其中一種的設備、或只有一種類型符合時，clarify 留空。
+判斷哪些類型是候選時看問題用的詞：單純問「吞吐量」只考慮吞吐量類型（不含 RvR 與換手）；只有提到 RvR、衰減、角度、距離才選 RvR；只有提到換手或 Handover 才選換手；問題已說 WiFi 就只考慮 WiFi 的類型，已說 5G、蜂巢式或 Small Cell 就只考慮 5G 的類型。
 欄位：
 - needed：true 或 false
-- report_type：報告類型代碼
+- report_type：報告類型代碼（需要澄清時留空）
+- clarify：需要反問使用者時的候選報告類型代碼陣列，否則是空陣列
 - products：問題提到的設備型號陣列，沒提到就是空陣列（代表全部設備）
 - metrics：要看的指標名稱陣列，沒指定就是空陣列（代表該類型全部指標）
 - filters：條件物件，鍵可用 band、center_freq_mhz、bandwidth_mhz、channel、direction、attenuation_db、angle_deg、traffic_mode、protocol、statistic、time_slot、test_cases（測試項目代碼陣列）；問題沒提到的條件不要放
@@ -43,7 +48,7 @@ PLAN_PROMPT = """你把問題轉成測試報告數據的查詢計畫，只輸出
 def describe(cat: dict) -> str:
     lines = []
     for rt, t in cat.items():
-        lines.append(f"- {rt}（{REPORT_ZH.get(rt, rt)}）")
+        lines.append(f"- {rt}（{REPORT_ZH.get(rt, rt)}" + (f"：{REPORT_NOTE[rt]}" if rt in REPORT_NOTE else "") + "）")
         lines.append("  設備：" + "、".join(dict.fromkeys(p["model"] for p in t["products"])))
         lines.append("  指標：" + "、".join(f"{m['name']}（{m['unit']}）" for m in t["metrics"]))
         for d, values in t["dims"].items():
@@ -72,6 +77,16 @@ def _bound(v: Any) -> int | None:
 
 def _known(value: Any, allowed: list) -> bool:
     return any(str(value).lower() == str(a).lower() for a in allowed)
+
+
+def clarification(plan: dict, cat: dict) -> list[str]:
+    """The report types to ask the user to choose from: at least two the catalog holds, and (when the question names a device) the device in more than one of them.
+    The model only proposes; a device that belongs to one type settles the question, so nothing is asked then."""
+    options = [rt for rt in dict.fromkeys(plan.get("clarify") or []) if rt in cat]
+    names = [str(p).lower() for p in plan.get("products") or [] if str(p).strip()]
+    if names:
+        options = [rt for rt in options if any(n in (p["id"].lower(), p["model"].lower()) or n in p["model"].lower() for n in names for p in cat[rt]["products"])]
+    return options if len(options) > 1 else []
 
 
 def to_query(plan: dict, cat: dict) -> dict | None:
@@ -146,26 +161,34 @@ def render_empty(params: dict) -> str:
 
 
 class ReportStats:
-    """`passages(question)` returns the passage to add (or nothing). `complete` is the text model the answers use; `source` opens the database:
-    a context manager yielding an object with `catalog()` and `stats(**params)`."""
+    """`consult(question, history)` returns {"passages": [...], "clarify": [...]}: the passage to add, or the report types to ask the user to choose between.
+    `complete` is the text model the answers use; `source` opens the database: a context manager yielding an object with `catalog()` and `stats(**params)`."""
 
     def __init__(self, complete: Callable[[list[dict]], str], source: Callable[[], AbstractContextManager]):
         self.complete, self.source = complete, source
 
-    def passages(self, question: str) -> list[dict]:
+    def consult(self, question: str, history: list[dict] | None = None) -> dict:
+        nothing = {"passages": [], "clarify": [], "labels": {}}
+        previous = next((str(t["content"])[:300] for t in reversed(history or []) if t.get("role") == "user"), "")
+        asked = f"（前一個提問：{previous}）\n目前的問題：{question}" if previous else question
         try:
             with self.source() as db:
                 cat = db.catalog()
                 if not cat:
-                    return []
-                plan = parse_plan(self.complete([{"role": "system", "content": PLAN_PROMPT + describe(cat)}, {"role": "user", "content": question}]))
-                params = to_query(plan, cat) if plan else None
+                    return nothing
+                plan = parse_plan(self.complete([{"role": "system", "content": PLAN_PROMPT + describe(cat)}, {"role": "user", "content": asked}]))
+                if plan is None:
+                    return nothing
+                options = clarification(plan, cat)
+                if options:
+                    return {"passages": [], "clarify": options, "labels": {rt: REPORT_ZH.get(rt, rt) for rt in options}}
+                params = to_query(plan, cat)
                 if params is None:
-                    return []
+                    return nothing
                 result = db.stats(**params)
         except Exception:                          # no database, an unknown product, a refused parameter: the answer then rests on the passages
-            return []
+            return nothing
         docs = ", ".join(dict.fromkeys(r["document_id"] for r in result["rows"])) or params["report_type"]
         content = render(result, params) if result["rows"] else render_empty(params)
-        return [{"source": f"測試數據彙總（{docs}）", "revision_id": f"timescale:{docs[:40]}", "location_label": "資料庫計算結果", "publisher": "資料庫彙總",
-                 "analysis_eligible": True, "content": content, "limit": MAX_CHARS}]
+        return {"passages": [{"source": f"測試數據彙總（{docs}）", "revision_id": f"timescale:{docs[:40]}", "location_label": "資料庫計算結果", "publisher": "資料庫彙總",
+                              "analysis_eligible": True, "content": content, "limit": MAX_CHARS}], "clarify": [], "labels": {}}

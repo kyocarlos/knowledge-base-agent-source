@@ -140,16 +140,16 @@ def plan_reply(**kw):
 
 
 def test_a_failure_adds_nothing_and_no_match_is_said_plainly():
-    ask = lambda **kw: stats.ReportStats(lambda m: plan_reply(), lambda: fake_source(**kw)).passages("5GHz 80MHz 下行平均？")
+    ask = lambda **kw: stats.ReportStats(lambda m: plan_reply(), lambda: fake_source(**kw)).consult("5GHz 80MHz 下行平均？")["passages"]
     assert ask()[0]["publisher"] == "資料庫彙總" and ask()[0]["limit"] == stats.MAX_CHARS
     assert "沒有符合此查詢的數據" in ask(rows=[])[0]["content"]
     assert ask(boom=True) == [] and ask(cat={}) == []
-    assert stats.ReportStats(lambda m: json.dumps({"needed": False}), lambda: fake_source()).passages("目的是什麼") == []
-    assert stats.ReportStats(lambda m: plan_reply(report_type="zzz"), lambda: fake_source()).passages("?") == []
+    assert stats.ReportStats(lambda m: json.dumps({"needed": False}), lambda: fake_source()).consult("目的是什麼")["passages"] == []
+    assert stats.ReportStats(lambda m: plan_reply(report_type="zzz"), lambda: fake_source()).consult("?")["passages"] == []
 
     def broken():
         raise RuntimeError("database down")
-    assert stats.ReportStats(lambda m: plan_reply(), broken).passages("?") == []
+    assert stats.ReportStats(lambda m: plan_reply(), broken).consult("?")["passages"] == []
 
 
 class Catalog:

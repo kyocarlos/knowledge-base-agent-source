@@ -169,3 +169,12 @@ CSIT 的分類變更通知不再改專區。程式:`zones.py`、`doclib_metadata
 - `src/zone_pages/agent.py`：資料庫彙總段落可超過一般段落的 700 字上限（`limit`）。
 - DA40 web：`km-da40-web:zone-pages-20261106i`（還原則把 override 的 image 改回 `…20261106g`，備份在 `~/.km-control/agg-20261106/`）。
 - 驗證：在一個交易裡寫入伺服器上現成的 `SIT-TR-WL-Throughput-PKE3540J`、`SIT-TR-WL-RvR-NCM1150D2`、`SIT-TR-SC-NR-Throughput-SCU5050` 報告，以真實模型問四種題型，數值都由資料庫彙總段落提供、沒有被標為找不到依據，最後 rollback。注意：第一次探測腳本沒有先開交易，`write_package` 自己 commit 了一筆 SCU5050 測試報告（csit_id `p`），已確認並只刪除該筆（test_run 回到 1 筆、量測 1792 筆）。以後驗證腳本一定先開交易再寫入。
+
+## 報告分類補強與反問（2026-11-06）
+
+- **分類（worker）**：原本只看檔名前綴（`SIT-TR-WL-RvR`、`SIT-TR-WL-Throughput`、`SIT-TR-SC-NR-Throughput`、`SIT-SR-SC-NR-Handover`）。現在檔名不是這四個前綴、但以 `SIT-` 開頭的 xlsx，會看頁籤特徵（`parser.CONTENT_SIGNATURES`：`4.n Xn/NG Handover`、`3.n RvR_`、`4.n x.xGHz Test`、`4. Performance Test`）；只有頁籤剛好指向一種類型才採用，指向零種或兩種就維持一般文件路徑。已註冊前綴仍以檔名為準，若頁籤顯示另一種類型，會在報告的 issues 記一筆 `report_type_mismatch`。`ReportAdapter.matches(job, path)` 與 pipeline 把下載後的檔案路徑傳進來。
+  - 例：`SIT-TR-NR-Throughput-…`（少了 SC）與 `SIT-TR-XX-Whatever-…` 的 SCU5050 報告都被分為 cellular_throughput，解析出與原檔相同的 512 筆量測；`NCQ2200B2V`（EN-DC 版面：`4.1 5GNR_Eth`、`4.2 EN-DC_Eth`…）沒有註冊的範本，仍走一般文件路徑；非 `SIT-` 開頭的檔案不看頁籤。
+  - worker 映像 `km-csit-worker:v14k-classify-20261106`（images.env 備份 `~/.km-control/agg-20261106/images.env.before-k`，`csit-mode.sh reapply` 即可還原）。
+- **反問（web）**：統計規劃步驟可回傳 `clarify`（候選報告類型）。程式驗證：候選必須在資料庫現有類型內、至少兩種、問題若點名設備則該設備必須同時屬於這些類型（只屬於一種就直接用那一種）。成立時不查資料、不呼叫回答模型，直接回「請問要查哪一種？」，每個選項成為一個追問（原問題＋「（WiFi 吞吐量）」），並把前一個提問帶進規劃，所以使用者只回「WiFi」也能接續。提示規則：單純問「吞吐量」只在 WiFi 吞吐量與 5G 吞吐量之間選；只有提到 RvR／衰減／角度／距離才算 RvR；只有提到換手才算換手；已說 WiFi 或 5G 就只在該技術內選。
+  - DA40 web：`km-da40-web:zone-pages-20261106k`（override 備份 `~/.km-control/agg-20261106/override.before-j`）。
+  - 驗證（真實報告、交易內寫入後 rollback）：「吞吐量平均是多少？」→ 反問 5G／WiFi；「WiFi 的…」「5G 的…」→ 直接回答；「吞吐量平均是多少？」之後回「WiFi」→ 直接回答；點名 RvR 與換手 → 直接回答。

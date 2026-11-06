@@ -187,7 +187,7 @@ class Pipeline:
         self.repo.set_hash(job,digest)
         self.repo.phase(job,"Validating")
         suffix=validate_file(path,job,s)
-        if self.reports is not None and self.reports.matches(job):return self.run_report(job,path)
+        if self.reports is not None and self.reports.matches(job,path):return self.run_report(job,path)
         checkpoint=self.repo.checkpoints(job)
         canonical=root/("extracted-"+str(job["lease_token"])+".json")
         if "Extraction" in checkpoint:

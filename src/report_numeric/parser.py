@@ -109,21 +109,50 @@ def classify(path: Path) -> str:
     raise ValueError(f"unknown report type: {path.name}")
 
 
-def classify_or_none(name: str) -> str | None:
-    """Report type for a file name, or None when no template is registered (the caller then keeps the generic document path)."""
-    return next((kind for prefix, kind in REPORT_TYPES if name.startswith(prefix)), None)
+# The sheets each template reads (its parser looks for exactly these titles). A workbook whose name is not one of the registered prefixes (a variant such as
+# SIT-TR-NR-Throughput-..., or a type CSIT names differently) is taken for a type only when its sheets say so and say one thing.
+CONTENT_SIGNATURES = (("cellular_handover", re.compile(r"^4\.\d\s+(?:Xn|NG)\s+Handover", re.I)), ("wifi_rvr", re.compile(r"^3\.\d\s+RvR_\d")),
+                      ("wifi_throughput", re.compile(r"^4\.\d\s+\d(?:\.\d)?\s*GHz Test", re.I)), ("cellular_throughput", re.compile(r"^4\.\s*Performance Test", re.I)))
+
+
+def classify_content(path: str | Path) -> str | None:
+    """The report type the workbook's sheet titles show, or None when they show none or more than one (the layout is not one of the registered templates)."""
+    try:
+        wb = load_workbook(path, read_only=True)
+    except Exception:  # noqa: BLE001 - not a readable workbook: no type
+        return None
+    try:
+        titles = [ws.title.strip() for ws in wb.worksheets]
+    finally:
+        wb.close()
+    kinds = {kind for kind, rx in CONTENT_SIGNATURES if any(rx.match(t) for t in titles)}
+    return kinds.pop() if len(kinds) == 1 else None
+
+
+def classify_or_none(name: str, path: str | Path | None = None) -> str | None:
+    """Report type for a file name, or None when no template is registered (the caller then keeps the generic document path).
+    With the file's path, a document-number file name (SIT-...) that is not a registered prefix is classified by its sheets."""
+    kind = next((kind for prefix, kind in REPORT_TYPES if name.startswith(prefix)), None)
+    if kind is None and path is not None and name.startswith("SIT-") and name.lower().endswith(".xlsx"):
+        return classify_content(path)
+    return kind
 
 
 def parse_report(path: str | Path, identity: dict | None = None, source_name: str | None = None) -> Package:
     """identity: optional upstream identity (CSIT) merged into the package: {"csit_id", "source_record_id", "project_id", "policy"}."""
     path = Path(path)
     name = source_name or path.name   # an upload is stored under a generated name; the original name selects the template
-    report_type = classify(Path(name))
+    report_type = classify_or_none(Path(name).name, path)
+    if report_type is None:
+        raise ValueError(f"unknown report type: {Path(name).name}")
+    by_sheets = classify_content(path)
     wb = load_workbook(path, data_only=True)
     document_number = _doc_number(wb) or Path(name).stem
     version = document_number.rsplit("-", 1)[-1]
     test_run_id = f"TR:{document_number}"
     out = Collector(test_run_id)
+    if by_sheets and by_sheets != report_type:   # the name wins (as before), but the disagreement is recorded with the report
+        out.issues.append({"kind": "report_type_mismatch", "sheet": "", "detail": f"檔名對應 {report_type}，工作表看起來是 {by_sheets}"})
     errors = [{"sheet": ws.title.strip(), "cell": c.coordinate, "value": _t(c.value), "sheet_state": ws.sheet_state}
               for ws in wb.worksheets for row in ws.iter_rows() for c in row if _is_error(c.value)]
     meta = _preface(wb, out)

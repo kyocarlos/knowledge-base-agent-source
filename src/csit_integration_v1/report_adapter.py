@@ -18,9 +18,9 @@ class ReportAdapter:
         self.connect,self.graph_driver,self.qdrant=connect,graph_driver,qdrant_client
         self.encoder_loader=encoder_loader
         self._encoder=None
-    def matches(self,job):
+    def matches(self,job,path=None):
         from src.report_numeric.parser import classify_or_none
-        return Path(job["file_name"]).suffix.lower()==".xlsx" and classify_or_none(Path(job["file_name"]).name) is not None
+        return Path(job["file_name"]).suffix.lower()==".xlsx" and classify_or_none(Path(job["file_name"]).name,path) is not None
     def parse(self,path,job):
         from src.report_numeric.parser import parse_report
         p=job["request_payload"]
