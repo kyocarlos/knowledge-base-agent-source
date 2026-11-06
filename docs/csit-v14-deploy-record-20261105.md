@@ -84,3 +84,22 @@ real 模式收到範本報告也受影響,同一份程式已修。
 - **實測**(`SIT-SR-SC-NR-Handover-SCU2060-EV-V13.5a.xlsx` 的副本,live 模式):Completed;`test_measurement` 1816 筆(224 次換手 × 8 + 24 筆摘要)、`test_item_result` 6、`test_condition` 38、`ai_km_knowledge_v1` 54 點;抽查 Xn 第 100 次(延遲 32→45、吞吐量 638→649)與來源儲存格一致。以模擬器清除後 Timescale、向量庫皆為 0,`cleanupVerified:true`。
 - **殘留**:依設計不隨報告刪除的 Neo4j 共用節點(`Product SCU2060`、其 `Firmware`、6 個 `TestCase`),節點數 6246,比基準 6238 多 8。
 - **假設**:「Center Frequency 4.85」視為 GHz(同區塊 ARFCN 723332 = 4849.98 MHz 相符);吞吐量方向記為 dl(測試指令為 iperf3 Client - DL);RF 發射功率、ARFCN 等未標單位的設定不加單位。
+
+### 依 L1 分區抽取(2026-11-06)
+CSIT 通知文件後,KM 依文件的第一層分類(L1)決定它屬於哪個專區,並把結果寫在寫入的每個資料點上(Qdrant payload:`zone_id`、`topic_zone`、`zone_basis`;範本報告的 Neo4j `Document` 節點加 `topic_zone`)。八個專區就是 KM 左側導覽的名稱:WiFi 知識專區、行動通訊知識專區、固網寬頻知識專區、認證知識專區、產品驗證專區、設備儀器專區、實驗室管理專區、Confluence / Jira / TestRail 查詢專區。
+
+| 情況 | 專區(`zone_basis`) |
+|---|---|
+| 測試報告(v1 一般、v1 範本、v2 換版) | 產品驗證專區,不論分類填什麼(`source_type`) |
+| L1 名稱就是八個專區之一(忽略大小寫與空白;舊名稱 4G/5G 知識專區、認證與法規知識專區、設備預約知識專區、實驗室與測試環境知識專區也認得) | 該專區(`classification`) |
+| 沒有可用的 L1:驗證申請附件 | 產品驗證專區(`source_default`) |
+| 沒有可用的 L1:廠商檔案、設備附件 | 設備儀器專區(`source_default`) |
+| 沒有可用的 L1:文件庫檔案 | 待分類(`none`),不猜 |
+
+分類變更通知(metadata change)會依新的 L1 重新標記專區。程式 `src/csit_integration_v1/zones.py`;寫入點:`doclib_pipeline.py`、`v2_pipeline.py`(含 `metadata_payload`)、`writers.py`、`report_numeric/vector.py`、`report_numeric/graph.py`;測試 `tests/csit_v1/test_zones.py`(25 項)。映像 worker `v14g-zones-20261106`、模擬器 `20261106-zones2`。
+
+**模擬器**:L1 下拉是上述八個專區(L2/L3 為範例);選「測試報告」時 L1 鎖定為產品驗證專區(伺服端也強制);選驗證申請附件、廠商、設備附件時 L1 預設為各自的專區;畫面顯示「KM 會把文件抽取到…」,文件列表顯示 `KM 分區 →`。模擬器自己保留一份相同規則當獨立檢驗(`expected_zone`),測試比對兩邊對每個 L1 與來源的結果相同;`remote_drill` 新增一項檢查,KM 在 L1 被改成設備儀器專區後必須把資料點的專區一起改掉。
+
+**伺服器驗證(live 模式)**:7 份文件——文件庫檔案選行動通訊(→ 行動通訊知識專區)、文件庫檔案不選 L1(→ 待分類)、廠商檔案不選 L1(→ 設備儀器專區)、設備附件選認證(→ 認證知識專區)、驗證申請附件不選 L1(→ 產品驗證專區)、一般 xlsx 測試報告與 Handover 範本報告(L1 選 WiFi,模擬器改成產品驗證專區)。KM 寫入的 `topic_zone` 與模擬器預期完全一致;把「待分類」那份的 L1 改成認證知識專區後,資料點的專區同步變成認證知識專區。清除後 Timescale、三個向量集合皆為 0。
+
+**限制**:目前只是把專區寫在資料上;各專區頁面搜尋時要用 `topic_zone` 過濾(以及文件庫的 `km_csit_docs` 尚未納入 KM 搜尋範圍)是另外的工作。Neo4j 只有範本報告的 `Document` 節點帶專區。清除後 Neo4j 又留下依設計不隨報告刪除的 8 個共用節點(`Product SCU2060`、其 `Firmware`、6 個 `TestCase`),節點數 6246。
