@@ -127,3 +127,16 @@ CSIT 的分類變更通知不再改專區。程式:`zones.py`、`doclib_metadata
 - **備份與回滾**:`~/.km-control/csit-zones-web-20261106/`(`web.inspect.before.json`、原映像覆蓋檔)。回滾:把新覆蓋檔的映像改回 `km-da40-web:open-files-20261031-on-feed-c7869ce`,以同一組設定檔重建 `web`。
 - **驗證**:容器 healthy、網路與環境變數數量與部署前相同、kb-nginx 連得到;用 FastAPI TestClient 掛上測試身分,在容器內呼叫 `/api/legacy/search` 與 `/api/legacy/answer`:八份內容不同的測試文件,各專區的搜尋只回該專區的文件(WiFi、產品驗證〔兩份測試報告〕、固網寬頻、認證、設備儀器、實驗室管理、Confluence/Jira/TestRail 各一份),同一個 MLO 問題換到認證專區只回認證文件;認證專區的問答回「已根據資料」並附來源檔名。測試文件已清除。
 - **限制**:使用者要用 `/legacy/` 舊資料專區頁提問才會用到;前端各專區頁(範例資料)與專區文件清單(Neo4j Legacy 圖)沒有接上。
+
+### 專區頁改讀真實資料(2026-11-06,DA40)
+七個專區頁(行動通訊、固網寬頻、認證、產品驗證、設備儀器、實驗室管理、Confluence / Jira / TestRail 查詢)與知識中樞首頁不再用瀏覽器裡的範例資料,改讀 KM 的真實 API;WiFi 專區仍是原本的真實後端。
+
+- **後端**:`src/web_api/zone_routes.py` 與 `src/zone_pages/`(`catalog.py`、`views.py`、`digest.py`、`agent.py`)。`/api/zones/<專區>/` 提供頁面原本呼叫 `/api/wifi8/*` 的同樣格式:總覽、文件清單(類型與來源篩選、歷史版本)、文件詳情與版本、段落、搜尋、動態與週報、問答(非同步工作、事件串流、結果、回饋)、附加檔案(沿用 WiFi 專區的暫存、2 小時、不進知識庫)。文件從 CSIT 寫入的向量集合依 `topic_zone` 取回,換版後的舊版標為歷史;**待分類的文件列在產品驗證專區裡**(總覽會有「N 份文件待分類」提醒)。
+- **問答**:先搜尋該專區的段落(含使用者附加的檔案),再由模型依段落回答並標 `[S1]`;引用只列答案實際用到的段落;每個數字都到引用的段落裡核對,找不到的列在 `grounding.flagged`;資料裡找不到時不引用、也不呼叫模型編答案。
+- **週報**:本週(7 天)新增的文件列出標題與摘要;重點由一次模型呼叫整理,每個專區、每週、每組文件只做一次並快取,等模型回來前先用文件標題,頁面不用等。
+- **寫入端**:CSIT 文件的資料點多帶 `document_type`、`summary`、`keywords`、`indexed_at`(換版時 `superseded_at`),頁面才有類型、摘要、日期可顯示(`doclib_metadata.zone_fields`、`writers.py`、`v2_pipeline.py`、`report_numeric/vector.py`)。
+- **前端**:`scripts/build_zone_live.js`(可重複執行)把七個專區頁改載入 `zones-live.<hash>.js`(各專區名稱與文字、不含範例文件,並把 `/api/wifi8/*` 呼叫導向 `/api/zones/<專區>/*`),知識中樞首頁改成每個專區都讀自己的總覽與動態;範例文件與假後端不再載入。
+- **映像與檔案**:worker `km-csit-worker:v14i-pagemeta-20261106`;網頁服務 `km-da40-web:zone-pages-20261106c`(疊在 `csit-zones-20261106-on-open-files` 上,只重建 `web`;伺服器上 `web_api/__init__.py` 與我的分支不同,所以只在它原有內容上加兩行註冊路由,沒有整份覆蓋);前端檔案複製到 nginx 目錄(`zones-live.a4fe03eda854.js`、`hub.c868255c359b.js`、七個專區頁、`hub/islands.html`)。
+- **備份與回滾**:前端 `~/.km-control/zones-live-frontend-backup-20261106/`(把檔案複製回去即可);網頁服務 `~/.km-control/csit-zones-web-20261106/`(`web.inspect.before-pages.json`、上一版覆蓋檔),回滾時把 `km-da40.csit-zones.image.override.yml` 的映像改回 `km-da40-web:csit-zones-20261106-on-open-files`;worker 回滾把 `images.env` 的 worker 映像改回 `v14h-llmzones-20261106` 後 `csit-mode.sh reapply`。
+- **驗證**:本機用真實的專區路由配假資料,在瀏覽器點過認證專區的總覽、文件清單、文件詳情、問答(含引用、數值核對、回饋按鈕)與知識中樞首頁,頁面只呼叫 `/api/zones/*`。伺服器上以模擬器送 8 份內容不同的文件,在網頁容器內呼叫路由:各專區的文件數、類型、來源、日期正確(產品驗證專區有兩份測試報告),詳情與段落、搜尋、週報(模型整理的重點)、4 個問答(認證、Small Cell 換手、設備校驗、無關問題)都正常,附加檔案設定開啟。測試文件已清除,Timescale 與三個向量集合皆為 0。
+- **限制**:TEST 網頁讀自己的資料庫,看不到 CSIT 文件;專區頁沒有圖片與圖表段落(CSIT 文件沒有抽圖);週報要等有本週新增文件才有內容;問答的文件權限目前是「登入者皆可看」;沒有對 CSIT 文件的「已移除」事件(刪除後資料點直接消失,動態裡不會有紀錄)。附加檔案實際上傳沒有在伺服器上點過,只確認設定與路由。

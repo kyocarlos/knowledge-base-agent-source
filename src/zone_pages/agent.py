@@ -30,6 +30,7 @@ SYSTEM = """你是 KM「{zone}」的助理，只能根據下列「資料」回�
 4. 使用與問題相同的語言（預設繁體中文），先給結論，再條列重點。
 5. 回答最後另起一行，以「追問：」開頭，列出最多三個相關的追問，用「｜」分隔；沒有就省略這一行。"""
 NOTHING = "在這個專區的資料裡找不到相關內容。"
+NOTHING_PREFIX = "在這個專區的資料裡找不到"   # the model may name the topic inside the sentence
 
 
 def grams(text: str) -> set[str]:
@@ -66,7 +67,7 @@ def split_followups(reply: str) -> tuple[str, list[str]]:
 
 def grounding(answer: str, cited_text: str, n_sources: int, n_current: int) -> dict[str, Any]:
     body = REF.sub("", answer)
-    claims = [ln for ln in re.split(r"\n+|(?<=[。！？])", answer) if len(ln.strip()) >= 8 and not ln.strip().startswith(("|", "#"))]
+    claims = [ln for ln in re.split(r"\n+|(?<=[。！？])(?!\[S)", answer) if len(ln.strip()) >= 8 and not ln.strip().startswith(("|", "#"))]  # a reference after the full stop belongs to its sentence
     cited = [ln for ln in claims if REF.search(ln)]
     values = [n for n in NUMBER.findall(body) if len(n.replace(",", "").replace(".", "")) >= 2]
     haystack = cited_text.replace(",", "")
@@ -126,7 +127,7 @@ class ZoneAgent:
             reply = self.complete(self._messages(zone_label, question, history, passages))
             main, followups = split_followups(reply)
             refs = []
-            for n in (int(x) for x in REF.findall(main)):
+            for n in ((int(x) for x in REF.findall(main)) if not main.startswith(NOTHING_PREFIX) else ()):   # "nothing found" cites nothing
                 if 1 <= n <= len(passages) and n not in refs:
                     refs.append(n)
             cited = [{"ref": f"S{n}", "source": passages[n - 1]["source"], "revision_id": passages[n - 1]["revision_id"], "location_label": passages[n - 1]["location_label"],

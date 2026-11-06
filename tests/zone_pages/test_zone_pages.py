@@ -343,3 +343,18 @@ def test_feedback_is_kept_for_the_asker_only(client, tmp_path, monkeypatch):
 def test_attached_file_config_is_enabled(client):
     c = client.get("/api/zones/equipment/files/config").json()
     assert c["enabled"] is True and "max_bytes" in c
+
+
+def test_a_reference_after_the_full_stop_counts_for_its_sentence():
+    g = grounding("校驗每年一次。[S1]\n\n並要登記資產編號。[S1]", "校驗每年一次，登記資產編號", 1, 1)["summary"]
+    assert g["claims"] == 2 and g["claims_cited"] == 2
+
+
+def test_an_answer_that_found_nothing_cites_nothing(catalog, qdrant):
+    r, _ = run_agent(catalog, qdrant, lambda m: "在這個專區的資料裡找不到相關內容。資料中只有校驗的內容。[S1]")
+    assert r["citations"] == [] and r["extension"]["related"] == ""
+
+
+def test_the_not_found_sentence_may_name_the_topic(catalog, qdrant):
+    r, _ = run_agent(catalog, qdrant, lambda m: "在這個專區的資料裡找不到「火星」相關內容。資料只有校驗的內容。[S1]")
+    assert r["citations"] == []
