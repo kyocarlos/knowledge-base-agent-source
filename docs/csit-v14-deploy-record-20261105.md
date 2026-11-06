@@ -60,7 +60,7 @@ sim 模式的 worker 現在用 KM 同一個 LLM 閘道(sub2api,`gpt-5.6-luna`)�
 - 模擬器測試:`tests/csit_simulator/test_simulator_live.py` 9 項,模擬器測試共 46 項通過。
 
 ### 已知限制
-- **TimescaleDB 沒有 `km_test` schema**:命中範本檔名的 xlsx 會在數值階段失敗。要先在 Timescale 套用 `src/report_numeric/schema.sql`(新增 schema,未做,需要決定);這個驗證也還沒用真實範本檔做過。
+- **(2026-11-06 已處理)TimescaleDB 的 `km_test` schema 已套用 `schema.sql`(7 張表,純新增;回滾 `DROP SCHEMA km_test CASCADE`);範本報告仍未用真實範本檔實測。** 原先的限制:TimescaleDB 沒有 `km_test` schema:命中範本檔名的 xlsx 會在數值階段失敗。要先在 Timescale 套用 `src/report_numeric/schema.sql`(新增 schema,未做,需要決定);這個驗證也還沒用真實範本檔做過。
 - `ai_km_knowledge_v1` collection 尚不存在,範本報告第一次寫入時才會建立。
 - 一般 v1 報告刪除後,`km_csit_ingestion_jobs` 的列仍是 `Completed`(原有行為,向量與檔案已清)。
 - 沒有 live 期間的 `KM_CSIT_REPORT_TEMPLATES=1` 實測;`live-list` 與 `delete_spec` 對 v1 報告用 `documentId` 當 `sourceEntityId`(KM 只用 documentId 與 version 清理)。
