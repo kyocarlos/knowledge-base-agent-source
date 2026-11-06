@@ -150,3 +150,12 @@ CSIT 的分類變更通知不再改專區。程式:`zones.py`、`doclib_metadata
 - 部署：worker `km-csit-worker:v14j-handoveragg-20261106`（images.env 備份 `~/.km-control/agg-20261106/images.env.before`，`csit-mode.sh reapply`）；DA40 web `km-da40-web:zone-pages-20261106e`（override 備份 `~/.km-control/agg-20261106/override.before`，還原則把 image 改回 `…20261106c`）。
 - 既有報告不會自動補彙總段落：需先刪除再重新上傳。
 - 回答規則（`src/zone_pages/agent.py`）：比較時差距約 2% 以內或在逐次量測的正常波動內，寫「差距很小」而不下優劣結論；樣本只有幾次時，成功率差一兩次也不下結論。DA40 web 為 `km-da40-web:zone-pages-20261106f`（還原則把 override 的 image 改回 `…20261106e`）。
+
+## C：專區問答查資料庫算數值（2026-11-06）
+
+產品驗證專區的問題若需要統計（某幾次到某幾次的平均、中位數、p95、成功次數、跨測試項目比較），先用一次模型呼叫把問題轉成查詢計畫 JSON（設備、模式 xn/ng、次數 2/10/100、指標、from_no/to_no），計畫經白名單驗證後交給固定 SQL 範本 `report_numeric.query.handover_stats`（唯讀連線、statement_timeout 8 秒、只看 access_roles 含 CSIT_ENGINEER 且已發布的報告），結果成為編號段落「測試數據彙總」放在檢索段落之前，回答照一般段落引用並通過數值依據檢查。模型不寫 SQL；計畫為 needed=false、資料庫不可用、設備不存在或參數被拒絕時，不加任何段落，回答退回只靠檢索段落。
+
+- 程式：`src/zone_pages/stats.py`（計畫、白名單、渲染）、`src/report_numeric/query.py`（`handover_stats`）、`src/zone_pages/agent.py`（`with_stats`）、`src/web_api/zone_routes.py`（只對 verification 專區啟用）。
+- DA40 web：`km-da40-web:zone-pages-20261106g`（override 備份 `~/.km-control/agg-20261106/override.before-g`，還原則改回 `…20261106f`）。web 映像原有的 `report_numeric/query.py` 是不含 Handover 的舊版，這次只覆蓋該檔。
+- 驗證：「Xn 100 次第 40～60 次平均換手後延遲」答 30.95 ms；「NG 100 次換手後延遲中位數與 p95」答 31／49.5 ms，皆與 Timescale 原始資料重算一致。
+- 範圍：目前只有 cellular_handover 有統計範本；Throughput／RvR 等類型尚未接入。

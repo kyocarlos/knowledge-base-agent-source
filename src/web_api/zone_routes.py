@@ -22,6 +22,7 @@ from ..zone_pages import views
 from ..zone_pages.agent import TaskStore, ZoneAgent
 from ..zone_pages.catalog import ZoneCatalog
 from ..zone_pages.digest import DigestService
+from ..zone_pages.stats import ReportStats
 
 logger = logging.getLogger("km.zones")
 router = APIRouter(prefix="/api/zones/{zone}", tags=["Knowledge zones"])
@@ -70,6 +71,18 @@ def _complete():
         return _llm_complete()
     except HTTPException:
         return None
+
+
+def _stats(complete) -> ReportStats:
+    """Test-report numbers for the answers: a read-only, time-limited connection per question to the database the CSIT reports were written to."""
+    import os
+
+    def run(**params):
+        import psycopg
+        from ..report_numeric import query
+        with psycopg.connect(os.environ["TIMESCALEDB_URL"], options="-c default_transaction_read_only=on -c statement_timeout=8000", connect_timeout=5) as conn:
+            return query.handover_stats(conn, **params)
+    return ReportStats(complete, run, available=lambda: bool(os.environ.get("TIMESCALEDB_URL")))
 
 
 @lru_cache(maxsize=1)
@@ -159,13 +172,15 @@ class AgentBody(BaseModel):
     file_ids: list[str] = Field(default_factory=list, max_length=5)
 
 
-def _run(task_id: str, zone_label: str, names: list[str], body: AgentBody, owner: dict, records: dict) -> None:
+def _run(task_id: str, zone_label: str, names: list[str], body: AgentBody, owner: dict, records: dict, with_stats: bool = False) -> None:
     redis = _redis()
     emit = progress.Emitter(redis, task_id)
     store = TaskStore(redis)
     try:
-        result = ZoneAgent(_catalog(), _complete()).answer(task_id=task_id, zone_label=zone_label, zone_names=names, question=body.question.strip(),
-                                                           history=[t.model_dump() for t in body.history], owner=owner, file_records=records, emit=emit)
+        complete = _complete()
+        agent = ZoneAgent(_catalog(), complete, stats=_stats(complete) if with_stats and complete else None)
+        result = agent.answer(task_id=task_id, zone_label=zone_label, zone_names=names, question=body.question.strip(), history=[t.model_dump() for t in body.history],
+                              owner=owner, file_records=records, emit=emit, with_stats=with_stats)
         store.save(task_id, result)
         emit.done("completed")
     except Exception as exc:  # noqa: BLE001 - the page shows the failure instead of waiting for ever
@@ -177,7 +192,7 @@ def _run(task_id: str, zone_label: str, names: list[str], body: AgentBody, owner
 @router.post("/agent", status_code=202)
 async def zone_ask(zone: str, body: AgentBody, request: Request):
     owner = _owner(_identity(request))
-    _, label, names = _zone(zone)
+    zone_id, label, names = _zone(zone)
     file_ids = list(dict.fromkeys(body.file_ids))
     if not all(userfiles.FILE_ID.match(i) for i in file_ids):
         raise HTTPException(status_code=422, detail="invalid file id")
@@ -188,7 +203,7 @@ async def zone_ask(zone: str, body: AgentBody, request: Request):
         records = {i: r for i in file_ids if (r := store.get(owner, i))}
     task_id = str(uuid.uuid4())
     progress.register(_redis(), task_id, owner)
-    _pool.submit(_run, task_id, label, names, body, owner, records)
+    _pool.submit(_run, task_id, label, names, body, owner, records, zone_id == "verification")
     return {"task_id": task_id, "status": "submitted", "stream": True, "feedback": _feedback_enabled()}
 
 

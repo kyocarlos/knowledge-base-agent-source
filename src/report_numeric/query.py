@@ -172,3 +172,37 @@ def get_criteria(conn, product: str, band: str | None = None, bandwidth_mhz: int
         WHERE r.product_id = %(p)s AND r.access_roles && %(roles)s AND (%(band)s::text IS NULL OR c.band = %(band)s) AND (%(bw)s::int IS NULL OR c.bandwidth_mhz = %(bw)s)
           AND (%(rt)s::text IS NULL OR r.report_type = %(rt)s) ORDER BY r.report_type, c.band, c.bandwidth_mhz, c.attenuation_range NULLS FIRST LIMIT 120""",
                  {"p": pid, "roles": list(roles), "band": band, "bw": bandwidth_mhz, "rt": report_type})
+
+
+HANDOVER_METRICS = ("latency_rtt_before_ho", "latency_rtt_after_ho", "throughput_before_ho", "throughput_after_ho", "ho_success", "ping_loss_count", "latency_variation",
+                    "throughput_variation")
+TEST_CASE = re.compile(r"^cellular_handover:(xn|ng):\d{1,3}$")
+
+
+def handover_stats(conn, products: list[str] | None = None, test_cases: list[str] | None = None, metrics: list[str] | None = None, from_no: int | None = None,
+                   to_no: int | None = None, roles=DEFAULT_ROLES) -> list[dict]:
+    """Count, sum, mean, min, max, median and 95th percentile of each handover metric per product and test case, optionally over handovers from_no..to_no.
+    Computed by the database from the stored rows; with no product named, every product that has a handover report."""
+    for case in test_cases or []:
+        if not TEST_CASE.match(case):
+            raise QueryError(f"test_case 格式不合法：{case!r}")
+    for metric in metrics or []:
+        _check(metric, HANDOVER_METRICS, "metric")
+    if len(products or []) > 5 or len(test_cases or []) > 12:
+        raise QueryError("一次最多 5 個設備、12 個測試項目")
+    for bound in (from_no, to_no):
+        if bound is not None and not 1 <= int(bound) <= 10000:
+            raise QueryError("from_no / to_no 必須在 1 到 10000 之間")
+    pids = _product_ids(conn, products, roles) if products else None
+    return _rows(conn, """SELECT r.product_id, r.dut_model, r.document_id, m.test_case_id, m.test_case_name, m.metric_name, m.unit, count(*) AS n, sum(m.value) AS total,
+                                 round(avg(m.value)::numeric, 4)::float AS average, min(m.value) AS minimum, max(m.value) AS maximum,
+                                 percentile_cont(0.5) WITHIN GROUP (ORDER BY m.value) AS median, percentile_cont(0.95) WITHIN GROUP (ORDER BY m.value) AS p95,
+                                 min(m.sample_index) AS first_no, max(m.sample_index) AS last_no
+        FROM km_test.test_measurement m JOIN km_test.test_run r USING (test_run_id)
+        WHERE r.report_type = 'cellular_handover' AND r.access_roles && %(roles)s AND r.publish_status = 'published' AND m.sample_index IS NOT NULL
+          AND (%(p)s::text[] IS NULL OR r.product_id = ANY(%(p)s)) AND (%(cases)s::text[] IS NULL OR m.test_case_id = ANY(%(cases)s))
+          AND (%(metrics)s::text[] IS NULL OR m.metric_name = ANY(%(metrics)s)) AND m.metric_name = ANY(%(known)s)
+          AND (%(lo)s::int IS NULL OR m.sample_index >= %(lo)s) AND (%(hi)s::int IS NULL OR m.sample_index <= %(hi)s)
+        GROUP BY r.product_id, r.dut_model, r.document_id, m.test_case_id, m.test_case_name, m.metric_name, m.unit
+        ORDER BY r.product_id, m.test_case_id, m.metric_name""",
+                 {"roles": list(roles), "p": pids, "cases": test_cases or None, "metrics": metrics or None, "known": list(HANDOVER_METRICS), "lo": from_no, "hi": to_no})

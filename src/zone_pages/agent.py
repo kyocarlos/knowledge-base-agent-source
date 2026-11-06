@@ -29,7 +29,8 @@ SYSTEM = """你是 KM「{zone}」的助理，只能根據下列「資料」回�
 3. 不要編造型號、版本、日期、數值；數值必須和資料一致。
 4. 使用與問題相同的語言（預設繁體中文），先給結論，再條列重點。
 5. 比較兩個以上的對象時，差距很小（約 2% 以內，或在逐次量測的正常波動內）就寫「差距很小」，不要寫成較高、較低、較好、較差；樣本只有幾次時，成功率差一兩次也不要下優劣結論。列出數值，讓讀者自己判斷。
-6. 回答最後另起一行，以「追問：」開頭，列出最多三個相關的追問，用「｜」分隔；沒有就省略這一行。"""
+6. 標示為「測試數據彙總」的資料是資料庫對報告逐次數據算出的結果：平均、最大、最小、中位數、成功率、某幾次的數值以它為準，數值照抄；沒有這份資料時，不要自己對逐次數據加總或求平均。
+7. 回答最後另起一行，以「追問：」開頭，列出最多三個相關的追問，用「｜」分隔；沒有就省略這一行。"""
 NOTHING = "在這個專區的資料裡找不到相關內容。"
 NOTHING_PREFIX = "在這個專區的資料裡找不到"   # the model may name the topic inside the sentence
 
@@ -100,8 +101,8 @@ class TaskStore:
 
 
 class ZoneAgent:
-    def __init__(self, catalog: ZoneCatalog, complete: Callable[[list[dict]], str] | None, clock: Callable[[], float] = time.monotonic):
-        self.catalog, self.complete, self.clock = catalog, complete, clock
+    def __init__(self, catalog: ZoneCatalog, complete: Callable[[list[dict]], str] | None, clock: Callable[[], float] = time.monotonic, stats: Any = None):
+        self.catalog, self.complete, self.clock, self.stats = catalog, complete, clock, stats   # stats: zone_pages.stats.ReportStats, for the zones that hold test reports
 
     def _messages(self, zone_label: str, question: str, history: list[dict], passages: list[dict]) -> list[dict]:
         context = "\n\n".join(f"[S{i}] {p['source']}（{p['location_label']}）\n{p['content'][:MAX_PASSAGE_CHARS]}" for i, p in enumerate(passages, 1))
@@ -109,7 +110,7 @@ class ZoneAgent:
         return [{"role": "system", "content": SYSTEM.format(zone=zone_label)}, *turns, {"role": "user", "content": f"資料：\n{context}\n\n問題：{question}"}]
 
     def answer(self, *, task_id: str, zone_label: str, zone_names: list[str], question: str, history: list[dict], owner: dict, file_records: dict[str, dict],
-               emit: Callable[[dict], None]) -> dict[str, Any]:
+               emit: Callable[[dict], None], with_stats: bool = False) -> dict[str, Any]:
         started = self.clock()
         trace = [{"tool": "search_documents"}]
         emit({"type": "tool", "label": "搜尋專區文件"})
@@ -121,6 +122,12 @@ class ZoneAgent:
             trace.append({"tool": "search_user_files"})
             passages += file_passages(file_records, question)
         passages = passages[:PASSAGES + FILE_PASSAGES]
+        if with_stats and self.stats is not None and self.complete is not None:
+            numbers = self.stats.passages(question)    # computed by the database from the stored measurements, cited like any passage
+            if numbers:
+                emit({"type": "tool", "label": "查詢測試數據"})
+                trace.append({"tool": "query_test_data"})
+                passages = numbers + passages
         main, followups, cited = NOTHING, [], []
         if passages and self.complete is not None:
             emit({"type": "tool", "label": "讀取引用段落"})
