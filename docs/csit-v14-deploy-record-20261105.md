@@ -103,3 +103,19 @@ CSIT 通知文件後,KM 依文件的第一層分類(L1)決定它屬於哪個專�
 **伺服器驗證(live 模式)**:7 份文件——文件庫檔案選行動通訊(→ 行動通訊知識專區)、文件庫檔案不選 L1(→ 待分類)、廠商檔案不選 L1(→ 設備儀器專區)、設備附件選認證(→ 認證知識專區)、驗證申請附件不選 L1(→ 產品驗證專區)、一般 xlsx 測試報告與 Handover 範本報告(L1 選 WiFi,模擬器改成產品驗證專區)。KM 寫入的 `topic_zone` 與模擬器預期完全一致;把「待分類」那份的 L1 改成認證知識專區後,資料點的專區同步變成認證知識專區。清除後 Timescale、三個向量集合皆為 0。
 
 **限制**:目前只是把專區寫在資料上;各專區頁面搜尋時要用 `topic_zone` 過濾(以及文件庫的 `km_csit_docs` 尚未納入 KM 搜尋範圍)是另外的工作。Neo4j 只有範本報告的 `Document` 節點帶專區。清除後 Neo4j 又留下依設計不隨報告刪除的 8 個共用節點(`Product SCU2060`、其 `Firmware`、6 個 `TestCase`),節點數 6246。
+
+### 專區改由 KM 的 LLM 依內容決定(2026-11-06,取代上一節的 L1 規則)
+CSIT 不會規範文件類型,也不分類到 KM 專區,所以專區完全由 KM 判斷:取文字之後同一次 LLM 呼叫(`documentType`、`summary`、`keywords`)多回一個 `zone`。規則依序為:
+1. **測試報告一律產品驗證專區**:CSIT 的 `TestReport` 來源,或 LLM 判斷 `documentType=TestReport` 的任何文件,不論技術(`zone_basis` = `source_type` / `document_type`);
+2. 其他文件進 LLM 指名的專區(`llm`),依內容主題、不看檔名;
+3. LLM 沒結果(不可用或不確定,回「無法判斷」)時才參考 CSIT 帶來的 L1 名稱(`classification`);
+4. 再來是附件來源的歸屬(驗證申請附件 → 產品驗證專區,廠商檔案與設備附件 → 設備儀器專區,`source_default`);
+5. 否則「待分類」,不猜(`none`)。
+CSIT 的分類變更通知不再改專區。程式:`zones.py`、`doclib_metadata.py`(提示詞與 `zone_fields`)、`doclib_pipeline.py`、`v2_pipeline.py`。
+
+**專區頁面怎麼搜得到**:`src/legacy_import/browse.py` 的 `ZoneSearch.search(..., csit_zones=[…])` 除了舊資料,再從 CSIT 文件所在的集合(`km_csit_docs`、`knowledge_base`、`ai_km_knowledge_v1` 內的 CSIT 點)依 `topic_zone` 取回,排除已被新版取代的,兩邊以排名合併(RRF);`src/web_api/legacy_routes.py` 的 `/api/legacy/search`、`/answer` 帶入該專區的名稱與舊名稱(`csit` 頁面 = 產品驗證專區)。**這部分在 repo 的網頁服務程式裡,尚未部署到伺服器上的 KM 網頁服務**;伺服器上只部署了 CSIT 整合服務(worker 映像 `v14h-llmzones-20261106`、模擬器 `20261106-zones3`)。專區文件清單(Neo4j 的 Legacy 圖)仍不含 CSIT 文件。
+
+**模擬器**:不再決定專區;L1 仍可選(八個專區名稱,範例 L2/L3),只是帶給 KM 的參考;畫面說明專區由 KM 讀內容決定,只有「測試報告」來源會顯示 `KM 分區 → 產品驗證專區`。
+
+**伺服器驗證(live 模式,真實 LLM)**:8 份文字內容不同的文件,KM 的判斷與預期一致:Wi-Fi 7 規範 → WiFi 知識專區;5G Small Cell 換手測試報告(以文件庫檔案送)→ 產品驗證專區(`document_type`);Wi-Fi RvR 測試報告(以廠商檔案送)→ 產品驗證專區(`document_type`);XGS-PON 技術 → 固網寬頻知識專區;NCC/CE 認證流程 → 認證知識專區;頻譜分析儀手冊(廠商檔案)→ 設備儀器專區;實驗室環境介紹 → 實驗室管理專區;Jira/TestRail 週報 → Confluence / Jira / TestRail 查詢專區。在 worker 內以 `ZoneSearch` 對真實 Qdrant 查詢:各專區的問題只回該專區的文件,同一個問題換到別的專區查不到對方的文件。清除後三個向量集合與 Timescale 皆為 0。
+測試:`tests/csit_v1/test_zones.py` 34 項、`tests/legacy_import/test_browse.py` 增加 5 項;csit_v1 其餘失敗與基準相同(17,皆為需要資料庫的既有項目)。
