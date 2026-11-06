@@ -119,3 +119,11 @@ CSIT 的分類變更通知不再改專區。程式:`zones.py`、`doclib_metadata
 
 **伺服器驗證(live 模式,真實 LLM)**:8 份文字內容不同的文件,KM 的判斷與預期一致:Wi-Fi 7 規範 → WiFi 知識專區;5G Small Cell 換手測試報告(以文件庫檔案送)→ 產品驗證專區(`document_type`);Wi-Fi RvR 測試報告(以廠商檔案送)→ 產品驗證專區(`document_type`);XGS-PON 技術 → 固網寬頻知識專區;NCC/CE 認證流程 → 認證知識專區;頻譜分析儀手冊(廠商檔案)→ 設備儀器專區;實驗室環境介紹 → 實驗室管理專區;Jira/TestRail 週報 → Confluence / Jira / TestRail 查詢專區。在 worker 內以 `ZoneSearch` 對真實 Qdrant 查詢:各專區的問題只回該專區的文件,同一個問題換到別的專區查不到對方的文件。清除後三個向量集合與 Timescale 皆為 0。
 測試:`tests/csit_v1/test_zones.py` 34 項、`tests/legacy_import/test_browse.py` 增加 5 項;csit_v1 其餘失敗與基準相同(17,皆為需要資料庫的既有項目)。
+
+### 專區搜尋部署到 DA40 網頁服務(2026-11-06)
+只部署 DA40(`km-da40-web-1`);TEST 網頁(`kb-web`)讀自己的向量庫與 Neo4j,CSIT 整合服務只寫 DA40 這一套,所以 TEST 看不到 CSIT 文件(要看到得讓 CSIT 同時寫兩邊,或讓 TEST 讀 DA40 的資料庫,後者破壞隔離,未做)。
+- **映像**:`km-da40-web:csit-zones-20261106-on-open-files`,疊在原本的 `km-da40-web:open-files-20261031-on-feed-c7869ce` 上,只加四個檔案:`legacy_import/browse.py`、`web_api/legacy_routes.py`、`csit_integration_v1/zones.py` 與 `__init__.py`。部署前把原映像中的 `browse.py`、`legacy_routes.py` 與分支改動前的版本逐行比對,完全相同,所以不會蓋掉其他人的改動。
+- **設定**:新增 `~/.km-control/compose/km-da40.csit-zones.image.override.yml`(只改 `services.web.image`),接在原有 7 個設定檔之後;以專案 `km-da40`、環境檔 `~/.km-control/planes/da40.env` 只重建 `web`(`--no-deps --no-build`)。其他服務未動。
+- **備份與回滾**:`~/.km-control/csit-zones-web-20261106/`(`web.inspect.before.json`、原映像覆蓋檔)。回滾:把新覆蓋檔的映像改回 `km-da40-web:open-files-20261031-on-feed-c7869ce`,以同一組設定檔重建 `web`。
+- **驗證**:容器 healthy、網路與環境變數數量與部署前相同、kb-nginx 連得到;用 FastAPI TestClient 掛上測試身分,在容器內呼叫 `/api/legacy/search` 與 `/api/legacy/answer`:八份內容不同的測試文件,各專區的搜尋只回該專區的文件(WiFi、產品驗證〔兩份測試報告〕、固網寬頻、認證、設備儀器、實驗室管理、Confluence/Jira/TestRail 各一份),同一個 MLO 問題換到認證專區只回認證文件;認證專區的問答回「已根據資料」並附來源檔名。測試文件已清除。
+- **限制**:使用者要用 `/legacy/` 舊資料專區頁提問才會用到;前端各專區頁(範例資料)與專區文件清單(Neo4j Legacy 圖)沒有接上。
