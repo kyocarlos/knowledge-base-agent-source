@@ -55,6 +55,9 @@ CREATE TABLE IF NOT EXISTS km_test.test_run (
 );
 CREATE INDEX IF NOT EXISTS test_run_product_idx ON km_test.test_run (product_id, firmware_id);
 CREATE INDEX IF NOT EXISTS test_run_type_idx    ON km_test.test_run (report_type, technology);
+-- CSIT names the project, case and task of a report; the number alone (project_id) says little to the reader. Re-runnable.
+ALTER TABLE km_test.test_run ADD COLUMN IF NOT EXISTS project_name text, ADD COLUMN IF NOT EXISTS case_code text, ADD COLUMN IF NOT EXISTS case_name text,
+  ADD COLUMN IF NOT EXISTS task_code text, ADD COLUMN IF NOT EXISTS task_name text;
 
 CREATE TABLE IF NOT EXISTS km_test.test_measurement (
   measurement_id     uuid PRIMARY KEY,

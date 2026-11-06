@@ -139,7 +139,7 @@ def classify_or_none(name: str, path: str | Path | None = None) -> str | None:
 
 
 def parse_report(path: str | Path, identity: dict | None = None, source_name: str | None = None) -> Package:
-    """identity: optional upstream identity (CSIT) merged into the package: {"csit_id", "source_record_id", "project_id", "policy"}."""
+    """identity: optional upstream identity (CSIT) merged into the package: {"csit_id", "source_record_id", "project_id", "project_name", "case_code", "case_name", "task_code", "task_name", "policy"}."""
     path = Path(path)
     name = source_name or path.name   # an upload is stored under a generated name; the original name selects the template
     report_type = classify_or_none(Path(name).name, path)
@@ -186,7 +186,9 @@ def parse_report(path: str | Path, identity: dict | None = None, source_name: st
     })
     pkg["document"]["category"] = CATEGORY.get(report_type)
     if identity:
-        pkg["test_run"].update(id_basis="csit", csit_id=identity["csit_id"], source_record_id=identity["source_record_id"], project_id=identity.get("project_id"))
+        pkg["test_run"].update(id_basis="csit", csit_id=identity["csit_id"], source_record_id=identity["source_record_id"], project_id=identity.get("project_id"),
+                                project_name=identity.get("project_name"), case_code=identity.get("case_code"), case_name=identity.get("case_name"),
+                                task_code=identity.get("task_code"), task_name=identity.get("task_name"))
         pkg["source"]["source_system"] = identity["policy"]["source_system"]
         pkg["policy"] = identity["policy"]
     return pkg

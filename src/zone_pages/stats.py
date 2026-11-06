@@ -100,8 +100,9 @@ def _is(name: str, product: dict) -> bool:
     return n in (product["id"].lower(), product["model"].lower()) or n in product["model"].lower()
 
 
-def _ask(text: str, options: list[str]) -> dict:
-    return {"ask": {"text": text, "options": list(dict.fromkeys(options))}}
+def _ask(text: str, options: list[str], drop: list[str] | None = None) -> dict:
+    """`drop`: earlier choices in the question that the options replace (a technology that turned out to have no data), so they do not pile up as "（WiFi）（5G 換手）"."""
+    return {"ask": {"text": text, "options": list(dict.fromkeys(options)), "drop": drop or []}}
 
 
 def with_hints(plan: dict, text: str, cat: dict) -> dict:
@@ -115,6 +116,9 @@ def with_hints(plan: dict, text: str, cat: dict) -> dict:
         for p in t["products"]:
             if p["model"] not in names and (p["model"].lower() in low or any(tok in p["id"].lower() or tok in p["model"].lower() for tok in tokens)):
                 names.append(p["model"])
+    named = [p["model"] for t in cat.values() for p in t["products"] if p.get("project_name") and p["project_name"] in text]   # the project by its name, when that settles one device
+    if len(set(named)) == 1 and named[0] not in names:
+        names.append(named[0])
     plan["products"] = names
     if "全部設備" in text:
         plan["all_products"] = True
@@ -154,14 +158,15 @@ def next_step(plan: dict, cat: dict) -> dict:
         if general in fits:
             rt = general
         elif not same:
-            return _ask(f"目前專區沒有{_tech_label(tech)}的測試報告數據；有的是：{_labels(cat)}。要改查哪一種？", [REPORT_ZH.get(t, t) for t in cat])
+            return _ask(f"目前專區沒有{_tech_label(tech)}的測試報告數據；有的是：{_labels(cat)}。要改查哪一種？", [REPORT_ZH.get(t, t) for t in cat], [f"（{_tech_label(tech)}）"])
         else:
             why = f"{REPORT_ZH.get(general, general)}報告沒有你問的指標" if general in cat else f"目前沒有{_tech_label(tech)}吞吐量類的報告"
             return _ask(f"{why}；{_tech_label(tech)}的報告有：{_labels(fits or same)}。要查哪一種？", [REPORT_ZH.get(t, t) for t in fits or same])
     models = list(dict.fromkeys(p["model"] for p in cat[rt]["products"]))
     if not names and not plan.get("all_products") and len(models) > 1:
-        listed = "、".join(f"{p['model']}（{p['document_id']}）" for p in cat[rt]["products"])
-        return _ask(f"{REPORT_ZH.get(rt, rt)}報告有 {len(models)} 個案子（設備）：{listed}。請問要查哪一個？", models + ["全部設備"])
+        listed = "；".join((f"案子 {project_label(p)}，" if project_label(p) else "") + f"設備 {p['model']}，文件 {p['document_id']}" for p in cat[rt]["products"])
+        options = [p["model"] + (f"・{p['project_name']}" if p.get("project_name") else "") for p in cat[rt]["products"]]
+        return _ask(f"{REPORT_ZH.get(rt, rt)}報告有 {len(models)} 個案子：{listed}。請問要查哪一個？", options + ["全部設備"])
     plan["report_type"] = rt
     return {"plan": plan}
 
@@ -234,6 +239,42 @@ def render(result: dict, params: dict) -> str:
     return "\n".join(lines)[:MAX_CHARS]
 
 
+def project_label(p: dict) -> str:
+    """The project (案子) as CSIT names it: the name with its number, or the number alone for a report ingested before the names were kept."""
+    name, code = p.get("project_name"), p.get("project_code")
+    return f"{name}（{code}）" if name and code else (name or code or "")
+
+
+def scope_of(rows: list[dict], cat: dict) -> str:
+    """Which project, test case, device, kind of report and document the numbers come from, one clause per report."""
+    clauses = []
+    for rt, doc, model in dict.fromkeys((r["report_type"], r["document_id"], r["dut_model"]) for r in rows):
+        p = next((x for x in cat.get(rt, {}).get("products", []) if x["document_id"] == doc), {})
+        bits = ([f"案子 {project_label(p)}"] if project_label(p) else []) + ([f"測試案例 {p['case_name']}"] if p.get("case_name") else [])
+        clauses.append("，".join(bits + [f"設備 {model}", f"{REPORT_ZH.get(rt, rt)}報告 {doc}"]))
+    return "；".join(clauses)
+
+
+INFO_WORDS = re.compile(r"案子|專案|案件|測試案例|任務|project|case|task", re.I)
+
+
+def info_passages(question: str, cat: dict) -> list[dict]:
+    """The reports' own particulars (project, test case and task as CSIT names them, device, report) as one passage, for a question that asks about them: the names
+    live in the database, in no document the zone searches."""
+    if not INFO_WORDS.search(question):
+        return []
+    lines = []
+    for rt, t in cat.items():
+        for p in t["products"]:
+            bits = ([f"案子 {project_label(p)}"] if project_label(p) else []) + ([f"測試案例 {p['case_name']}"] if p.get("case_name") else []) \
+                + ([f"任務 {p['task_name']}"] if p.get("task_name") else []) + [f"設備 {p['model']}", f"{REPORT_ZH.get(rt, rt)}報告 {p['document_id']}"]
+            lines.append("- " + "，".join(bits))
+    if not lines:
+        return []
+    return [{"source": "報告基本資料", "revision_id": "timescale:report-info", "location_label": "資料庫（案子、測試案例、任務、設備、報告）", "publisher": "資料庫彙總", "analysis_eligible": True,
+             "content": "專區裡各份測試報告所屬的案子（CSIT 的專案）、測試案例、任務、設備與報告：\n" + "\n".join(lines[:60]), "limit": MAX_CHARS}]
+
+
 def render_empty(params: dict) -> str:
     cond = "、".join(f"{k}={v}" for k, v in (params.get("filters") or {}).items()) or "未指定條件"
     return f"資料庫中沒有符合此查詢的數據（報告類型 {params['report_type']}，設備 {'、'.join(params['products'] or ['全部'])}，{cond}）。不要用其他條件的數值代替。"
@@ -249,6 +290,7 @@ class ReportStats:
 
     def consult(self, question: str, history: list[dict] | None = None) -> dict:
         nothing = {"passages": [], "ask": None}
+        info: list[dict] = []
         before = [str(t["content"])[:300] for t in (history or []) if t.get("role") == "user"][-3:]   # an answer typed in a later turn belongs to the questions before it
         asked = "前面的提問：" + "／".join(before) + f"\n目前的問題：{question}" if before else question
         try:
@@ -256,20 +298,21 @@ class ReportStats:
                 cat = db.catalog()
                 if not cat:
                     return nothing
+                info = info_passages(question, cat)       # who the reports belong to: asked about by name, whether or not numbers are wanted
                 plan = parse_plan(self.complete([{"role": "system", "content": PLAN_PROMPT + describe(cat)}, {"role": "user", "content": asked}]))
                 if plan is None:
-                    return nothing
+                    return {"passages": info, "ask": None}
                 step = next_step(with_hints(plan, asked, cat), cat)
                 if "ask" in step:
                     return {"passages": [], "ask": step["ask"]}
                 params = to_query(step["plan"], cat)
                 if params is None:
-                    return nothing
+                    return {"passages": info, "ask": None}
                 result = db.stats(**params)
         except Exception:                          # no database, an unknown product, a refused parameter: the answer then rests on the passages
-            return nothing
+            return {"passages": info, "ask": None}
         docs = ", ".join(dict.fromkeys(r["document_id"] for r in result["rows"])) or params["report_type"]
-        scope = "；".join(dict.fromkeys(f"{REPORT_ZH.get(r['report_type'], r['report_type'])}報告 {r['document_id']}（設備 {r['dut_model']}）" for r in result["rows"])) or None
+        scope = scope_of(result["rows"], cat) or None
         content = f"資料來源：{scope}\n{render(result, params)}" if scope else render_empty(params)
         return {"passages": [{"source": f"測試數據彙總（{docs}）", "revision_id": f"timescale:{docs[:40]}", "location_label": "資料庫計算結果", "publisher": "資料庫彙總",
-                              "analysis_eligible": True, "content": content, "limit": MAX_CHARS, "scope": scope}], "ask": None}
+                              "analysis_eligible": True, "content": content, "limit": MAX_CHARS, "scope": scope}, *info], "ask": None}

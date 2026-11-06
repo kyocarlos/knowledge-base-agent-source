@@ -29,10 +29,11 @@ SYSTEM = """你是 KM「{zone}」的助理，只能根據下列「資料」回�
 3. 不要編造型號、版本、日期、數值；數值必須和資料一致。
 4. 使用與問題相同的語言（預設繁體中文），先給結論，再條列重點。
 5. 比較兩個以上的對象時，差距很小（約 2% 以內，或在逐次量測的正常波動內）就寫「差距很小」，不要寫成較高、較低、較好、較差；樣本只有幾次時，成功率差一兩次也不要下優劣結論。列出數值，讓讀者自己判斷。
-6. 標示為「測試數據彙總」的資料是資料庫對報告逐次數據算出的結果：平均、最大、最小、中位數、成功率、某幾次的數值以它為準，數值照抄；沒有這份資料時，不要自己對逐次數據加總或求平均。有這份資料時，統計數值只引用它，不要再引用其他段落裡的數值；回答依測試項目或條件分組，同一種指標放同一欄（用表格），資料沒有的格子寫「—」，不要把不同指標混在同一行，也不要只挑其中幾組。問題沒有指定測試項目、頻段或次數時，先列出全部組合，並在最後用追問建議使用者縮小範圍。回答開頭的「依據」那一行由系統加上，不用自己寫。
+6. 標示為「測試數據彙總」的資料是資料庫對報告逐次數據算出的結果：平均、最大、最小、中位數、成功率、某幾次的數值以它為準，數值照抄；沒有這份資料時，不要自己對逐次數據加總或求平均。有這份資料時，統計數值只引用它，不要再引用其他段落裡的數值；回答依測試項目或條件分組，同一種指標放同一欄（用表格），資料沒有的格子寫「—」，不要把不同指標混在同一行，也不要只挑其中幾組。問題沒有指定測試項目、頻段或次數時，先列出全部組合，並在最後用追問建議使用者縮小範圍。回答開頭的「依據」那一行由系統加上，不用自己寫。有這份資料時，不要用「在這個專區的資料裡找不到」開頭；資料裡沒有的部分，在表格後面再說明。標示為「報告基本資料」的資料列出各份報告所屬的案子（CSIT 的專案，含名稱與編號）、測試案例、任務、設備與報告文件；問案子名稱、專案、測試案例或任務時以它為準，名稱與編號都寫出來；問「剛剛的數據」時，依前一則回答最前面的「依據」判斷是哪一份報告。
 7. 回答最後另起一行，以「追問：」開頭，列出最多三個相關的追問，用「｜」分隔；沒有就省略這一行。"""
 NOTHING = "在這個專區的資料裡找不到相關內容。"
 NOTHING_PREFIX = "在這個專區的資料裡找不到"   # the model may name the topic inside the sentence
+NOTHING_ONLY_CHARS = 120
 
 
 def grams(text: str) -> set[str]:
@@ -73,7 +74,8 @@ def grounding(answer: str, cited_text: str, n_sources: int, n_current: int) -> d
     cited = [ln for ln in claims if REF.search(ln)]
     values = [n for n in NUMBER.findall(body) if len(n.replace(",", "").replace(".", "")) >= 2]
     haystack = cited_text.replace(",", "")
-    missing = [v for v in dict.fromkeys(values) if v.replace(",", "") not in haystack]
+    plain = lambda v: (v.rstrip("0").rstrip(".") if "." in v else v).replace(",", "")        # "454.0" is the data's "454"
+    missing = [v for v in dict.fromkeys(values) if v.replace(",", "") not in haystack and plain(v) not in haystack]
     return {"summary": {"claims": len(claims), "claims_cited": len(cited), "claims_tool_data": 0, "values": len(values),
                         "values_verified": sum(1 for v in values if v not in missing), "values_not_found": sum(1 for v in values if v in missing),
                         "similarity_enabled": False, "sources": {"wfa": n_sources, "current": n_current, "total": n_sources}},
@@ -112,10 +114,13 @@ class ZoneAgent:
     def _ask(self, task_id: str, question: str, owner: dict, ask: dict, started: float, emit: Callable[[dict], None]) -> dict[str, Any]:
         """A question back (technology, kind of report, or project): each option is a follow-up that repeats the question with the choice added, so the next turn is complete."""
         text = f"{ask['text']}可以直接點下面的選項，或自己補充說明。"
+        base = question
+        for dropped in ask.get("drop") or []:       # a choice the options replace is taken out of the question first
+            base = base.replace(dropped, "")
         emit({"type": "tool", "label": "確認要查的內容"})
         emit({"type": "delta", "text": text})
         return {"task_id": task_id, "owner": owner, "status": "completed", "question": question, "answer_main": text, "citations": [], "stop_reason": "clarification（需要補充）",
-                "trace": [{"tool": "ask_clarification"}], "grounding": grounding(text, "", 0, 0), "extension": {"related": "", "followups": [f"{question}（{o}）" for o in ask["options"]]},
+                "trace": [{"tool": "ask_clarification"}], "grounding": grounding(text, "", 0, 0), "extension": {"related": "", "followups": [f"{base}（{o}）" for o in ask["options"]]},
                 "elapsed_ms": int((self.clock() - started) * 1000)}
 
     def answer(self, *, task_id: str, zone_label: str, zone_names: list[str], question: str, history: list[dict], owner: dict, file_records: dict[str, dict],
@@ -149,7 +154,8 @@ class ZoneAgent:
             reply = self.complete(self._messages(zone_label, question, history, passages))
             main, followups = split_followups(reply)
             refs = []
-            for n in ((int(x) for x in REF.findall(main)) if not main.startswith(NOTHING_PREFIX) else ()):   # "nothing found" cites nothing
+            nothing_only = main.startswith(NOTHING_PREFIX) and len(main) < NOTHING_ONLY_CHARS         # a bare "nothing found" cites nothing; one that goes on to list related data does
+            for n in ((int(x) for x in REF.findall(main)) if not nothing_only else ()):
                 if 1 <= n <= len(passages) and n not in refs:
                     refs.append(n)
             cited = [{"ref": f"S{n}", "source": passages[n - 1]["source"], "revision_id": passages[n - 1]["revision_id"], "location_label": passages[n - 1]["location_label"],

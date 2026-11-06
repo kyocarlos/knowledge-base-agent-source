@@ -31,7 +31,7 @@ def test_a_question_with_no_technology_is_asked_which_whatever_it_is_about():
 
 def test_a_technology_with_several_projects_is_asked_which_project_next():
     step = stats.next_step(plan(technology="wifi"), FULL)
-    assert step["ask"]["options"] == ["PKE3540J", "PKE9999", "全部設備"] and "PKE3540J（DOC-PKE3540J）" in step["ask"]["text"] and "WiFi 吞吐量報告" in step["ask"]["text"]
+    assert step["ask"]["options"] == ["PKE3540J", "PKE9999", "全部設備"] and "設備 PKE3540J，文件 DOC-PKE3540J" in step["ask"]["text"] and "WiFi 吞吐量報告" in step["ask"]["text"]
 
 
 def test_a_named_project_or_all_of_them_go_straight_to_the_numbers():

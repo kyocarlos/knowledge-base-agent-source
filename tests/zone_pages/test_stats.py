@@ -80,8 +80,9 @@ def test_the_catalog_lists_what_the_database_holds():
     class Cat(Conn):
         def execute(self, sql, params=None):
             self.sql.append(sql)
-            if "FROM km_test.test_run WHERE" in sql:
-                rows = [{"report_type": "wifi_throughput", "product_id": "P1", "dut_model": "P1", "document_id": "D1"}]
+            if "FROM km_test.test_run r WHERE" in sql:
+                rows = [{"report_type": "wifi_throughput", "product_id": "P1", "dut_model": "P1", "document_id": "D1", "project_id": "PRJ-1", "project_name": "案子一", "case_name": None,
+                         "task_name": None}]
             elif "metric_dictionary md" in sql:
                 rows = [{"report_type": "wifi_throughput", "metric_name": "throughput", "unit": "Mbps", "description": "d", "band": ["5GHz"], "bandwidth_mhz": [80], "channel": None,
                          "direction": ["dl"], "attenuation_db": None, "angle_deg": None, "traffic_mode": None, "protocol": ["tcp"], "statistic": None, "first_no": None, "last_no": None}]

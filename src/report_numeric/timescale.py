@@ -77,12 +77,12 @@ def write_package(conn, pkg: dict, *, accept_source_errors: bool, replace: bool 
         conn.execute("""INSERT INTO km_test.test_run (test_run_id, id_basis, report_id, document_id, document_version, report_revision, report_type, technology,
             product_id, product_id_basis, dut_model, npi_stage, firmware_id, firmware_version, hardware_version, chipset_vendor, ethernet_type, test_date,
             overall_result, source_system, approval_status, approval_basis, publish_status, visibility, owner_department, access_roles, access_departments,
-            quality_status, formula_error_count, package_id, schema_version, content_hash, csit_id, source_record_id, project_id)
+            quality_status, formula_error_count, package_id, schema_version, content_hash, csit_id, source_record_id, project_id, project_name, case_code, case_name, task_code, task_name)
             VALUES (%(test_run_id)s,%(id_basis)s,%(document_id)s,%(document_id)s,%(document_version)s,%(report_revision)s,%(report_type)s,%(technology)s,
             %(product_id)s,%(product_id_basis)s,%(dut_model)s,%(npi_stage)s,%(firmware_id)s,%(firmware_version)s,%(hardware_version)s,%(chipset_vendor)s,%(ethernet_type)s,%(test_date)s,
             %(overall_result)s,%(source_system)s,%(approval_status)s,%(approval_basis)s,%(publish_status)s,%(visibility)s,%(owner_department)s,%(access_roles)s,%(access_departments)s,
-            %(quality_status)s,%(formula_error_count)s,%(package_id)s,%(schema_version)s,%(content_hash)s,%(csit_id)s,%(source_record_id)s,%(project_id)s)""",
-                     {"csit_id": None, "source_record_id": None, "project_id": None, **run, **doc, **policy, "quality_status": "source_errors_accepted" if errors else "clean",
+            %(quality_status)s,%(formula_error_count)s,%(package_id)s,%(schema_version)s,%(content_hash)s,%(csit_id)s,%(source_record_id)s,%(project_id)s,%(project_name)s,%(case_code)s,%(case_name)s,%(task_code)s,%(task_name)s)""",
+                     {"csit_id": None, "source_record_id": None, "project_id": None, "project_name": None, "case_code": None, "case_name": None, "task_code": None, "task_name": None, **run, **doc, **policy, "quality_status": "source_errors_accepted" if errors else "clean",
                       "formula_error_count": len(errors), "package_id": pkg["package_id"], "schema_version": pkg["schema_version"], "content_hash": content_hash})
         rid = run["test_run_id"]
         with conn.cursor() as cur:

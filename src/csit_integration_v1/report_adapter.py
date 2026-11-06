@@ -25,7 +25,9 @@ class ReportAdapter:
         from src.report_numeric.parser import parse_report
         p=job["request_payload"]
         identity={"csit_id":str(p["documentId"]),"source_record_id":str(p["documentId"])+":v"+str(p["version"]),
-            "project_id":(p.get("project") or {}).get("number"),"policy":CSIT_POLICY}
+            "project_id":(p.get("project") or {}).get("number"),"project_name":(p.get("project") or {}).get("name"),
+            "case_code":(p.get("case") or {}).get("number"),"case_name":(p.get("case") or {}).get("name"),
+            "task_code":(p.get("task") or {}).get("number"),"task_name":(p.get("task") or {}).get("name"),"policy":CSIT_POLICY}
         try:return parse_report(path,identity,source_name=Path(job["file_name"]).name)
         except IntegrationError:raise
         except Exception:raise IntegrationError("PARSER_REJECTION","Report template parser rejected workbook") from None

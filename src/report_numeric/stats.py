@@ -45,10 +45,13 @@ def catalog(conn, roles=DEFAULT_ROLES) -> dict:
     """What can be asked: per report type its products, metrics (with unit), the values each condition takes, and (where it matters) the test cases."""
     roles = list(roles)
     out: dict[str, dict] = {}
-    for r in _rows(conn, """SELECT report_type, product_id, dut_model, document_id FROM km_test.test_run WHERE access_roles && %(roles)s AND publish_status = 'published'
+    # the CSIT names are read through to_jsonb so a database that has not got the name columns yet (nothing ingested since they were added) still answers
+    for r in _rows(conn, """SELECT report_type, product_id, dut_model, document_id, project_id, to_jsonb(r) ->> 'project_name' AS project_name, to_jsonb(r) ->> 'case_name' AS case_name,
+                                   to_jsonb(r) ->> 'task_name' AS task_name FROM km_test.test_run r WHERE access_roles && %(roles)s AND publish_status = 'published'
                             ORDER BY report_type, product_id""", {"roles": roles}):
         t = out.setdefault(r["report_type"], {"products": [], "metrics": [], "dims": {}, "cases": [], "series": list(series_of(r["report_type"]))})
-        t["products"].append({"id": r["product_id"], "model": r["dut_model"], "document_id": r["document_id"]})
+        t["products"].append({"id": r["product_id"], "model": r["dut_model"], "document_id": r["document_id"], "project_code": r["project_id"], "project_name": r["project_name"],
+                              "case_name": r["case_name"], "task_name": r["task_name"]})
     if not out:
         return out
     arrays = ", ".join(f"array_agg(DISTINCT m.{d}) FILTER (WHERE m.{d} IS NOT NULL) AS {d}" for d in CONDITIONS)

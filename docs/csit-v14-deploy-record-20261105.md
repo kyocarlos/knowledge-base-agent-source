@@ -198,3 +198,14 @@ CSIT 的分類變更通知不再改專區。程式:`zones.py`、`doclib_metadata
 - 日後新技術（例如 `pon_throughput`）自動套用同一順序；新報告種類不用改程式。
 - DA40 web：`km-da40-web:zone-pages-20261106o`（備份 `~/.km-control/agg-20261106/override.before-n`，還原則改回 `…20261106m`）。
 - 驗證（真實報告，交易內寫入後 rollback）：「吞吐量平均是多少？」→ 問 WiFi 或 5G →（WiFi）→ 問兩個案子或全部 →（PKE3540J）→ 直接答；「延遲平均是多少？」「RSSI 平均是多少？」同樣先問技術；「通過率（WiFi）」→ 請選報告種類（只有 RvR）；點名設備與條件的問題直接答。
+
+## 案子名稱與依據行補強（2026-11-06）
+
+手動測時，回答沒有交代案子，追問「案子名稱是甚麼」只答出文件標題。原因與處理：
+1. **名稱沒存進 Timescale**：CSIT 通知有 project、case、task 的 id／編號／名稱（控制庫 `km_csit_ingestion_jobs` 有存），但 `km_test.test_run` 只留 `project_id`（＝專案編號，如 PRJ-001）。現在 worker 把 `project_name`、`case_code`、`case_name`、`task_code`、`task_name` 也寫進 `test_run`（`schema.sql` 以 `ADD COLUMN IF NOT EXISTS` 加欄位，每次寫入都會重跑，可重複執行；`report_adapter` 從通知取值，`parser`、`timescale` 寫入）。新欄位可為空，回復映像時不必移除欄位。已用 `backfill_names.py`（一次性）依控制庫同一份通知補上既有那筆報告（SCU2050）；目前模擬器送的是固定名稱「模擬專案／模擬測試案例／模擬測試任務」，真實 CSIT 會送真實名稱。
+2. **目錄與依據行**：`report_numeric.stats.catalog` 讀出案子名稱等（用 `to_jsonb(r) ->> '…'`，資料庫還沒有欄位時也能回答）。資料庫彙總的依據行改為「案子 名稱（編號），測試案例 …，設備 …，<種類>報告 <文件編號>」；反問案子的選項為「設備・案子名稱」，句子裡提到案子名稱且唯一對應一個設備時也能認出。
+3. **「找不到…」開頭的回答不再整段被丟掉**：原本只要開頭是「在這個專區的資料裡找不到」就不收引用，導致依據行消失、數值核對全部顯示找不到。現在只有不到 120 字的純「找不到」才不引用。
+4. **互相矛盾的選擇不再疊加**：選了某技術但該技術沒有資料時，新的選項會取代原本的「（WiFi）」，不再變成「（WiFi）（5G 換手）」。
+5. **問案子、專案、測試案例、任務的問題**（不論是否要數據）會多一段「報告基本資料」（`info_passages`），所以「剛剛的數據的案子名稱是甚麼？」答「模擬專案（PRJ-001）」。
+6. 數值核對容許尾端 0（`454.0` 對應資料的 `454`）。
+- 映像：worker `km-csit-worker:v14l-projectnames-20261106`（備份 `~/.km-control/agg-20261106/images.env.before-l`）、web `km-da40-web:zone-pages-20261106r`（備份 `…/override.before-p`，還原則改回 `…20261106o`）。
