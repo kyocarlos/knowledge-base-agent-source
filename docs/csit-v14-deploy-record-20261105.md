@@ -209,3 +209,4 @@ CSIT 的分類變更通知不再改專區。程式:`zones.py`、`doclib_metadata
 5. **問案子、專案、測試案例、任務的問題**（不論是否要數據）會多一段「報告基本資料」（`info_passages`），所以「剛剛的數據的案子名稱是甚麼？」答「模擬專案（PRJ-001）」。
 6. 數值核對容許尾端 0（`454.0` 對應資料的 `454`）。
 - 映像：worker `km-csit-worker:v14l-projectnames-20261106`（備份 `~/.km-control/agg-20261106/images.env.before-l`）、web `km-da40-web:zone-pages-20261106r`（備份 `…/override.before-p`，還原則改回 `…20261106o`）。
+- 反問的回答不再顯示成「沒有依據」（依據核對面板原本顯示 0/2 紅字）：`NO_CLAIMS`；選報告種類的選項會取代「（5G）」而不是疊成「（5G）（5G 換手）」。web 映像 `km-da40-web:zone-pages-20261106s`（備份同 `override.before-p`，還原改回 `…20261106o`）。

@@ -34,6 +34,8 @@ SYSTEM = """你是 KM「{zone}」的助理，只能根據下列「資料」回�
 NOTHING = "在這個專區的資料裡找不到相關內容。"
 NOTHING_PREFIX = "在這個專區的資料裡找不到"   # the model may name the topic inside the sentence
 NOTHING_ONLY_CHARS = 120
+NO_CLAIMS = {"summary": {"claims": 0, "claims_cited": 0, "claims_tool_data": 0, "values": 0, "values_verified": 0, "values_not_found": 0, "similarity_enabled": False,
+                         "sources": {"wfa": 0, "current": 0, "total": 0}}, "flagged": []}      # a question back states no fact, so there is nothing to check
 
 
 def grams(text: str) -> set[str]:
@@ -120,7 +122,7 @@ class ZoneAgent:
         emit({"type": "tool", "label": "確認要查的內容"})
         emit({"type": "delta", "text": text})
         return {"task_id": task_id, "owner": owner, "status": "completed", "question": question, "answer_main": text, "citations": [], "stop_reason": "clarification（需要補充）",
-                "trace": [{"tool": "ask_clarification"}], "grounding": grounding(text, "", 0, 0), "extension": {"related": "", "followups": [f"{base}（{o}）" for o in ask["options"]]},
+                "trace": [{"tool": "ask_clarification"}], "grounding": NO_CLAIMS, "extension": {"related": "", "followups": [f"{base}（{o}）" for o in ask["options"]]},
                 "elapsed_ms": int((self.clock() - started) * 1000)}
 
     def answer(self, *, task_id: str, zone_label: str, zone_names: list[str], question: str, history: list[dict], owner: dict, file_records: dict[str, dict],

@@ -129,3 +129,11 @@ def test_a_short_device_name_typed_as_the_answer_goes_through_to_the_numbers():
     seen = []
     done = stats.ReportStats(lambda m: json.dumps(plan(technology="wifi")), lambda: source(cat=cat, seen=seen)).consult("吞吐量平均是多少？（WiFi）（PKE3540J）")
     assert done["ask"] is None and done["passages"] and seen[0]["products"] == ["PKE3540J-D223"]
+
+
+def test_a_question_back_is_not_shown_as_an_answer_without_support():
+    st = stats.ReportStats(lambda m: json.dumps(plan(technology="cellular")), lambda: source(cat={"cellular_handover": FULL["cellular_handover"]}))
+    result = ZoneAgent(Catalog(), lambda messages: "x", stats=st).answer(task_id="t", zone_label="z", zone_names=["z"], question="吞吐量平均是多少？（5G）", history=[], owner={}, file_records={},
+                                                                         emit=lambda e: None, with_stats=True)
+    assert result["grounding"]["summary"]["claims"] == 0 and result["grounding"]["summary"]["claims_cited"] == 0 and result["grounding"]["flagged"] == []
+    assert result["extension"]["followups"] == ["吞吐量平均是多少？（5G 換手）"]                  # the technology is in the choice already: not "（5G）（5G 換手）"

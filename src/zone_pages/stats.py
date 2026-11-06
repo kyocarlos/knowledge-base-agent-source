@@ -161,7 +161,7 @@ def next_step(plan: dict, cat: dict) -> dict:
             return _ask(f"目前專區沒有{_tech_label(tech)}的測試報告數據；有的是：{_labels(cat)}。要改查哪一種？", [REPORT_ZH.get(t, t) for t in cat], [f"（{_tech_label(tech)}）"])
         else:
             why = f"{REPORT_ZH.get(general, general)}報告沒有你問的指標" if general in cat else f"目前沒有{_tech_label(tech)}吞吐量類的報告"
-            return _ask(f"{why}；{_tech_label(tech)}的報告有：{_labels(fits or same)}。要查哪一種？", [REPORT_ZH.get(t, t) for t in fits or same])
+            return _ask(f"{why}；{_tech_label(tech)}的報告有：{_labels(fits or same)}。要查哪一種？", [REPORT_ZH.get(t, t) for t in fits or same], [f"（{_tech_label(tech)}）"])
     models = list(dict.fromkeys(p["model"] for p in cat[rt]["products"]))
     if not names and not plan.get("all_products") and len(models) > 1:
         listed = "；".join((f"案子 {project_label(p)}，" if project_label(p) else "") + f"設備 {p['model']}，文件 {p['document_id']}" for p in cat[rt]["products"])
