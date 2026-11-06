@@ -12,11 +12,17 @@ from .checks import check_ingestion_callback,check_deletion_callback
 from .v2 import V2Mixin,READ_SCOPES,file_route
 
 BASE="/api/integrations/km/v1"
+# L1 = the zones in the KM left navigation, with the names it shows. L2/L3 are examples (the real CSIT list is not known to the simulator).
 TAXONOMY=[
- {"id":"10","name":"設備儀器","children":[{"id":"11","name":"頻譜分析儀","children":[{"id":"111","name":"FSW 系列"},{"id":"112","name":"MS269x 系列"}]},
+ {"id":"20","name":"WiFi 知識專區","children":[{"id":"21","name":"規格文件","children":[]},{"id":"22","name":"測試報告","children":[{"id":"221","name":"Wi-Fi 7"}]}]},
+ {"id":"40","name":"行動通訊知識專區","children":[]},
+ {"id":"50","name":"固網寬頻知識專區","children":[]},
+ {"id":"30","name":"認證知識專區","children":[{"id":"31","name":"NCC","children":[]},{"id":"32","name":"CE","children":[]}]},
+ {"id":"60","name":"產品驗證專區","children":[]},
+ {"id":"10","name":"設備儀器專區","children":[{"id":"11","name":"頻譜分析儀","children":[{"id":"111","name":"FSW 系列"},{"id":"112","name":"MS269x 系列"}]},
                                     {"id":"12","name":"網路分析儀","children":[]}]},
- {"id":"20","name":"Wi-Fi 專區","children":[{"id":"21","name":"規格文件","children":[]},{"id":"22","name":"測試報告","children":[{"id":"221","name":"Wi-Fi 7"}]}]},
- {"id":"30","name":"認證","children":[{"id":"31","name":"NCC","children":[]},{"id":"32","name":"CE","children":[]}]}]
+ {"id":"70","name":"實驗室管理專區","children":[]},
+ {"id":"80","name":"Confluence / Jira / TestRail 查詢專區","children":[]}]
 NEXT={"PendingApproval":"approve","Approved":"archive","Archived":"dispatch"}
 
 def now():return datetime.now(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00","Z")

@@ -182,7 +182,7 @@ def main():
     check("13 the change is accepted (202)",r.status_code==200 and doc(eq)["changes"][-1]["state"] in ("Accepted","Processing","Completed"),r.text[:200])
     check("13 KM reports Completed with appliedRevision = sourceRevision",wait(lambda:doc(eq)["changes"][-1]["state"]=="Completed") and not bad(eq),bad(eq))
     pl=vpayloads(eq)
-    check("13 the index payload carries the new classification and tags",pl and all(p.get("tags")==["wifi","fsw"] and p["classification"]["l1"]=="設備儀器" for p in pl),pl[:1])
+    check("13 the index payload carries the new classification and tags",pl and all(p.get("tags")==["wifi","fsw"] and p["classification"]["l1"]=="設備儀器專區" for p in pl),pl[:1])
     check("13 the file was not fetched again",len(fetched(eq))==before)
     post(f"/api/docs/{eq}/stale-change")
     check("13 an older revision is refused with 409",not bad(eq) and any("stale" in v["what"] and v["ok"] for v in doc(eq)["allVerdicts"]),bad(eq))
