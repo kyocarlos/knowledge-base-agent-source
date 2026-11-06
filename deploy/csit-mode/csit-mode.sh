@@ -120,6 +120,11 @@ switch() {
     [ "$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{end}}' "${PROJECT}-worker-1" 2>/dev/null)" = healthy ] && break
     sleep 4
   done
+  if [ "$cur" = live ]; then
+    # While the simulator was the Correlation Resolver it did not know the real CSIT's Test Reports, so their analysis was recorded as Skipped. Those rows
+    # would keep the real reports out of the analysis queue once a real Resolver exists: remove exactly that outcome (the live worker is already gone).
+    docker exec -i "$DB_CONTAINER" psql -U km_control_app -d km_control -At       -c "delete from public.km_csit_v2_analysis where status='Skipped' and last_error_code='CORRELATION_NOT_FOUND'" | sed 's/^/left live mode, cleared simulator-made analysis skips: /'
+  fi
   if [ "$target" = real ]; then compose_sim down >/dev/null 2>&1 || docker rm -f csit-sim >/dev/null 2>&1 || true; fi
   printf '{"mode":"%s","at":"%s","from":"%s"}\n' "$target" "$(date -u +%FT%TZ)" "$cur" > "$KM_MODE_DIR/state.json"
   status

@@ -41,3 +41,26 @@ sim 模式的 worker 現在用 KM 同一個 LLM 閘道(sub2api,`gpt-5.6-luna`)�
 - CSIT 的 7444:vendor / equipment 取檔(任務 B)、`metadata-changes/status`(C)、`deletions/status`(D)尚未開放
 - 送出端 scope 尚未切到 v2 正式名稱(`csit.document.read`、`csit.km.status.write`、`csit.km.deletion-status.write`),要等雙方 M2M 合約測試後把 `KM_CSIT_OUTBOUND_SCOPES` 設成它們(加 `csit.ingestion.status.write` 直到 v1 回報停用)
 - LLM 擷取仍未啟用;文件庫向量仍不在 KM 搜尋範圍;`kb_timeseries_da40` 帳號權限過大尚未輪替
+
+## live 模式:模擬器通知、寫入正式資料(2026-11-06)
+依需求新增第三種模式 `live`(`csit-mode.sh live --confirm-real-data`,見 `deploy/csit-mode/README.md`)。使用者決定:允許測試報告來源、接 Neo4j 與 TimescaleDB、可刪任意 ID、提供一鍵清除。
+
+| 項目 | 內容 |
+|---|---|
+| 映像 | worker `km-csit-worker:v14d-reports-20261106`(v14c-llm 加上 `src/report_numeric`、`src/wifi8`(稀疏向量用的 lexical)、`report_adapter.py`;三種模式共用,報告範本只在 `KM_CSIT_REPORT_TEMPLATES=1` 時啟用)、模擬器 `km-csit-simulator:20261106-live`。api 映像不變 |
+| 檔案 | `~/.km-control/csit-mode/`:`compose-live.yml`(新)、`csit-mode.sh`(live、live-list、live-purge、離開 live 時清 analysis Skipped)、`images.env`、`live_drive.py`(驅動模擬器 API 的小工具)。備份:`~/.km-control/csit-v14-20261105/csit-mode.sh.before-live`、`images.env.before-live` |
+| 模擬器 | 通知時標上 KM 的 `csitMode`;`POST /api/delete-by-id`、`POST /api/purge-live`(皆要 `confirmLiveData:true`)、`GET /api/km/mode`;畫面新增「正式資料」頁與 LIVE 標示 |
+| 目前狀態 | **live 模式運作中**(切換時間 2026-11-06 01:08 UTC);真實 CSIT 在此期間得到 401 |
+
+### 在伺服器上驗證(live 模式,真實儲存)
+- 4 個來源(文件庫、廠商、驗證申請附件、設備)各送一份:全部 Completed,LLM 回 `documentType=SOP`;`public` 出現 4 筆工作、`km_csit_docs` 4 點、檔案寫進 `csit-integration-v1`。
+- **以識別碼刪除**(模擬器 reset 後,用 `live-list` 的規格):4 份全部 Verified,七項清理 `chunks/metadata/vectorIndex/storedCopies/extractedText=Deleted`,`km_csit_docs` 回 0。
+- **一鍵清除**:再送 4 份後 purge,4 份 Verified;重複 purge 不會重送(`alreadyDeletedOrDeleting`)。
+- **測試報告 v1**(一般 xlsx):Completed,向量進 `knowledge_base`(1 點)、`analysis` 回報經模擬器 Resolver 送出;purge 後 Verified,`knowledge_base` 回 0。Neo4j 全部節點數(6238)與真實的 2 份 v1 報告(Completed)前後不變。
+- 模擬器測試:`tests/csit_simulator/test_simulator_live.py` 9 項,模擬器測試共 46 項通過。
+
+### 已知限制
+- **TimescaleDB 沒有 `km_test` schema**:命中範本檔名的 xlsx 會在數值階段失敗。要先在 Timescale 套用 `src/report_numeric/schema.sql`(新增 schema,未做,需要決定);這個驗證也還沒用真實範本檔做過。
+- `ai_km_knowledge_v1` collection 尚不存在,範本報告第一次寫入時才會建立。
+- 一般 v1 報告刪除後,`km_csit_ingestion_jobs` 的列仍是 `Completed`(原有行為,向量與檔案已清)。
+- 沒有 live 期間的 `KM_CSIT_REPORT_TEMPLATES=1` 實測;`live-list` 與 `delete_spec` 對 v1 報告用 `documentId` 當 `sourceEntityId`(KM 只用 documentId 與 version 清理)。
