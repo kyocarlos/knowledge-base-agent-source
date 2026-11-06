@@ -74,3 +74,13 @@ sim 模式的 worker 現在用 KM 同一個 LLM 閘道(sub2api,`gpt-5.6-luna`)�
 real 模式收到範本報告也受影響,同一份程式已修。
 
 修正後重新刪除:Timescale 各表(除 `metric_dictionary`)為 0、`ai_km_knowledge_v1` 0 點。**殘留**:測試建立的共用節點 `Product NCQ2200B2V` 與 `Firmware NCQ2200B2V_STD_V0.0.0_230206`(依設計不隨報告刪除),Neo4j 節點數 6240,比測試前多 2。
+
+### Handover 報告範本 `cellular_handover`(2026-11-06)
+新增範本:檔名以 `SIT-SR-SC-NR-Handover` 開頭的 xlsx(NG/Xn Handover,Small Cell)。實作:`src/report_numeric/parser.py`(`_handover*`)、`metric_dictionary.json`(12 個新指標)、`chunks.py`(`_handover_chunks`)、`query.py`(類型與指標白名單);測試 `tests/csit_v1/test_handover_template.py`(11 項)。既有 `cellular_throughput` 解析輸出與修改前逐位元相同。映像 `km-csit-worker:v14f-handover-20261106`。
+
+- **辨識**:文件編號 `SIT-SR-SC-NR-Handover-<型號>-<階段>-V<版本>`(版本可含小數與字尾,如 V13.5a);`SIT-SR-…` 其他類型(如 Thermal)不命中。
+- **讀的內容**:Small Cell A 的型號、韌體、硬體、頻段、NPI 階段(序號與 MAC 不讀);Small Cell B 放 `dut.peer_cell`;「2.7」的兩個小基站設定、鄰區、衰減器與 SS-RSRP 的 near/far 設定點(`test_condition`);Purpose / Scope / Test Procedure 文字;摘要頁每個區塊(Round trip=2 次、10 次、100 次)的判定、換手成功率與三個最大值(忽略 Example 欄);Xn 與 NG 兩個明細頁每次換手的前後延遲、前後吞吐量(下行)、成功與否、ping 遺失數、報告印出的有正負號變化量(絕對值欄不重複存)。分頁重複的區塊標題視為同一區塊的延續。
+- **指標**:`latency_rtt_before_ho` / `_after_ho`(ms)、`throughput_before_ho` / `_after_ho`(Mbps)、`ho_success`(1/0)、`ping_loss_count`、`latency_variation`、`throughput_variation`、`ho_success_rate`、`max_throughput_variation`、`max_latency_variation`、`max_ping_loss_count`。測試案例 id `cellular_handover:<xn|ng>:<2|10|100>`,`sample_index` 為第幾次換手。
+- **實測**(`SIT-SR-SC-NR-Handover-SCU2060-EV-V13.5a.xlsx` 的副本,live 模式):Completed;`test_measurement` 1816 筆(224 次換手 × 8 + 24 筆摘要)、`test_item_result` 6、`test_condition` 38、`ai_km_knowledge_v1` 54 點;抽查 Xn 第 100 次(延遲 32→45、吞吐量 638→649)與來源儲存格一致。以模擬器清除後 Timescale、向量庫皆為 0,`cleanupVerified:true`。
+- **殘留**:依設計不隨報告刪除的 Neo4j 共用節點(`Product SCU2060`、其 `Firmware`、6 個 `TestCase`),節點數 6246,比基準 6238 多 8。
+- **假設**:「Center Frequency 4.85」視為 GHz(同區塊 ARFCN 723332 = 4849.98 MHz 相符);吞吐量方向記為 dl(測試指令為 iperf3 Client - DL);RF 發射功率、ARFCN 等未標單位的設定不加單位。
