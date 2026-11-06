@@ -156,14 +156,15 @@ class V2QdrantWriter:
         must=[FieldCondition(key="document_id",match=MatchValue(value=str(document_id))),
               FieldCondition(key="document_version",match=MatchValue(value=int(version))),
               FieldCondition(key="sha256",match=MatchValue(value=sha256))]
-        self.client.set_payload(self.collection,payload={"index_state":state},points=Filter(must=must),wait=True)
+        payload={"index_state":state,**({"superseded_at":datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")} if state=="Superseded" else {})}
+        self.client.set_payload(self.collection,payload=payload,points=Filter(must=must),wait=True)
         # A Test Report written through v1 carries document_id / document_version only (no sha256 in its points).
         for collection in self.extra_collections:
-            try:self.client.set_payload(collection,payload={"index_state":state},wait=True,points=Filter(must=must[:2]))
+            try:self.client.set_payload(collection,payload=payload,wait=True,points=Filter(must=must[:2]))
             except Exception as exc:
                 if "not found" not in str(exc).lower():raise
         # A version-less document-library file replaced through v2 is addressed by its file id.
-        self.client.set_payload(self.collection,payload={"index_state":state},wait=True,
+        self.client.set_payload(self.collection,payload=payload,wait=True,
             points=Filter(must=[FieldCondition(key="document_file_id",match=MatchValue(value=str(document_id)))]))
     def apply_metadata(self,flt,payload):
         self.client.set_payload(self.collection,payload=payload,points=flt,wait=True)

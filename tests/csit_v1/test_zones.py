@@ -143,7 +143,8 @@ def test_the_prompt_lists_every_zone_and_the_test_report_rule():
 
 def test_zone_fields_combine_the_documents_type_and_the_llms_zone():
     assert zone_fields("DocumentLibraryFile",{"l1":None},{"documentType":"TestReport","zone":"WiFi 知識專區"},"t")["zone_id"]=="verification"
-    assert zone_fields("DocumentLibraryFile",{"l1":None},{"documentType":"Manual","zone":"認證知識專區"},"t")=={"zone_id":"cert","topic_zone":"認證知識專區","zone_basis":"llm"}
+    f=zone_fields("DocumentLibraryFile",{"l1":None},{"documentType":"Manual","zone":"認證知識專區","summary":"摘要","keywords":["t"]},"t")
+    assert (f["zone_id"],f["topic_zone"],f["zone_basis"],f["document_type"],f["summary"],f["keywords"])==("cert","認證知識專區","llm","Manual","摘要",["t"]) and f["indexed_at"].endswith("Z")
     assert zone_fields("DocumentLibraryFile",{"l1":None},None,"t")["zone_id"]=="unclassified"
 
 
@@ -162,5 +163,29 @@ def test_v2_points_of_a_recognised_test_report_are_product_verification():
 
 def test_search_names_include_the_names_a_zone_had_before():
     from src.csit_integration_v1.zones import search_names
-    assert "4g/5g 知識專區" in search_names("mobile") and search_names("mobile")[0]=="行動通訊知識專區"
-    assert "csit雜項專區" in search_names("verification")
+    assert "4G/5G 知識專區" in search_names("mobile") and search_names("mobile")[0]=="行動通訊知識專區"
+    assert "CSIT雜項專區" in search_names("verification")
+
+
+def test_points_carry_what_the_zone_pages_show():
+    c=Client()
+    V2QdrantWriter(c,"km_csit_docs",embed,1000).write("hello world",v2_job("VendorFile",None),None,{"documentType":"Manual","summary":"一份手冊","keywords":["hello"],"zone":"設備儀器專區"})
+    p=c.points[0].payload
+    assert (p["document_type"],p["summary"],p["keywords"],p["topic_zone"])==("Manual","一份手冊",["hello"],"設備儀器專區") and p["indexed_at"].endswith("Z")
+
+
+def test_a_v1_test_report_point_has_a_type_and_a_time():
+    c=Client()
+    QdrantWriter(c,"knowledge_base",embed,1000).write("report text",{"sourceSystem":"CSIT","documentId":"d","version":1,"project":{"id":"p","number":"PRJ"}},{"file_name":"r.pdf"})
+    assert c.points[0].payload["document_type"]=="TestReport" and c.points[0].payload["indexed_at"].endswith("Z")
+
+
+def test_superseding_a_version_records_when():
+    calls=[]
+    class C2(Client):
+        def set_payload(self,*a,**k):calls.append(k.get("payload") or a[1] if len(a)>1 else k.get("payload"))
+    w=V2QdrantWriter(C2(),"km_csit_docs",embed,1000,extra_collections=("knowledge_base",))
+    w.set_state("d",1,"a"*64,"Superseded")
+    assert calls and all(c["index_state"]=="Superseded" and c["superseded_at"].endswith("Z") for c in calls)
+    calls.clear();w.set_state("d",1,"a"*64,"Active")
+    assert all("superseded_at" not in c for c in calls)

@@ -33,7 +33,8 @@ def _zone(pol: dict) -> dict:
     if pol.get("source_system") != "CSIT":
         return {}
     from src.csit_integration_v1.zones import zone_payload
-    return zone_payload("TestReport", None)
+    from datetime import datetime, timezone
+    return {**zone_payload("TestReport", None), "indexed_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")}
 
 
 def payload(pkg: dict, chunk: dict, model: str, model_version: str) -> dict:

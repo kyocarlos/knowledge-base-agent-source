@@ -1196,6 +1196,8 @@ from .wifi8_routes import router as wifi8_router
 app.include_router(wifi8_router)
 from .legacy_routes import router as legacy_router
 app.include_router(legacy_router)
+from .zone_routes import router as zone_router
+app.include_router(zone_router)
 from .keeper_routes import router as keeper_router
 app.include_router(keeper_router)
 

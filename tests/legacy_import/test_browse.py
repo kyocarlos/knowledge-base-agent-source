@@ -151,7 +151,7 @@ def test_the_legacy_category_filters_leave_csit_documents_out():
 
 def test_the_route_maps_a_page_key_or_a_name_to_the_zone_values():
     from src.web_api import legacy_routes
-    assert legacy_routes._csit_zones("mobile")[0] == "行動通訊知識專區" and "4g/5g 知識專區" in legacy_routes._csit_zones("mobile")
+    assert legacy_routes._csit_zones("mobile")[0] == "行動通訊知識專區" and "4G/5G 知識專區" in legacy_routes._csit_zones("mobile")
     assert legacy_routes._csit_zones("csit")[0] == "產品驗證專區"                       # the page "csit" is 產品驗證專區
     assert legacy_routes._csit_zones("認證與法規知識專區")[0] == "認證知識專區"
     assert legacy_routes._csit_zones("nowhere") is None

@@ -103,6 +103,8 @@ def make_semantic_extractor(complete):
     return extract
 
 def zone_fields(source_type,classification_names,semantic,text):
-    """zone_id / topic_zone / zone_basis for the points of one document: the LLM's reading of the content decides (see zones.py)."""
+    """The payload fields every point of one document carries: the zone KM decided from the content (see zones.py) and what the zone pages show about
+    the document (type, summary, keywords, when it was indexed)."""
     sem=clean_semantic(semantic,text)
-    return zone_payload(source_type,classification_names,sem["documentType"],sem["zone_hint"])
+    return {**zone_payload(source_type,classification_names,sem["documentType"],sem["zone_hint"]),"document_type":sem["documentType"],"summary":sem["summary"],
+            "keywords":sem["keywords"],"indexed_at":datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")}

@@ -18,7 +18,7 @@ ZONE_BY_ID = dict(ZONES)
 PAGE_KEY = {"verification": "csit"}
 UNCLASSIFIED = ("unclassified", "待分類")
 # Names the same zones carried before the navigation was renamed (also what the legacy importer wrote); accepted when reading and as a fallback.
-ALIASES = {"4g/5g 知識專區": "mobile", "認證與法規知識專區": "cert", "設備預約知識專區": "equipment", "實驗室與測試環境知識專區": "lab", "csit雜項專區": "verification"}
+ALIASES = {"4G/5G 知識專區": "mobile", "認證與法規知識專區": "cert", "設備預約知識專區": "equipment", "實驗室與測試環境知識專區": "lab", "CSIT雜項專區": "verification"}
 SOURCE_DEFAULT = {"TestReport": "verification", "VerificationApplicationAttachment": "verification", "VendorFile": "equipment", "EquipmentAttachment": "equipment"}
 GIVE_UP = "無法判斷"
 
@@ -37,7 +37,7 @@ def zone_id_for_name(name):
 
 def search_names(zone_id):
     """Every topic_zone value that belongs to a zone: its name now, and the names it had before."""
-    return [ZONE_BY_ID[zone_id]] + [k for k, v in ALIASES.items() if v == zone_id and k != _norm(ZONE_BY_ID[zone_id])] if zone_id in ZONE_BY_ID else []
+    return [ZONE_BY_ID[zone_id]] + [k for k, v in ALIASES.items() if v == zone_id and k != ZONE_BY_ID[zone_id]] if zone_id in ZONE_BY_ID else []
 
 
 def resolve_zone(source_type, l1_name=None, document_type=None, zone_hint=None):
