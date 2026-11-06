@@ -159,3 +159,13 @@ CSIT 的分類變更通知不再改專區。程式:`zones.py`、`doclib_metadata
 - DA40 web：`km-da40-web:zone-pages-20261106g`（override 備份 `~/.km-control/agg-20261106/override.before-g`，還原則改回 `…20261106f`）。web 映像原有的 `report_numeric/query.py` 是不含 Handover 的舊版，這次只覆蓋該檔。
 - 驗證：「Xn 100 次第 40～60 次平均換手後延遲」答 30.95 ms；「NG 100 次換手後延遲中位數與 p95」答 31／49.5 ms，皆與 Timescale 原始資料重算一致。
 - 範圍：目前只有 cellular_handover 有統計範本；Throughput／RvR 等類型尚未接入。
+
+## C 擴充：Throughput／RvR／蜂巢式 Throughput 與日後新報告（2026-11-06）
+
+把 Handover 專用的統計改成通用範本 `src/report_numeric/stats.py`（取代 `query.handover_stats`）：
+- 所有報告類型共用 `test_measurement` 的條件欄位（band、center_freq_mhz、bandwidth_mhz、channel、direction、attenuation_db、angle_deg、traffic_mode、protocol、statistic、time_slot），所以只有一個固定 SQL。每種類型的差別只在「哪些條件一定不能平均掉」，登記在 `SERIES`：wifi_throughput＝頻段／頻寬／方向／協定；wifi_rvr＝頻段／頻寬／方向／衰減／角度；cellular_throughput＝頻段／中心頻率／頻寬／時槽／方向／協定／單雙向／統計類型；cellular_handover＝測試項目代碼。其餘條件（例如 channel）只在被要求時才分組。
+- **日後新進來的報告**：`SERIES` 沒登記的類型一律套用最嚴格分組（所有條件都分開），不會算出混在一起的平均；可查的類型、設備、指標、條件值、測試項目全部由 `catalog()` 即時從資料庫讀出並放進給模型的提示，所以新報告進來不用改程式。要讓新類型的結果更精簡，才需要在 `SERIES` 補一行。
+- 計畫的每個名稱都要在 catalog 裡（資料庫沒有的值會被丟掉，不猜）；SQL 的識別字只來自常數、值全部綁定參數；唯讀連線、statement_timeout 8 秒。查無資料時會明說「資料庫中沒有符合此查詢的數據」，不讓模型用別的條件代替。
+- `src/zone_pages/agent.py`：資料庫彙總段落可超過一般段落的 700 字上限（`limit`）。
+- DA40 web：`km-da40-web:zone-pages-20261106i`（還原則把 override 的 image 改回 `…20261106g`，備份在 `~/.km-control/agg-20261106/`）。
+- 驗證：在一個交易裡寫入伺服器上現成的 `SIT-TR-WL-Throughput-PKE3540J`、`SIT-TR-WL-RvR-NCM1150D2`、`SIT-TR-SC-NR-Throughput-SCU5050` 報告，以真實模型問四種題型，數值都由資料庫彙總段落提供、沒有被標為找不到依據，最後 rollback。注意：第一次探測腳本沒有先開交易，`write_package` 自己 commit 了一筆 SCU5050 測試報告（csit_id `p`），已確認並只刪除該筆（test_run 回到 1 筆、量測 1792 筆）。以後驗證腳本一定先開交易再寫入。

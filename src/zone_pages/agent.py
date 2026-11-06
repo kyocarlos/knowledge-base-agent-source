@@ -105,7 +105,7 @@ class ZoneAgent:
         self.catalog, self.complete, self.clock, self.stats = catalog, complete, clock, stats   # stats: zone_pages.stats.ReportStats, for the zones that hold test reports
 
     def _messages(self, zone_label: str, question: str, history: list[dict], passages: list[dict]) -> list[dict]:
-        context = "\n\n".join(f"[S{i}] {p['source']}（{p['location_label']}）\n{p['content'][:MAX_PASSAGE_CHARS]}" for i, p in enumerate(passages, 1))
+        context = "\n\n".join(f"[S{i}] {p['source']}（{p['location_label']}）\n{p['content'][:p.get('limit', MAX_PASSAGE_CHARS)]}" for i, p in enumerate(passages, 1))
         turns = [{"role": t["role"], "content": str(t["content"])[:1500]} for t in history[-HISTORY_TURNS:] if t.get("role") in ("user", "assistant")]
         return [{"role": "system", "content": SYSTEM.format(zone=zone_label)}, *turns, {"role": "user", "content": f"資料：\n{context}\n\n問題：{question}"}]
 

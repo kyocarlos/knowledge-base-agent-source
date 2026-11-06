@@ -76,13 +76,16 @@ def _complete():
 def _stats(complete) -> ReportStats:
     """Test-report numbers for the answers: a read-only, time-limited connection per question to the database the CSIT reports were written to."""
     import os
+    from contextlib import contextmanager
+    from types import SimpleNamespace
 
-    def run(**params):
+    @contextmanager
+    def source():
         import psycopg
-        from ..report_numeric import query
+        from ..report_numeric import stats as report_stats
         with psycopg.connect(os.environ["TIMESCALEDB_URL"], options="-c default_transaction_read_only=on -c statement_timeout=8000", connect_timeout=5) as conn:
-            return query.handover_stats(conn, **params)
-    return ReportStats(complete, run, available=lambda: bool(os.environ.get("TIMESCALEDB_URL")))
+            yield SimpleNamespace(catalog=lambda: report_stats.catalog(conn), stats=lambda **p: report_stats.measurement_stats(conn, **p))
+    return ReportStats(complete, source)
 
 
 @lru_cache(maxsize=1)
