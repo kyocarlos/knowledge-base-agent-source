@@ -109,21 +109,21 @@ class ZoneAgent:
         turns = [{"role": t["role"], "content": str(t["content"])[:1500]} for t in history[-HISTORY_TURNS:] if t.get("role") in ("user", "assistant")]
         return [{"role": "system", "content": SYSTEM.format(zone=zone_label)}, *turns, {"role": "user", "content": f"資料：\n{context}\n\n問題：{question}"}]
 
-    def _ask_which(self, task_id: str, question: str, owner: dict, consult: dict, started: float, emit: Callable[[dict], None]) -> dict[str, Any]:
-        labels = [consult["labels"][rt] for rt in consult["clarify"]]
-        text = f"你的問題可以對應到這個專區的{'、'.join(f'「{label}」' for label in labels)}報告，但沒有說明是哪一種。請問要查哪一種？可以直接點下面的選項，或自己補充說明。"
-        emit({"type": "tool", "label": "確認要查的報告類型"})
+    def _ask(self, task_id: str, question: str, owner: dict, ask: dict, started: float, emit: Callable[[dict], None]) -> dict[str, Any]:
+        """A question back (technology, kind of report, or project): each option is a follow-up that repeats the question with the choice added, so the next turn is complete."""
+        text = f"{ask['text']}可以直接點下面的選項，或自己補充說明。"
+        emit({"type": "tool", "label": "確認要查的內容"})
         emit({"type": "delta", "text": text})
         return {"task_id": task_id, "owner": owner, "status": "completed", "question": question, "answer_main": text, "citations": [], "stop_reason": "clarification（需要補充）",
-                "trace": [{"tool": "ask_clarification"}], "grounding": grounding(text, "", 0, 0), "extension": {"related": "", "followups": [f"{question}（{label}）" for label in labels]},
+                "trace": [{"tool": "ask_clarification"}], "grounding": grounding(text, "", 0, 0), "extension": {"related": "", "followups": [f"{question}（{o}）" for o in ask["options"]]},
                 "elapsed_ms": int((self.clock() - started) * 1000)}
 
     def answer(self, *, task_id: str, zone_label: str, zone_names: list[str], question: str, history: list[dict], owner: dict, file_records: dict[str, dict],
                emit: Callable[[dict], None], with_stats: bool = False) -> dict[str, Any]:
         started = self.clock()
         consult = self.stats.consult(question, history) if with_stats and self.stats is not None and self.complete is not None else None
-        if consult and consult["clarify"]:       # more than one kind of report could be meant: ask, do not pick one
-            return self._ask_which(task_id, question, owner, consult, started, emit)
+        if consult and consult["ask"]:           # technology, kind of report and project are settled in that order before any number is fetched
+            return self._ask(task_id, question, owner, consult["ask"], started, emit)
         trace = [{"tool": "search_documents"}]
         emit({"type": "tool", "label": "搜尋專區文件"})
         hits = self.catalog.search(question, zone_names, top_k=PASSAGES, include_history=bool(HISTORY_WORDS.search(question)))

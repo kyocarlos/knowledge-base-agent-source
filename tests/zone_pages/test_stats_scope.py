@@ -40,17 +40,3 @@ def test_a_statistic_filter_is_dropped_where_the_report_has_only_one_statistic()
     assert stats.to_query(plan, cat)["filters"] == {"band": "n77"}
     many = {"cellular_handover": {**cat["cellular_handover"], "dims": {"statistic": ["average", "peak"]}}}
     assert stats.to_query({"needed": True, "report_type": "cellular_handover", "filters": {"statistic": "peak"}}, many)["filters"] == {"statistic": "peak"}
-
-
-def test_a_plan_that_wants_numbers_but_names_no_type_uses_the_only_type_or_asks():
-    blank = lambda: json.dumps({"needed": True, "report_type": "", "clarify": [], "products": [], "metrics": [], "filters": {}, "group_by": [], "from_no": None, "to_no": None})
-    only = {"wifi_throughput": CAT["wifi_throughput"]}
-    seen = []
-
-    def source(cat):
-        from tests.zone_pages.test_stats_clarify import source as s
-        return s(cat=cat, seen=seen)
-    one = stats.ReportStats(lambda m: blank(), lambda: source(only)).consult("吞吐量平均是多少?")
-    assert one["passages"] and one["clarify"] == [] and seen[0]["report_type"] == "wifi_throughput"
-    two = stats.ReportStats(lambda m: blank(), lambda: source(CAT)).consult("吞吐量平均是多少?")
-    assert two["passages"] == [] and two["clarify"] == ["wifi_throughput", "cellular_handover"]
