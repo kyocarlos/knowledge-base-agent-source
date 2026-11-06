@@ -11,7 +11,7 @@ from fastapi.testclient import TestClient
 from src.web_api import zone_routes
 from src.zone_pages import views
 from src.zone_pages.agent import ZoneAgent, grounding, split_followups
-from src.zone_pages.catalog import ZoneCatalog
+from src.zone_pages.catalog import ZoneCatalog, spread
 from src.zone_pages.digest import DigestService
 
 NOW = datetime(2026, 11, 6, 12, 0, tzinfo=timezone.utc)
@@ -358,3 +358,26 @@ def test_an_answer_that_found_nothing_cites_nothing(catalog, qdrant):
 def test_the_not_found_sentence_may_name_the_topic(catalog, qdrant):
     r, _ = run_agent(catalog, qdrant, lambda m: "在這個專區的資料裡找不到「火星」相關內容。資料只有校驗的內容。[S1]")
     assert r["citations"] == []
+
+
+def _hit(score, text):
+    return {"score": score, "doc": {}, "chunk": {"content": text}}
+
+
+def test_a_question_naming_two_things_reaches_both_even_when_one_matches_every_word_better():
+    ng = [_hit(0.9 - i / 100, f"NG Handover 第 {i} 次 SCU2050") for i in range(10)]
+    xn = [_hit(0.5 - i / 100, f"Xn Handover 第 {i} 次 SCU2050") for i in range(5)]
+    hits = ng + xn
+    plain = hits[:8]
+    assert not any("Xn" in h["chunk"]["content"] for h in plain)
+    chosen = spread(hits, "NG 和 Xn 換手的結果有什麼差別?", 8)
+    assert len(chosen) == 8
+    assert sum("Xn" in h["chunk"]["content"] for h in chosen) == 3
+    assert sum("NG" in h["chunk"]["content"] for h in chosen) == 5
+    assert [h["score"] for h in chosen] == sorted((h["score"] for h in chosen), reverse=True)
+
+
+def test_one_name_or_a_name_no_passage_mentions_changes_nothing():
+    hits = [_hit(0.9 - i / 100, f"NG Handover {i}") for i in range(12)]
+    assert spread(hits, "NG 結果", 8) == hits[:8]
+    assert spread(hits, "NG 和 Zeta 的差別", 8) == hits[:8]

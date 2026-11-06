@@ -170,6 +170,23 @@ def test_chunks_carry_the_words_and_each_handover_line(pkg):
     assert all(c["test_case_id"].startswith("cellular_handover:") for c in chunks if c["content_type"] == "measurement_rows")
 
 
+def test_every_block_gets_a_summary_computed_from_its_rows_and_one_passage_compares_them(pkg):
+    chunks = build_chunks(pkg)
+    xn10 = next(c for c in chunks if c["content_type"] == "test_results" and c.get("test_case_id") == "cellular_handover:xn:10" and "依逐次數據彙總" in c["text"])
+    assert "共 4 次" in xn10["text"] and "換手成功 4／4 次" in xn10["text"]
+    assert "換手後延遲平均 44.2" in xn10["text"] and "最小 41、最大 51" in xn10["text"] and "ping 遺失合計 3（單次最大 2）" in xn10["text"]
+    both = next(c for c in chunks if c["content_type"] == "test_results" and "比較" in c["text"] and c.get("test_case_id") is None)
+    assert "Xn Handover 10 times" in both["text"] and "NG Handover 10 times" in both["text"]
+
+
+def test_a_failed_handover_lowers_the_computed_success_count(tmp_path):
+    f = tmp_path / "failed.xlsx"
+    build(f, ng_success="No")
+    chunks = build_chunks(parse_report(f, IDENT, source_name=NAME))
+    ng10 = next(c for c in chunks if c.get("test_case_id") == "cellular_handover:ng:10" and "依逐次數據彙總" in c["text"])
+    assert "換手成功 3／4 次" in ng10["text"]
+
+
 def test_a_throughput_report_is_parsed_exactly_as_before():
     # SIT-TR-SC-NR-Throughput keeps its own parser; the handover work only widened the document-number and band-label rules
     from src.report_numeric import parser

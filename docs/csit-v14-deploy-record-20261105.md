@@ -140,3 +140,12 @@ CSIT 的分類變更通知不再改專區。程式:`zones.py`、`doclib_metadata
 - **備份與回滾**:前端 `~/.km-control/zones-live-frontend-backup-20261106/`(把檔案複製回去即可);網頁服務 `~/.km-control/csit-zones-web-20261106/`(`web.inspect.before-pages.json`、上一版覆蓋檔),回滾時把 `km-da40.csit-zones.image.override.yml` 的映像改回 `km-da40-web:csit-zones-20261106-on-open-files`;worker 回滾把 `images.env` 的 worker 映像改回 `v14h-llmzones-20261106` 後 `csit-mode.sh reapply`。
 - **驗證**:本機用真實的專區路由配假資料,在瀏覽器點過認證專區的總覽、文件清單、文件詳情、問答(含引用、數值核對、回饋按鈕)與知識中樞首頁,頁面只呼叫 `/api/zones/*`。伺服器上以模擬器送 8 份內容不同的文件,在網頁容器內呼叫路由:各專區的文件數、類型、來源、日期正確(產品驗證專區有兩份測試報告),詳情與段落、搜尋、週報(模型整理的重點)、4 個問答(認證、Small Cell 換手、設備校驗、無關問題)都正常,附加檔案設定開啟。測試文件已清除,Timescale 與三個向量集合皆為 0。
 - **限制**:TEST 網頁讀自己的資料庫,看不到 CSIT 文件;專區頁沒有圖片與圖表段落(CSIT 文件沒有抽圖);週報要等有本週新增文件才有內容;問答的文件權限目前是「登入者皆可看」;沒有對 CSIT 文件的「已移除」事件(刪除後資料點直接消失,動態裡不會有紀錄)。附加檔案實際上傳沒有在伺服器上點過,只確認設定與路由。
+
+## Handover 彙總段落與多對象檢索（2026-11-06）
+
+問題：問「NG 和 Xn 換手的結果有什麼差別？」時，檢索回傳的 8 段全是 NG（Xn 段落與 NG 段落只差標題兩個字，語意向量分不開），且報告只印最大值、沒有成功率或平均值，模型回答「找不到 Xn」。
+
+- B（`src/report_numeric/chunks.py`）：每個測試項目多寫一段「依逐次數據彙總」（次數、換手成功／總數、換手前後延遲與下行吞吐量的平均／最小／最大、ping 遺失合計），再多寫一段 Xn 與 NG 並列的比較段落（同次數的 Xn、NG 相鄰）。數值由入庫時從逐次資料計算，段落內註明來源。
+- A（`src/zone_pages/catalog.py`）：`spread()` 找出問題中提到、且候選段落也提到的名稱（NG、Xn、型號…，最多 4 個），每個名稱至少帶 3 段，不足時換掉排名最低且無人需要的段落。只有一個名稱或沒有段落提到的名稱時結果不變。
+- 部署：worker `km-csit-worker:v14j-handoveragg-20261106`（images.env 備份 `~/.km-control/agg-20261106/images.env.before`，`csit-mode.sh reapply`）；DA40 web `km-da40-web:zone-pages-20261106e`（override 備份 `~/.km-control/agg-20261106/override.before`，還原則把 image 改回 `…20261106c`）。
+- 既有報告不會自動補彙總段落：需先刪除再重新上傳。

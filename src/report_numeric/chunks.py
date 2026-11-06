@@ -161,6 +161,7 @@ def _handover_chunks(ms: list[dict], pkg: dict, tag: str, budget: int, count: Ca
         cases[m["test_case_id"]].append(m)
     verdict = {r["test_case_id"]: r for r in pkg["results"]}
     peer = pkg["dut"].get("peer_cell") or {}
+    overall: list[tuple] = []
     for cid, items in cases.items():
         first = items[0]
         head = (f"{tag}\n{first['test_case_name']}（頻段 {first.get('band') or '—'}，中心頻率 {first.get('center_freq_mhz') or '—'} MHz，頻寬 {first.get('bandwidth_mhz') or '—'} MHz，"
@@ -179,6 +180,11 @@ def _handover_chunks(ms: list[dict], pkg: dict, tag: str, budget: int, count: Ca
         for m in items:
             if m.get("sample_index") is not None:
                 per[m["sample_index"]][m["metric_name"]] = m["value"]
+        stat = _handover_stats(per)
+        if stat:
+            line = f"{first['test_case_name']}（依逐次數據彙總，共 {stat['n']} 次）：{stat['text']}"
+            add("test_results", head + "\n" + line, test_case_id=cid, source_sheet=first["source_sheet"], source_cell_range="")
+            overall.append((int(cid.rsplit(":", 1)[-1]) if cid.rsplit(":", 1)[-1].isdigit() else 0, cid, f"{first['test_case_name']}：{stat['short']}"))
         lines = []
         for no, v in sorted(per.items()):
             bits = []
@@ -193,3 +199,30 @@ def _handover_chunks(ms: list[dict], pkg: dict, tag: str, budget: int, count: Ca
             lines.append(f"第 {no} 次：" + "；".join(bits))
         for text in _pack(lines, head + "各次換手（換手前→換手後）：", budget, count):
             add("measurement_rows", text, band=first.get("band"), bandwidth_mhz=first.get("bandwidth_mhz"), test_case_id=cid, source_sheet=first["source_sheet"], source_cell_range="")
+    if len(overall) > 1:   # Xn and NG side by side, so a question that compares them finds both in one passage
+        lines = [row[2] for row in sorted(overall)]   # the same number of handovers side by side: Xn, then NG
+        for text in _pack(lines, f"{tag}\nXn 與 NG 各項換手測試結果比較（依逐次數據彙總）：", budget, count):
+            add("test_results", text, source_sheet="", source_cell_range="")
+
+
+def _handover_stats(per: dict[int, dict[str, float]]) -> dict | None:
+    """Count, success rate and mean / min / max of each series, computed from the handover rows (the report prints only the maxima)."""
+    if not per:
+        return None
+    rows = list(per.values())
+    bits = [f"換手成功 {sum(1 for v in rows if v.get('ho_success'))}／{sum(1 for v in rows if 'ho_success' in v)} 次"] if any("ho_success" in v for v in rows) else []
+    for key, label, unit in (("latency_rtt_before_ho", "換手前延遲", " ms"), ("latency_rtt_after_ho", "換手後延遲", " ms"),
+                             ("throughput_before_ho", "換手前下行吞吐量", " Mbps"), ("throughput_after_ho", "換手後下行吞吐量", " Mbps")):
+        vals = [v[key] for v in rows if key in v]
+        if vals:
+            bits.append(f"{label}平均 {sum(vals) / len(vals):.1f}{unit}（最小 {_fmt(min(vals))}、最大 {_fmt(max(vals))}）")
+    loss = [v["ping_loss_count"] for v in rows if "ping_loss_count" in v]
+    if loss:
+        bits.append(f"ping 遺失合計 {_fmt(sum(loss))}（單次最大 {_fmt(max(loss))}）")
+    brief = [b for b in bits if b.startswith(("換手成功", "換手後", "ping"))]
+    return {"n": len(rows), "text": "；".join(bits), "short": "；".join(_brief(b) for b in brief)}
+
+
+def _brief(bit: str) -> str:
+    """A series' line without its min / max, for the comparison passage."""
+    return bit.split("（最小")[0]

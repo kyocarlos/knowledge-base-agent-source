@@ -5,6 +5,7 @@ A zone page shows documents, versions and passages. KM keeps them as points (one
 """
 from __future__ import annotations
 
+import re
 import threading
 import time
 from typing import Any, Callable
@@ -24,6 +25,9 @@ SOURCE_ZH = {"DocumentLibraryFile": "文件庫", "VerificationApplicationAttachm
 UNCLASSIFIED = "待分類"
 PAGE = 256
 CANDIDATES = 40
+MAX_SUBJECTS = 4
+PER_SUBJECT = 3
+STOPWORDS = {"the", "and", "or", "vs", "of", "in", "to", "is", "are", "what", "which", "how", "for", "with", "on", "a", "an", "pass", "fail", "test", "report"}
 
 
 def _date(value: Any) -> str | None:
@@ -147,7 +151,44 @@ class ZoneCatalog:
                     hits.append({"score": float(getattr(point, "score", 0) or 0), "doc": doc, "chunk": {
                         "chunk_index": p.get("chunk_index") or 0, "location_label": location(collection, p), "content": p.get(text_key) or ""}})
         hits.sort(key=lambda h: h["score"], reverse=True)
-        return hits[:top_k]
+        return spread(hits, query, top_k)
+
+
+def subjects(query: str, hits: list[dict]) -> list[str]:
+    """The names (NG, Xn, SCU2050 ...) the question mentions that some candidate passage also mentions, in the order asked."""
+    out = []
+    for word in re.findall(r"[A-Za-z][A-Za-z0-9]+", query):
+        low = word.lower()
+        if low in STOPWORDS or low in out:
+            continue
+        pattern = re.compile(r"(?<![A-Za-z0-9])" + re.escape(low) + r"(?![A-Za-z0-9])")
+        if any(pattern.search(h["chunk"]["content"].lower()) for h in hits):
+            out.append(low)
+    return out[:MAX_SUBJECTS]
+
+
+def spread(hits: list[dict], query: str, top_k: int) -> list[dict]:
+    """The best passages, but at least PER_SUBJECT for each name the question mentions: a question comparing NG with Xn must reach both, even when
+    the passages of one are the closer match for every word of the question."""
+    chosen = hits[:top_k]
+    names = subjects(query, hits)
+    if len(names) < 2:
+        return chosen
+    has = lambda h, n: re.search(r"(?<![A-Za-z0-9])" + re.escape(n) + r"(?![A-Za-z0-9])", h["chunk"]["content"].lower()) is not None
+    for n in names:
+        missing = PER_SUBJECT - sum(1 for h in chosen if has(h, n))
+        if missing <= 0:
+            continue
+        extra = [h for h in hits[top_k:] if has(h, n)][:missing]
+        for add in extra:
+            # make room by dropping the lowest-ranked passage that no subject needs
+            drop = next((h for h in reversed(chosen) if not any(has(h, m) and sum(1 for c in chosen if has(c, m)) <= PER_SUBJECT for m in names)), None)
+            if drop is None:
+                return chosen
+            chosen.remove(drop)
+            chosen.append(add)
+    chosen.sort(key=lambda h: h["score"], reverse=True)
+    return chosen
 
 
 def location(collection: str, p: dict[str, Any]) -> str:
