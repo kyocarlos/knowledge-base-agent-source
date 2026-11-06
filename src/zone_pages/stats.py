@@ -24,7 +24,7 @@ METRIC_ZH = {"throughput": "吞吐量", "rssi": "RSSI", "latency_rtt": "RTT 延�
 DIRECTION_ZH = {"dl": "下行（報告 Rx）", "ul": "上行（報告 Tx）", "total": "合計（Tx＋Rx）"}
 STATISTIC_ZH = {"peak": "報告的 Peak", "average": "報告的平均", "min": "報告的最小", "max": "報告的最大", "value": "數值"}
 TRAFFIC_ZH = {"unidirectional": "單向", "bidirectional": "雙向"}
-MAX_CHARS = 6000
+MAX_CHARS = 12000
 SHOWN_VALUES = 14
 
 PLAN_PROMPT = """你把問題轉成測試報告數據的查詢計畫，只輸出一個 JSON 物件，不要其他文字。
@@ -255,7 +255,17 @@ def scope_of(rows: list[dict], cat: dict) -> str:
     return "；".join(clauses)
 
 
-INFO_WORDS = re.compile(r"案子|專案|案件|測試案例|任務|project|case|task", re.I)
+INFO_WORDS = re.compile(r"案子|專案|案件|測試案例|任務|project|case(?!\s*\d)|task", re.I)      # "Test Case 4" names a case in a question about numbers, it does not ask who the report belongs to
+AVERAGE_WORDS = re.compile(r"平均|average|mean", re.I)
+OTHER_STATISTIC_WORDS = re.compile(r"峰值|peak|最大|最小|max|min|三次|每次|各次|逐次", re.I)
+
+
+def default_statistic(params: dict, cat: dict, text: str) -> dict:
+    """A report that lists several statistics per case (its own average, the peak, each run) answers "平均" with its own average, not with every one of them."""
+    values = cat.get(params["report_type"], {}).get("dims", {}).get("statistic", [])
+    if "statistic" not in params["filters"] and "average" in values and len(values) > 1 and AVERAGE_WORDS.search(text) and not OTHER_STATISTIC_WORDS.search(text):
+        return {**params, "filters": {**params["filters"], "statistic": "average"}}
+    return params
 
 
 def info_passages(question: str, cat: dict) -> list[dict]:
@@ -308,6 +318,7 @@ class ReportStats:
                 params = to_query(step["plan"], cat)
                 if params is None:
                     return {"passages": info, "ask": None}
+                params = default_statistic(params, cat, asked)
                 result = db.stats(**params)
         except Exception:                          # no database, an unknown product, a refused parameter: the answer then rests on the passages
             return {"passages": info, "ask": None}

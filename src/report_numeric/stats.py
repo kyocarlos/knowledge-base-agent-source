@@ -28,8 +28,8 @@ CATEGORICAL = {"direction": DIRECTIONS, "traffic_mode": {"unidirectional", "bidi
 INTEGERS = ("bandwidth_mhz", "channel", "center_freq_mhz")
 FLOATS = ("attenuation_db", "angle_deg")
 NAME = re.compile(r"^[A-Za-z0-9_]{1,60}$")
-CASE = re.compile(r"^[\w:. \-/()]{1,120}$")
-MAX_ROWS = 120
+CASE = re.compile(r"^[\w:.@+#*, \-/()]{1,160}$")        # what a test case id holds: band@frequency, a time slot such as DDDSU+UDSUU (4:4), #case4
+MAX_ROWS = 240
 MAX_CASES = 60
 
 
@@ -120,6 +120,8 @@ def measurement_stats(conn, report_type: str, products: list[str] | None = None,
     cols = ["r.product_id", "r.dut_model", "r.report_type", "r.document_id", "m.metric_name", "m.unit", "m.value_basis"] + [f"m.{d}" for d in series]
     if "test_case_id" in series:
         cols.append("m.test_case_name")
+    # cases whose frequency could not be read (template leftovers) come last, so a result cut at MAX_ROWS loses them rather than the real ones
+    order = cols[:7] + (["(m.center_freq_mhz IS NULL)"] if "center_freq_mhz" in series else []) + cols[7:]
     where = [f"(m.{d} = %({d})s)" for d in CONDITIONS if d in f and f[d] is not None and d != "statistic"]
     if f.get("statistic") is not None:
         where.append("(m.statistic = %(statistic)s OR (%(statistic)s::text = 'value' AND m.statistic IS NULL))")
@@ -133,7 +135,7 @@ def measurement_stats(conn, report_type: str, products: list[str] | None = None,
           AND (%(lo)s::int IS NULL OR m.sample_index >= %(lo)s) AND (%(hi)s::int IS NULL OR m.sample_index <= %(hi)s)
           {''.join(' AND ' + w for w in where)}
         GROUP BY {', '.join(cols)}
-        ORDER BY {', '.join(cols)} LIMIT %(lim)s"""
+        ORDER BY {', '.join(order)} LIMIT %(lim)s"""
     params: dict[str, Any] = {"rt": report_type, "roles": list(roles), "p": pids, "metrics": metrics or None, "cases": f["test_cases"], "lo": from_no, "hi": to_no, "lim": MAX_ROWS + 1}
     params.update({d: f[d] for d in CONDITIONS if f.get(d) is not None})
     rows = _rows(conn, sql, params)
