@@ -93,3 +93,72 @@ def test_a_store_that_is_down_is_still_retried(monkeypatch):
     monkeypatch.setattr(timescale, "write_package", down)
     with pytest.raises(psycopg.OperationalError):
         ReportAdapter(lambda: Conn(), None, None).write_numeric({})
+
+
+def filler(tmp_path, columns):
+    """columns: [(header, band, tcp dl)] with the template's other cells filled with the same number, as the leftover cases are."""
+    wb = summary(tmp_path, [(h, "DDDSU (4:1)", dl) for h, _b, dl in columns], note="")
+    ws = wb.active
+    for i, (header, band, dl) in enumerate(columns):
+        col = 3 + 2 * i
+        ws.cell(4, col, band)
+        ws["A9"], ws["B9"], ws["A10"], ws["B10"] = None, "UL", None, "Bidirection"
+        ws.cell(9, col, dl)
+        ws.cell(10, col, dl)
+    return wb
+
+
+def run(wb):
+    from src.report_numeric.parser import _drop_placeholder_cases
+    out = Collector("TR:X")
+    _cellular(wb, out, "SIT-TR-SC-NR-Throughput-X-EV-V1")
+    _drop_placeholder_cases(out)
+    return out
+
+
+def test_a_case_whose_every_value_is_its_own_number_is_template_filler_and_left_out(tmp_path):
+    out = run(filler(tmp_path, [("1", "n79_4.85GHz", 705), ("9", "Band2", 9), ("10", "Band2", 10)]))
+    assert {m["test_case_name"] for m in out.measurements} == {"Test Case 1"}
+    kinds = [i["kind"] for i in out.issues]
+    assert kinds == ["placeholder_cases"] and "Test Case 9, 10" in out.issues[0]["detail"] and "未寫入" in out.issues[0]["detail"]    # the band notes of the dropped cases go too
+
+
+def test_a_real_case_is_kept_even_when_one_value_equals_its_number(tmp_path):
+    wb = filler(tmp_path, [("9", "n79_4.85GHz", 9)])
+    wb.active.cell(9, 3, 412)                      # one real value among the nine
+    out = run(wb)
+    assert {m["test_case_name"] for m in out.measurements} == {"Test Case 9"} and not any(i["kind"] == "placeholder_cases" for i in out.issues)
+
+
+def test_a_case_with_too_few_values_is_not_judged(tmp_path):
+    from src.report_numeric.parser import _drop_placeholder_cases
+    out = Collector("TR:X")
+    out.measure("s", "A1", "c", "throughput", 3, "Mbps", name="Test Case 3")
+    out.measure("s", "A2", "c", "throughput", 3, "Mbps", name="Test Case 3")
+    _drop_placeholder_cases(out)
+    assert len(out.measurements) == 2
+
+
+def test_the_filler_case_goes_whole_even_though_its_other_cells_hold_zeros(tmp_path):
+    from src.report_numeric.parser import _drop_placeholder_cases
+    out = Collector("TR:X")
+    for i, v in enumerate([9, 9, 9, 9, 9, 9]):
+        out.measure("3. Test Result Summary", f"C{i}", "c9", "throughput", v, "Mbps", name="Test Case 9", statistic="average")
+    out.measure("3. Test Result Summary", "C20", "c9", "latency_rtt", 9, "ms", name="Test Case 9", statistic="average")
+    for metric in ("rsrp", "rsrq", "sinr"):
+        out.measure("4. Performance Test", "B9", "c9", metric, 0, "dBm", name="Test Case 9", statistic="value")
+    out.measure("4. Performance Test", "B10", "c9", "udp_lost_ratio", 0.01, "unitless", name="Test Case 9", statistic="value")
+    for i, v in enumerate([687, 705, 750]):                                   # a real case is untouched
+        out.measure("3. Test Result Summary", f"C{30 + i}", "c1", "throughput", v, "Mbps", name="Test Case 1", statistic="average")
+    _drop_placeholder_cases(out)
+    assert {m["test_case_name"] for m in out.measurements} == {"Test Case 1"} and len(out.measurements) == 3
+
+
+def test_a_case_whose_throughputs_equal_its_number_but_whose_latency_is_real_is_kept():
+    from src.report_numeric.parser import _drop_placeholder_cases
+    out = Collector("TR:X")
+    for i in range(3):
+        out.measure("s", f"A{i}", "c", "throughput", 5, "Mbps", name="Test Case 5", statistic="average")
+    out.measure("s", "A9", "c", "latency_rtt", 31, "ms", name="Test Case 5", statistic="average")
+    _drop_placeholder_cases(out)
+    assert len(out.measurements) == 4

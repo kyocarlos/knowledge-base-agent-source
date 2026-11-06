@@ -227,3 +227,6 @@ CSIT 的分類變更通知不再改專區。程式:`zones.py`、`doclib_metadata
   2. 假資料（Test Case 9～16，頻段 Band2、值 9～16 Mbps）因代碼字母排序在前，加上最多 120 組，把真資料擠掉 → 查詢改為頻率不明的項目排最後、上限 240 組、彙總段落上限 12000 字；問「平均」時，若該類型有多種統計（自己的平均、峰值、逐次值）且問題沒提到峰值／最大／最小，只取報告自己的平均（`default_statistic`）。「Test Case 4」這類字樣不再觸發「報告基本資料」段落。
   - web 映像 `km-da40-web:zone-pages-20261106u`（備份 `…/override.before-t`，還原改回 `…20261106t`）。
   - 驗證：問「吞吐量平均是多少？（5G 吞吐量）」列出 Case 1～8（對照報告摘要頁數值一致，例如 Case 1 下行 TCP 單向 705、Case 4 為 430、Case 6 為 483）與排在最後的 Band2 假資料；問 Case 4 與 Case 6 分別得到 430／483 Mbps，與資料庫一致。
+- **範本殘留的假資料不再寫入**：5G Throughput 範本附帶的填充案例（SCU2060 的 Test Case 9～16：頻段 Band2，吞吐量與摘要延遲全部等於案例編號，效能頁的接收訊號強度與封包遺失是 0）。`parser._drop_placeholder_cases`：一個案例的吞吐量與摘要延遲平均（至少 3 筆）全部等於它自己的案例編號時，整個案例（含它所有儲存格）不寫入，並在報告 issues 記 `placeholder_cases`（說明是哪幾個案例）、同時移除這些案例的 `unparsed_band` 提示。判斷刻意保守：只看這兩類欄位、必須全部等於案例編號、至少 3 筆。
+  - 驗證（伺服器上的真實報告）：SCU2060 512 → 256 筆（少了 8 個案例 × 32 筆）；SCU5050（有真實的 Band2 資料）512 筆、WiFi Throughput 126 筆、RvR 682 筆都不變。
+  - worker 映像 `km-csit-worker:v14n-filler-20261106`（備份 `~/.km-control/agg-20261106/images.env.before-n`，`csit-mode.sh reapply` 即可還原）。已經寫進去的那份 SCU2060 仍含假資料，要刪除後重新上傳才會套用。

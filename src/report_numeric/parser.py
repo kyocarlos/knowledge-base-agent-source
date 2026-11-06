@@ -166,6 +166,7 @@ def parse_report(path: str | Path, identity: dict | None = None, source_name: st
         _handover(wb, out, dut)
     else:
         _cellular(wb, out, document_number)
+        _drop_placeholder_cases(out)
         _separate_cases(out)
     model = dut.get("model") or _model_from_number(document_number)
     product_id = re.sub(r"\s+", "-", _t(model))
@@ -552,6 +553,23 @@ def _case_no(value: Any) -> tuple[int, bool] | None:
         return int(value), False
     m = re.match(r"^(\d+)\s*(\*+)?$", _t(value))
     return (int(m.group(1)), bool(m.group(2))) if m else None
+
+
+def _drop_placeholder_cases(out: Collector) -> None:
+    """The template ships with filler cases whose throughputs and mean latency are all the case's own number (Test Case 9 reads 9 everywhere, Test Case 10 reads
+    10 ...). A real measurement never does that for a whole case, so such a case (three such values or more) is left out, with all its cells, and the report says so."""
+    values: dict[int, list[float]] = {}
+    for m in out.measurements:
+        g = re.search(r"Test Case (\d+)", m.get("test_case_name") or "")
+        if g and (m["metric_name"] == "throughput" or (m["metric_name"] == "latency_rtt" and m.get("statistic") == "average")):   # what the filler fills; its RSRP and loss cells hold 0
+            values.setdefault(int(g.group(1)), []).append(m["value"])
+    filler = {n for n, v in values.items() if len(v) >= 3 and all(x == n for x in v)}
+    if not filler:
+        return
+    keep = lambda m: not ((g := re.search(r"Test Case (\d+)", m.get("test_case_name") or "")) and int(g.group(1)) in filler)
+    out.measurements[:] = [m for m in out.measurements if keep(m)]
+    out.issues[:] = [i for i in out.issues if not (i["kind"] == "unparsed_band" and any(i.get("detail", "").endswith(f"Test Case {n}") for n in filler))]
+    out.issues.append({"kind": "placeholder_cases", "sheet": "", "detail": f"Test Case {', '.join(map(str, sorted(filler)))} 的數值全部等於案例編號，視為範本殘留，未寫入"})
 
 
 def _separate_cases(out: Collector) -> None:
