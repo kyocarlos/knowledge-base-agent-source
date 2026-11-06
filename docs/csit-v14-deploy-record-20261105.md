@@ -64,3 +64,13 @@ sim 模式的 worker 現在用 KM 同一個 LLM 閘道(sub2api,`gpt-5.6-luna`)�
 - `ai_km_knowledge_v1` collection 尚不存在,範本報告第一次寫入時才會建立。
 - 一般 v1 報告刪除後,`km_csit_ingestion_jobs` 的列仍是 `Completed`(原有行為,向量與檔案已清)。
 - 沒有 live 期間的 `KM_CSIT_REPORT_TEMPLATES=1` 實測;`live-list` 與 `delete_spec` 對 v1 報告用 `documentId` 當 `sourceEntityId`(KM 只用 documentId 與 version 清理)。
+
+### 範本報告實測與刪除缺陷(2026-11-06)
+用 `SIT-TR-NR-Throughput-NCQ2200B2V-EV-V10.xlsx` 的副本(改名 `SIT-TR-SC-NR-Throughput-NCQ2200B2V-EV-V10.xlsx`,原檔未動)經模擬器以 Test Report 送入 live:命中 `cellular_throughput` 範本,Completed;Timescale `km_test` 寫入 `test_run` 1、`report_package` 1(`metric_dictionary` 由寫入程式補 11 筆,不隨報告刪除),Neo4j +5 節點,`ai_km_knowledge_v1` 建立並寫入 6 點。這份檔案的表格內容沒被範本辨識(measurements 0),但整條路徑已走過。
+
+**發現並修掉兩個刪除缺陷**(`doclib_deletion.py`,映像 `km-csit-worker:v14e-tpldel-20261106`,測試 `tests/csit_v1/test_template_deletion.py` 4 項):
+1. 範本資料以報告名稱當 `document_id`(`SIT-TR-…-V10`、版本 `V10`),CSIT 的 id 只在 `source_record_id`(`<documentId>:v<version>`);刪除用 CSIT id 找不到,卻回報 `cleanupVerified:true`。現在 Qdrant、Timescale、Neo4j 都以 `source_record_id` 解析範本身分,並在刪除前先解析好,驗證階段才不會漏看。
+2. 數值清理把任何含 "does not exist" 的錯誤當成「資料表不存在」而略過(`version` 整數對文字欄位的型別錯誤也被吞掉,舊的 `km_csit_numeric_points` 表也不存在),導致後面的範本刪除根本沒執行。現在只認 PostgreSQL 的 `42P01`/`3F000`,每個表群各自一個交易。
+real 模式收到範本報告也受影響,同一份程式已修。
+
+修正後重新刪除:Timescale 各表(除 `metric_dictionary`)為 0、`ai_km_knowledge_v1` 0 點。**殘留**:測試建立的共用節點 `Product NCQ2200B2V` 與 `Firmware NCQ2200B2V_STD_V0.0.0_230206`(依設計不隨報告刪除),Neo4j 節點數 6240,比測試前多 2。

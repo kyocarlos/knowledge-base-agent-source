@@ -26,6 +26,7 @@ class DeletionExecutor:
         self.repo,self.root=repo,Path(storage_root)
         self.qdrant,self.doclib_collection,self.report_collections=qdrant,doclib_collection,tuple(report_collections)
         self.neo4j,self.neo4j_database,self.timescale,self.cache_clear=neo4j_driver,neo4j_database,timescale_connect,cache_clear
+        self._template_cache={}
 
     # -- identity helpers --
     @staticmethod
@@ -37,6 +38,24 @@ class DeletionExecutor:
         if t=="VerificationApplicationAttachment":
             r=job["resource"];return bool(self.repo.v1_job_ids(r["documentId"],r["version"]))
         return False
+    @staticmethod
+    def _source_record(job):
+        r=job["resource"];return f"{r['documentId']}:v{r['version']}"
+    def _template_runs(self,job):
+        """Registered report templates (KM_CSIT_REPORT_TEMPLATES) key their rows by the report's own name (document_id 'SIT-TR-...-V10', version 'V10') and keep
+        the CSIT identity only in source_record_id ('<documentId>:v<version>'). Resolved once per run, before anything is deleted, so the verification pass
+        still looks for what was there."""
+        if not self._needs_report_stores(job) or self.timescale is None:return []
+        sr=self._source_record(job)
+        if sr in self._template_cache and self._template_cache[sr] is not None:return self._template_cache[sr]
+        try:
+            with self.timescale() as c:
+                rows=[{"test_run_id":a,"document_id":b,"document_version":v} for a,b,v in
+                      c.execute("SELECT test_run_id,document_id,document_version FROM km_test.test_run WHERE source_record_id=%s",(sr,)).fetchall()]
+        except Exception as exc:
+            if getattr(exc,"sqlstate",None) in ("42P01","3F000"):rows=[] # the template schema was never installed
+            else:raise IntegrationError("CLEANUP_STORE_UNAVAILABLE","Numeric store unavailable",True) from None
+        self._template_cache[sr]=rows;return rows
     def _dirs(self,job):
         r=job["resource"]
         if self._is_doclib(job):
@@ -52,6 +71,7 @@ class DeletionExecutor:
         must=[FieldCondition(key="document_id",match=MatchValue(value=r["documentId"])),
               FieldCondition(key="document_version",match=MatchValue(value=r["version"]))]
         out=[(c,Filter(must=list(must))) for c in self.report_collections]
+        if self._needs_report_stores(job):out+=[(c,Filter(must=[FieldCondition(key="source_record_id",match=MatchValue(value=self._source_record(job)))])) for c in self.report_collections]
         if self.doclib_collection and "sourceEntityId" in r:
             # v2 documents live in the document-library collection, addressed by source, entity, document and version.
             out.append((self.doclib_collection,Filter(must=[FieldCondition(key="source_entity_id",match=MatchValue(value=r["sourceEntityId"])),*must])))
@@ -97,11 +117,15 @@ class DeletionExecutor:
             if self._is_doclib(job):return 0 # the document-library pipeline never writes a graph
             raise IntegrationError("CLEANUP_STORE_UNAVAILABLE","Graph store required for this source is not configured",True)
         count_q,delete_q,params=self._graph_queries(job)
+        all_params=[params]+[{**params,"did":t["document_id"],"ver":t["document_version"]} for t in self._template_runs(job)]
         try:
             with self.neo4j.session(database=self.neo4j_database) as session:
-                before=session.run(count_q,**params).single()["n"]
-                if delete and before:session.run(delete_q,**params).consume()
-                return before if delete else session.run(count_q,**params).single()["n"]
+                total=0
+                for prm in all_params:
+                    before=session.run(count_q,**prm).single()["n"]
+                    if delete and before:session.run(delete_q,**prm).consume()
+                    total+=before if delete else session.run(count_q,**prm).single()["n"]
+                return total
         except IntegrationError:raise
         except Exception:raise IntegrationError("CLEANUP_STORE_UNAVAILABLE","Graph store unavailable",True) from None
 
@@ -111,19 +135,27 @@ class DeletionExecutor:
         if self.timescale is None:
             raise IntegrationError("CLEANUP_STORE_UNAVAILABLE","Numeric store required for this source is not configured",True)
         r=job["resource"]
+        total=0
+        def absent(exc):return getattr(exc,"sqlstate",None) in ("42P01","3F000") # undefined table / invalid schema: never created in this deployment. A type error must not look like this
+        # Each table family in its own transaction: a missing legacy table must not hide the template rows (a failed statement aborts the transaction).
         try:
             with self.timescale() as c:
-                total=0
-                for table,col_v in (("km_csit_numeric_points","version"),):
-                    if delete:total+=c.execute(f"DELETE FROM {table} WHERE document_id=%s AND {col_v}=%s",(r["documentId"],r["version"])).rowcount
-                    else:total+=c.execute(f"SELECT count(*) FROM {table} WHERE document_id=%s AND {col_v}=%s",(r["documentId"],r["version"])).fetchone()[0]
-                if delete:total+=c.execute("DELETE FROM km_test.test_run WHERE document_id=%s AND document_version=%s",(r["documentId"],r["version"])).rowcount
-                else:total+=c.execute("SELECT count(*) FROM km_test.test_run WHERE document_id=%s AND document_version=%s",(r["documentId"],r["version"])).fetchone()[0]
-                return total
-        except IntegrationError:raise
+                if delete:total+=c.execute("DELETE FROM km_csit_numeric_points WHERE document_id=%s AND version=%s",(r["documentId"],r["version"])).rowcount
+                else:total+=c.execute("SELECT count(*) FROM km_csit_numeric_points WHERE document_id=%s AND version=%s",(r["documentId"],r["version"])).fetchone()[0]
         except Exception as exc:
-            if "does not exist" in str(exc):return 0 # table never created in this deployment
-            raise IntegrationError("CLEANUP_STORE_UNAVAILABLE","Numeric store unavailable",True) from None
+            if not absent(exc):raise IntegrationError("CLEANUP_STORE_UNAVAILABLE","Numeric store unavailable",True) from None
+        try:
+            with self.timescale() as c:
+                if delete:total+=c.execute("DELETE FROM km_test.test_run WHERE document_id=%s AND document_version=%s",(r["documentId"],str(r["version"]))).rowcount
+                else:total+=c.execute("SELECT count(*) FROM km_test.test_run WHERE document_id=%s AND document_version=%s",(r["documentId"],str(r["version"]))).fetchone()[0]
+                for t in self._template_runs(job):
+                    if delete:
+                        c.execute("DELETE FROM km_test.report_package WHERE test_run_id=%s",(t["test_run_id"],))
+                        total+=c.execute("DELETE FROM km_test.test_run WHERE test_run_id=%s",(t["test_run_id"],)).rowcount
+                if not delete:total+=c.execute("SELECT count(*) FROM km_test.test_run WHERE source_record_id=%s",(self._source_record(job),)).fetchone()[0]
+        except Exception as exc:
+            if not absent(exc):raise IntegrationError("CLEANUP_STORE_UNAVAILABLE","Numeric store unavailable",True) from None
+        return total
 
     # -- local files --
     def _files(self,job,pattern_delete=None):
@@ -143,6 +175,8 @@ class DeletionExecutor:
         return n
 
     def run(self,job):
+        self._template_cache.pop(self._source_record(job),None)
+        self._template_runs(job) # remember the template identities before the first delete
         stored_copies=self._files(job,lambda is_copy:is_copy)
         extracted=self._files(job,lambda is_copy:not is_copy)
         had_vectors=0
