@@ -5,6 +5,7 @@ from pathlib import Path
 from .errors import IntegrationError,LeaseLost
 from .pipeline import FORMAT_MIME,Parser,validate_file,normalize,stable_id
 from .doclib_metadata import build_result
+from .zones import zone_payload
 
 PARSER_VERSION="km-csit-doclib-parser-v1"
 
@@ -17,7 +18,7 @@ class DocLibQdrantWriter:
         self.client,self.collection,self.embedder,self.chunk_size=client,collection,embedder,chunk_size
     def ensure_index(self):
         from qdrant_client.models import PayloadSchemaType
-        for field in ("document_file_id","csit_job_id","source_type"):
+        for field in ("document_file_id","csit_job_id","source_type","zone_id","topic_zone"):
             try:self.client.create_payload_index(self.collection,field,field_schema=PayloadSchemaType.KEYWORD)
             except Exception:pass # already present or collection not yet created
     def flt(self,document_file_id):
@@ -37,7 +38,7 @@ class DocLibQdrantWriter:
             payload={"content":t,"source_system":"CSIT","source_type":"DocumentLibraryFile","document_file_id":fid,
                 "csit_job_id":str(job["csit_job_id"]),"doc_name":job["original_file_name"],"source_name":job["original_file_name"],
                 "source_ext":Path(job["original_file_name"]).suffix.lower(),"chunk_index":i,"sha256":job["expected_sha256"],
-                "classification":names}) for i,(t,v) in enumerate(zip(chunks,vectors))]
+                "classification":names,**zone_payload("DocumentLibraryFile",names)}) for i,(t,v) in enumerate(zip(chunks,vectors))]
         if points:self.client.upsert(collection_name=self.collection,points=points,wait=True)
         return {"collection":self.collection,"pointCount":len(points),"indexId":self.collection+"/"+fid}
     def delete(self,document_file_id):

@@ -3,6 +3,7 @@ from pathlib import Path
 from psycopg.types.json import Jsonb
 from .pipeline import stable_id, PARSER_VERSION, EXTRACTION_VERSION
 from .errors import IntegrationError
+from .zones import zone_payload
 
 class StorageWriter:
     def __init__(self,root):self.root=Path(root)
@@ -32,7 +33,7 @@ class QdrantWriter:
                 "doc_name":job["file_name"],"source_name":job["file_name"],
                 "source_ext":Path(job["file_name"]).suffix.lower(),
                 "project_id":lineage["project"]["id"],"project_code":lineage["project"]["number"],"document_id":lineage["documentId"],"document_version":lineage["version"],
-                "source_system":lineage["sourceSystem"],"chunk_index":i}) for i,(t,v) in enumerate(zip(chunks,vectors))]
+                "source_system":lineage["sourceSystem"],"chunk_index":i,**zone_payload("TestReport",None)}) for i,(t,v) in enumerate(zip(chunks,vectors))]
         self.client.upsert(collection_name=self.collection,points=points,wait=True)
         return {"collection":self.collection,"pointIds":[str(p.id) for p in points]}
 

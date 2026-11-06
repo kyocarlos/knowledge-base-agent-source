@@ -28,6 +28,14 @@ def ensure_collection(client, dim: int = 768) -> None:
         client.create_payload_index(COLLECTION, field, field_schema=PayloadSchemaType.INTEGER)
 
 
+def _zone(pol: dict) -> dict:
+    """Reports that arrive from CSIT belong to the product-verification zone; manual uploads keep no zone."""
+    if pol.get("source_system") != "CSIT":
+        return {}
+    from src.csit_integration_v1.zones import zone_payload
+    return zone_payload("TestReport", None)
+
+
 def payload(pkg: dict, chunk: dict, model: str, model_version: str) -> dict:
     doc, run = pkg["document"], pkg["test_run"]
     pol = pkg.get("policy") or POLICY
@@ -42,6 +50,7 @@ def payload(pkg: dict, chunk: dict, model: str, model_version: str) -> dict:
         "firmware_version": run.get("firmware_version"), "test_run_id": run["test_run_id"], "band": chunk.get("band"), "bandwidth_mhz": chunk.get("bandwidth_mhz"),
         "channel": chunk.get("channel"), "test_case_id": chunk.get("test_case_id"), "source_sheet": chunk.get("source_sheet"), "source_cell_range": chunk.get("source_cell_range"),
         "numeric_ref": f"km_test.test_run/{run['test_run_id']}",
+        **_zone(pol),
     }
 
 

@@ -22,6 +22,13 @@ def _case_meta(case_id: str) -> dict:
     return {"category": kind, "band": parts[0] if parts else None, "name": case_id}
 
 
+def _zone(source_system: str):
+    if source_system != "CSIT":
+        return None
+    from src.csit_integration_v1.zones import ZONE_BY_ID
+    return ZONE_BY_ID["verification"]
+
+
 def _evidence(doc: dict, sheet: str, kind: str) -> dict:
     return {"source_type": "document", "source_document_id": doc["document_id"], "source_document_version": doc["document_version"], "source_section_id": sheet,
             "evidence_type": kind, "confidence": None, "review_status": "approved"}
@@ -51,7 +58,7 @@ def write_graph(session, pkg: dict) -> dict:
         MERGE (p:Product {product_id: $pid}) SET p.name = $model, p.product_type = $ptype, p.source_system = $ss, p.created_from_package_id = $pkg
         MERGE (d:Document {document_id: $did, document_version: $ver})
           SET d.title = $title, d.document_type = 'test_report', d.source_system = $ss, d.source_record_id = $did, d.publish_status = 'published', d.is_current = true,
-              d.source_sha256 = $sha, d.created_from_package_id = $pkg, d.schema_version = $sv
+              d.source_sha256 = $sha, d.created_from_package_id = $pkg, d.schema_version = $sv, d.topic_zone = $zone
         MERGE (rep:Report {report_id: $did}) SET rep.version = $ver, rep.approval_status = 'approved', rep.approval_basis = $ab, rep.source_system = $ss
         MERGE (tr:TestRun {test_run_id: $rid}) SET tr.id_basis = $idb, tr.test_date = $date, tr.overall_result = $overall, tr.source_system = $ss, tr.numeric_ref = $ref,
               tr.report_type = $rtype, tr.created_from_package_id = $pkg
@@ -59,7 +66,8 @@ def write_graph(session, pkg: dict) -> dict:
         MERGE (rep)-[y:SOURCE_FROM]->(d) SET y += $ev
         """, pid=pid, model=run["dut_model"], ptype="Small Cell" if doc["technology"] == "NR" else "WiFi AP", ss=ss, ab=ab, idb=idb, pkg=pkg["package_id"], did=doc["document_id"],
                 ver=doc["document_version"], title=doc["title"], sha=pkg["source"]["checksum"], sv=pkg["schema_version"], rid=rid, date=run.get("test_date"),
-                overall=run.get("overall_result"), ref=ref, rtype=doc["report_type"], ev=_evidence(doc, "Cover", "explicit"))
+                overall=run.get("overall_result"), ref=ref, rtype=doc["report_type"], ev=_evidence(doc, "Cover", "explicit"),
+                zone=_zone(ss))
     if fid:
         session.run("""MATCH (p:Product {product_id: $pid}), (tr:TestRun {test_run_id: $rid})
             MERGE (f:Firmware {firmware_id: $fid}) SET f.version = $ver, f.product_id = $pid, f.source_system = $ss

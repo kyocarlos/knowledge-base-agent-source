@@ -100,3 +100,32 @@ def test_a_second_delete_by_id_while_the_first_is_running_is_refused(api):
     spec={"api":"v1","sourceType":"TestReport","documentId":str(uuid.uuid4()),"version":1,"sourceEntityId":str(uuid.uuid4()),"confirmLiveData":True}
     assert c.post("/api/delete-by-id",json=spec).status_code==200
     assert c.post("/api/delete-by-id",json=spec).status_code==409
+
+
+# ---------- zones: the L1 names are the KM navigation zones ----------
+def test_taxonomy_l1_names_are_the_eight_km_zones():
+    from tools.csit_simulator.sim import TAXONOMY
+    assert [n["name"] for n in TAXONOMY]==["WiFi 知識專區","行動通訊知識專區","固網寬頻知識專區","認證知識專區","產品驗證專區","設備儀器專區","實驗室管理專區","Confluence / Jira / TestRail 查詢專區"]
+
+
+def test_a_test_report_is_always_classified_into_product_verification(api):
+    c,sim,post,mode=api
+    d=c.post("/api/docs",json={"contentText":"x","sourceType":"TestReport","classification":{"l1":"20"}}).json()
+    assert d["classification"]["l1"]["name"]=="產品驗證專區" and d["expectedZone"]=="產品驗證專區"
+
+
+@pytest.mark.parametrize("source,l1,zone",[("DocumentLibraryFile","40","行動通訊知識專區"),("DocumentLibraryFile",None,"待分類"),("VendorFile",None,"設備儀器專區"),
+                                           ("EquipmentAttachment","30","認證知識專區"),("VerificationApplicationAttachment",None,"產品驗證專區")])
+def test_expected_zone_follows_l1_then_the_source_home(api,source,l1,zone):
+    c,sim,post,mode=api
+    d=c.post("/api/docs",json={"contentText":"x","sourceType":source,"classification":{"l1":l1} if l1 else {}}).json()
+    assert d["expectedZone"]==zone
+
+
+def test_the_simulators_expectation_agrees_with_the_kms_rule():
+    # the simulator keeps its own copy of the rule (an independent oracle); both must give the same answer for every L1 and source
+    from tools.csit_simulator.sim import expected_zone,TAXONOMY
+    from src.csit_integration_v1.zones import resolve_zone
+    for source in ("DocumentLibraryFile","TestReport","VerificationApplicationAttachment","VendorFile","EquipmentAttachment"):
+        for l1 in [n["name"] for n in TAXONOMY]+[None,"unknown"]:
+            assert expected_zone(source,l1)==resolve_zone(source,l1)[1],(source,l1)

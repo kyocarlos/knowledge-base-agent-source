@@ -10,6 +10,7 @@ from .errors import IntegrationError,LeaseLost
 from .pipeline import FORMAT_MIME,Parser,Extraction,validate_file,check_ooxml,normalize,stable_id
 from .doclib_metadata import detect_language,clean_semantic,_page_count
 from .v2_models import SOURCE_SPECIFIC_DEFAULTS,validate_result_v2
+from .zones import zone_payload
 
 PARSER_VERSION="km-csit-v2-parser-v1"
 PARSEABLE=tuple(FORMAT_MIME)+(".md",".pptx")
@@ -105,7 +106,8 @@ def metadata_payload(change_payload):
     """The index payload a metadata change produces. Complete new values: an empty list clears the old one."""
     cls=change_payload["classification"]
     a=change_payload["attributes"]
-    return {"classification":{k:(cls.get(k) or {}).get("name") for k in ("l1","l2","l3")},
+    names={k:(cls.get(k) or {}).get("name") for k in ("l1","l2","l3")}
+    return {"classification":names,**zone_payload(change_payload.get("sourceType"),names), # a changed L1 moves the document to another zone
             "tags":a["tags"],"keywords":a["keywords"],"display_name":a["displayName"],
             "model_numbers":a["modelNumbers"],"vendor_reference":a["vendorReference"]}
 
@@ -117,8 +119,8 @@ class V2QdrantWriter:
         self.extra_collections=tuple(extra_collections) # Test Report v1 vectors live in the report collections
     def ensure_index(self):
         from qdrant_client.models import PayloadSchemaType
-        for field in self.FIELDS:
-            try:self.client.create_payload_index(self.collection,field,field_schema=PayloadSchemaType.KEYWORD if field!="document_version" else PayloadSchemaType.INTEGER)
+        for field in self.FIELDS+("zone_id","topic_zone"):
+            try:self.client.create_payload_index(self.collection,field,field_schema=PayloadSchemaType.INTEGER if field=="document_version" else PayloadSchemaType.KEYWORD)
             except Exception:pass
     @staticmethod
     def flt(source_entity_id,document_id,version):
@@ -135,7 +137,7 @@ class V2QdrantWriter:
         req=job["request_payload"]
         cls={k:(v or {}).get("name") for k,v in (req.get("classification") or {}).items() if isinstance(v,dict) or v is None}
         src=req.get("source") or {}
-        extra={"classification":cls,**(overrides or {})}
+        extra={"classification":cls,**zone_payload(job["source_type"],cls),**(overrides or {})}
         # A re-ingest of the same version replaces its points instead of accumulating stale ones.
         self.client.delete(self.collection,points_selector=self.flt(job["source_entity_id"],job["document_id"],job["version"]),wait=True)
         points=[PointStruct(id=stable_id("CSIT",job["source_type"],str(job["source_entity_id"]),str(job["document_id"]),job["version"],job["expected_sha256"],"chunk",i),

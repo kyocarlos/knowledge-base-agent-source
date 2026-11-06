@@ -15,14 +15,22 @@ BASE="/api/integrations/km/v1"
 # L1 = the zones in the KM left navigation, with the names it shows. L2/L3 are examples (the real CSIT list is not known to the simulator).
 TAXONOMY=[
  {"id":"20","name":"WiFi 知識專區","children":[{"id":"21","name":"規格文件","children":[]},{"id":"22","name":"測試報告","children":[{"id":"221","name":"Wi-Fi 7"}]}]},
- {"id":"40","name":"行動通訊知識專區","children":[]},
- {"id":"50","name":"固網寬頻知識專區","children":[]},
+ {"id":"40","name":"行動通訊知識專區","children":[{"id":"41","name":"LTE / 5G NR","children":[]},{"id":"42","name":"Small Cell","children":[]}]},
+ {"id":"50","name":"固網寬頻知識專區","children":[{"id":"51","name":"PON","children":[]},{"id":"52","name":"Cable","children":[]}]},
  {"id":"30","name":"認證知識專區","children":[{"id":"31","name":"NCC","children":[]},{"id":"32","name":"CE","children":[]}]},
- {"id":"60","name":"產品驗證專區","children":[]},
+ {"id":"60","name":"產品驗證專區","children":[{"id":"61","name":"測試報告","children":[]},{"id":"62","name":"產品資訊","children":[]},{"id":"63","name":"申請單文件","children":[]}]},
  {"id":"10","name":"設備儀器專區","children":[{"id":"11","name":"頻譜分析儀","children":[{"id":"111","name":"FSW 系列"},{"id":"112","name":"MS269x 系列"}]},
                                     {"id":"12","name":"網路分析儀","children":[]}]},
  {"id":"70","name":"實驗室管理專區","children":[]},
  {"id":"80","name":"Confluence / Jira / TestRail 查詢專區","children":[]}]
+# What KM is expected to do with a document (the rules the integration agreed on): a Test Report always belongs to 產品驗證專區; otherwise the L1 name is
+# the zone; where CSIT sent no L1 the attachment sources have one home. Kept here as an independent oracle: the drill compares it with what KM stored.
+VERIFICATION_ZONE="產品驗證專區"
+SOURCE_HOME={"VerificationApplicationAttachment":VERIFICATION_ZONE,"VendorFile":"設備儀器專區","EquipmentAttachment":"設備儀器專區"}
+def expected_zone(source_type,l1_name):
+    if source_type=="TestReport":return VERIFICATION_ZONE
+    if l1_name in {n["name"] for n in TAXONOMY}:return l1_name
+    return SOURCE_HOME.get(source_type,"待分類")
 NEXT={"PendingApproval":"approve","Approved":"archive","Archived":"dispatch"}
 
 def now():return datetime.now(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00","Z")
@@ -102,6 +110,7 @@ class Sim(V2Mixin):
     def create_doc(self,spec):
         content=base64.b64decode(spec["contentBase64"]) if spec.get("contentBase64") else spec.get("contentText","").encode()
         cls={}
+        if spec.get("sourceType")=="TestReport":spec={**spec,"classification":{**(spec.get("classification") or {}),"l1":"60"}} # a Test Report belongs to 產品驗證專區 whatever the user picked
         for lvl in ("l1","l2","l3"):
             cid=(spec.get("classification") or {}).get(lvl)
             cls[lvl]=_find_class(cid,TAXONOMY) if cid else None
@@ -344,6 +353,7 @@ class Sim(V2Mixin):
         v["dels"]=[self._dview(self.dels[c]) for c in d["delIds"]]
         v["changes"]=[self._dview(self.changes[c]) for c in d.get("changeIds",[])]
         v["downloadPath"]=file_route(d)
+        v["expectedZone"]=expected_zone(d.get("sourceType","DocumentLibraryFile"),(d["classification"].get("l1") or {}).get("name"))
         v["allVerdicts"]=d["verdicts"]+[x for j in v["jobs"] for x in j["verdicts"]]+[x for j in v["dels"] for x in j["verdicts"]]+[x for j in v["changes"] for x in j["verdicts"]]
         return v
     def state(self):
