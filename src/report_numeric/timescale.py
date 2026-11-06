@@ -30,6 +30,11 @@ def _uid(*parts: Any) -> str:
     return str(uuid.uuid5(NAMESPACE, "|".join("" if p is None else str(p) for p in parts)))
 
 
+def measurement_key(run_id: str, m: dict) -> str:
+    """One row per cell read: the conditions alone do not tell two cells apart when a report repeats a condition."""
+    return _uid(run_id, m["test_case_id"], m["metric_name"], *[m.get(d) for d in DIMS], m["source_sheet"], m["source_cell_range"])
+
+
 def validate(pkg: dict, allowed_metrics: set[tuple[str, str]]) -> list[str]:
     errors = []
     for key in ("document_id", "document_version", "report_type"):
@@ -90,7 +95,7 @@ def write_package(conn, pkg: dict, *, accept_source_errors: bool, replace: bool 
                 bandwidth_mhz, channel, center_freq_mhz, direction, direction_source_label, attenuation_db, angle_deg, traffic_mode, protocol, statistic, sample_index,
                 time_slot, wireless_mode, source_sheet, source_cell_range)
                 VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
-                            [(_uid(rid, m["test_case_id"], m["metric_name"], *[m.get(d) for d in DIMS]), rid, m["test_case_id"], m.get("test_case_name"), m["metric_name"], m["value"], m["unit"],
+                            [(measurement_key(rid, m), rid, m["test_case_id"], m.get("test_case_name"), m["metric_name"], m["value"], m["unit"],
                               m["value_basis"], m.get("band"), m.get("bandwidth_mhz"), m.get("channel"), m.get("center_freq_mhz"), m.get("direction"), m.get("direction_source_label"),
                               m.get("attenuation_db"), m.get("angle_deg"), m.get("traffic_mode"), m.get("protocol"), m.get("statistic"), m.get("sample_index"), m.get("time_slot"),
                               m.get("wireless_mode"), m["source_sheet"], m["source_cell_range"]) for m in pkg["measurements"]])

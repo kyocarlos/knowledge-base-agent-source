@@ -39,6 +39,11 @@ class ReportAdapter:
                 return timescale.write_package(conn,pkg,accept_source_errors=True)
         except timescale.ConflictError:
             raise IntegrationError("REPORT_REJECTED","Report rejected by the numeric store validation") from None
+        except Exception as exc:
+            import psycopg
+            if isinstance(exc,(psycopg.errors.IntegrityError,psycopg.errors.DataError)):
+                raise IntegrationError("REPORT_REJECTED","Report rejected by the numeric store: "+type(exc).__name__) from None
+            raise
     def write_graph(self,pkg):
         from src.report_numeric import graph
         with self.graph_driver.session() as session:return graph.write_graph(session,pkg)

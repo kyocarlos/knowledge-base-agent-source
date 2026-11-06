@@ -50,7 +50,7 @@ def test_each_report_type_always_separates_the_conditions_that_must_not_be_avera
     assert "m.attenuation_db" in rvr and "m.angle_deg" in rvr and "m.direction" in rvr
     assert "m.test_case_id" in group("cellular_handover") and "m.band" not in group("cellular_handover")
     cellular = group("cellular_throughput")
-    assert all(c in cellular for c in ("m.time_slot", "m.center_freq_mhz", "m.statistic", "m.traffic_mode", "m.protocol", "m.direction")) and "m.test_case_id" not in cellular
+    assert all(c in cellular for c in ("m.time_slot", "m.center_freq_mhz", "m.statistic", "m.traffic_mode", "m.protocol", "m.direction", "m.test_case_id"))      # cases that share every condition (a starred case, tested with another UE) are not merged
 
 
 def test_a_report_type_nobody_described_is_grouped_on_every_condition():

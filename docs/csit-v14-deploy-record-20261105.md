@@ -210,3 +210,15 @@ CSIT 的分類變更通知不再改專區。程式:`zones.py`、`doclib_metadata
 6. 數值核對容許尾端 0（`454.0` 對應資料的 `454`）。
 - 映像：worker `km-csit-worker:v14l-projectnames-20261106`（備份 `~/.km-control/agg-20261106/images.env.before-l`）、web `km-da40-web:zone-pages-20261106r`（備份 `…/override.before-p`，還原則改回 `…20261106o`）。
 - 反問的回答不再顯示成「沒有依據」（依據核對面板原本顯示 0/2 紅字）：`NO_CLAIMS`；選報告種類的選項會取代「（5G）」而不是疊成「（5G）（5G 換手）」。web 映像 `km-da40-web:zone-pages-20261106s`（備份同 `override.before-p`，還原改回 `…20261106o`）。
+
+## 5G Throughput 報告因測試項目重複被拒絕（2026-11-06）
+
+`SIT-TR-SC-NR-Throughput-SCU2060-n79-EV-V13.8.xlsx` 上傳後 KM 失敗（`STORAGE_UNAVAILABLE`，重試 3 次）。用同名同大小（1498645 B）的檔案在交易內重現：`UniqueViolation test_measurement_pkey`。
+- **原因**：報告的 Test Case 4（摘要頁表頭是「4\*」，註記「\*test with Kyocera K5G-C-100A」，用另一台終端測）與 Test Case 6 的頻段、中心頻率、頻寬、時槽完全相同；解析器只用這四項組測試項目代碼，兩者撞成同一個代碼，量測主鍵重複（25 組），整份報告被資料庫拒絕。另外摘要頁的「4\*」欄因為不是純數字被略過。如果硬寫入，兩台終端的數值還會被平均在一起。
+- **解析器**（`parser.py`）：認得「4\*」並記下註記；同一份報告裡條件相同的測試項目，代碼加上 `#case<編號>` 區分（條件不同的不動），星號案例的名稱帶註記（`Test Case 4 (*test with Kyocera K5G-C-100A)`），並在報告 issues 記 `same_conditions`。
+- **資料庫主鍵**（`timescale.measurement_key`）：加入來源儲存格，同一個條件重複出現的報告不會再整份被拒絕。
+- **統計**（`report_numeric/stats.py`）：5G Throughput 的不平均條件加入 `test_case_id`，不同終端的案例不會被平均在一起。
+- **錯誤分類**（`report_adapter.py`）：資料庫拒絕報告內容（唯一鍵、數值範圍、檢查條件）改回 `REPORT_REJECTED`、不重試；資料庫連不上才維持可重試的 `STORAGE_UNAVAILABLE`。
+- 驗證：同一份檔案在交易內寫入成功（512 筆，原本略過摘要頁 Case 4 時是 505 筆），rollback 後 `test_run` 仍 1 筆。KM 對「同一份文件、同一版本」的重送（含「重送(同工作)」）只會回傳原本失敗的工作，所以要刪除失敗那筆後重新上傳（新的 documentId）。
+- 映像：worker `km-csit-worker:v14m-cases-20261106`（備份 `~/.km-control/agg-20261106/images.env.before-m`）、web `km-da40-web:zone-pages-20261106t`（備份 `…/override.before-t`，還原改回 `…20261106s`）。
+- 已知：這份報告的 Test Case 9～16 是範本殘留的假資料（頻段「Band2」、數值 9～16 Mbps），目前仍會被寫入並標記 `unparsed_band`，之後問 5G 吞吐量會一起列出。

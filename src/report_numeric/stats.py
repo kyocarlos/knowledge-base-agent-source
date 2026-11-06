@@ -20,7 +20,7 @@ CONDITIONS = ("band", "center_freq_mhz", "bandwidth_mhz", "channel", "direction"
 SERIES = {
     "wifi_throughput": ("band", "bandwidth_mhz", "direction", "protocol"),
     "wifi_rvr": ("band", "bandwidth_mhz", "direction", "attenuation_db", "angle_deg"),
-    "cellular_throughput": ("band", "center_freq_mhz", "bandwidth_mhz", "time_slot", "direction", "protocol", "traffic_mode", "statistic"),
+    "cellular_throughput": ("test_case_id", "band", "center_freq_mhz", "bandwidth_mhz", "time_slot", "direction", "protocol", "traffic_mode", "statistic"),
     "cellular_handover": ("test_case_id",),
 }
 STRICT = ("test_case_id",) + CONDITIONS          # a report type nobody has described yet

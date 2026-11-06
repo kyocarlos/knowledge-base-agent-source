@@ -166,6 +166,7 @@ def parse_report(path: str | Path, identity: dict | None = None, source_name: st
         _handover(wb, out, dut)
     else:
         _cellular(wb, out, document_number)
+        _separate_cases(out)
     model = dut.get("model") or _model_from_number(document_number)
     product_id = re.sub(r"\s+", "-", _t(model))
     firmware = dut.get("fw_version") or ""
@@ -545,6 +546,37 @@ def _flag_band(out: Collector, d: dict, sheet: str, case: Any) -> None:
         out.issues.append({"kind": "unparsed_band", "sheet": sheet, "detail": f"頻段欄位『{d['band']}』不是 nXX_頻率GHz 格式（來源資料問題），中心頻率未知：Test Case {case}"})
 
 
+def _case_no(value: Any) -> tuple[int, bool] | None:
+    """A test case header: 4, or "4*" (the report marks a case tested otherwise, with a footnote)."""
+    if _num(value) is not None:
+        return int(value), False
+    m = re.match(r"^(\d+)\s*(\*+)?$", _t(value))
+    return (int(m.group(1)), bool(m.group(2))) if m else None
+
+
+def _separate_cases(out: Collector) -> None:
+    """Test cases are told apart by band, frequency, bandwidth and time slot. Two cases of one report can share all four (the same condition tested with another UE,
+    which the report marks "4*" and explains in a footnote): they get their case number added to the id, so their numbers are never averaged together nor collide,
+    and a starred case carries the footnote in its name."""
+    number = lambda m: int(g.group(1)) if (g := re.search(r"Test Case (\d+)", m.get("test_case_name") or "")) else None
+    cases: dict[str, set[int]] = {}
+    for m in out.measurements:
+        if number(m) is not None:
+            cases.setdefault(m["test_case_id"], set()).add(number(m))
+    clash = {i: sorted(ns) for i, ns in cases.items() if len(ns) > 1}
+    note = (getattr(out, "notes", None) or [""])[0]
+    for m in out.measurements:
+        n = number(m)
+        if n is None:
+            continue
+        if m["test_case_id"] in clash:
+            m["test_case_id"] = f"{m['test_case_id']}#case{n}"
+        if n in getattr(out, "starred", set()) and note:
+            m["test_case_name"] = f"Test Case {n} (*{note})"
+    for ids, ns in clash.items():
+        out.issues.append({"kind": "same_conditions", "sheet": "", "detail": f"Test Case {', '.join(map(str, ns))} 的頻段、頻率、頻寬與時槽相同（{ids}），以案例編號區分"})
+
+
 def _case_id(d: dict) -> str:
     """The same band, bandwidth and time slot are tested at different centre frequencies, so the frequency is part of the id."""
     return f"cellular_throughput:{d['band']}@{d['center_freq_mhz']}:{d['bandwidth_mhz']}MHz:{d['time_slot']}"
@@ -561,7 +593,13 @@ def _cellular(wb, out: Collector, document_number: str) -> None:
             if _t(summary.cell(r, 1).value) != "Test Case":
                 r += 1
                 continue
-            cols = {k: int(summary.cell(r, k).value) for k in range(2, 11) if _num(summary.cell(r, k).value) is not None}
+            cols = {}
+            for k in range(2, 11):
+                got = _case_no(summary.cell(r, k).value)
+                if got:
+                    cols[k] = got[0]
+                    if got[1]:
+                        out.starred = getattr(out, "starred", set()) | {got[0]}
             end = r + 1
             while end <= summary.max_row and _t(summary.cell(end, 1).value) != "Test Case":
                 end += 1
@@ -602,6 +640,8 @@ def _cellular(wb, out: Collector, document_number: str) -> None:
                     out.measure(title, _ref(summary.cell(rows["latency"], k)), cid, "latency_rtt", summary.cell(rows["latency"], k).value, "ms", name=f"Test Case {case}",
                                 statistic="average", **d)
             r = end
+    if summary is not None:   # footnotes of the summary ("*test with another UE") explain the starred cases
+        out.notes = [_t(c.value).lstrip("*").strip() for row in summary.iter_rows() for c in row if isinstance(c.value, str) and c.value.strip().startswith("*") and len(c.value.strip()) > 1]
     perf = _sheet(wb, "4. Performance Test")
     if perf is None:
         return
