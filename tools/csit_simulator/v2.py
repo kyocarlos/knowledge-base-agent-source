@@ -4,11 +4,13 @@ Mixed into Sim. The v1.3 document-library flow in sim.py is untouched; a documen
 takes the paths below. The places KM fetches files from are the simulator's own routes (see app.py / FILE_ROUTES).
 """
 import json,time,uuid
+from datetime import datetime,timezone
 import httpx
 from fastapi import HTTPException
 from fastapi.responses import JSONResponse
 from .checks import (check_job_callback_v2,check_change_callback,check_deletion_callback_v2,check_analysis_result,check_report_callback_v1,SOURCE_TYPES_V2)
 
+def now_iso():return datetime.now(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00","Z")
 KM_V2="/api/integrations/csit/v2"
 # v1.4.1 C.4: the closed event set. TestReportCommitted / DocumentLibraryFileUploaded on the v2 route only carry a replacement (supersedes).
 EVENT_TYPE={"VerificationApplicationAttachment":"VerificationApplicationAttachmentArchived","VendorFile":"VendorFileArchived",
@@ -41,6 +43,7 @@ class V2Mixin:
     def route(d):
         """v1 = the v1.3 document-library route; report1 = the existing Test Report v1 route; v2 = /v2/document-jobs.
         A Test Report or library file is only sent on v2 when it replaces an older version (spec v1.4.1 answer 5)."""
+        if d.get("forceRoute"):return d["forceRoute"] # a deletion by id of something this simulator never sent (see delete_by_id)
         st,sup=d.get("sourceType","DocumentLibraryFile"),d.get("supersedesDocId")
         if st=="DocumentLibraryFile" and not sup:return "v1"
         if st=="TestReport" and not sup:return "report1"
@@ -368,6 +371,74 @@ class V2Mixin:
         else:
             x["state"]="Rejected";self.verdict(x,False,f"KM refused the deletion with {r.status_code}",d["name"])
         self._save();return self.view(d)
+
+    # ---------- live data: deleting real KM documents from the simulator ----------
+    def km_mode(self):
+        """KM's csitMode from /health (real | sim | live), or None when KM cannot be asked. Documents are tagged with it when they are notified."""
+        try:
+            r=httpx.get(self.km+"/health",timeout=5)
+            return r.json().get("csitMode") if r.status_code==200 else None
+        except (httpx.HTTPError,ValueError,AttributeError):return None
+    def _require_live_confirmation(self,spec):
+        if self.km_mode()=="live" and not spec.get("confirmLiveData"):
+            raise HTTPException(400,"KM is in live mode: this changes REAL data, so confirmLiveData must be true")
+    def delete_by_id(self,spec):
+        """Send a deletion notice for a document this simulator never sent (e.g. one the real CSIT sent before KM was switched to live).
+        spec: api v1|v2, sourceType, documentId, version, sourceEntityId (+ sha256, canonicalIngestionEventId for v2; documentFileId for v1 library files).
+        A sha256 or event id that disagrees with what KM holds is refused by KM; an id KM never held only leaves a tombstone."""
+        self._require_live_confirmation(spec)
+        st=spec.get("sourceType") or "DocumentLibraryFile"
+        api=spec.get("api") or ("v1" if st in ("DocumentLibraryFile","TestReport") else "v2")
+        if api not in ("v1","v2"):raise HTTPException(400,"api must be v1 or v2")
+        if st not in ("DocumentLibraryFile","TestReport") and st not in SOURCE_TYPES_V2:raise HTTPException(400,"unknown sourceType "+str(st))
+        if api=="v1" and st not in ("DocumentLibraryFile","TestReport"):raise HTTPException(400,"v1 deletion only exists for DocumentLibraryFile and TestReport")
+        if st=="DocumentLibraryFile" and api=="v1":
+            doc_id=str(spec.get("documentFileId") or "")
+            if not doc_id:raise HTTPException(400,"documentFileId is required")
+        else:
+            doc_id=str(spec.get("documentId") or "")
+            if not doc_id or not spec.get("version") or not spec.get("sourceEntityId"):raise HTTPException(400,"documentId, version and sourceEntityId are required")
+        existing=self.docs.get(doc_id)
+        if existing is not None and not existing.get("external"):return self.delete(doc_id,spec.get("deletionRequestId"))
+        if existing is not None and existing.get("deleteState") in ("Requested","Accepted","Processing","Verified"):
+            raise HTTPException(409,"a deletion of this id is already "+str(existing["deleteState"]))
+        force="v2" if api=="v2" else ("report1" if st=="TestReport" else "v1")
+        if existing is not None:
+            d=existing;d["deleteState"]=None
+        else:
+            d={"id":doc_id,"name":"(by id) "+st+" "+doc_id[:8],"size":0,"sha256":str(spec.get("sha256") or "0"*64),"contentType":"application/octet-stream",
+               "classification":{"l1":None,"l2":None,"l3":None},"uploader":"delete-by-id","stage":"Archived","archived":True,"approvedBy":None,
+               "faults":{"download":"none","downloadFailures":2,"badToken":False,"noIdempotencyKey":False,"wrongDeclaredSha":False},
+               "jobIds":[],"delIds":[],"timeline":[],"verdicts":[],"content":None,"uploadedAt":now_iso(),"kmStatus":None,"deleteState":None,
+               "external":True}
+            self._v2_fields({"sourceType":st,"version":int(spec.get("version") or 1)},d)
+            with self.lock:self.docs[doc_id]=d
+            self.ev(d,"以識別碼指定刪除","此文件不是這個模擬器送的;只送出刪除通知")
+        d.update(forceRoute=force,entityId=str(spec.get("sourceEntityId") or doc_id),version=int(spec.get("version") or 1),
+                 sha256=str(spec.get("sha256") or "0"*64),archivedAt=now_iso(),supersedesDocId=None)
+        for k in ("applicationId","vendorId","equipmentId"):d[k]=spec.get(k) or d.get(k)
+        d["kmModes"]=sorted(set(d.get("kmModes",[]))|{self.km_mode() or "unknown"})
+        if force=="v2":
+            # the v2 deletion body carries canonicalIngestionEventId; KM compares it with the analysed version when it knows one
+            jid="ext-"+doc_id
+            self.jobs.setdefault(jid,{"csitJobId":jid,"eventId":str(spec.get("canonicalIngestionEventId") or uuid.uuid4()),"v2":True,"docId":doc_id,"kmJobId":None,
+                "state":"Completed","callbacks":[],"downloads":[],"verdicts":[],"timeline":[],"sendCount":0})
+            if jid not in d["jobIds"]:d["jobIds"].append(jid)
+        return self.delete(doc_id,spec.get("deletionRequestId"))
+    def purge_live(self,spec):
+        """One deletion notice per document this simulator notified while KM was in live mode and has not deleted yet."""
+        if not spec.get("confirmLiveData"):raise HTTPException(400,"confirmLiveData must be true: this deletes the documents this simulator sent into the REAL KM data")
+        busy=("Requested","Accepted","Processing","Verified")
+        with self.lock:
+            live=[d for d in self.docs.values() if "live" in d.get("kmModes",()) and not d.get("external")]
+            todo=[d["id"] for d in live if d.get("archived") and d.get("deleteState") not in busy]
+            skipped=[d["id"] for d in live if d["id"] not in todo]
+        results=[]
+        for i in todo:
+            try:
+                v=self.delete(i);results.append({"docId":i,"name":v["name"],"sourceType":v.get("sourceType"),"deleteState":v["deleteState"]})
+            except HTTPException as e:results.append({"docId":i,"error":e.detail})
+        return {"requested":len(results),"results":results,"alreadyDeletedOrDeleting":skipped}
 
     # ---------- what KM calls on CSIT ----------
     def receive_v2(self,request,payload,kind):

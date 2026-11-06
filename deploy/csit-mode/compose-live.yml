@@ -1,0 +1,78 @@
+# Live-data simulated CSIT mode: the CSIT simulator is the CSIT (identity authority, notices, file source), but KM writes the REAL data.
+# Identity and CSIT address are the simulator's, exactly as in compose-sim.yml. Everything else is the real mode's: the public PostgreSQL schema,
+# the real Qdrant collections (knowledge_base for Test Reports v1, km_csit_docs for the document library, ai_km_knowledge_v1 for report templates),
+# the real storage root, Neo4j, TimescaleDB and the search-cache clear. Test Report templates are on.
+# While this mode is active the real CSIT is refused (401): the trust anchor is the simulator. Nothing here is separated from real data,
+# so the simulator marks every document it notifies with the KM mode and can purge them (csit-mode.sh / simulator UI "purge live data").
+# Used as: docker compose -p km-csit-v1-dev --env-file <deploy-da40.env> -f compose-live.yml   (variables exported by csit-mode.sh)
+x-live-env: &live-env
+  KM_CSIT_MODE: live
+  KM_CSIT_ENABLED: "true"
+  KM_CSIT_DOCLIB_ENABLED: "true"
+  KM_CSIT_OUTBOUND_SCOPES: csit.document.read,csit.ingestion.status.write,csit.km.status.write,csit.km.deletion-status.write
+  KM_CSIT_ANALYSIS_RESULTS_ENABLED: "true"
+  KM_CSIT_DOCLIB_LLM: "1"
+  KM_CSIT_LLM_BASE_URL: http://host.docker.internal:18080/v1
+  KM_CSIT_LLM_MODEL: gpt-5.6-luna
+  KM_CSIT_LLM_API_KEY_FILE: /run/secrets/llm-api-key
+  KM_CSIT_AUTHORITY: https://csit-sim:8443/
+  KM_CSIT_JWKS_URI: https://csit-sim:8443/.well-known/jwks
+  KM_CSIT_TOKEN_URL: https://csit-sim:8443/oauth/token
+  KM_CSIT_CSIT_BASE_URL: https://csit-sim:8443
+  KM_CSIT_AUDIENCE: km.integration.sim
+  KM_CSIT_OUTBOUND_AUDIENCE: csit.integration.sim
+  KM_CSIT_CLIENT_ID: km-csit-integration-sim
+  KM_CSIT_SERVICE_CLIENTS: csit-km-ingestion-sim
+  KM_CSIT_SECRET_FILE: /run/secrets/km-csit-service
+  # The real data targets: storage root, knowledge_base, Neo4j, Timescale and the numeric rules come from the protected env file, as in real mode.
+  KM_CSIT_DOCLIB_QDRANT_COLLECTION: km_csit_docs
+  KM_CSIT_DOCLIB_REDIS_URL: redis://km-da40-redis-1:6379/0
+  KM_CSIT_REPORT_TEMPLATES: "1"
+  SSL_CERT_FILE: /run/secrets/csit-sim-ca.pem
+services:
+  api:
+    image: ${KM_CSIT_API_IMAGE:?}
+    container_name: km-csit-integration-api
+    restart: unless-stopped
+    env_file:
+      - ${KM_CSIT_ENV_FILE:?protected external environment file required}
+    environment: *live-env
+    networks: [control]
+    volumes:
+      - ${KM_MODE_DIR}/sim/km-client-secret:/run/secrets/km-csit-service:ro
+      - ${KM_MODE_DIR}/sim/ca.pem:/run/secrets/csit-sim-ca.pem:ro
+    read_only: true
+    tmpfs: [/tmp]
+    healthcheck:
+      test: ["CMD","python","-c","import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health',timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+  worker:
+    image: ${KM_CSIT_WORKER_IMAGE:?}
+    restart: unless-stopped
+    profiles: [m2m-ready]
+    healthcheck: {"test": ["CMD", "python", "-c", "import os;from src.csit_integration_v1.config import Settings;from src.csit_integration_v1.repository import Repository;os.kill(1,0);s=Settings.from_env();s.validate();assert s.enabled;Repository(s.db_url).check_schema()"], "interval": "15s", "timeout": "10s", "retries": 3, "start_period": "60s"}
+    env_file:
+      - ${KM_CSIT_ENV_FILE:?protected external environment file required}
+    environment: *live-env
+    networks: [control, da40]
+    extra_hosts: ["host.docker.internal:host-gateway"]
+    volumes:
+      - km-da40_instance_data:/var/lib/km/data
+      - ${KM_MODE_DIR}/sim/km-client-secret:/run/secrets/km-csit-service:ro
+      - ${KM_MODE_DIR}/sim/ca.pem:/run/secrets/csit-sim-ca.pem:ro
+      - ${KM_CSIT_NEO4J_SECRET_HOST:?DA40 Neo4j secret file required}:/run/secrets/km-da40-neo4j:ro
+      - ${KM_CSIT_TIMESCALE_DSN_HOST:?DA40 Timescale DSN file required}:/run/secrets/km-da40-timescale:ro
+      - ${KM_MODE_DIR}/hf-cache:/root/.cache/huggingface
+      - ${KM_MODE_DIR}/llm/api-key:/run/secrets/llm-api-key:ro
+networks:
+  control:
+    external: true
+    name: km-control-private
+  da40:
+    external: true
+    name: km-da40_default
+volumes:
+  km-da40_instance_data:
+    external: true

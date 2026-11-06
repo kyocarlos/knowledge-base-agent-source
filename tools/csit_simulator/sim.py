@@ -145,6 +145,8 @@ class Sim(V2Mixin):
         d=self._doc(doc_id)
         if not d["archived"]:raise HTTPException(409,"NAS archive must complete before KM is notified")
         if d["stage"]=="Rejected":raise HTTPException(409,"document was rejected")
+        mode=self.km_mode()
+        if mode:d["kmModes"]=sorted(set(d.get("kmModes",[]))|{mode}) # which KM data this document went into; the "live" ones can be purged
         # A Purged document may still be dispatched on purpose: KM must refuse it (tombstone), which is exactly what we want to observe.
         if self.route(d)=="v2":return self._dispatch_v2(d,new_job)
         if self.route(d)=="report1":return self._dispatch_report_v1(d)

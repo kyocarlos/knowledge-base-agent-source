@@ -80,6 +80,15 @@ def create_app(sim:Sim)->FastAPI:
         raw=await request.body();d={}
         if raw:d=await body(request)
         return sim.delete(doc_id,d.get("deletionRequestId"))
+    @app.post("/api/delete-by-id")
+    async def delete_by_id(request:Request):return sim.delete_by_id(await body(request))
+    @app.post("/api/purge-live")
+    async def purge_live(request:Request):
+        raw=await request.body();d={}
+        if raw:d=await body(request)
+        return sim.purge_live(d)
+    @app.get("/api/km/mode")
+    def km_mode():return {"csitMode":sim.km_mode()}
     @app.post("/api/docs/{doc_id}/change")
     async def change(doc_id:str,request:Request):return sim.change_metadata(doc_id,await body(request))
     @app.post("/api/docs/{doc_id}/stale-change")

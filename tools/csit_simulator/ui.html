@@ -39,7 +39,7 @@ details{margin:4px 0}summary{cursor:pointer;color:var(--acc)}pre{margin:4px 0;pa
 .empty{color:var(--mute);padding:14px;text-align:center}
 </style></head><body>
 <header><h1>CSIT 文件管理系統</h1><span class="tag">模擬器 · 規格 v1.3 + v1.4</span><span class="sp"></span>
-<span id="kmstat"><span class="dot"></span>KM …</span><span id="score" class="tag">…</span></header>
+<span id="km-mode" class="tag" style="display:none;background:#b3261e">LIVE · 正式資料</span><span id="kmstat"><span class="dot"></span>KM …</span><span id="score" class="tag">…</span></header>
 <div class="layout"><nav id="nav"></nav><main id="main"></main></div>
 <script>
 const $=id=>document.getElementById(id),esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -47,7 +47,8 @@ const J=(o,n=2)=>esc(JSON.stringify(o,null,n));
 const api=async(p,b,m)=>{const r=await fetch(p,{method:m||(b!==undefined?'POST':'GET'),body:b!==undefined?JSON.stringify(b):undefined});
   if(!r.ok){let t='';try{t=(await r.json()).detail}catch(e){}alert('操作失敗 ('+r.status+')\n'+(typeof t==='string'?t:JSON.stringify(t)));return null}return r.status===204?{}:r.json()};
 let sig='',S={docs:[],settings:{},faults:{}},T=[],taxo=[],tab='docs',sel=null,lastTid=0,inspect=null,ping=null,filt={dir:'',doc:''};
-const NAV=[['docs','文件專區'],['traffic','API 流量'],['km','KM 內部觀察'],['set','情境與設定']];
+const NAV=[['docs','文件專區'],['traffic','API 流量'],['km','KM 內部觀察'],['live','正式資料'],['set','情境與設定']];
+let kmMode=null,liveOut='';
 $('nav').innerHTML=NAV.map(([k,t])=>`<a data-k="${k}" onclick="go('${k}')">${t}</a>`).join('');
 function go(k){tab=k;sig='';draw()}
 const STEPS=[['上傳','員工上傳'],['核准','主管核准'],['NAS 歸檔','正式入庫'],['派送 KM','Outbox → KM'],['KM 處理','下載·解析·索引'],['完成','AI Metadata 回寫']];
@@ -70,7 +71,7 @@ const HINT={PendingApproval:'文件在 Approval Staging,尚未正式入庫。規
  Deleting:'刪除通知已送出。規格 §7:KM 驗證七項清理完成並回 Completed 後,CSIT 才可刪除自己的檔案。',Purged:'KM 已驗證清理完成,CSIT 檔案已移除。再下載會得到 404;重送上傳通知應被 KM 以 409 拒絕(tombstone)。',Rejected:'已退回,不會歸檔,也不會通知 KM。'};
 
 function drawNav(){document.querySelectorAll('#nav a').forEach(a=>a.classList.toggle('on',a.dataset.k===tab))}
-function draw(){drawNav();({docs:drawDocs,traffic:drawTraffic,km:drawKm,set:drawSet})[tab]()}
+function draw(){drawNav();({docs:drawDocs,traffic:drawTraffic,km:drawKm,live:drawLive,set:drawSet})[tab]()}
 
 // ---------- 文件專區 ----------
 function taxOpts(nodes,sel){return '<option value="">—</option>'+nodes.map(n=>`<option value="${n.id}" ${n.id===sel?'selected':''}>${esc(n.name)}</option>`).join('')}
@@ -184,6 +185,26 @@ function drawSet(){$('main').innerHTML=`<div class="card"><h2>連線設定</h2><
   <div class="card"><h2>情境:測試報告的 Correlation Resolver(v1.4.1 C.2)</h2><div class="row"><label>KM 查詢時<select onchange="api('/api/callback-faults',{resolver:this.value}).then(load)">${[['ok','正常回 200'],['notdeployed','尚未部署(404)'],['unavailable','暫時不可用(503)']].map(([v,t])=>`<option value="${v}" ${(S.faults.resolver||'ok')===v?'selected':''}>${t}</option>`).join('')}</select></label></div>
   <div class="mute" style="margin-top:6px">未部署時 KM 不得自行猜 sourceEntityId / csitJobId;503 時應退避重試。</div></div>
   <div class="card"><h2>清除</h2><button class="danger" onclick="if(confirm('清除所有文件與紀錄?(KM 那邊的資料不會被清除)'))api('/api/reset',{}).then(load)">清除模擬器資料</button></div>`}
+const LIVE_SAMPLE={api:'v2',sourceType:'VendorFile',documentId:'',version:1,sourceEntityId:'',sha256:'',canonicalIngestionEventId:''};
+function liveDocs(){return S.docs.filter(d=>(d.kmModes||[]).includes('live')&&!d.external)}
+function drawLive(){
+  const live=kmMode==='live',L=liveDocs(),pending=L.filter(d=>d.archived&&!['Requested','Accepted','Processing','Verified'].includes(d.deleteState));
+  $('main').innerHTML=`<div class="card"><h2>正式資料 <span class="badge ${live?'bad':'mute'}">KM 模式:${esc(kmMode||'未知')}</span></h2>
+    <div class="hint">${live?'KM 目前是 <b>live</b> 模式:這個模擬器通知的文件會被寫進<b>真實</b>的 KM 資料(PostgreSQL public、Qdrant、Neo4j、TimescaleDB),刪除也會刪掉真實資料。':'KM 不是 live 模式,這一頁的刪除只對目前模式的資料生效。要寫入正式資料,需在伺服器執行 <span class="mono">csit-mode.sh live --confirm-real-data</span>。'}</div></div>
+  <div class="card"><h2>清除模擬器送進正式資料的全部文件</h2>
+    <div class="mute">逐一對 KM 送出刪除通知(${L.length} 份帶有 live 標記,其中 ${pending.length} 份尚未刪除);KM 驗證清理後才算完成。</div>
+    <div class="row" style="margin-top:8px"><button class="danger" ${pending.length?'':'disabled'} onclick="purgeLive()">清除 ${pending.length} 份文件</button></div>
+    ${L.length?`<table style="margin-top:8px"><tr><th>文件</th><th>來源</th><th>刪除狀態</th></tr>`+L.map(d=>`<tr><td>${esc(d.name)}<div class="mute mono">${d.id.slice(0,8)}</div></td><td>${esc(d.sourceType)}</td><td>${d.deleteState?`<span class="badge ${d.deleteState==='Verified'?'ok':d.deleteState==='Failed'?'bad':'warn'}">${esc(d.deleteState)}</span>`:'<span class="mute">—</span>'}</td></tr>`).join('')+'</table>':''}</div>
+  <div class="card"><h2>以識別碼刪除 KM 的文件(任意 ID)</h2>
+    <div class="mute">可刪不是這個模擬器送的文件,例如真實 CSIT 先前送來的。在伺服器執行 <span class="mono">csit-mode.sh live-list</span> 取得 <span class="mono">delete_spec</span>,貼在下面。v2 來源必須帶 KM 記錄的 sha256 與 canonicalIngestionEventId,不符 KM 會拒絕。</div>
+    <textarea id="dspec" rows="9" style="width:100%;margin-top:8px;font-family:ui-monospace,Consolas,monospace;font-size:12px">${esc(JSON.stringify(LIVE_SAMPLE,null,2))}</textarea>
+    <div class="row" style="margin-top:8px"><button class="danger" onclick="deleteById()">送出刪除通知</button></div></div>
+  ${liveOut?`<div class="card"><h2>結果</h2><pre>${esc(liveOut)}</pre></div>`:''}`}
+async function confirmLive(what){if(kmMode!=='live')return true;return confirm('KM 是 live 模式:'+what+'\n\n這會刪除真實的 KM 資料,確定嗎?')}
+async function purgeLive(){if(!await confirmLive('清除這個模擬器送進正式資料的全部文件'))return;const r=await api('/api/purge-live',{confirmLiveData:true});if(r){liveOut=JSON.stringify(r,null,1);await load();drawLive()}}
+async function deleteById(){let spec;try{spec=JSON.parse($('dspec').value)}catch(e){alert('不是有效的 JSON');return}
+  if(!await confirmLive('以識別碼刪除 '+(spec.documentId||spec.documentFileId||'?')))return;spec.confirmLiveData=true;
+  const r=await api('/api/delete-by-id',spec);if(r){liveOut=JSON.stringify({name:r.name,sourceType:r.sourceType,deleteState:r.deleteState,dels:r.dels.map(x=>({deletionRequestId:x.deletionRequestId,state:x.state,kmDeletionJobId:x.kmDeletionJobId}))},null,1);await load();drawLive()}}
 async function saveSet(){await api('/api/settings',{kmBaseUrl:$('kmurl').value,token:$('kmtok').value||undefined});await doPing();await load()}
 async function doPing(){const r=await api('/api/km/ping');$('pingout').innerHTML=r?(r.ok?`<span class="ok">✔ KM 可連線</span> ${esc(r.body)}`:`<span class="bad">✘ 無法連線</span> ${esc(r.error||r.status)}`):''}
 async function cfault(){await api('/api/callback-faults',{callbackFailures:+$('cf').value,callbackStatus:+$('cs').value});await load()}
@@ -192,12 +213,14 @@ async function cfault(){await api('/api/callback-faults',{callbackFailures:+$('c
 async function load(){
   const [s,t]=await Promise.all([fetch('/api/state').then(r=>r.json()),fetch('/api/traffic?after='+lastTid).then(r=>r.json())]);
   S=s;if(t.length){T=T.concat(t);lastTid=t[t.length-1].id;T=T.slice(-500)}
+  kmMode=(await fetch('/api/km/mode').then(r=>r.json()).catch(()=>({}))).csitMode||null;$('km-mode').style.display=kmMode==='live'?'':'none';
   const r=await fetch('/api/report').then(r=>r.json());$('score').innerHTML=r.failed?`<span style="color:#ff9b93">✘ 不符 ${r.failed}</span> · ✔ ${r.passed}`:`✔ 符合 ${r.passed}`;
   if(tab==='km'&&S.settings.inspectAvailable)inspect=await fetch('/api/km/inspect').then(r=>r.ok?r.json():null);
   if(tab==='docs'){ // keep the upload form untouched while the user is typing; refresh the list and detail only
     if(!$('detail'))drawDocs();else{const g=JSON.stringify(S.docs)+T.length+sel;if(g!==sig){sig=g;refreshList();const o=[...document.querySelectorAll('#detail details')].map(x=>x.open);drawDetail();document.querySelectorAll('#detail details').forEach((x,i)=>{if(o[i])x.open=true})}}}
   else if(tab==='traffic'){const g='t'+T.length;if(g!==sig&&!document.querySelectorAll('#main details[open]').length){sig=g;drawTraffic()}}
   else if(tab==='km')drawKm();
+  else if(tab==='live'&&!document.activeElement?.closest?.('#main')){const g='l'+kmMode+JSON.stringify(liveDocs().map(d=>[d.id,d.deleteState]));if(g!==sig){sig=g;drawLive()}}
   drawNav()}
 function refreshList(){const box=document.querySelector('.split .card');if(!box)return;
   box.innerHTML=`<h2>文件專區(${S.docs.length})</h2>${S.docs.length?`<table><tr><th>文件</th><th>分類</th><th>狀態</th><th>操作</th></tr>`+
