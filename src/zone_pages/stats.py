@@ -38,7 +38,7 @@ PLAN_PROMPT = """你把問題轉成測試報告數據的查詢計畫，只輸出
 - clarify：需要反問使用者時的候選報告類型代碼陣列，否則是空陣列
 - products：問題提到的設備型號陣列，沒提到就是空陣列（代表全部設備）
 - metrics：要看的指標名稱陣列，沒指定就是空陣列（代表該類型全部指標）
-- filters：條件物件，鍵可用 band、center_freq_mhz、bandwidth_mhz、channel、direction、attenuation_db、angle_deg、traffic_mode、protocol、statistic、time_slot、test_cases（測試項目代碼陣列）；問題沒提到的條件不要放
+- filters：條件物件，鍵可用 band、center_freq_mhz、bandwidth_mhz、channel、direction、attenuation_db、angle_deg、traffic_mode、protocol、statistic、time_slot、test_cases（測試項目代碼陣列）；只放問題明確提到的條件，不要自行加入問題沒問到的條件（包含 statistic）
 - group_by：要額外分開看的條件陣列（例如逐通道看就填 ["channel"]）；不需要就是空陣列
 - from_no、to_no：問題指定「第幾次到第幾次」時填整數，否則 null
 資料庫現有資料：
@@ -103,6 +103,8 @@ def to_query(plan: dict, cat: dict) -> dict | None:
             kept = [c for c in (value if isinstance(value, list) else [value]) if c in ids]
             if kept:
                 filters["test_cases"] = kept[:12]
+        elif key == "statistic" and len(t["dims"].get("statistic", [])) <= 1:
+            continue                  # a report type with one statistic: the filter would only drop the rows that carry none
         elif key in rs.CONDITIONS and value is not None and (key in ("attenuation_db", "angle_deg") or _known(value, t["dims"].get(key, []))):
             filters[key] = next((a for a in t["dims"].get(key, []) if str(a).lower() == str(value).lower()), value)
     return {"report_type": rt, "products": [str(p)[:60] for p in plan.get("products") or [] if str(p).strip()][:5] or None,
@@ -179,6 +181,8 @@ class ReportStats:
                 plan = parse_plan(self.complete([{"role": "system", "content": PLAN_PROMPT + describe(cat)}, {"role": "user", "content": asked}]))
                 if plan is None:
                     return nothing
+                if not plan.get("report_type") and not plan.get("clarify"):    # it wants numbers but chose no type: the only type, or a question back
+                    plan = {**plan, "report_type": next(iter(cat))} if len(cat) == 1 else {**plan, "clarify": list(cat)}
                 options = clarification(plan, cat)
                 if options:
                     return {"passages": [], "clarify": options, "labels": {rt: REPORT_ZH.get(rt, rt) for rt in options}}
@@ -189,6 +193,7 @@ class ReportStats:
         except Exception:                          # no database, an unknown product, a refused parameter: the answer then rests on the passages
             return nothing
         docs = ", ".join(dict.fromkeys(r["document_id"] for r in result["rows"])) or params["report_type"]
-        content = render(result, params) if result["rows"] else render_empty(params)
+        scope = "；".join(dict.fromkeys(f"{REPORT_ZH.get(r['report_type'], r['report_type'])}報告 {r['document_id']}（設備 {r['dut_model']}）" for r in result["rows"])) or None
+        content = f"資料來源：{scope}\n{render(result, params)}" if scope else render_empty(params)
         return {"passages": [{"source": f"測試數據彙總（{docs}）", "revision_id": f"timescale:{docs[:40]}", "location_label": "資料庫計算結果", "publisher": "資料庫彙總",
-                              "analysis_eligible": True, "content": content, "limit": MAX_CHARS}], "clarify": [], "labels": {}}
+                              "analysis_eligible": True, "content": content, "limit": MAX_CHARS, "scope": scope}], "clarify": [], "labels": {}}

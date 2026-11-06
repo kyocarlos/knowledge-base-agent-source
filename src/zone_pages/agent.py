@@ -29,7 +29,7 @@ SYSTEM = """你是 KM「{zone}」的助理，只能根據下列「資料」回�
 3. 不要編造型號、版本、日期、數值；數值必須和資料一致。
 4. 使用與問題相同的語言（預設繁體中文），先給結論，再條列重點。
 5. 比較兩個以上的對象時，差距很小（約 2% 以內，或在逐次量測的正常波動內）就寫「差距很小」，不要寫成較高、較低、較好、較差；樣本只有幾次時，成功率差一兩次也不要下優劣結論。列出數值，讓讀者自己判斷。
-6. 標示為「測試數據彙總」的資料是資料庫對報告逐次數據算出的結果：平均、最大、最小、中位數、成功率、某幾次的數值以它為準，數值照抄；沒有這份資料時，不要自己對逐次數據加總或求平均。
+6. 標示為「測試數據彙總」的資料是資料庫對報告逐次數據算出的結果：平均、最大、最小、中位數、成功率、某幾次的數值以它為準，數值照抄；沒有這份資料時，不要自己對逐次數據加總或求平均。有這份資料時，統計數值只引用它，不要再引用其他段落裡的數值；回答依測試項目或條件分組，同一種指標放同一欄（用表格），資料沒有的格子寫「—」，不要把不同指標混在同一行，也不要只挑其中幾組。問題沒有指定測試項目、頻段或次數時，先列出全部組合，並在最後用追問建議使用者縮小範圍。回答開頭的「依據」那一行由系統加上，不用自己寫。
 7. 回答最後另起一行，以「追問：」開頭，列出最多三個相關的追問，用「｜」分隔；沒有就省略這一行。"""
 NOTHING = "在這個專區的資料裡找不到相關內容。"
 NOTHING_PREFIX = "在這個專區的資料裡找不到"   # the model may name the topic inside the sentence
@@ -134,12 +134,14 @@ class ZoneAgent:
             trace.append({"tool": "search_user_files"})
             passages += file_passages(file_records, question)
         passages = passages[:PASSAGES + FILE_PASSAGES]
+        scope = None
         if consult:
             numbers = consult["passages"]              # computed by the database from the stored measurements, cited like any passage
             if numbers:
                 emit({"type": "tool", "label": "查詢測試數據"})
                 trace.append({"tool": "query_test_data"})
                 passages = numbers + passages
+                scope = numbers[0].get("scope")
         main, followups, cited = NOTHING, [], []
         if passages and self.complete is not None:
             emit({"type": "tool", "label": "讀取引用段落"})
@@ -153,6 +155,8 @@ class ZoneAgent:
             cited = [{"ref": f"S{n}", "source": passages[n - 1]["source"], "revision_id": passages[n - 1]["revision_id"], "location_label": passages[n - 1]["location_label"],
                       "publisher": passages[n - 1]["publisher"], "wfa_document_id": passages[n - 1]["revision_id"].split(":")[0][:8].upper(),
                       "analysis_eligible": passages[n - 1]["analysis_eligible"]} for n in refs]
+        if scope and any(c["ref"] == "S1" for c in cited):   # numbers from the database: say first which kind of report, device and document they come from
+            main = f"**依據：{scope}**\n\n{main}"
         emit({"type": "tool", "label": "檢查回答依據"})
         trace.append({"tool": "check_grounding"})
         text = "\n".join(passages[int(c["ref"][1:]) - 1]["content"] for c in cited)
