@@ -7,7 +7,7 @@ import re
 from collections import defaultdict
 from typing import Any, Callable
 
-TYPE_ZH = {"wifi_throughput": "WiFi OTA 吞吐量測試報告", "wifi_rvr": "WiFi 距離對速率（RvR）測試報告", "cellular_throughput": "蜂巢式 NR 吞吐量測試報告"}
+TYPE_ZH = {"wifi_throughput": "WiFi OTA 吞吐量測試報告", "wifi_rvr": "WiFi 距離對速率（RvR）測試報告", "cellular_throughput": "蜂巢式 NR 吞吐量測試報告", "cellular_handover": "蜂巢式 NR 換手（Xn／NG Handover）測試報告"}
 DIR_ZH = {"ul": "上行(Tx)", "dl": "下行(Rx)", "total": "合計(Tx+Rx)"}
 RESULT_ZH = {"pass": "Pass", "fail": "Fail", "n/a": "N/A"}
 
@@ -131,6 +131,8 @@ def build_chunks(pkg: dict, count_tokens: Callable[[str], int] = lambda t: int(l
             lines = [f"CH{ch}{DIR_ZH[d]}：通過 {_fmt(vals.get((ch, d, 'pass_count'), 0))}／失敗 {_fmt(vals.get((ch, d, 'fail_count'), 0))}" for ch, d in sorted({(c, dd) for c, dd, _ in vals}, key=lambda x: (x[0] or 0, str(x[1])))]
             for text in _pack(lines, f"{tag}\n{band} {bw}MHz RvR 各通道衰減點通過與失敗筆數（依報告）：", budget, count_tokens):
                 add("test_results", text, band=band, bandwidth_mhz=bw, source_sheet="", source_cell_range="")
+    elif rt == "cellular_handover":
+        _handover_chunks(ms, pkg, tag, budget, count_tokens, add)
     else:
         cases: dict[str, list[dict]] = defaultdict(list)
         for m in ms:
@@ -150,3 +152,44 @@ def build_chunks(pkg: dict, count_tokens: Callable[[str], int] = lambda t: int(l
         c["chunk_id"] = f"{doc['document_id']}:{doc['document_version']}:{i:04d}"
         c["chunk_hash"] = "sha256:" + hashlib.sha256(c["text"].encode("utf-8")).hexdigest()
     return chunks
+
+
+def _handover_chunks(ms: list[dict], pkg: dict, tag: str, budget: int, count: Callable[[str], int], add: Callable[..., None]) -> None:
+    """One block of chunks per (Xn | NG) x (2 | 10 | 100 handovers): the report's own verdict and maxima first, then one readable line per handover."""
+    cases: dict[str, list[dict]] = defaultdict(list)
+    for m in ms:
+        cases[m["test_case_id"]].append(m)
+    verdict = {r["test_case_id"]: r for r in pkg["results"]}
+    peer = pkg["dut"].get("peer_cell") or {}
+    for cid, items in cases.items():
+        first = items[0]
+        head = (f"{tag}\n{first['test_case_name']}（頻段 {first.get('band') or '—'}，中心頻率 {first.get('center_freq_mhz') or '—'} MHz，頻寬 {first.get('bandwidth_mhz') or '—'} MHz，"
+                f"TDD 時槽 {first.get('time_slot') or '—'}" + (f"；對向小型基站 {peer['model']}" if peer.get("model") else "") + "）")
+        summary = {m["metric_name"]: m["value"] for m in items if m.get("sample_index") is None}
+        parts = []
+        if cid in verdict:
+            parts.append(f"報告判定 {RESULT_ZH.get(verdict[cid]['result'], verdict[cid]['result'])}")
+        for key, label, unit in (("ho_success_rate", "換手成功率", ""), ("max_throughput_variation", "最大吞吐量變化", " Mbps"), ("max_latency_variation", "最大延遲變化", " ms"),
+                                 ("max_ping_loss_count", "最大 ping 遺失數", "")):
+            if key in summary:
+                parts.append(f"{label} {_fmt(summary[key])}{unit}")
+        if parts:
+            add("test_results", head + "（依報告摘要）：" + "；".join(parts), test_case_id=cid, source_sheet="3. Test Result Summary", source_cell_range="")
+        per: dict[int, dict[str, float]] = defaultdict(dict)
+        for m in items:
+            if m.get("sample_index") is not None:
+                per[m["sample_index"]][m["metric_name"]] = m["value"]
+        lines = []
+        for no, v in sorted(per.items()):
+            bits = []
+            if "latency_rtt_before_ho" in v and "latency_rtt_after_ho" in v:
+                bits.append(f"延遲 {_fmt(v['latency_rtt_before_ho'])}→{_fmt(v['latency_rtt_after_ho'])} ms" + (f"（差 {_fmt(v['latency_variation'])}）" if "latency_variation" in v else ""))
+            if "throughput_before_ho" in v and "throughput_after_ho" in v:
+                bits.append(f"下行吞吐量 {_fmt(v['throughput_before_ho'])}→{_fmt(v['throughput_after_ho'])} Mbps" + (f"（差 {_fmt(v['throughput_variation'])}）" if "throughput_variation" in v else ""))
+            if "ho_success" in v:
+                bits.append("換手成功" if v["ho_success"] else "換手失敗")
+            if "ping_loss_count" in v:
+                bits.append(f"ping 遺失 {_fmt(v['ping_loss_count'])}")
+            lines.append(f"第 {no} 次：" + "；".join(bits))
+        for text in _pack(lines, head + "各次換手（換手前→換手後）：", budget, count):
+            add("measurement_rows", text, band=first.get("band"), bandwidth_mhz=first.get("bandwidth_mhz"), test_case_id=cid, source_sheet=first["source_sheet"], source_cell_range="")

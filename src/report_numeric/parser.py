@@ -16,10 +16,12 @@ from openpyxl import load_workbook
 from openpyxl.utils import get_column_letter
 
 SCHEMA_VERSION = "1.0"
-REPORT_TYPES = (("SIT-TR-WL-RvR", "wifi_rvr"), ("SIT-TR-WL-Throughput", "wifi_throughput"), ("SIT-TR-SC-NR-Throughput", "cellular_throughput"))
+REPORT_TYPES = (("SIT-TR-WL-RvR", "wifi_rvr"), ("SIT-TR-WL-Throughput", "wifi_throughput"), ("SIT-TR-SC-NR-Throughput", "cellular_throughput"),
+                ("SIT-SR-SC-NR-Handover", "cellular_handover"))
 # Report categories (Wi-Fi / Cellular / Small Cell / PON / Cable). A new report type is one REPORT_TYPES entry plus a parser function.
-CATEGORY = {"wifi_rvr": "wifi", "wifi_throughput": "wifi", "cellular_throughput": "small_cell"}
-DOC_NUMBER = re.compile(r"^SIT-TR-[A-Z]{2}-[\w .-]*-V\d+$")
+CATEGORY = {"wifi_rvr": "wifi", "wifi_throughput": "wifi", "cellular_throughput": "small_cell", "cellular_handover": "small_cell"}
+# TR = test report, SR = the handover series; the version may carry a minor part and a suffix (V13.5a)
+DOC_NUMBER = re.compile(r"^SIT-[TS]R-[A-Z]{2}-[\w .-]*-V\d+[\w.]*$")
 BAND = r"(2\.4GHz|5GHz|6GHz)"
 # Source label -> canonical direction. Tx/Rx are the STA's view and the DUT is always the AP (domain engineers, 2026-10-21).
 DIRECTION = {"tx": "ul", "rx": "dl", "uplink": "ul", "downlink": "dl", "total": "total"}
@@ -28,7 +30,7 @@ DUT_LABELS = {
     "firmware version": "fw_version", "wireless driver version": "driver_version", "npi stage": "npi_stage", "main chipset": "main_chipset",
     "main chipset model": "main_chipset", "wlan chipset": "wlan_chipset", "wlan chipset model": "wlan_chipset", "ethernet type": "ethernet_type",
     "spatial stream (tx / rx)": "spatial_stream", "frequency band (ghz)": "bands", "frequency band mode": "band_mode", "bandwidth (mhz)": "bandwidths",
-    "model name": "model", "frequency band": "bands",  # small-cell reports; serial number and MAC addresses are deliberately not mapped
+    "model name": "model", "frequency band": "bands", "band": "bands",  # small-cell reports; serial number and MAC addresses are deliberately not mapped
 }
 
 
@@ -130,6 +132,9 @@ def parse_report(path: str | Path, identity: dict | None = None, source_name: st
         _wifi_throughput(wb, out)
     elif report_type == "wifi_rvr":
         _wifi_rvr(wb, out)
+    elif report_type == "cellular_handover":
+        dut["peer_cell"] = _handover_peer(wb)
+        _handover(wb, out, dut)
     else:
         _cellular(wb, out, document_number)
     model = dut.get("model") or _model_from_number(document_number)
@@ -140,7 +145,7 @@ def parse_report(path: str | Path, identity: dict | None = None, source_name: st
         "package_id": "PKG-" + sha256_file(path)[:16],
         "source": {"source_system": "ManualUpload", "source_file_name": name, "checksum": "sha256:" + sha256_file(path)},
         "document": {"document_id": document_number, "document_version": version, "title": _title(wb), "file_type": "xlsx",
-                     "report_type": report_type, "technology": "NR" if report_type == "cellular_throughput" else "WiFi",
+                     "report_type": report_type, "technology": "NR" if report_type in ("cellular_throughput", "cellular_handover") else "WiFi",
                      "report_revision": meta.get("revision")},
         "test_run": {"test_run_id": test_run_id, "id_basis": "derived", "test_date": meta.get("date"), "overall_result": meta.get("judgement"),
                      "product_id": product_id, "product_id_basis": "derived", "dut_model": _t(model), "npi_stage": dut.get("npi_stage") or _stage_from_number(document_number),
@@ -177,12 +182,12 @@ def _title(wb) -> str:
 
 
 def _model_from_number(number: str) -> str:
-    m = re.match(r"^SIT-TR-[A-Z]{2}-(?:NR-)?[A-Za-z]+-(.+?)(?:-(?:EV|DV|MP|PV))?-V\d+$", number)
+    m = re.match(r"^SIT-[TS]R-[A-Z]{2}-(?:NR-)?[A-Za-z]+-(.+?)(?:-(?:EV|DV|MP|PV))?-V\d+[\w.]*$", number)
     return m.group(1) if m else number
 
 
 def _stage_from_number(number: str) -> str | None:
-    m = re.search(r"-(EV|DV|MP|PV)-V\d+$", number)
+    m = re.search(r"-(EV|DV|MP|PV)-V\d+[\w.]*$", number)
     return m.group(1) if m else None
 
 
@@ -234,7 +239,7 @@ def _dut_info(wb, out: Collector) -> dict:
     dut: dict[str, Any] = {}
     if ws is None:
         return dut
-    start = next((c.row for row in ws.iter_rows(max_row=30) for c in row if isinstance(c.value, str) and _t(c.value) in ("DUT Information", "Small Cell Information")), None)
+    start = next((c.row for row in ws.iter_rows(max_row=30) for c in row if isinstance(c.value, str) and _t(c.value) in ("DUT Information", "Small Cell Information", "Small Cell A Information")), None)
     if start is None:
         return dut
     sub_label = re.compile(r"^(2\.4GHz|5GHz|6GHz|LAN)\s*[:：]$")
@@ -242,8 +247,8 @@ def _dut_info(wb, out: Collector) -> dict:
     values: dict[tuple[str, str | None], list[str]] = {}
     for r in range(start + 1, min(start + 30, ws.max_row + 1)):
         tokens = [(c.column, _t(c.value)) for c in ws[r] if c.value not in (None, "") and c.column <= 10]  # columns after J hold the template's Example
-        if tokens and tokens[0][1] in ("Engineer", "Test Laboratory Location"):
-            break
+        if tokens and (tokens[0][1] in ("Engineer", "Test Laboratory Location") or tokens[0][1].startswith("Small Cell B")):
+            break  # handover reports describe a second small cell right below the first; it is read separately (_handover_peer)
         if not tokens and values and r > start + 12:
             break
         target: tuple[str, str | None] | None = None
@@ -625,3 +630,223 @@ def _cellular(wb, out: Collector, document_number: str) -> None:
                     if _num(cell.value) is not None:
                         out.measure(title, _ref(cell), cid, metric, cell.value, unit, name=f"Test Case {case}", statistic="value", **d)
         r = end
+
+
+# ----------------------------------------------------------------------------- cellular NR handover (SIT-SR-SC-NR-Handover)
+HANDOVER_MODES = (("4.1", "xn", "Xn Handover"), ("4.2", "ng", "NG Handover"))
+# Configuration labels read from "2.7 Test Configuration": label -> (condition name, unit). A value is the next cell to the right that is not itself a label.
+HANDOVER_CONFIG = {"Band": ("band", None), "RF Tx Power": ("rf_tx_power", None), "Center Frequency": ("center_frequency", None), "Bandwidth": ("bandwidth", "MHz"),
+                   "ARFCN": ("arfcn", None), "UL Modulation": ("ul_modulation", None), "AbsArfcnSsb": ("abs_arfcn_ssb", None), "UL Dmrs-Add.Pos.": ("ul_dmrs_add_pos", None),
+                   "UL MIMO Layer": ("ul_mimo_layer", None), "Time Slot": ("time_slot", None), "Cell ID": ("cell_id", None), "PCI": ("pci", None), "TAC": ("tac", None),
+                   "AbsArfcn": ("abs_arfcn", None), "Neighbor IP": ("neighbor_ip", None)}
+
+
+def _handover_peer(wb) -> dict:
+    """Small Cell B in "2. Introduction": the model, firmware, hardware version, band and NPI stage (serial number and MAC addresses are deliberately not read)."""
+    ws = _sheet(wb, "2. Introduction")
+    peer: dict[str, Any] = {}
+    if ws is None:
+        return peer
+    start = next((c.row for row in ws.iter_rows(max_row=40) for c in row if isinstance(c.value, str) and _t(c.value).startswith("Small Cell B")), None)
+    if start is None:
+        return peer
+    keys = {"model name": "model", "firmware version": "fw_version", "hardware version": "hw_version", "band": "band", "npi stage": "npi_stage"}
+    for r in range(start + 1, min(start + 10, ws.max_row + 1)):
+        tokens = [(c.column, _t(c.value)) for c in ws[r] if c.value not in (None, "") and c.column <= 10]
+        if not tokens:
+            continue  # the block has blank lines (serial number and MAC rows are not read, and a row may be empty)
+        if tokens[0][1] in ("Engineer", "Test Laboratory Location") or re.match(r"^\d\.\d", tokens[0][1]):
+            break
+        key = keys.get(tokens[0][1].rstrip("：: ").strip().lower())
+        if key and len(tokens) > 1:
+            peer[key] = " ".join(t for _, t in tokens[1:])
+    return peer
+
+
+def _handover_conditions(wb, out: Collector) -> dict:
+    """Test configuration of both cells, the neighbour cells and the attenuator / SS-RSRP set points. Returns the dimensions of Small Cell A
+    (band, bandwidth, centre frequency, time slot), which tag every handover measurement."""
+    ws = _sheet(wb, "2.7")
+    dims: dict[str, Any] = {"band": None, "bandwidth_mhz": None, "center_freq_mhz": None, "time_slot": None}
+    if ws is None:
+        return dims
+    title = ws.title.strip()
+    section = None
+    for row in ws.iter_rows(max_col=10):
+        a = _t(row[0].value)
+        if a.startswith("Time slot"):
+            break  # the list below is the template's catalogue of selectable time slots, not this report's configuration
+        if section == "ue":  # the rows under "UE SS-RSRP" are named "Small Cell A / B" too; they are levels, not new cell sections
+            _handover_ue_levels([c for c in row if c.value not in (None, "")], out, title)
+            continue
+        m = re.match(r"^Small Cell ([AB]):?$", a)
+        if m:
+            section = "cell_" + m.group(1).lower()
+            continue
+        if a == "Neighbor Cell" and section:
+            section = section.split(".")[0] + ".neighbor"
+            continue
+        if a.startswith("UE SS-RSRP"):
+            section = "ue"
+            continue
+        cells = [c for c in row if c.value not in (None, "")]
+        if not section:
+            continue
+        for i, c in enumerate(cells):
+            label = _t(c.value)
+            if label not in HANDOVER_CONFIG:
+                continue
+            nxt = next((x for x in cells[i + 1:] if _t(x.value) not in HANDOVER_CONFIG), None)
+            if nxt is None or (i + 1 < len(cells) and _t(cells[i + 1].value) in HANDOVER_CONFIG):
+                continue
+            name, unit = HANDOVER_CONFIG[label]
+            full = f"{section}.{name}"
+            if _num(nxt.value) is not None:
+                out.conditions.append({"name": full, "value": float(nxt.value), "unit": unit, "source_sheet": title, "source_cell_range": _ref(nxt)})
+            else:
+                out.conditions.append({"name": full, "text": _t(nxt.value), "unit": unit, "source_sheet": title, "source_cell_range": _ref(nxt)})
+            if section == "cell_a":
+                if name == "band":
+                    dims["band"] = _t(nxt.value)
+                elif name == "bandwidth" and _num(nxt.value) is not None:
+                    dims["bandwidth_mhz"] = int(nxt.value)
+                elif name == "center_frequency" and _num(nxt.value) is not None:
+                    dims["center_freq_mhz"] = int(round(float(nxt.value) * 1000))  # the cell holds GHz (4.85); the ARFCN in the same block agrees (723332 = 4849.98 MHz)
+                elif name == "time_slot":
+                    dims["time_slot"] = _t(nxt.value)
+    return dims
+
+
+def _handover_ue_levels(cells, out: Collector, title: str) -> None:
+    """"Attenuator | 0 | | 25" and "Small Cell A | -60 | | -85": the near and far set points (the sheet's note says the first is Near and the second Far)."""
+    if not cells:
+        return
+    label = _t(cells[0].value)
+    values = [c for c in cells[1:] if _num(c.value) is not None]
+    if label == "Attenuator":
+        name, unit = "ue.attenuator", "dB"
+    elif re.match(r"^Small Cell [AB]$", label):
+        name, unit = f"ue.ss_rsrp_cell_{label[-1].lower()}", "dBm"
+    else:
+        return
+    for pos, c in zip(("near", "far"), values):
+        out.conditions.append({"name": f"{name}.{pos}", "value": float(c.value), "unit": unit, "source_sheet": title, "source_cell_range": _ref(c)})
+
+
+def _handover_texts(wb, out: Collector) -> None:
+    """Purpose, scope and procedure are prose in column B under their numbered heading."""
+    for prefix, heading, kind in (("2. Introduction", "2.1", "Purpose"), ("2. Introduction", "2.2", "Scope"), ("2.5", "2.6", "Test Procedure")):
+        ws = _sheet(wb, prefix)
+        if ws is None:
+            continue
+        start = next((c.row for row in ws.iter_rows(max_col=2) for c in row[:1] if isinstance(c.value, str) and _t(c.value).startswith(heading)), None)
+        if start is None:
+            continue
+        lines, first = [], None
+        for r in range(start + 1, ws.max_row + 1):
+            if re.match(r"^\d\.\d", _t(ws.cell(r, 1).value)):
+                break
+            cell = ws.cell(r, 2)
+            if _t(cell.value):
+                first = first or cell
+                lines.append(_t(cell.value))
+        if lines:
+            out.text(ws.title.strip(), _ref(first), "section_text", " ".join(lines), f"{heading} {kind}")
+
+
+def _handover(wb, out: Collector, dut: dict) -> None:
+    """One row per handover ("Handover 2 / 10 / 100 times" blocks, numbered 1..n): latency and throughput before and after, success, ping loss and the
+    signed variations the report prints. The summary sheet adds each block's verdict, success rate and maxima. The performance sheets repeat their
+    header on every page, so a block header seen again continues the same block."""
+    cfg = _handover_conditions(wb, out)
+    _handover_texts(wb, out)
+    dims = {k: v for k, v in cfg.items() if v is not None}
+    for prefix, mode, label in HANDOVER_MODES:
+        ws = _sheet(wb, prefix)
+        if ws is None:
+            continue
+        title = ws.title.strip()
+        group = None
+        cols: dict[str, int] = {}
+        for row in ws.iter_rows(max_col=13):
+            a = row[0].value
+            text = _t(a)
+            m = re.match(r"^Handover\s+(\d+)\s+times", text)
+            if m:
+                group = int(m.group(1))
+                continue
+            if text == "No":
+                labels = {_t(c.value): c.column for c in row if isinstance(c.value, str)}
+                cols.update({"lat": labels.get("Average Latency", cols.get("lat", 2)), "tput": labels.get("Average Throughput", cols.get("tput", 4)),
+                             "ok": labels.get("Handover Success", cols.get("ok", 6)), "loss": labels.get("Ping Loss Count", cols.get("loss", 7))})
+                continue
+            if _t(row[1].value) == "Before" and "Variation" in {_t(c.value) for c in row}:
+                var = next(c.column for c in row if _t(c.value) == "Variation")
+                cols["var_lat"], cols["var_tput"] = var + 1, var + 2  # "Variation | Latency | Tput" (signed), then the same two as absolute values
+                continue
+            if group is None or not isinstance(a, (int, float)) or isinstance(a, bool) or not cols or _num(row[cols["lat"] - 1].value) is None:
+                continue
+            no = int(a)
+            cid = f"cellular_handover:{mode}:{group}"
+            name = f"{label} {group} times"
+            common = dict(name=name, sample_index=no, **dims)
+
+            def cell(key):
+                return row[cols[key] - 1] if key in cols and cols[key] - 1 < len(row) else None
+            for key, metric, unit, extra in (("lat", "latency_rtt_before_ho", "ms", {}), ("tput", "throughput_before_ho", "Mbps", {"direction": "dl"})):
+                c = cell(key)
+                if c is not None and _num(c.value) is not None:
+                    out.measure(title, _ref(c), cid, metric, c.value, unit, statistic="average", **extra, **common)
+            for key, metric, unit, extra in (("lat", "latency_rtt_after_ho", "ms", {}), ("tput", "throughput_after_ho", "Mbps", {"direction": "dl"})):
+                c = row[cols[key]] if cols[key] < len(row) else None  # "After" is the column right of "Before"
+                if c is not None and _num(c.value) is not None:
+                    out.measure(title, _ref(c), cid, metric, c.value, unit, statistic="average", **extra, **common)
+            ok = cell("ok")
+            if ok is not None and _t(ok.value).lower() in ("yes", "no"):
+                out.measure(title, _ref(ok), cid, "ho_success", 1 if _t(ok.value).lower() == "yes" else 0, "count", **common)
+            loss = cell("loss")
+            if loss is not None and _num(loss.value) is not None:
+                out.measure(title, _ref(loss), cid, "ping_loss_count", loss.value, "count", **common)
+            for key, metric, unit, extra in (("var_lat", "latency_variation", "ms", {}), ("var_tput", "throughput_variation", "Mbps", {"direction": "dl"})):
+                c = cell(key)
+                if c is not None and _num(c.value) is not None:
+                    out.measure(title, _ref(c), cid, metric, c.value, unit, basis="reported_derived", **extra, **common)
+    _handover_summary(wb, out, dims)
+
+
+def _handover_summary(wb, out: Collector, dims: dict) -> None:
+    """"3.1 Xn Handover Test Summary" / "3.2 NG ...": a header row ("Latency Test | Round trip | 10 times | 100 times") and the rows below it. Columns after I are
+    the template's Example and are ignored."""
+    ws = _sheet(wb, "3. Test Result Summary")
+    if ws is None:
+        return
+    title = ws.title.strip()
+    mode, groups = None, {}
+    wanted = {"HO Success Rate": ("ho_success_rate", "ratio", None), "Max. Tput Variation": ("max_throughput_variation", "Mbps", "max"),
+              "Max. Latency Variation": ("max_latency_variation", "ms", "max"), "Max. Ping Loss Count": ("max_ping_loss_count", "count", "max")}
+    for row in ws.iter_rows(max_col=9):
+        a = _t(row[0].value)
+        m = re.match(r"^3\.\d\s+(Xn|NG)\s+Handover", a)
+        if m:
+            mode, groups = m.group(1).lower(), {}
+            continue
+        if a == "Latency Test":
+            groups = {}
+            for c in row[1:]:
+                t = _t(c.value)
+                if t == "Round trip":
+                    groups[c.column] = 2  # one round trip is the 2-handover block (A to B and back)
+                elif re.match(r"^\d+\s+times$", t):
+                    groups[c.column] = int(t.split()[0])
+            continue
+        if not mode or not groups:
+            continue
+        for col, group in groups.items():
+            c = row[col - 1]
+            cid = f"cellular_handover:{mode}:{group}"
+            if a == "Test Result" and _t(c.value):
+                out.result(title, _ref(c), cid, "Latency Test", c.value)
+            elif a in wanted and _num(c.value) is not None:
+                metric, unit, stat = wanted[a]
+                extra = {"statistic": stat} if stat else {}
+                out.measure(title, _ref(c), cid, metric, c.value, unit, name=f"{'Xn' if mode == 'xn' else 'NG'} Handover {group} times", basis="reported_derived", **extra, **dims)
