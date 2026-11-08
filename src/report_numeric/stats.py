@@ -98,7 +98,7 @@ def _clean_filters(filters: dict | None) -> dict:
 
 
 def measurement_stats(conn, report_type: str, products: list[str] | None = None, metrics: list[str] | None = None, filters: dict | None = None,
-                      group_by: list[str] | None = None, from_no: int | None = None, to_no: int | None = None, roles=DEFAULT_ROLES) -> dict:
+                      group_by: list[str] | None = None, from_no: int | None = None, to_no: int | None = None, documents: list[str] | None = None, roles=DEFAULT_ROLES) -> dict:
     """Count, sum, mean, min, max, median and 95th percentile of each metric, one row per product, document, metric and series (see SERIES) of one report type,
     optionally split further on `group_by` and limited to repetitions from_no..to_no. Returns {"rows", "truncated", "series", "group_by"}."""
     if not NAME.match(str(report_type or "")):
@@ -108,6 +108,8 @@ def measurement_stats(conn, report_type: str, products: list[str] | None = None,
         raise QueryError("metrics 最多 12 個，且必須是指標名稱")
     if len(products or []) > 5:
         raise QueryError("一次最多 5 個設備")
+    if len(documents or []) > 20 or not all(CASE.match(str(d)) for d in documents or []):
+        raise QueryError("documents 最多 20 份，且必須是文件編號")
     extra = [d for d in group_by or [] if d in optional_dims(report_type)]
     if set(group_by or []) - set(extra):
         raise QueryError(f"group_by 只能是 {optional_dims(report_type)}")
@@ -131,12 +133,12 @@ def measurement_stats(conn, report_type: str, products: list[str] | None = None,
         FROM km_test.test_measurement m JOIN km_test.test_run r USING (test_run_id)
         WHERE r.report_type = %(rt)s AND r.access_roles && %(roles)s AND r.publish_status = 'published'
           AND (%(p)s::text[] IS NULL OR r.product_id = ANY(%(p)s)) AND (%(metrics)s::text[] IS NULL OR m.metric_name = ANY(%(metrics)s))
-          AND (%(cases)s::text[] IS NULL OR m.test_case_id = ANY(%(cases)s))
+          AND (%(cases)s::text[] IS NULL OR m.test_case_id = ANY(%(cases)s)) AND (%(docs)s::text[] IS NULL OR r.document_id = ANY(%(docs)s))
           AND (%(lo)s::int IS NULL OR m.sample_index >= %(lo)s) AND (%(hi)s::int IS NULL OR m.sample_index <= %(hi)s)
           {''.join(' AND ' + w for w in where)}
         GROUP BY {', '.join(cols)}
         ORDER BY {', '.join(order)} LIMIT %(lim)s"""
-    params: dict[str, Any] = {"rt": report_type, "roles": list(roles), "p": pids, "metrics": metrics or None, "cases": f["test_cases"], "lo": from_no, "hi": to_no, "lim": MAX_ROWS + 1}
+    params: dict[str, Any] = {"rt": report_type, "roles": list(roles), "p": pids, "metrics": metrics or None, "cases": f["test_cases"], "docs": list(documents) if documents else None, "lo": from_no, "hi": to_no, "lim": MAX_ROWS + 1}
     params.update({d: f[d] for d in CONDITIONS if f.get(d) is not None})
     rows = _rows(conn, sql, params)
     return {"rows": rows[:MAX_ROWS], "truncated": len(rows) > MAX_ROWS, "series": list(series_of(report_type)), "group_by": extra}

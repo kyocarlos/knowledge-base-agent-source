@@ -31,7 +31,7 @@ def test_a_question_with_no_technology_is_asked_which_whatever_it_is_about():
 
 def test_a_technology_with_several_projects_is_asked_which_project_next():
     step = stats.next_step(plan(technology="wifi"), FULL)
-    assert step["ask"]["options"] == ["PKE3540J", "PKE9999", "全部設備"] and "設備 PKE3540J，文件 DOC-PKE3540J" in step["ask"]["text"] and "WiFi 吞吐量報告" in step["ask"]["text"]
+    assert step["ask"]["options"] == ["PKE3540J", "PKE9999", "全部案子"] and "設備 PKE3540J，文件 DOC-PKE3540J" in step["ask"]["text"] and "WiFi 吞吐量報告" in step["ask"]["text"]
 
 
 def test_a_named_project_or_all_of_them_go_straight_to_the_numbers():
@@ -65,7 +65,7 @@ def test_a_technology_without_its_general_report_lists_what_there_is():
 def test_a_kind_for_a_future_technology_follows_the_same_order():
     pon = {"pon_throughput": kind("pon_throughput", "OLT1", "OLT2")}
     assert stats.next_step(plan(), pon)["ask"]["options"] == ["WiFi", "5G", "pon"]
-    assert stats.next_step(plan(technology="pon"), pon)["ask"]["options"] == ["OLT1", "OLT2", "全部設備"]
+    assert stats.next_step(plan(technology="pon"), pon)["ask"]["options"] == ["OLT1", "OLT2", "全部案子"]
 
 
 @contextmanager
@@ -81,7 +81,7 @@ def test_nothing_is_fetched_until_every_question_is_answered():
     ask = lambda **kw: stats.ReportStats(lambda m: json.dumps(plan(**kw)), lambda: source(seen=seen)).consult("吞吐量平均是多少？")
     assert ask()["ask"] and ask(technology="wifi")["ask"] and seen == []
     done = ask(technology="wifi", products=["PKE3540J"])
-    assert done["ask"] is None and done["passages"] and seen[0]["report_type"] == "wifi_throughput" and seen[0]["products"] == ["PKE3540J"]
+    assert done["ask"] is None and done["passages"] and seen[0]["report_type"] == "wifi_throughput" and seen[0]["documents"] == ["DOC-PKE3540J"]
 
 
 def test_the_earlier_questions_go_to_the_planner_so_a_typed_answer_is_understood():
@@ -128,7 +128,7 @@ def test_a_short_device_name_typed_as_the_answer_goes_through_to_the_numbers():
     cat = {**FULL, "wifi_throughput": kind("wifi_throughput", "PKE3540J-D223", "TP-Link Archer BE800")}
     seen = []
     done = stats.ReportStats(lambda m: json.dumps(plan(technology="wifi")), lambda: source(cat=cat, seen=seen)).consult("吞吐量平均是多少？（WiFi）（PKE3540J）")
-    assert done["ask"] is None and done["passages"] and seen[0]["products"] == ["PKE3540J-D223"]
+    assert done["ask"] is None and done["passages"] and seen[0]["documents"] == ["DOC-PKE3540J-D223"]
 
 
 def test_a_question_back_is_not_shown_as_an_answer_without_support():

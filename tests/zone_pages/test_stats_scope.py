@@ -53,16 +53,57 @@ def test_the_project_named_by_csit_leads_the_scope_and_the_questions_back():
     old = {"wifi_throughput": {**NAMED["wifi_throughput"], "products": [{"id": "P", "model": "P", "document_id": "DOC-A", "project_code": "PRJ-001", "project_name": None, "case_name": None}]}}
     assert stats.scope_of([row], old) == "案子 PRJ-001，設備 PKE3540J，WiFi 吞吐量報告 DOC-A"            # a report ingested before the names were kept: the number alone
     step = stats.next_step({"needed": True, "technology": "wifi", "report_type": None, "products": [], "all_products": False, "metrics": []}, NAMED)
-    assert step["ask"]["options"] == ["PKE3540J・第一案", "PKE9999・第二案", "全部設備"]
-    assert "案子 第一案（PRJ-001），設備 PKE3540J，文件 DOC-A" in step["ask"]["text"]
+    assert step["ask"]["options"] == ["第一案（PRJ-001）", "第二案（PRJ-002）", "全部案子"]
+    assert "案子 第一案（PRJ-001）（設備 PKE3540J，文件 DOC-A）" in step["ask"]["text"]
 
 
-def test_a_project_named_in_the_question_settles_the_device_when_the_name_is_unique():
+def test_a_project_is_found_by_its_name_its_number_or_its_document():
     plan = {"needed": True, "technology": None, "report_type": None, "products": [], "all_products": False, "metrics": []}
-    assert stats.with_hints(plan, "第二案的吞吐量", NAMED)["products"] == ["PKE9999"]
-    assert stats.with_hints(plan, "吞吐量（PKE3540J・第一案）", NAMED)["products"] == ["PKE3540J"]
-    same = {"wifi_throughput": {**NAMED["wifi_throughput"], "products": [{**p, "project_name": "模擬專案"} for p in NAMED["wifi_throughput"]["products"]]}}
-    assert stats.with_hints(plan, "模擬專案的吞吐量", same)["products"] == []                       # two devices share the name: it does not settle one
+    assert stats.with_hints(plan, "第二案的吞吐量", NAMED)["projects"] == ["PRJ-002"]
+    assert stats.with_hints(plan, "吞吐量（第一案（PRJ-001））", NAMED)["projects"] == ["PRJ-001"]
+    assert stats.with_hints(plan, "prj-002 的吞吐量", NAMED)["projects"] == ["PRJ-002"]
+    assert stats.with_hints(plan, "DOC-A 的吞吐量", NAMED)["projects"] == ["PRJ-001"]
+    assert stats.with_hints(plan, "吞吐量", NAMED)["projects"] == []
+    assert stats.with_hints(plan, "全部案子的吞吐量", NAMED)["all_products"] is True
+
+
+def test_a_project_named_is_the_only_one_queried_and_the_numbers_stay_inside_its_documents():
+    base = {"needed": True, "technology": "wifi", "report_type": None, "products": [], "all_products": False, "metrics": []}
+    step = stats.next_step(stats.with_hints(base, "第二案的吞吐量", NAMED), NAMED)
+    assert step["plan"]["documents"] == ["DOC-B"] and step["plan"]["products"] == []
+    assert stats.to_query(step["plan"], NAMED)["documents"] == ["DOC-B"]
+    assert stats.to_query({**step["plan"], "documents": ["DOC-X"]}, NAMED)["documents"] is None             # a document the catalog does not list is dropped
+
+
+def test_projects_sharing_a_device_are_still_asked_which_and_never_mixed():
+    same = {"wifi_throughput": {**NAMED["wifi_throughput"], "products": [{**p, "id": "PKE3540J", "model": "PKE3540J"} for p in NAMED["wifi_throughput"]["products"]]}}
+    base = {"needed": True, "technology": "wifi", "report_type": None, "products": [], "all_products": False, "metrics": []}
+    assert stats.next_step(base, same)["ask"]["options"] == ["第一案（PRJ-001）", "第二案（PRJ-002）", "全部案子"]            # two devices alike, two projects: asked
+    named_device = stats.next_step({**base, "products": ["PKE3540J"]}, same)
+    assert "屬於 2 個案子" in named_device["ask"]["text"] and named_device["ask"]["options"][-1] == "全部案子"
+    assert stats.next_step(stats.with_hints({**base, "products": ["PKE3540J"]}, "（PKE3540J）（第二案（PRJ-002））", same), same)["plan"]["documents"] == ["DOC-B"]
+    assert stats.next_step({**base, "all_products": True}, same)["plan"].get("documents") is None
+
+
+def test_a_single_project_is_not_asked_and_two_with_the_same_label_are_told_apart_by_document():
+    one = {"wifi_throughput": {**NAMED["wifi_throughput"], "products": NAMED["wifi_throughput"]["products"][:1]}}
+    base = {"needed": True, "technology": "wifi", "report_type": None, "products": [], "all_products": False, "metrics": []}
+    assert "plan" in stats.next_step(base, one)
+    alike = {"wifi_throughput": {**NAMED["wifi_throughput"], "products": [{**p, "project_code": None, "project_name": None} for p in NAMED["wifi_throughput"]["products"]]}}
+    assert stats.next_step(base, alike)["ask"]["options"] == ["PKE3540J", "PKE9999", "全部案子"]
+    dup = {"wifi_throughput": {**NAMED["wifi_throughput"], "products": [{**p, "model": "PKE3540J"} for p in alike["wifi_throughput"]["products"]]}}
+    assert stats.next_step(base, dup)["ask"]["options"] == ["PKE3540J・DOC-A", "PKE3540J・DOC-B", "全部案子"]
+
+
+def test_a_question_about_a_reports_content_without_numbers_is_asked_the_same_way():
+    def consult(question, cat=NAMED, history=None):
+        return stats.ReportStats(lambda m: json.dumps({"needed": False}), lambda: fake_source(cat=cat)).consult(question, history)
+    got = consult("WiFi 吞吐量報告的測試結果有哪些")
+    assert got["ask"] and "案子" in got["ask"]["text"] and got["ask"]["options"][-1] == "全部案子"
+    assert consult("WiFi 的 Test Case 4 結果如何")["ask"]["options"][0] == "第一案（PRJ-001）"
+    assert consult("WiFi 的 Test Case 4 結果如何（第二案（PRJ-002））")["ask"] is None                 # the project is named: answered from the documents
+    assert consult("WiFi 吞吐量報告的案子名稱有哪些")["ask"] is None                                  # a question about the projects themselves lists them
+    assert consult("測試流程怎麼走？")["ask"] is None                                                  # not about a report's content
 
 
 def test_a_choice_that_turned_out_to_have_no_data_is_replaced_not_stacked():

@@ -230,3 +230,11 @@ CSIT 的分類變更通知不再改專區。程式:`zones.py`、`doclib_metadata
 - **範本殘留的假資料不再寫入**：5G Throughput 範本附帶的填充案例（SCU2060 的 Test Case 9～16：頻段 Band2，吞吐量與摘要延遲全部等於案例編號，效能頁的接收訊號強度與封包遺失是 0）。`parser._drop_placeholder_cases`：一個案例的吞吐量與摘要延遲平均（至少 3 筆）全部等於它自己的案例編號時，整個案例（含它所有儲存格）不寫入，並在報告 issues 記 `placeholder_cases`（說明是哪幾個案例）、同時移除這些案例的 `unparsed_band` 提示。判斷刻意保守：只看這兩類欄位、必須全部等於案例編號、至少 3 筆。
   - 驗證（伺服器上的真實報告）：SCU2060 512 → 256 筆（少了 8 個案例 × 32 筆）；SCU5050（有真實的 Band2 資料）512 筆、WiFi Throughput 126 筆、RvR 682 筆都不變。
   - worker 映像 `km-csit-worker:v14n-filler-20261106`（備份 `~/.km-control/agg-20261106/images.env.before-n`，`csit-mode.sh reapply` 即可還原）。已經寫進去的那份 SCU2060 仍含假資料，要刪除後重新上傳才會套用。
+
+## Project is always asked (案子先確認)
+
+- The project (案子, by CSIT number, else name, else document) is now what is counted, not the device model: two projects with the same device are asked about, never mixed.
+- A project is recognised in the question by its name, number or document id; the choice restricts the query by document (`measurement_stats(documents=...)`), and "全部案子" (or 全部設備/全部專案) lifts it.
+- A device that belongs to several projects asks which; one project alone is not asked, but the answer's 依據 line names it.
+- A question about a report's content with no number to compute (吞吐量/換手/RvR/Test Case/測試結果 …) goes through the same technology → kind → project questions; a question about the projects themselves (案子/測試案例/任務) is not asked. Limit: after the project is chosen the document search is not filtered to it, only the question text carries the name.
+- Web image `km-da40-web:zone-pages-20261106w` (rollback: `…v`, backup `override.before-w`).

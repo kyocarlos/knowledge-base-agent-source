@@ -100,6 +100,36 @@ def _is(name: str, product: dict) -> bool:
     return n in (product["id"].lower(), product["model"].lower()) or n in product["model"].lower()
 
 
+def project_key(p: dict) -> str:
+    """What makes a project (案子): its CSIT number, else its name, else (a report that came without either) its document."""
+    return str(p.get("project_code") or p.get("project_name") or p["document_id"])
+
+
+def mentioned_projects(text: str, cat: dict) -> set[str]:
+    """The projects the text names: by their name, their number or one of their documents."""
+    low = text.lower()
+    out = set()
+    for t in cat.values():
+        for p in t["products"]:
+            if any(v and str(v).lower() in low for v in (p.get("project_name"), p.get("project_code"), p["document_id"])):
+                out.add(project_key(p))
+    return out
+
+
+def projects_of(t: dict) -> list[dict]:
+    """The projects holding reports of one kind: {"key", "label", "products"}; the label is what the user picks (the project's name with its number; the device when the
+    report has no project, plus the document when two would read alike)."""
+    out: dict[str, dict] = {}
+    for p in t["products"]:
+        out.setdefault(project_key(p), {"key": project_key(p), "label": project_label(p) or p["model"], "products": []})["products"].append(p)
+    found = list(out.values())
+    alike = [x["label"] for x in found]
+    for pj in found:
+        if alike.count(pj["label"]) > 1:
+            pj["label"] += "・" + pj["products"][0]["document_id"]
+    return found
+
+
 def _ask(text: str, options: list[str], drop: list[str] | None = None) -> dict:
     """`drop`: earlier choices in the question that the options replace (a technology that turned out to have no data), so they do not pile up as "（WiFi）（5G 換手）"."""
     return {"ask": {"text": text, "options": list(dict.fromkeys(options)), "drop": drop or []}}
@@ -116,11 +146,9 @@ def with_hints(plan: dict, text: str, cat: dict) -> dict:
         for p in t["products"]:
             if p["model"] not in names and (p["model"].lower() in low or any(tok in p["id"].lower() or tok in p["model"].lower() for tok in tokens)):
                 names.append(p["model"])
-    named = [p["model"] for t in cat.values() for p in t["products"] if p.get("project_name") and p["project_name"] in text]   # the project by its name, when that settles one device
-    if len(set(named)) == 1 and named[0] not in names:
-        names.append(named[0])
     plan["products"] = names
-    if "全部設備" in text:
+    plan["projects"] = [k for k in dict.fromkeys(project_key(p) for t in cat.values() for p in t["products"]) if k in mentioned_projects(text, cat)]
+    if re.search("全部(設備|案子|專案)", text):
         plan["all_products"] = True
     if not plan.get("technology"):
         wifi, cellular = bool(re.search(r"wi-?fi|rvr", text, re.I)), bool(re.search(r"5g|handover|換手|小型基地台|蜂巢", text, re.I))
@@ -162,12 +190,24 @@ def next_step(plan: dict, cat: dict) -> dict:
         else:
             why = f"{REPORT_ZH.get(general, general)}報告沒有你問的指標" if general in cat else f"目前沒有{_tech_label(tech)}吞吐量類的報告"
             return _ask(f"{why}；{_tech_label(tech)}的報告有：{_labels(fits or same)}。要查哪一種？", [REPORT_ZH.get(t, t) for t in fits or same], [f"（{_tech_label(tech)}）"])
-    models = list(dict.fromkeys(p["model"] for p in cat[rt]["products"]))
-    if not names and not plan.get("all_products") and len(models) > 1:
-        listed = "；".join((f"案子 {project_label(p)}，" if project_label(p) else "") + f"設備 {p['model']}，文件 {p['document_id']}" for p in cat[rt]["products"])
-        options = [p["model"] + (f"・{p['project_name']}" if p.get("project_name") else "") for p in cat[rt]["products"]]
-        return _ask(f"{REPORT_ZH.get(rt, rt)}報告有 {len(models)} 個案子：{listed}。請問要查哪一個？", options + ["全部設備"])
     plan["report_type"] = rt
+    if plan.get("all_products"):
+        return {"plan": plan}
+    found = projects_of(cat[rt])
+    chosen = [pj for pj in found if pj["key"] in (plan.get("projects") or [])]
+    if not chosen and names:                       # a device: the projects that have it
+        chosen = [pj for pj in found if any(_is(n, p) for n in names for p in pj["products"])]
+        if len(chosen) > 1:
+            return _ask(f"設備 {'、'.join(names)} 在{REPORT_ZH.get(rt, rt)}報告裡屬於 {len(chosen)} 個案子：{'；'.join(pj['label'] for pj in chosen)}。請問要查哪一個？",
+                        [pj["label"] for pj in chosen] + ["全部案子"])
+    if not chosen:
+        if len(found) > 1:                         # several projects and none named: never pick one for the user
+            listed = "；".join(f"案子 {pj['label']}（設備 {'、'.join(dict.fromkeys(p['model'] for p in pj['products']))}，文件 {'、'.join(p['document_id'] for p in pj['products'])}）" for pj in found)
+            return _ask(f"{REPORT_ZH.get(rt, rt)}報告有 {len(found)} 個案子：{listed}。請問要查哪一個案子？", [pj["label"] for pj in found] + ["全部案子"])
+        return {"plan": plan}                      # a single project: nothing to ask, the answer names it
+    chosen_products = [p for pj in chosen for p in pj["products"] if not names or any(_is(n, p) for n in names)] or [p for pj in chosen for p in pj["products"]]
+    plan["documents"] = list(dict.fromkeys(p["document_id"] for p in chosen_products))
+    plan["products"] = []
     return {"plan": plan}
 
 
@@ -189,7 +229,9 @@ def to_query(plan: dict, cat: dict) -> dict | None:
             continue                  # a report type with one statistic: the filter would only drop the rows that carry none
         elif key in rs.CONDITIONS and value is not None and (key in ("attenuation_db", "angle_deg") or _known(value, t["dims"].get(key, []))):
             filters[key] = next((a for a in t["dims"].get(key, []) if str(a).lower() == str(value).lower()), value)
+    docs = {p["document_id"] for p in t["products"]}
     return {"report_type": rt, "products": [str(p)[:60] for p in plan.get("products") or [] if str(p).strip()][:5] or None,
+            "documents": [d for d in plan.get("documents") or [] if d in docs][:20] or None,
             "metrics": [m for m in plan.get("metrics") or [] if m in metric_names][:12] or None, "filters": filters,
             "group_by": [d for d in plan.get("group_by") or [] if d in rs.optional_dims(rt)], "from_no": _bound(plan.get("from_no")), "to_no": _bound(plan.get("to_no"))}
 
@@ -255,6 +297,9 @@ def scope_of(rows: list[dict], cat: dict) -> str:
     return "；".join(clauses)
 
 
+REPORT_CUES = re.compile(r"吞吐量|throughput|rvr|換手|handover|test\s*case|測試結果|rssi|延遲|rtt|通過率", re.I)       # a question about what a report holds, numbers or not
+
+
 INFO_WORDS = re.compile(r"案子|專案|案件|測試案例|任務|project|case(?!\s*\d)|task", re.I)      # "Test Case 4" names a case in a question about numbers, it does not ask who the report belongs to
 AVERAGE_WORDS = re.compile(r"平均|average|mean", re.I)
 OTHER_STATISTIC_WORDS = re.compile(r"峰值|peak|最大|最小|max|min|三次|每次|各次|逐次", re.I)
@@ -279,6 +324,9 @@ def info_passages(question: str, cat: dict) -> list[dict]:
             bits = ([f"案子 {project_label(p)}"] if project_label(p) else []) + ([f"測試案例 {p['case_name']}"] if p.get("case_name") else []) \
                 + ([f"任務 {p['task_name']}"] if p.get("task_name") else []) + [f"設備 {p['model']}", f"{REPORT_ZH.get(rt, rt)}報告 {p['document_id']}"]
             lines.append("- " + "，".join(bits))
+        names = [str(c["name"] or c["id"]) for c in t.get("cases") or []]
+        if names:      # the cases inside the report itself (Test Case 1 ... n), apart from the one CSIT names
+            lines.append(f"  {REPORT_ZH.get(rt, rt)}報告內的測試案例（共 {len(names)} 個）：" + "、".join(names[:40]))
     if not lines:
         return []
     return [{"source": "報告基本資料", "revision_id": "timescale:report-info", "location_label": "資料庫（案子、測試案例、任務、設備、報告）", "publisher": "資料庫彙總", "analysis_eligible": True,
@@ -287,7 +335,7 @@ def info_passages(question: str, cat: dict) -> list[dict]:
 
 def render_empty(params: dict) -> str:
     cond = "、".join(f"{k}={v}" for k, v in (params.get("filters") or {}).items()) or "未指定條件"
-    return f"資料庫中沒有符合此查詢的數據（報告類型 {params['report_type']}，設備 {'、'.join(params['products'] or ['全部'])}，{cond}）。不要用其他條件的數值代替。"
+    return f"資料庫中沒有符合此查詢的數據（報告類型 {params['report_type']}，設備 {'、'.join(params['products'] or params.get('documents') or ['全部'])}，{cond}）。不要用其他條件的數值代替。"
 
 
 class ReportStats:
@@ -311,7 +359,11 @@ class ReportStats:
                 info = info_passages(question, cat)       # who the reports belong to: asked about by name, whether or not numbers are wanted
                 plan = parse_plan(self.complete([{"role": "system", "content": PLAN_PROMPT + describe(cat)}, {"role": "user", "content": asked}]))
                 if plan is None:
-                    return {"passages": info, "ask": None}
+                    if INFO_WORDS.search(question) or not REPORT_CUES.search(asked):    # a question about the projects themselves, or not about report content
+                        return {"passages": info, "ask": None}
+                    plan = {"needed": True}          # about a report's content without numbers to compute: the same questions back, so it is not answered from another project's report
+                    step = next_step(with_hints(plan, asked, cat), cat)
+                    return {"passages": info, "ask": step.get("ask")}
                 step = next_step(with_hints(plan, asked, cat), cat)
                 if "ask" in step:
                     return {"passages": [], "ask": step["ask"]}
