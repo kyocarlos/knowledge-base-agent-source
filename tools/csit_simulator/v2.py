@@ -37,6 +37,13 @@ def file_route(d,public=""):
     if t=="EquipmentAttachment":return public+f"/api/integrations/km/v1/equipment-documents/{i}/content"
     return public+f"/api/integrations/km/v1/document-library/files/{i}/content"
 
+
+def _named(spec,key,number,name):
+    """The project / case / task a TestReport belongs to: what the upload names (spec[key] = {"number","name"}), else the fixed demo one, so reports of different projects can be sent."""
+    given=spec.get(key) or {}
+    n,t=str(given.get("number") or number).strip()[:60],str(given.get("name") or name).strip()[:120]
+    return {"id":str(uuid.uuid4()),"number":n or number,"name":t or name}
+
 class V2Mixin:
     # ---------- how a document is delivered ----------
     @staticmethod
@@ -204,9 +211,9 @@ class V2Mixin:
                  vendorId=str(uuid.uuid4()) if st=="VendorFile" else None,equipmentId=str(uuid.uuid4()) if st=="EquipmentAttachment" else None,
                  supersedesDocId=old["id"] if old else None,revision=0,approval=None,archivedAt=None,changeIds=[],
                  eventId=str(uuid.uuid4()),outboxId=str(uuid.uuid4()),
-                 project={"id":str(uuid.uuid4()),"number":"PRJ-001","name":"模擬專案"} if st=="TestReport" else None,
-                 case={"id":str(uuid.uuid4()),"number":"CASE-001","name":"模擬測試案例"} if st=="TestReport" else None,
-                 task={"id":str(uuid.uuid4()),"number":"TASK-001","name":"模擬測試任務"} if st=="TestReport" else None,
+                 project=_named(spec,"project","PRJ-001","模擬專案") if st=="TestReport" else None,
+                 case=_named(spec,"case","CASE-001","模擬測試案例") if st=="TestReport" else None,
+                 task=_named(spec,"task","TASK-001","模擬測試任務") if st=="TestReport" else None,
                  approvalMode="ApprovalBypassed" if spec.get("approvalBypass") else "Approved",
                  attributes={"tags":[],"keywords":[],"displayName":None,"modelNumbers":[],"vendorReference":None})
 

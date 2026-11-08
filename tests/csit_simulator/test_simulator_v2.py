@@ -163,3 +163,12 @@ def test_v14_scopes_are_accepted_by_the_identity_authority():
     import jwt
     claims=jwt.decode(ident.mint_for_km(INBOUND_SCOPES_V14["jobs"]),options={"verify_signature":False})
     assert claims["scope"]=="km.ingestion.write" and jwt.decode(ident.mint_for_km(),options={"verify_signature":False})["scope"]=="km.ingestion.submit"
+
+
+def test_a_test_report_carries_the_project_case_and_task_the_upload_names():
+    from tools.csit_simulator.v2 import _named
+    assert _named({},"project","PRJ-001","模擬專案")["number"] == "PRJ-001"                                  # nothing named: the demo project, as before
+    got = _named({"project":{"number":" PRJ-777 ","name":"另一案"}},"project","PRJ-001","模擬專案")
+    assert (got["number"],got["name"]) == ("PRJ-777","另一案") and got["id"]
+    assert _named({"project":{"number":"","name":None}},"project","PRJ-001","模擬專案")["name"] == "模擬專案"      # blanks fall back
+    assert len(_named({"case":{"number":"x"*500,"name":"y"*500}},"case","C","N")["number"]) == 60

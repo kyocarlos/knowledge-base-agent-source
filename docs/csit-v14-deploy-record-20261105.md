@@ -238,3 +238,9 @@ CSIT 的分類變更通知不再改專區。程式:`zones.py`、`doclib_metadata
 - A device that belongs to several projects asks which; one project alone is not asked, but the answer's 依據 line names it.
 - A question about a report's content with no number to compute (吞吐量/換手/RvR/Test Case/測試結果 …) goes through the same technology → kind → project questions; a question about the projects themselves (案子/測試案例/任務) is not asked. Limit: after the project is chosen the document search is not filtered to it, only the question text carries the name.
 - Web image `km-da40-web:zone-pages-20261106w` (rollback: `…v`, backup `override.before-w`).
+
+## Device asked after the project; simulator can name the project
+
+- After the project is settled, a project that holds several reports of the kind asked about (several devices) asks which device (options per device, same device twice told apart by document, plus 全部設備). A device, a document id or 全部設備 in the question settles it; one report alone is not asked.
+- Simulator (`tools/csit_simulator`): a TestReport upload can carry `project`, `case`, `task` as `{number, name}` (UI: three pairs of fields when the source is 測試報告, defaulting to PRJ-001 / CASE-001 / TASK-001); blank falls back to the demo values.
+- Images: web `km-da40-web:zone-pages-20261106x` (rollback `…w`, backup `override.before-x`); simulator `km-csit-simulator:20261107-project-fields` (rollback `km-csit-simulator:20261106-zones3`, backup `images.env.before-sim10`; recreate with the compose-simulator.yml of `~/.km-control/csit-mode`, KM_MODE_DIR set, `--no-build --pull never`). The simulator's data lives in `sim-data`, kept across the recreate.

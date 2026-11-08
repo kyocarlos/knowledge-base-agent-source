@@ -147,6 +147,7 @@ def with_hints(plan: dict, text: str, cat: dict) -> dict:
             if p["model"] not in names and (p["model"].lower() in low or any(tok in p["id"].lower() or tok in p["model"].lower() for tok in tokens)):
                 names.append(p["model"])
     plan["products"] = names
+    plan["documents"] = [p["document_id"] for t in cat.values() for p in t["products"] if p["document_id"].lower() in low]       # a report named by its document
     plan["projects"] = [k for k in dict.fromkeys(project_key(p) for t in cat.values() for p in t["products"]) if k in mentioned_projects(text, cat)]
     if re.search("全部(設備|案子|專案)", text):
         plan["all_products"] = True
@@ -204,9 +205,18 @@ def next_step(plan: dict, cat: dict) -> dict:
         if len(found) > 1:                         # several projects and none named: never pick one for the user
             listed = "；".join(f"案子 {pj['label']}（設備 {'、'.join(dict.fromkeys(p['model'] for p in pj['products']))}，文件 {'、'.join(p['document_id'] for p in pj['products'])}）" for pj in found)
             return _ask(f"{REPORT_ZH.get(rt, rt)}報告有 {len(found)} 個案子：{listed}。請問要查哪一個案子？", [pj["label"] for pj in found] + ["全部案子"])
-        return {"plan": plan}                      # a single project: nothing to ask, the answer names it
-    chosen_products = [p for pj in chosen for p in pj["products"] if not names or any(_is(n, p) for n in names)] or [p for pj in chosen for p in pj["products"]]
-    plan["documents"] = list(dict.fromkeys(p["document_id"] for p in chosen_products))
+        chosen = found                             # a single project: nothing to ask about it, the answer names it
+    candidates = [p for pj in chosen for p in pj["products"]]
+    picked = [p for p in candidates if p["document_id"] in (plan.get("documents") or []) or any(_is(n, p) for n in names)]
+    if not picked:
+        if len(candidates) > 1:                    # the project holds several reports of this kind (devices): which one
+            models = [p["model"] for p in candidates]
+            options = [p["model"] + ("・" + p["document_id"] if models.count(p["model"]) > 1 else "") for p in candidates]
+            listed = "；".join(f"設備 {p['model']}，文件 {p['document_id']}" for p in candidates)
+            where = f"案子 {chosen[0]['label']} 的" if len(chosen) == 1 else ""
+            return _ask(f"{where}{REPORT_ZH.get(rt, rt)}報告有 {len(candidates)} 份：{listed}。請問要查哪一個設備？", options + ["全部設備"])
+        picked = candidates
+    plan["documents"] = list(dict.fromkeys(p["document_id"] for p in picked))
     plan["products"] = []
     return {"plan": plan}
 

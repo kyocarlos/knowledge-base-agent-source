@@ -201,3 +201,32 @@ def test_the_report_s_own_average_answers_an_average_question():
 def test_test_case_4_in_a_question_about_numbers_is_not_a_question_about_the_project():
     assert stats.info_passages("Test Case 4 的下行吞吐量是多少？", NAMED) == []
     assert stats.info_passages("這份報告的測試案例是什麼？", NAMED) and stats.info_passages("which project is it?", NAMED) and stats.info_passages("what case is it", NAMED)
+
+
+ONE_PROJECT = {"wifi_throughput": {**NAMED["wifi_throughput"], "products": [
+    {"id": "PKE3540J", "model": "PKE3540J", "document_id": "DOC-A", "project_code": "PRJ-001", "project_name": "第一案", "case_name": None, "task_name": None},
+    {"id": "PKE9999", "model": "PKE9999", "document_id": "DOC-B", "project_code": "PRJ-001", "project_name": "第一案", "case_name": None, "task_name": None}]}}
+BASE = {"needed": True, "technology": "wifi", "report_type": None, "products": [], "all_products": False, "metrics": []}
+
+
+def test_a_project_with_several_devices_asks_which_device_after_the_project():
+    step = stats.next_step(stats.with_hints(BASE, "吞吐量", ONE_PROJECT), ONE_PROJECT)
+    assert step["ask"]["options"] == ["PKE3540J", "PKE9999", "全部設備"] and "案子 第一案（PRJ-001） 的WiFi 吞吐量報告有 2 份" in step["ask"]["text"]
+    assert "文件 DOC-A" in step["ask"]["text"] and "文件 DOC-B" in step["ask"]["text"]
+
+
+def test_a_device_a_document_or_all_devices_settle_the_second_question():
+    for text, documents in (("吞吐量（PKE9999）", ["DOC-B"]), ("吞吐量（DOC-A）", ["DOC-A"]), ("吞吐量（第一案（PRJ-001））（PKE3540J）", ["DOC-A"])):
+        assert stats.next_step(stats.with_hints(BASE, text, ONE_PROJECT), ONE_PROJECT)["plan"]["documents"] == documents
+    assert stats.next_step(stats.with_hints(BASE, "吞吐量（全部設備）", ONE_PROJECT), ONE_PROJECT)["plan"]["documents"] == []
+
+
+def test_the_same_device_in_two_documents_is_told_apart_by_document():
+    twice = {"wifi_throughput": {**ONE_PROJECT["wifi_throughput"], "products": [{**p, "model": "PKE3540J"} for p in ONE_PROJECT["wifi_throughput"]["products"]]}}
+    assert stats.next_step(stats.with_hints(BASE, "吞吐量", twice), twice)["ask"]["options"] == ["PKE3540J・DOC-A", "PKE3540J・DOC-B", "全部設備"]
+    assert stats.next_step(stats.with_hints(BASE, "吞吐量（DOC-B）", twice), twice)["plan"]["documents"] == ["DOC-B"]
+
+
+def test_one_report_alone_is_not_asked():
+    one = {"wifi_throughput": {**ONE_PROJECT["wifi_throughput"], "products": ONE_PROJECT["wifi_throughput"]["products"][:1]}}
+    assert stats.next_step(stats.with_hints(BASE, "吞吐量", one), one)["plan"]["documents"] == ["DOC-A"]
