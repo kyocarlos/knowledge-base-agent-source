@@ -292,10 +292,14 @@ CSIT 的分類變更通知不再改專區。程式:`zones.py`、`doclib_metadata
 - **Image**: web `km-da40-web:zone-pages-20261109d` (3 layers, on `…c`; override backup `~/.km-control/agg-20261106/override.before-d2`; roll back by setting the image to `…20261109c`).
 - **Checked on the server**: the three stub planners now give the band and bandwidth question; the whole `ZoneAgent` path with the real model asks the band and bandwidth question 6 of 6 times.
 
-## Chart of the per-channel Wi-Fi throughput table (not deployed)
+## Chart of the per-channel Wi-Fi throughput table (deployed 2026-11-09, da40)
 
 A zone answer that lists a Wi-Fi throughput report by channel now carries the same numbers as chart data (`charts` in the task result: Tx, Rx by channel and the report's criterion line), and the page draws them as an SVG line chart under the answer. Only for the per-channel table of one band and bandwidth: the overview, other report types and aggregated results carry no chart. The chart is attached only when the answer cites the database numbers (S1).
 
 - Back end: `zone_pages.stats.channel_charts`, `ReportStats.consult` returns `charts`, `ZoneAgent.answer` puts them in the result. A new web image is needed.
 - Front end: `frontend/zones/zone.563d06560c21.js` (the previous `zone.52de2cf98422.js` plus `chartHtml`); the ten zone `index.html` pages point at it. The pages are served by `kb-nginx` from a static directory shared by the planes (`/srv/knowledge-base-production-rebaseline-20260829-v3/.frontend-build-runtime-user8`), so putting the file there is a change to what the other planes serve too: decide that before deploying.
 - Checked against CHS3320N 5GHz 20MHz read from the database: Tx 473.67 / Rx 359.56 at CH36 and the 344.2 Mbps criterion, the same shape as the chart in the report's own sheet. A conversation restored after a page reload has the text only, not the chart.
+### Deployed (da40)
+
+- Web image `km-da40-web:zone-pages-20261109e` (FROM `…d`, `stats.py` and `agent.py`); rollback: set the image in `km-da40.csit-zones.image.override.yml` back to `…20261109d` (backup `override.before-e2`) and recreate web. Verified on the server with the real planner: the 5GHz 20MHz question returns one chart (24 channels, Tx and Rx, criterion line); the all-bands overview returns none.
+- Front end: the zone page the server serves for the verification zone uses `zone.5bf7a4d734a4.js` (not the repo's `52de…`; it differs in the navigation line only). The chart code was added to that file as `zone.72801450518c.js` (kept in the repo) and **only `zones/csit/index.html`** now points at it; the other nine zone pages are untouched. Rollback: restore `zones/csit/index.html.before-chart-20261109` next to it. The new file is a new name, so nothing already cached changes.
