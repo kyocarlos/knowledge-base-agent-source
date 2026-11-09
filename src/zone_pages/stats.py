@@ -376,7 +376,8 @@ def _render_channels(lines: list[str], result: dict) -> str:
     return _finish(lines, result)
 
 
-MAX_CHARTS = 6
+MAX_CHARTS = 8
+MIN_HANDOVERS_CHARTED = 10          # a case of 2 handovers is a table, not a series
 
 
 def channel_charts(result: dict) -> list[dict]:
@@ -437,8 +438,41 @@ def sweep_charts(result: dict) -> list[dict]:
     return charts[:MAX_CHARTS]
 
 
+def handover_charts(result: dict) -> list[dict]:
+    """A handover report's cases of many handovers as series over the handover number: the throughput and the latency before and after each handover, and how long each took,
+    with the handovers that failed marked. Only the series the answer is about (a metric in its rows) and only the cases of MIN_HANDOVERS_CHARTED handovers or more."""
+    samples = result.get("samples") or []
+    rows = [r for r in result["rows"] if r["report_type"] == "cellular_handover"]
+    if not samples or not rows:
+        return []
+    asked = {r["metric_name"] for r in rows}
+    cases: dict[tuple, dict] = {}
+    for s in samples:
+        c = cases.setdefault((s["document_id"], s["test_case_id"]), {"model": s["dut_model"], "name": s.get("test_case_name") or s["test_case_id"], "by": {}})
+        c["by"].setdefault(s["metric_name"], {})[int(s["sample_index"])] = float(s["value"])
+    charts = []
+    for (doc, case), c in sorted(cases.items(), key=lambda kv: (-max((len(v) for v in kv[1]["by"].values()), default=0), kv[0])):
+        numbers = sorted({n for values in c["by"].values() for n in values})
+        if len(numbers) < MIN_HANDOVERS_CHARTED:
+            continue
+        failed = [k for k, n in enumerate(numbers) if c["by"].get("ho_success", {}).get(n) == 0.0]
+        marks = {"name": "換手失敗", "indexes": failed, "labels": [f"第 {numbers[k]} 次換手失敗" for k in failed]} if failed else None
+        for title, unit, ylabel, wanted, lines in (
+                ("換手前後吞吐量（Mbps）", "Mbps", "吞吐量 (Mbps)", ("throughput_before_ho", "throughput_after_ho"), (("換手前", "throughput_before_ho"), ("換手後", "throughput_after_ho"))),
+                ("換手前後延遲（ms）", "ms", "延遲 (ms)", ("latency_rtt_before_ho", "latency_rtt_after_ho"), (("換手前", "latency_rtt_before_ho"), ("換手後", "latency_rtt_after_ho"))),
+                ("換手時間（ms）", "ms", "換手時間 (ms)", ("handover_duration",), (("換手時間", "handover_duration"),))):
+            if not asked.intersection(wanted):
+                continue
+            series = [{"name": name, "values": [c["by"][metric].get(n) for n in numbers]} for name, metric in lines if c["by"].get(metric)]
+            if series:
+                charts.append({"kind": "handover", "title": f"{c['model']}／{c['name']}　{title}", "source": doc, "unit": unit, "x_label": "第幾次換手", "y_label": ylabel,
+                               "categories": [str(n) for n in numbers], "series": series, "criteria": None, "marks": marks,
+                               "zero": False})          # values around one level: the axis follows them, not zero, or the handovers that moved cannot be seen
+    return charts[:MAX_CHARTS]
+
+
 def charts_of(result: dict) -> list[dict]:
-    return channel_charts(result) or sweep_charts(result)
+    return channel_charts(result) or sweep_charts(result) or handover_charts(result)
 
 
 def _render_sweep(lines: list[str], result: dict, series: list[str]) -> str:

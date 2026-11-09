@@ -34,6 +34,11 @@ EACH_VALUE_UP_TO = 10          # a group of this many measurements or fewer also
 MAX_CASES = 60
 
 
+# the values a handover report gives for each handover, for the chart of them
+HANDOVER_EACH = ("throughput_before_ho", "throughput_after_ho", "latency_rtt_before_ho", "latency_rtt_after_ho", "handover_duration", "ho_success")
+MAX_SAMPLES = 6000
+
+
 def series_of(report_type: str) -> tuple[str, ...]:
     return SERIES.get(report_type, STRICT)
 
@@ -154,4 +159,15 @@ def measurement_stats(conn, report_type: str, products: list[str] | None = None,
               AND (%(bw)s::int IS NULL OR i.bandwidth_mhz = %(bw)s) AND (%(ch)s::int IS NULL OR i.channel = %(ch)s)""",
                          {"rt": report_type, "roles": list(roles), "p": pids, "docs": list(documents) if documents else None, "cases": f["test_cases"],
                           "band": f.get("band"), "bw": f.get("bandwidth_mhz"), "ch": f.get("channel")})
-    return {"rows": rows[:MAX_ROWS], "truncated": len(rows) > MAX_ROWS, "series": list(series_of(report_type)), "group_by": extra, "verdicts": verdicts}
+    samples: list[dict] = []
+    if report_type == "cellular_handover":          # one value per handover, in order, for a chart of how the handovers went (the rows above are statistics over them)
+        samples = _rows(conn, """SELECT r.document_id, r.dut_model, m.test_case_id, m.test_case_name, m.sample_index, m.metric_name, m.value, m.unit
+            FROM km_test.test_measurement m JOIN km_test.test_run r USING (test_run_id)
+            WHERE r.report_type = %(rt)s AND r.access_roles && %(roles)s AND r.publish_status = 'published' AND m.sample_index IS NOT NULL AND m.metric_name = ANY(%(each)s)
+              AND (%(p)s::text[] IS NULL OR r.product_id = ANY(%(p)s)) AND (%(docs)s::text[] IS NULL OR r.document_id = ANY(%(docs)s))
+              AND (%(cases)s::text[] IS NULL OR m.test_case_id = ANY(%(cases)s))
+              AND (%(lo)s::int IS NULL OR m.sample_index >= %(lo)s) AND (%(hi)s::int IS NULL OR m.sample_index <= %(hi)s)
+            ORDER BY r.document_id, m.test_case_id, m.sample_index LIMIT %(lim)s""",
+                        {"rt": report_type, "roles": list(roles), "p": pids, "docs": list(documents) if documents else None, "cases": f["test_cases"], "lo": from_no, "hi": to_no,
+                         "each": list(HANDOVER_EACH), "lim": MAX_SAMPLES})
+    return {"rows": rows[:MAX_ROWS], "truncated": len(rows) > MAX_ROWS, "series": list(series_of(report_type)), "group_by": extra, "verdicts": verdicts, "samples": samples}

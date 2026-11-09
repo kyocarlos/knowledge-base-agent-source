@@ -353,3 +353,41 @@ def test_an_rvr_result_that_is_not_one_value_per_attenuation_is_not_charted():
     assert stats.charts_of({**base, "rows": [{**r, "n": 4} for r in rows]}) == []                   # a statistic over repeated runs
     assert stats.charts_of({**base, "rows": [{**rows[0], "angle_deg": 0}, {**rows[1], "angle_deg": 90}]}) == []       # several angles mixed in one line
     assert stats.charts_of({**base, "rows": rows, "series": ["band"], "group_by": []}) == []
+
+
+def handover_samples(case, name, count, failed=(), metrics=("throughput_before_ho", "throughput_after_ho", "latency_rtt_before_ho", "latency_rtt_after_ho", "handover_duration", "ho_success")):
+    base = {"document_id": "SIT-SR-SC-NR-Handover-SCU2050", "dut_model": "SCU2050", "test_case_id": case, "test_case_name": name}
+    out = []
+    for n in range(1, count + 1):
+        for m in metrics:
+            value = (0.0 if n in failed else 1.0) if m == "ho_success" else 700.0 + n if m.startswith("throughput") else 25.0 + n if m.startswith("latency") else 80.0 + n
+            out.append({**base, "sample_index": n, "metric_name": m, "value": value, "unit": "ms" if "latency" in m or "duration" in m else "Mbps"})
+    return out
+
+
+def handover_result(samples, asked=("throughput_before_ho", "throughput_after_ho")):
+    rows = [{"report_type": "cellular_handover", "metric_name": m, "n": 100} for m in asked]
+    return {"rows": rows, "truncated": False, "series": ["test_case_id"], "group_by": [], "samples": samples}
+
+
+def test_handovers_are_charted_over_their_number_with_the_failed_ones_marked():
+    samples = handover_samples("cellular_handover:xn:100", "Xn Handover 100 times", 100, failed=(51, 64)) + handover_samples("cellular_handover:xn:2", "Xn Handover 2 times", 2)
+    charts = stats.charts_of(handover_result(samples))
+    assert len(charts) == 1 and charts[0]["kind"] == "handover"                           # the case of 2 handovers is a table, and only the throughput was asked about
+    chart = charts[0]
+    assert chart["title"] == "SCU2050／Xn Handover 100 times　換手前後吞吐量（Mbps）" and chart["x_label"] == "第幾次換手" and chart["zero"] is False
+    assert chart["categories"][:3] == ["1", "2", "3"] and len(chart["categories"]) == 100
+    assert [s["name"] for s in chart["series"]] == ["換手前", "換手後"] and chart["series"][0]["values"][:2] == [701.0, 702.0]
+    assert chart["marks"] == {"name": "換手失敗", "indexes": [50, 63], "labels": ["第 51 次換手失敗", "第 64 次換手失敗"]}
+    both = stats.charts_of(handover_result(samples, asked=("throughput_before_ho", "latency_rtt_before_ho", "handover_duration")))
+    assert [c["title"].split("　")[1] for c in both] == ["換手前後吞吐量（Mbps）", "換手前後延遲（ms）", "換手時間（ms）"]
+    assert both[2]["series"] == [{"name": "換手時間", "values": [80.0 + n for n in range(1, 101)]}]
+
+
+def test_a_handover_result_without_the_series_or_with_only_success_asked_has_no_chart():
+    samples = handover_samples("cellular_handover:ng:100", "NG Handover 100 times", 100)
+    assert stats.charts_of(handover_result([])) == []
+    assert stats.charts_of(handover_result(samples, asked=("ho_success_rate",))) == []
+    no_duration = handover_samples("cellular_handover:ng:100", "NG Handover 100 times", 100, metrics=("throughput_before_ho", "throughput_after_ho", "ho_success"))
+    assert stats.charts_of(handover_result(no_duration, asked=("handover_duration",))) == []             # nothing to draw where the report gives no duration
+    assert stats.charts_of(handover_result(no_duration))[0]["marks"] is None                              # no failures, no marks
