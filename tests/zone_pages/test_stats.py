@@ -292,3 +292,11 @@ def test_a_result_too_long_for_one_answer_asks_for_a_band_and_bandwidth_or_gives
     assert "2.4GHz 20MHz，下行（報告 Rx），吞吐量：11 個數值，最小 401，最大 411，平均 406" in text and "5GHz 20MHz" in text and len(text) < stats.WIDE_RESULT_CHARS
     short = stats.ReportStats(reply, wide_source(rows[:33])).consult("列出 CHS3320N 的 2.4G Throughput 測試數據")
     assert short["ask"] is None and "Ch1（2401 MHz）" in short["passages"][0]["content"]     # one band and bandwidth fits one answer
+
+
+def test_a_question_for_the_data_is_fetched_even_when_the_planner_says_no_numbers_or_answers_nothing():
+    for planner in (lambda m: json.dumps({"needed": False}), lambda m: "抱歉，我無法處理", lambda m: ""):
+        got = stats.ReportStats(planner, lambda: fake_source()).consult("列出 PKE3540J 的所有 WiFi Throughput 測試數據")
+        assert got["ask"] is None and got["passages"] and "吞吐量" in got["passages"][0]["content"]
+        # a question about what a report holds, without asking for the numbers, is still only asked back or answered from the documents
+        assert stats.ReportStats(planner, lambda: fake_source()).consult("WiFi Throughput 報告的測試方法是什麼")["passages"] == []

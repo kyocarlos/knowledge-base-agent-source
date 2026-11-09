@@ -8,11 +8,14 @@ same grounding check. The model never writes SQL, and any failure here leaves th
 from __future__ import annotations
 
 import json
+import logging
 import re
 from contextlib import AbstractContextManager
 from typing import Any, Callable
 
 from ..report_numeric import stats as rs
+
+logger = logging.getLogger(__name__)
 
 REPORT_ZH = {"wifi_throughput": "WiFi 吞吐量", "wifi_rvr": "WiFi RvR", "cellular_throughput": "5G 吞吐量", "cellular_handover": "5G 換手"}
 REPORT_NOTE = {"wifi_throughput": "各頻段、頻寬、通道的吞吐量；問題只說「吞吐量」又是 WiFi 時用這個", "wifi_rvr": "吞吐量與 RSSI 隨衰減、角度變化；問題提到 RvR、衰減、角度、距離才用",
@@ -417,6 +420,7 @@ REPORT_CUES = re.compile(r"吞吐量|throughput|rvr|換手|handover|test\s*case|
 
 
 INFO_WORDS = re.compile(r"案子|專案|案件|測試案例|任務|project|case(?!\s*\d)|task", re.I)      # "Test Case 4" names a case in a question about numbers, it does not ask who the report belongs to
+LIST_WORDS = re.compile(r"列出|所有|全部|數據|數值|多少|平均|最大|最小|最高|最低|比較|差多少|each|list", re.I)      # a question that asks for the numbers themselves
 AVERAGE_WORDS = re.compile(r"平均|average|mean", re.I)
 OTHER_STATISTIC_WORDS = re.compile(r"峰值|peak|最大|最小|max|min|三次|每次|各次|逐次", re.I)
 
@@ -492,9 +496,11 @@ class ReportStats:
                 if plan is None:
                     if INFO_WORDS.search(question) or not REPORT_CUES.search(asked):    # a question about the projects themselves, or not about report content
                         return {"passages": info, "ask": None}
-                    plan = {"needed": True}          # about a report's content without numbers to compute: the same questions back, so it is not answered from another project's report
+                    plan = {"needed": True}          # about a report's content: the same questions back, so it is not answered from another project's report
                     step = next_step(with_hints(plan, asked, cat), cat)
-                    return {"passages": info, "ask": step.get("ask")}
+                    if "ask" in step or not LIST_WORDS.search(question):
+                        return {"passages": info, "ask": step.get("ask")}
+                    # the planner said "no numbers" (or answered nothing usable) to a question that asks for the data itself: the data is fetched all the same
                 step = next_step(with_hints(plan, asked, cat), cat)
                 if "ask" in step:
                     return {"passages": [], "ask": step["ask"]}
@@ -504,6 +510,7 @@ class ReportStats:
                 params = default_channels(default_statistic(params, cat, asked), cat, asked)
                 result = db.stats(**params)
         except Exception:                          # no database, an unknown product, a refused parameter: the answer then rests on the passages
+            logger.warning("test-data lookup failed for the question %r", question[:80], exc_info=True)
             return {"passages": info, "ask": None}
         docs = ", ".join(dict.fromkeys(r["document_id"] for r in result["rows"])) or params["report_type"]
         scope = scope_of(result["rows"], cat) or None
