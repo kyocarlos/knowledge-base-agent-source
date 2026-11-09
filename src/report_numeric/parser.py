@@ -790,6 +790,9 @@ def _handover_conditions(wb, out: Collector) -> dict:
                 continue
             name, unit = HANDOVER_CONFIG[label]
             full = f"{section}.{name}"
+            taken = [x["name"] for x in out.conditions if x["source_sheet"] == title]
+            while full in taken:                       # a second block on the same rows (the inter-band target cell): "..._2", so two values never share a name
+                full = full + "_2" if not re.search(r"_\d+$", full) else re.sub(r"_(\d+)$", lambda m: f"_{int(m.group(1)) + 1}", full)
             if _num(nxt.value) is not None:
                 out.conditions.append({"name": full, "value": float(nxt.value), "unit": unit, "source_sheet": title, "source_cell_range": _ref(nxt)})
             else:
@@ -800,10 +803,15 @@ def _handover_conditions(wb, out: Collector) -> dict:
                 elif name == "bandwidth" and _num(nxt.value) is not None:
                     dims["bandwidth_mhz"] = int(nxt.value)
                 elif name == "center_frequency" and _num(nxt.value) is not None:
-                    dims["center_freq_mhz"] = int(round(float(nxt.value) * 1000))  # the cell holds GHz (4.85); the ARFCN in the same block agrees (723332 = 4849.98 MHz)
+                    dims["center_freq_mhz"] = _centre_mhz(float(nxt.value))   # the cell holds GHz (4.85) or kHz (4849980); the ARFCN in the same block agrees (723332 = 4849.98 MHz)
                 elif name == "time_slot":
                     dims["time_slot"] = _t(nxt.value)
     return dims
+
+
+def _centre_mhz(value: float) -> int:
+    """A centre frequency written in GHz (4.85), MHz (4850) or kHz (4849980) as MHz."""
+    return int(round(value * 1000 if value < 100 else value if value < 100000 else value / 1000))
 
 
 def _handover_ue_levels(cells, out: Collector, title: str) -> None:

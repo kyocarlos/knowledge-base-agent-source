@@ -275,3 +275,28 @@ def test_the_duration_is_part_of_the_handover_line_when_the_report_has_it(tmp_pa
     build_intra_band(f)
     text = "\n".join(c["text"] for c in build_chunks(parse_report(f, IDENT, source_name=NAME)))
     assert "第 2 次：延遲 25→27 ms；下行吞吐量 698→696 Mbps；換手失敗；ping 遺失 1；換手時間 82 ms" in text
+
+
+def test_a_centre_frequency_written_in_ghz_mhz_or_khz_is_read_as_mhz(tmp_path):
+    from src.report_numeric.parser import _centre_mhz
+    assert (_centre_mhz(3.5), _centre_mhz(4850), _centre_mhz(4849980)) == (3500, 4850, 4850)
+    f = tmp_path / "khz.xlsx"
+    build_intra_band(f)
+    from openpyxl import load_workbook
+    wb = load_workbook(f)
+    wb["2.7 Test Secenarios"]["G8"] = 4849980          # the SCE2200 sheet: kHz, which does not fit the integer column when read as GHz
+    wb.save(f)
+    assert {m["center_freq_mhz"] for m in parse_report(f, IDENT, source_name=NAME)["measurements"]} == {4850}
+
+
+def test_two_values_on_one_configuration_row_do_not_share_a_condition_name(tmp_path):
+    f = tmp_path / "two.xlsx"
+    build(f)
+    from openpyxl import load_workbook
+    wb = load_workbook(f)
+    ws = wb["2.7 Test Secenarios"]
+    ws["E19"], ws["G19"] = "Center Frequency", 3.6            # Small Cell B: a second centre frequency on the row, as in the Intra/Inter-Band sheet
+    ws["H19"], ws["J19"] = "Center Frequency", 3.7
+    wb.save(f)
+    names = [c["name"] for c in parse_report(f, IDENT, source_name=NAME)["conditions"]]
+    assert len(names) == len(set(names)) and any(n.endswith(".center_frequency") for n in names) and any(n.endswith(".center_frequency_2") for n in names)
