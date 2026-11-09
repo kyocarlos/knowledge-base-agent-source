@@ -269,3 +269,26 @@ def test_the_verdicts_of_each_channel_are_asked_for_with_the_same_filters():
     other = Conn()
     rs.measurement_stats(other, "wifi_throughput")
     assert not [q for q in other.sql if "test_item_result" in q]
+
+
+def wide_source(rows):
+    @contextmanager
+    def source():
+        yield SimpleNamespace(catalog=lambda: CAT, stats=lambda **p: {"rows": rows, "truncated": False, "series": ["band", "bandwidth_mhz", "direction", "protocol"],
+                                                                      "group_by": ["channel", "center_freq_mhz"], "verdicts": []})
+    return source
+
+
+def test_a_result_too_long_for_one_answer_asks_for_a_band_and_bandwidth_or_gives_the_overview():
+    rows = [wifi_tput_row(i, 2400 + i, m, d, 400.0 + i, band, bw) for band, bw, n in (("2.4GHz", 20, 11), ("5GHz", 20, 90)) for i in range(1, n + 1)
+            for m, d in (("throughput", "dl"), ("throughput", "ul"), ("rssi", None))]
+    reply = lambda m: plan_reply()
+    got = stats.ReportStats(reply, wide_source(rows)).consult("列出 CHS3320N 的所有 WiFi Throughput 測試數據")
+    assert got["passages"] == [] or got["passages"] is not None
+    assert got["ask"]["options"] == ["2.4GHz 20MHz", "5GHz 20MHz", "全部頻段（只看摘要）"] and "一次列出太長" in got["ask"]["text"]
+    overview = stats.ReportStats(reply, wide_source(rows)).consult("列出 CHS3320N 的所有 WiFi Throughput 測試數據（全部頻段（只看摘要））")
+    assert overview["ask"] is None
+    text = overview["passages"][0]["content"]
+    assert "2.4GHz 20MHz，下行（報告 Rx），吞吐量：11 個數值，最小 401，最大 411，平均 406" in text and "5GHz 20MHz" in text and len(text) < stats.WIDE_RESULT_CHARS
+    short = stats.ReportStats(reply, wide_source(rows[:33])).consult("列出 CHS3320N 的 2.4G Throughput 測試數據")
+    assert short["ask"] is None and "Ch1（2401 MHz）" in short["passages"][0]["content"]     # one band and bandwidth fits one answer

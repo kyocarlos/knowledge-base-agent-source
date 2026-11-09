@@ -317,6 +317,36 @@ def _finish(lines: list[str], result: dict) -> str:
     return f"【注意】{why}，下面的資料不完整，回答時要說明這一點，並請使用者指定設備、頻段、頻寬、方向或衰減等條件縮小範圍。\n" + "\n".join(shown)
 
 
+WIDE_RESULT_CHARS = 3000          # about what the answer model can write back in one reply (it is cut at 2000 tokens and times out after 60 s)
+OVERVIEW_WORDS = re.compile(r"全部(頻段|頻寬)|只看摘要")
+
+
+def band_bandwidths(rows: list[dict]) -> list[tuple]:
+    """The (band, bandwidth) pairs of a result, in order, when every row has both."""
+    if not rows or any(r.get("band") is None or r.get("bandwidth_mhz") is None for r in rows):
+        return []
+    return list(dict.fromkeys((r["band"], r["bandwidth_mhz"]) for r in rows))
+
+
+def render_overview(result: dict) -> str:
+    """Per band and bandwidth the range of the values (not one condition measured repeatedly: the channels and attenuation points of the report), and the verdicts."""
+    groups: dict[tuple, list[float]] = {}
+    for r in result["rows"]:
+        groups.setdefault((r["document_id"], r["band"], r["bandwidth_mhz"], r["metric_name"], r.get("direction"), r["unit"]), []).append(float(r["average"]))
+    lines = ["以下是各頻段與頻寬的數值範圍摘要（每個頻段與頻寬含多個通道或衰減點，範圍是這些不同條件的最小、最大與平均，不是同一條件重複量測）；要看逐通道數值請指定頻段與頻寬："]
+    for (doc, band, bw, metric, direction, unit), vals in groups.items():
+        where = f"{band} {bw}MHz" + (f"，{DIRECTION_ZH.get(direction, direction)}" if direction else "")
+        u = f" {unit}" if unit and unit not in ("count", "unitless", "") else ""
+        lines.append(f"- {where}，{METRIC_ZH.get(metric, metric)}：{len(vals)} 個數值，最小 {_val(min(vals))}，最大 {_val(max(vals))}，平均 {_val(sum(vals) / len(vals))}{u}")
+    tally: dict[tuple, list] = {}
+    for v in result.get("verdicts") or []:
+        t = tally.setdefault((v["band"], v["bandwidth_mhz"]), [0, 0, v.get("criteria_value"), v.get("criteria_unit")])
+        t[0 if v["result"] == "pass" else 1] += 1
+    for (band, bw), (ok, bad, crit, unit) in tally.items():
+        lines.append(f"- {band} {bw}MHz 判定：Pass {ok} 個通道，Fail {bad} 個通道" + (f"（基準 {_val(crit)} {unit or ''}）" if crit is not None else ""))
+    return "\n".join(lines)
+
+
 def _val(v: Any) -> str:
     return f"{float(v):.2f}".rstrip("0").rstrip(".")
 
@@ -477,6 +507,14 @@ class ReportStats:
             return {"passages": info, "ask": None}
         docs = ", ".join(dict.fromkeys(r["document_id"] for r in result["rows"])) or params["report_type"]
         scope = scope_of(result["rows"], cat) or None
-        content = f"資料來源：{scope}\n{render(result, params)}" if scope else render_empty(params)
+        body = render(result, params)
+        if scope and len(body) > WIDE_RESULT_CHARS:
+            combos = band_bandwidths(result["rows"])
+            if OVERVIEW_WORDS.search(question):
+                body = render_overview(result)
+            elif len(combos) > 1:                  # the model can neither read nor write this much in one answer: the user picks a band and bandwidth, or the overview
+                return {"passages": info, "ask": {"text": f"符合的數據有 {len(result['rows'])} 筆，分成 {len(combos)} 個頻段與頻寬，一次列出太長。請問要看哪一個頻段與頻寬？",
+                                                  "options": [f"{b} {w}MHz" for b, w in combos] + ["全部頻段（只看摘要）"]}}
+        content = f"資料來源：{scope}\n{body}" if scope else render_empty(params)
         return {"passages": [{"source": f"測試數據彙總（{docs}）", "revision_id": f"timescale:{docs[:40]}", "location_label": "資料庫計算結果", "publisher": "資料庫彙總",
                               "analysis_eligible": True, "content": content, "limit": MAX_CHARS, "scope": scope}, *info], "ask": None}
