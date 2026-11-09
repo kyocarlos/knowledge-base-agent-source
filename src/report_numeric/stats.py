@@ -30,6 +30,7 @@ FLOATS = ("attenuation_db", "angle_deg")
 NAME = re.compile(r"^[A-Za-z0-9_]{1,60}$")
 CASE = re.compile(r"^[\w:.@+#*, \-/()]{1,160}$")        # what a test case id holds: band@frequency, a time slot such as DDDSU+UDSUU (4:4), #case4
 MAX_ROWS = 240
+EACH_VALUE_UP_TO = 10          # a group of this many measurements or fewer also returns each value (the report's #1, #2, #3), not only the statistics
 MAX_CASES = 60
 
 
@@ -129,7 +130,9 @@ def measurement_stats(conn, report_type: str, products: list[str] | None = None,
         where.append("(m.statistic = %(statistic)s OR (%(statistic)s::text = 'value' AND m.statistic IS NULL))")
     sql = f"""SELECT {', '.join(cols)}, count(*) AS n, sum(m.value) AS total, round(avg(m.value)::numeric, 4)::float AS average, min(m.value) AS minimum, max(m.value) AS maximum,
                      percentile_cont(0.5) WITHIN GROUP (ORDER BY m.value) AS median, percentile_cont(0.95) WITHIN GROUP (ORDER BY m.value) AS p95,
-                     min(m.sample_index) AS first_no, max(m.sample_index) AS last_no
+                     min(m.sample_index) AS first_no, max(m.sample_index) AS last_no,
+                     CASE WHEN count(*) <= %(each)s THEN array_agg(m.value ORDER BY m.sample_index NULLS LAST, m.source_cell_range) END AS vals,
+                     CASE WHEN count(*) <= %(each)s THEN array_agg(m.sample_index ORDER BY m.sample_index NULLS LAST, m.source_cell_range) END AS nos
         FROM km_test.test_measurement m JOIN km_test.test_run r USING (test_run_id)
         WHERE r.report_type = %(rt)s AND r.access_roles && %(roles)s AND r.publish_status = 'published'
           AND (%(p)s::text[] IS NULL OR r.product_id = ANY(%(p)s)) AND (%(metrics)s::text[] IS NULL OR m.metric_name = ANY(%(metrics)s))
@@ -138,7 +141,7 @@ def measurement_stats(conn, report_type: str, products: list[str] | None = None,
           {''.join(' AND ' + w for w in where)}
         GROUP BY {', '.join(cols)}
         ORDER BY {', '.join(order)} LIMIT %(lim)s"""
-    params: dict[str, Any] = {"rt": report_type, "roles": list(roles), "p": pids, "metrics": metrics or None, "cases": f["test_cases"], "docs": list(documents) if documents else None, "lo": from_no, "hi": to_no, "lim": MAX_ROWS + 1}
+    params: dict[str, Any] = {"rt": report_type, "roles": list(roles), "p": pids, "metrics": metrics or None, "cases": f["test_cases"], "docs": list(documents) if documents else None, "lo": from_no, "hi": to_no, "lim": MAX_ROWS + 1, "each": EACH_VALUE_UP_TO}
     params.update({d: f[d] for d in CONDITIONS if f.get(d) is not None})
     rows = _rows(conn, sql, params)
     return {"rows": rows[:MAX_ROWS], "truncated": len(rows) > MAX_ROWS, "series": list(series_of(report_type)), "group_by": extra}

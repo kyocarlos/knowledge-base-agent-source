@@ -22,7 +22,7 @@ METRIC_ZH = {"throughput": "吞吐量", "rssi": "RSSI", "latency_rtt": "RTT 延�
              "latency_rtt_after_ho": "換手後延遲", "throughput_before_ho": "換手前下行吞吐量", "throughput_after_ho": "換手後下行吞吐量", "ho_success": "換手成功",
              "ping_loss_count": "ping 遺失", "handover_duration": "換手時間", "latency_variation": "延遲變化", "throughput_variation": "吞吐量變化"}
 DIRECTION_ZH = {"dl": "下行（報告 Rx）", "ul": "上行（報告 Tx）", "total": "合計（Tx＋Rx）"}
-STATISTIC_ZH = {"peak": "報告的 Peak", "average": "報告的平均", "min": "報告的最小", "max": "報告的最大", "value": "數值"}
+STATISTIC_ZH = {"peak": "報告的 Peak", "average": "報告的平均", "min": "報告的最小", "max": "報告的最大", "value": "各次量測"}
 TRAFFIC_ZH = {"unidirectional": "單向", "bidirectional": "雙向"}
 MAX_CHARS = 12000
 SHOWN_VALUES = 14
@@ -288,6 +288,10 @@ def render(result: dict, params: dict) -> str:
             lines.append(f"- 換手成功 {_num(r['total'])}／{r['n']} 次（第 {r['first_no']}～{r['last_no']} 次）")
         elif r["n"] == 1:
             lines.append(f"- {label}：{_num(r['average'])}{unit}{basis}")
+        elif r.get("vals") and len(r["vals"]) == r["n"]:    # a few measurements of one condition (#1, #2, #3): each value, then the statistics
+            nos = r.get("nos") or []
+            each = "；".join(f"#{nos[i] if i < len(nos) and nos[i] is not None else i + 1} {_num(v)}" for i, v in enumerate(r["vals"]))
+            lines.append(f"- {label}（各次）：{each}{unit}（n {r['n']}，平均 {_num(r['average'])}，最小 {_num(r['minimum'])}，最大 {_num(r['maximum'])}，中位數 {_num(r['median'])}）{basis}")
         else:
             total = f"，合計 {_num(r['total'])}" if r["unit"] == "count" else ""
             lines.append(f"- {label}：n {r['n']}，平均 {_num(r['average'])}{unit}，最小 {_num(r['minimum'])}，最大 {_num(r['maximum'])}，中位數 {_num(r['median'])}，p95 {_num(r['p95'])}{total}{basis}")

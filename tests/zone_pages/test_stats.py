@@ -219,3 +219,18 @@ def test_an_attenuation_sweep_is_one_line_per_channel_never_a_statistic_over_the
 
 
 CAT_SERIES = RVR_CAT["wifi_rvr"]["series"]
+
+
+def test_a_few_measurements_of_one_condition_are_listed_each_before_the_statistics():
+    row = {**WIFI_ROW, "n": 3, "average": 686.6667, "minimum": 680.0, "maximum": 697.0, "median": 683.0, "vals": [680.0, 683.0, 697.0], "nos": [1, 2, 3]}
+    text = stats.render({"rows": [row], "truncated": False, "series": CAT["wifi_throughput"]["series"], "group_by": []}, {})
+    assert "吞吐量（各次）：#1 680；#2 683；#3 697 Mbps（n 3，平均 686.7，最小 680，最大 697，中位數 683）" in text
+    assert "p95 " not in text.split("（各次）")[1]
+    many = {**row, "n": 40, "vals": None, "nos": None}
+    assert "n 40，平均" in stats.render({"rows": [many], "truncated": False, "series": CAT["wifi_throughput"]["series"], "group_by": []}, {})   # a long series stays statistics only
+    assert stats.STATISTIC_ZH["value"] == "各次量測"
+
+
+def test_the_query_returns_each_value_of_a_small_group():
+    from src.report_numeric import stats as rs
+    assert rs.EACH_VALUE_UP_TO == 10

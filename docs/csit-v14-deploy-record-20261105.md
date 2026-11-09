@@ -260,3 +260,11 @@ CSIT 的分類變更通知不再改專區。程式:`zones.py`、`doclib_metadata
 - **Image**: web `km-da40-web:zone-pages-20261109z` (override backup `~/.km-control/agg-20261106/override.before-z`; roll back by setting the image to `…20261109y`). Worker unchanged.
 - **Checked on the real database** (CHS3320N RvR, 2.4GHz, 20MHz, downlink): the three channel lines equal the Excel table (Ch1 389.6 … 77.8, Ch6 421.8 … 144.4, Ch11 424.8 … 130). Values print with four significant digits, so 164.45 shows as 164.4 where Excel shows 164.5.
 - **Not done**: the report's "Test Case_n" numbers are not stored (the parser keeps a case code such as `wifi_rvr:2.4GHz:20MHz` and the name "2.4GHz - 20MHz 衰減掃描"); showing them needs a parser change and a re-upload. The 5G reports were not reviewed for the same kind of merging.
+
+## A few measurements of one condition are listed each (2026-11-09)
+
+- **Problem**: the 5G throughput reports list #1, #2, #3 per condition (plus Peak and Average); the answer merged the three into "n 3, 平均, 最小, 最大, 中位數, p95", under the label 「數值」, so the single values could not be read. (Different test cases, bands, directions, TCP/UDP and uni/bidirectional were already kept apart; handover blocks aggregate their repeated handovers, which is fine.)
+- **Change**: `report_numeric/stats.py` returns `vals` / `nos` (each value and its sample number) for a group of 10 or fewer (`EACH_VALUE_UP_TO`); `zone_pages/stats.py` renders "吞吐量（各次）：#1 680；#2 683；#3 697 Mbps（n 3，平均 686.7，最小 680，最大 697，中位數 683）" and calls the statistic 「各次量測」. Longer series (handover 100 times) stay statistics only. Tests in `tests/zone_pages/test_stats.py`.
+- **Image**: web `km-da40-web:zone-pages-20261109a` (override backup `~/.km-control/agg-20261106/override.before-a2`; roll back by setting the image to `…20261109z`). Worker unchanged.
+- **Checked on the real database** (SCU2060, Test Case 1): downlink TCP bidirectional 680 / 683 / 697, unidirectional 708 / 699 / 708, uplink bidirectional 136 / 150 / 151, unidirectional 167 / 171 / 170; UDP 750 and 184 are single values; all equal the Excel rows.
+- **Not checked**: Wi-Fi throughput reports are not uploaded yet, so their grouping is unverified.
