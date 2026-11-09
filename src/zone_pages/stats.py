@@ -376,7 +376,7 @@ def _render_channels(lines: list[str], result: dict) -> str:
     return _finish(lines, result)
 
 
-MAX_CHARTS = 4
+MAX_CHARTS = 6
 
 
 def channel_charts(result: dict) -> list[dict]:
@@ -401,10 +401,44 @@ def channel_charts(result: dict) -> list[dict]:
             continue
         limit = [criteria.get((doc, band, bw, ch)) for ch in chans]
         charts.append({"kind": "channel_throughput", "title": f"{t['model']}／{band} {bw}MHz　吞吐量（Mbps）依通道", "source": doc, "unit": "Mbps",
-                       "categories": [f"CH{ch}" for ch in chans],
+                       "x_label": "通道 Channel", "y_label": "吞吐量 (Mbps)", "categories": [f"CH{ch}" for ch in chans],
                        "series": [{"name": name, "values": [t["ch"][ch].get(d) for ch in chans]} for name, d in (("Tx", "ul"), ("Rx", "dl")) if any(d in t["ch"][ch] for ch in chans)],
                        "criteria": {"name": "Criteria", "values": limit} if any(x is not None for x in limit) else None})
     return charts[:MAX_CHARTS]
+
+
+def sweep_charts(result: dict) -> list[dict]:
+    """A Wi-Fi RvR report as the report's own charts: per band and bandwidth the Tx throughput, the Rx throughput and the RSSI against the attenuation, one line per channel,
+    each chart scaled on its own. Empty unless every row is one value at one attenuation (a statistic over repeated runs, or several angles mixed, is not a curve)."""
+    rows = [r for r in result["rows"] if r["report_type"] == "wifi_rvr" and r["metric_name"] in ("throughput", "rssi")]       # the pass and fail counts of the report are not curves
+    if not rows or "attenuation_db" not in result["series"] + result["group_by"]:
+        return []
+    if not all(r["n"] == 1 and r.get("attenuation_db") is not None and r.get("channel") is not None for r in rows):
+        return []
+    if len({r.get("angle_deg") for r in rows if r.get("angle_deg") is not None}) > 1:
+        return []
+    groups: dict[tuple, dict] = {}
+    for r in rows:
+        kind = "rssi" if r["metric_name"] == "rssi" else r.get("direction")
+        if kind not in ("ul", "dl", "rssi"):
+            continue
+        g = groups.setdefault((r["document_id"], r.get("band"), r.get("bandwidth_mhz")), {"model": r["dut_model"], "kinds": {}})
+        g["kinds"].setdefault(kind, {}).setdefault(r["channel"], {})[float(r["attenuation_db"])] = float(r["average"])
+    charts = []
+    for (doc, band, bw), g in groups.items():
+        for kind, label, unit, name in (("ul", "Tx 吞吐量（Mbps）", "Mbps", "Tx"), ("dl", "Rx 吞吐量（Mbps）", "Mbps", "Rx"), ("rssi", "RSSI（dBm）", "dBm", "RSSI")):
+            by_channel = g["kinds"].get(kind)
+            if not by_channel:
+                continue
+            steps = sorted({a for points in by_channel.values() for a in points})
+            charts.append({"kind": "rvr", "title": f"{g['model']}／{band} {bw}MHz　{label}對衰減", "source": doc, "unit": unit, "x_label": "衰減 Attenuation (dB)",
+                           "y_label": ("RSSI (dBm)" if kind == "rssi" else "吞吐量 (Mbps)"), "categories": [_val(a) for a in steps],
+                           "series": [{"name": f"Ch{ch}", "values": [by_channel[ch].get(a) for a in steps]} for ch in sorted(by_channel)], "criteria": None})
+    return charts[:MAX_CHARTS]
+
+
+def charts_of(result: dict) -> list[dict]:
+    return channel_charts(result) or sweep_charts(result)
 
 
 def _render_sweep(lines: list[str], result: dict, series: list[str]) -> str:
@@ -546,7 +580,7 @@ class ReportStats:
         docs = ", ".join(dict.fromkeys(r["document_id"] for r in result["rows"])) or params["report_type"]
         scope = scope_of(result["rows"], cat) or None
         body = render(result, params)
-        charts = channel_charts(result)
+        charts = charts_of(result)
         if scope and len(body) > WIDE_RESULT_CHARS:
             combos = band_bandwidths(result["rows"])
             if OVERVIEW_WORDS.search(question):

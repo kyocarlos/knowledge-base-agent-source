@@ -332,3 +332,24 @@ def test_the_consult_carries_the_chart_but_not_for_the_overview():
     big = [wifi_tput_row(i, 2400 + i, m, d, 400.0 + i, band, 20) for band, n in (("2.4GHz", 11), ("5GHz", 90)) for i in range(1, n + 1) for m, d in (("throughput", "dl"), ("throughput", "ul"), ("rssi", None))]
     overview = stats.ReportStats(reply, wide_source(big)).consult("列出 CHS3320N 的所有 WiFi Throughput 測試數據（全部頻段（只看摘要））")
     assert overview["charts"] == []
+
+
+def test_an_rvr_report_is_charted_as_tx_rx_and_rssi_against_the_attenuation_one_line_per_channel():
+    rows = [rvr_row(c, f, a, v) for c, f, vals in ((1, 2412, (389.6, 385.0)), (6, 2437, (421.8, 419.9))) for a, v in zip((0.0, 3.0), vals)]
+    rows += [{**r, "direction": "ul", "average": r["average"] - 20} for r in rows] + [{**r, "metric_name": "rssi", "direction": None, "unit": "dBm", "average": -24.0 - r["attenuation_db"]} for r in rows[:4]]
+    rows.append({**rows[0], "metric_name": "pass_rate", "unit": "ratio", "average": 0.9, "attenuation_db": None, "channel": None})        # the report's own counts are not a curve
+    result = {"rows": rows, "truncated": False, "series": CAT_SERIES, "group_by": ["channel", "center_freq_mhz"]}
+    tx, rx, rssi = stats.charts_of(result)
+    assert [c["title"].split("　")[1] for c in (tx, rx, rssi)] == ["Tx 吞吐量（Mbps）對衰減", "Rx 吞吐量（Mbps）對衰減", "RSSI（dBm）對衰減"]
+    assert rx["categories"] == ["0", "3"] and rx["x_label"] == "衰減 Attenuation (dB)" and [s["name"] for s in rx["series"]] == ["Ch1", "Ch6"]
+    assert rx["series"][0]["values"] == [389.6, 385.0] and tx["series"][0]["values"] == [369.6, 365.0] and rssi["series"][1]["values"] == [-24.0, -27.0]
+    assert rssi["unit"] == "dBm" and rssi["y_label"] == "RSSI (dBm)" and tx["criteria"] is None
+    assert stats.channel_charts(result) == []                            # the throughput-by-channel chart is for the throughput report only
+
+
+def test_an_rvr_result_that_is_not_one_value_per_attenuation_is_not_charted():
+    rows = [rvr_row(1, 2412, a, v) for a, v in zip((0.0, 3.0), (389.6, 385.0))]
+    base = {"truncated": False, "series": CAT_SERIES, "group_by": ["channel", "center_freq_mhz"]}
+    assert stats.charts_of({**base, "rows": [{**r, "n": 4} for r in rows]}) == []                   # a statistic over repeated runs
+    assert stats.charts_of({**base, "rows": [{**rows[0], "angle_deg": 0}, {**rows[1], "angle_deg": 90}]}) == []       # several angles mixed in one line
+    assert stats.charts_of({**base, "rows": rows, "series": ["band"], "group_by": []}) == []
