@@ -119,7 +119,7 @@ def test_the_result_is_text_the_answer_can_quote():
     wifi = stats.render({"rows": [WIFI_ROW], "truncated": False, "series": CAT["wifi_throughput"]["series"], "group_by": []}, {})
     assert "【PKE3540J／5GHz，80MHz，下行（報告 Rx），TCP】" in wifi and "吞吐量：n 3，平均 800 Mbps，最小 790，最大 812，中位數 798，p95 810" in wifi
     one = stats.render({"rows": [{**WIFI_ROW, "n": 1, "average": 655.2, "attenuation_db": 30.0}], "truncated": True, "series": ["band", "attenuation_db"], "group_by": []}, {})
-    assert "吞吐量：655.2 Mbps" in one and "已截斷" in one
+    assert "吞吐量 Mbps（依衰減）：30 dB 655.2" in one and "已截斷" in one
     ho = stats.render({"rows": [XN_ROW, {**XN_ROW, "metric_name": "ho_success", "unit": "count", "total": 20.0}], "truncated": False, "series": ["test_case_id"], "group_by": []}, {"from_no": 40, "to_no": 60})
     assert "只計第 40～60 次" in ho and "【SCU2050／Xn Handover 100 times】" in ho and "換手後延遲：n 21，平均 33.33 ms" in ho and "換手成功 20／21 次" in ho
 
@@ -187,3 +187,35 @@ def test_a_zone_without_report_numbers_never_asks():
     st = stats.ReportStats(lambda m: calls.append(m) or plan_reply(), lambda: fake_source())
     result, _ = ask_agent(lambda messages: "沒有。", False, st)
     assert calls == [] and {"tool": "query_test_data"} not in result["trace"]
+
+
+RVR_CAT = {"wifi_rvr": {"products": [{"id": "CHS3320N", "model": "CHS3320N", "document_id": "SIT-TR-WL-RvR-CHS3320N"}], "metrics": [{"name": "throughput", "unit": "Mbps", "description": None, "numbered": False}],
+                        "dims": {"band": ["2.4GHz"], "channel": [1, 6, 11], "center_freq_mhz": [2412, 2437, 2462], "direction": ["dl"]}, "cases": [],
+                        "series": ["band", "bandwidth_mhz", "direction", "attenuation_db", "angle_deg"]}}
+
+
+def rvr_row(channel, freq, attn, value):
+    return {"product_id": "CHS3320N", "dut_model": "CHS3320N-D388", "report_type": "wifi_rvr", "document_id": "SIT-TR-WL-RvR-CHS3320N", "metric_name": "throughput", "unit": "Mbps",
+            "value_basis": "measured", "test_case_name": "2.4GHz - 20MHz 衰減掃描", "band": "2.4GHz", "bandwidth_mhz": 20, "direction": "dl", "attenuation_db": attn, "channel": channel,
+            "center_freq_mhz": freq, "n": 1, "total": value, "average": value, "minimum": value, "maximum": value, "median": value, "p95": value, "first_no": None, "last_no": None}
+
+
+def test_wifi_channels_are_listed_one_by_one_with_their_frequency_unless_asked_together():
+    base = {"report_type": "wifi_rvr", "products": None, "documents": None, "metrics": None, "filters": {}, "group_by": [], "from_no": None, "to_no": None}
+    got = stats.default_channels(base, RVR_CAT, "列出 CHS3320N 的 2.4G 所有 Throughput 測試數據")
+    assert got["group_by"] == ["channel", "center_freq_mhz"]
+    assert stats.default_channels(base, RVR_CAT, "所有通道的平均吞吐量")["group_by"] == []
+    assert stats.default_channels({**base, "filters": {"channel": 6}}, RVR_CAT, "通道 6 的吞吐量")["group_by"] == []
+    assert stats.default_channels({**base, "report_type": "cellular_handover"}, CAT, "換手")["group_by"] == []
+    assert stats.default_channels({**base, "group_by": ["channel"]}, RVR_CAT, "逐通道")["group_by"] == ["channel", "center_freq_mhz"]
+
+
+def test_an_attenuation_sweep_is_one_line_per_channel_never_a_statistic_over_the_channels():
+    rows = [rvr_row(c, f, a, v) for c, f, vals in ((1, 2412, (389.6, 385.0)), (6, 2437, (421.8, 419.9)), (11, 2462, (424.8, 427.7))) for a, v in zip((0.0, 3.0), vals)]
+    text = stats.render({"rows": rows, "truncated": False, "series": CAT_SERIES, "group_by": ["channel", "center_freq_mhz"]}, {})
+    assert "【CHS3320N-D388／2.4GHz - 20MHz 衰減掃描／2.4GHz，20MHz，下行（報告 Rx），Ch1（2412 MHz）】" in text
+    assert "- 吞吐量 Mbps（依衰減）：0 dB 389.6；3 dB 385" in text and "Ch11（2462 MHz）】" in text and "Ch6（2437 MHz）" in text
+    assert "平均" not in text.split(chr(10), 1)[1] and "最小" not in text and "n 3" not in text
+
+
+CAT_SERIES = RVR_CAT["wifi_rvr"]["series"]

@@ -257,8 +257,11 @@ def _series_text(row: dict, series: list[str]) -> str:
         v = row.get(d)
         if v is None or d == "test_case_id":
             continue
+        if d == "center_freq_mhz" and row.get("channel") is not None and "channel" in series:
+            continue                                  # written with its channel: "Ch1（2412 MHz）"
         bits.append({"direction": lambda: DIRECTION_ZH.get(v, v), "statistic": lambda: STATISTIC_ZH.get(v, v), "traffic_mode": lambda: TRAFFIC_ZH.get(v, v),
-                     "bandwidth_mhz": lambda: f"{v}MHz", "center_freq_mhz": lambda: f"中心頻率 {v} MHz", "time_slot": lambda: f"時槽 {v}", "channel": lambda: f"CH{v}", "attenuation_db": lambda: f"衰減 {_num(v)} dB", "angle_deg": lambda: f"角度 {_num(v)}°",
+                     "bandwidth_mhz": lambda: f"{v}MHz", "center_freq_mhz": lambda: f"中心頻率 {v} MHz", "time_slot": lambda: f"時槽 {v}",
+                     "channel": lambda: f"Ch{v}" + (f"（{row['center_freq_mhz']} MHz）" if row.get("center_freq_mhz") is not None else ""), "attenuation_db": lambda: f"衰減 {_num(v)} dB", "angle_deg": lambda: f"角度 {_num(v)}°",
                      "protocol": lambda: str(v).upper()}.get(d, lambda: str(v))())
     return "，".join(bits)
 
@@ -268,7 +271,9 @@ def render(result: dict, params: dict) -> str:
     span = ""
     if params.get("from_no") or params.get("to_no"):
         span = f"，只計第 {params.get('from_no') or 1}～{params.get('to_no') or '最後'} 次"
-    lines = [f"以下由資料庫對報告的量測數據計算{span}（n 為筆數，p95 為第 95 百分位；不同{'、'.join(result['series']) or '條件'}不會被平均在一起）："]
+    lines = [f"以下由資料庫對報告的量測數據計算{span}（n 為筆數，p95 為第 95 百分位；不同{'、'.join(result['series'] + result['group_by']) or '條件'}不會被平均在一起）："]
+    if "attenuation_db" in series and rows and all(r["n"] == 1 and r["metric_name"] != "ho_success" for r in rows):
+        return _render_sweep(lines, result, series)
     head = None
     for r in rows:
         key = (r["product_id"], r["document_id"], r.get("test_case_name"), tuple(r.get(d) for d in series))
@@ -286,6 +291,32 @@ def render(result: dict, params: dict) -> str:
         else:
             total = f"，合計 {_num(r['total'])}" if r["unit"] == "count" else ""
             lines.append(f"- {label}：n {r['n']}，平均 {_num(r['average'])}{unit}，最小 {_num(r['minimum'])}，最大 {_num(r['maximum'])}，中位數 {_num(r['median'])}，p95 {_num(r['p95'])}{total}{basis}")
+    if result["truncated"]:
+        lines.append(f"（結果超過 {rs.MAX_ROWS} 組，已截斷；請指定設備、頻段、方向或衰減等條件縮小範圍。）")
+    return "\n".join(lines)[:MAX_CHARS]
+
+
+def _render_sweep(lines: list[str], result: dict, series: list[str]) -> str:
+    """An attenuation sweep (one value per attenuation, channel and direction): one line per metric listing the values by attenuation, as the report's table does, never
+    a statistic over the channels."""
+    groups: dict[tuple, dict] = {}
+    for r in result["rows"]:
+        key = (r["product_id"], r["document_id"], r.get("test_case_name"), tuple(r.get(d) for d in series if d != "attenuation_db"))
+        g = groups.setdefault(key, {"row": r, "metrics": {}})
+        g["metrics"].setdefault((r["metric_name"], r["unit"]), []).append((r.get("attenuation_db"), r["average"], r["value_basis"]))
+    rest = [d for d in series if d != "attenuation_db"]
+    for g in groups.values():
+        r = g["row"]
+        title = "／".join(x for x in (r["dut_model"], r.get("test_case_name") or "", _series_text(r, rest)) if x)
+        lines.append(f"【{title}】（報告 {r['document_id']}）")
+        for (metric, unit), points in g["metrics"].items():
+            label = METRIC_ZH.get(metric, metric)
+            unit = f" {unit}" if unit and unit not in ("count", "unitless", "") else ""
+            basis = "（報告提供的值）" if any(b == "reported_derived" for _, _, b in points) else ""
+            if all(a is None for a, _, _ in points):
+                lines.append(f"- {label}：" + "；".join(_num(v) + unit for _, v, _ in points) + basis)
+            else:
+                lines.append(f"- {label}{unit}（依衰減）：" + "；".join(f"{_num(a)} dB {_num(v)}" for a, v, _ in sorted(points, key=lambda x: (x[0] is None, x[0] or 0))) + basis)
     if result["truncated"]:
         lines.append(f"（結果超過 {rs.MAX_ROWS} 組，已截斷；請指定設備、頻段、方向或衰減等條件縮小範圍。）")
     return "\n".join(lines)[:MAX_CHARS]
@@ -321,6 +352,21 @@ def default_statistic(params: dict, cat: dict, text: str) -> dict:
     if "statistic" not in params["filters"] and "average" in values and len(values) > 1 and AVERAGE_WORDS.search(text) and not OTHER_STATISTIC_WORDS.search(text):
         return {**params, "filters": {**params["filters"], "statistic": "average"}}
     return params
+
+
+MERGE_CHANNELS = re.compile(r"整體|合併|不分通道|(所有|全部|各)通道.{0,4}(平均|合計|總)|all channels", re.I)
+CHANNEL_REPORTS = ("wifi_throughput", "wifi_rvr")
+
+
+def default_channels(params: dict, cat: dict, text: str) -> dict:
+    """The channels of a Wi-Fi report are different tests (each has its own value, Ch1 / Ch6 / Ch11), not repetitions of one: they are listed one by one, with their centre
+    frequency, unless the question asks for them taken together."""
+    t = cat.get(params["report_type"], {})
+    if params["report_type"] not in CHANNEL_REPORTS or len(t.get("dims", {}).get("channel", [])) < 2 or "channel" in params["filters"] or MERGE_CHANNELS.search(text):
+        return params
+    optional = rs.optional_dims(params["report_type"])
+    wanted = ["channel"] + (["center_freq_mhz"] if t["dims"].get("center_freq_mhz") and "center_freq_mhz" in optional else [])
+    return {**params, "group_by": list(dict.fromkeys([*params["group_by"], *wanted]))}
 
 
 def info_passages(question: str, cat: dict) -> list[dict]:
@@ -380,7 +426,7 @@ class ReportStats:
                 params = to_query(step["plan"], cat)
                 if params is None:
                     return {"passages": info, "ask": None}
-                params = default_statistic(params, cat, asked)
+                params = default_channels(default_statistic(params, cat, asked), cat, asked)
                 result = db.stats(**params)
         except Exception:                          # no database, an unknown product, a refused parameter: the answer then rests on the passages
             return {"passages": info, "ask": None}
