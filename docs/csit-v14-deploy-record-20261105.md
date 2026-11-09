@@ -304,9 +304,15 @@ A zone answer that lists a Wi-Fi throughput report by channel now carries the sa
 - Web image `km-da40-web:zone-pages-20261109e` (FROM `…d`, `stats.py` and `agent.py`); rollback: set the image in `km-da40.csit-zones.image.override.yml` back to `…20261109d` (backup `override.before-e2`) and recreate web. Verified on the server with the real planner: the 5GHz 20MHz question returns one chart (24 channels, Tx and Rx, criterion line); the all-bands overview returns none.
 - Front end: the zone page the server serves for the verification zone uses `zone.5bf7a4d734a4.js` (not the repo's `52de…`; it differs in the navigation line only). The chart code was added to that file as `zone.72801450518c.js` (kept in the repo) and **only `zones/csit/index.html`** now points at it; the other nine zone pages are untouched. Rollback: restore `zones/csit/index.html.before-chart-20261109` next to it. The new file is a new name, so nothing already cached changes.
 
-## Charts of a Wi-Fi RvR report (built locally, not deployed)
+## Charts of a Wi-Fi RvR report (deployed 2026-11-09, da40)
 
 For an RvR answer listed by channel (one band and bandwidth), `zone_pages.stats.sweep_charts` gives the report's own charts as data: Tx throughput, Rx throughput and RSSI against the attenuation, one line per channel, each scaled on its own as in the report. `charts_of` picks the throughput-by-channel or the RvR charts. Not drawn when a point is a statistic over repeated runs or several angles are mixed; the report's pass and fail counts are ignored. Throughput against angle is not charted: no angle is stored for these reports.
 
 - Front end: `frontend/zones/zone.35298cb9bf7a.js` (the deployed `zone.72801450518c.js` with the renderer generalised: axis labels from the data, negative values for RSSI, a legend that wraps for six channels, eight colours). To deploy it the same way as before: copy it next to the other zone files and point `zones/csit/index.html` at it; the back end needs a new web image with `stats.py`.
 - Checked with CHS3320N read from the database (2.4GHz 20MHz, 5GHz 80MHz, 6GHz 320MHz): nine charts, Ch1 Tx 328.51 at 0 dB and 141.74 at 51 dB as in the report's chart.
+
+### Deployed (da40): RvR charts
+
+- Web image `km-da40-web:zone-pages-20261109f` (FROM `…e`, `stats.py`); rollback: image back to `…20261109e` in `km-da40.csit-zones.image.override.yml` (backup `override.before-f2`), recreate web.
+- Front end: `zone.35298cb9bf7a.js` copied next to the other zone files; only `zones/csit/index.html` points at it (it pointed at `zone.72801450518c.js`). Rollback: restore `zones/csit/index.html.before-rvr-20261109`. Other zone pages untouched.
+- Verified on the server with the real planner: CHS3320N 2.4GHz 20MHz RvR gives three charts (Tx, Rx, RSSI; 3 channels, 18 attenuation points); 5GHz 80MHz asked for throughput gives Tx and Rx (6 channels); the 5GHz 20MHz throughput question still gives its channel chart; "all RvR data" asks for a band and bandwidth and carries no chart. The pages' HTML has no cache header, so a browser may need Ctrl+F5 to load the new file.
