@@ -195,3 +195,83 @@ def test_a_throughput_report_is_parsed_exactly_as_before():
     assert not parser.DOC_NUMBER.match("SIT-XX-SC-NR-Handover-SCU2060-EV-V1")
     assert parser._model_from_number("SIT-SR-SC-NR-Handover-SCU2060-EV-V13.5a") == "SCU2060"
     assert parser._model_from_number("SIT-TR-SC-NR-Throughput-SCU5050-n78L-EV-V001") == "SCU5050-n78L"
+
+
+# ---- the other two layouts seen in real reports: the summary of SCU2050 (N2) and the newer sheet of SCE2200 (Intra / Inter-Band, Handover Result, copy block)
+def build_summary_n2(path):
+    build(path)
+    from openpyxl import load_workbook
+    wb = load_workbook(path)
+    summ = wb["3. Test Result Summary"]
+    summ.delete_rows(1, summ.max_row)
+    for r0, title in ((4, "Xn Handover Test"), (11, "N2 Handover Test")):
+        for ref, v in {f"A{r0}": title, f"C{r0}": "Round trip", f"E{r0}": "10 times", f"G{r0}": "100 times",
+                       f"A{r0+1}": "Test Result", f"C{r0+1}": "PASS", f"E{r0+1}": "PASS", f"G{r0+1}": "FAIL",
+                       f"A{r0+2}": "HO Success Rate", f"C{r0+2}": 1, f"E{r0+2}": 1, f"G{r0+2}": 0.97,
+                       f"A{r0+3}": "Max. Tput Variation", f"C{r0+3}": 1, f"E{r0+3}": 24, f"G{r0+3}": 29}.items():
+            summ[ref] = v
+    wb.save(path)
+
+
+def build_intra_band(path):
+    build(path)
+    from openpyxl import load_workbook
+    wb = load_workbook(path)
+    summ = wb["3. Test Result Summary"]
+    summ.delete_rows(1, summ.max_row)
+    for ref, v in {"A4": "Intra-Band Test", "C4": "100 times", "E4": "100 times", "A5": "Handover Mode", "C5": "HO via Xn", "E5": "HO via NG",
+                   "A6": "Test Result", "C6": "PASS", "E6": "FAIL", "A7": "HO Success Rate", "C7": 1, "E7": 0.9,
+                   "A8": "Tput Variation", "C8": 4, "E8": 4, "A9": "Ping Loss Count", "C9": 0, "E9": 0, "A10": "Handover Duration", "C10": 70, "E10": 73,
+                   "A13": "Inter-Band Test", "C13": "100 times", "E13": "100 times", "A14": "Handover Mode", "C14": "HO via Xn", "E14": "HO via NG",
+                   "A15": "Test Result", "C15": "NT", "E15": "NT", "A16": "HO Success Rate", "C16": 0, "E16": 0}.items():
+        summ[ref] = v
+    for sheet in ("4.1 Xn Handover ", "4.2 NG Handover"):
+        ws = wb[sheet]
+        ws.delete_rows(1, ws.max_row)
+        for ref, v in {"A2": "4.1  Intra-Band Xn Handover Test", "A6": "Handover 100 times",
+                       "A7": "No", "B7": "Avg. Latency (ms)", "D7": "Avg. Throughput (Mbps)", "F7": "Handover Result", "G7": "Ping Loss Count", "H7": "Handover Duration\n(ms) ",
+                       "J7": "No", "K7": "Average Latency", "M7": "Average Throughput", "J6": "copy raw data",
+                       "B8": "Before", "C8": "After", "D8": "Before", "E8": "After",
+                       "A9": 1, "B9": 28, "C9": 25, "D9": 671, "E9": 698, "F9": "Pass", "G9": 0, "H9": 83, "J9": 1, "K9": 99, "L9": 99, "M9": 99,
+                       "A10": 2, "B10": 25, "C10": 27, "D10": 698, "E10": 696, "F10": "Fail", "G10": 1, "H10": 82, "J10": 2, "K10": 99, "L10": 99, "M10": 99}.items():
+            ws[ref] = v
+    wb.save(path)
+
+
+def test_a_summary_titled_xn_and_n2_handover_test_is_read_with_n2_as_ng(tmp_path):
+    f = tmp_path / "n2.xlsx"
+    build_summary_n2(f)
+    p = parse_report(f, IDENT, source_name=NAME)
+    res = {r["test_case_id"]: r["result"] for r in p["results"]}
+    assert res == {f"cellular_handover:{m}:{g}": v for m in ("xn", "ng") for g, v in ((2, "pass"), (10, "pass"), (100, "fail"))}
+    rate = {m["test_case_id"]: m["value"] for m in p["measurements"] if m["metric_name"] == "ho_success_rate"}
+    assert rate["cellular_handover:ng:100"] == 0.97 and rate["cellular_handover:xn:2"] == 1
+    assert next(m for m in p["measurements"] if m["metric_name"] == "max_tput_variation".replace("tput", "throughput") and m["test_case_id"] == "cellular_handover:ng:10")["value"] == 24
+
+
+def test_the_intra_band_summary_names_each_columns_mode_and_skips_untested_blocks_and_unlabelled_maxima(tmp_path):
+    f = tmp_path / "intra.xlsx"
+    build_intra_band(f)
+    p = parse_report(f, IDENT, source_name=NAME)
+    assert {(r["test_case_id"], r["result"]) for r in p["results"]} == {("cellular_handover:xn:100", "pass"), ("cellular_handover:ng:100", "fail")}   # NT is no result
+    summary = {(m["test_case_id"], m["metric_name"]): m["value"] for m in p["measurements"] if m.get("sample_index") is None}
+    assert summary == {("cellular_handover:xn:100", "ho_success_rate"): 1, ("cellular_handover:ng:100", "ho_success_rate"): 0.9}   # Inter-Band zeros and "Tput Variation" are not data
+
+
+def test_the_newer_sheet_reads_handover_result_and_duration_from_the_first_table_only(tmp_path):
+    f = tmp_path / "intra.xlsx"
+    build_intra_band(f)
+    p = parse_report(f, IDENT, source_name=NAME)
+    one = {m["metric_name"]: m for m in p["measurements"] if m["test_case_id"] == "cellular_handover:xn:100" and m.get("sample_index") == 2}
+    assert one["ho_success"]["value"] == 0 and one["handover_duration"]["value"] == 82 and one["handover_duration"]["unit"] == "ms"
+    assert one["latency_rtt_before_ho"]["value"] == 25 and one["throughput_after_ho"]["value"] == 696 and one["ping_loss_count"]["value"] == 1
+    assert one["latency_rtt_before_ho"]["source_cell_range"] == "B10"          # the table on the left, not the "copy raw data" copy beside it
+    allowed = {(m["metric_name"], m["unit"]) for m in timescale.load_dictionary()}
+    assert timescale.validate(p, allowed) == []
+
+
+def test_the_duration_is_part_of_the_handover_line_when_the_report_has_it(tmp_path):
+    f = tmp_path / "intra.xlsx"
+    build_intra_band(f)
+    text = "\n".join(c["text"] for c in build_chunks(parse_report(f, IDENT, source_name=NAME)))
+    assert "第 2 次：延遲 25→27 ms；下行吞吐量 698→696 Mbps；換手失敗；ping 遺失 1；換手時間 82 ms" in text

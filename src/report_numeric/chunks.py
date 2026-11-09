@@ -196,6 +196,8 @@ def _handover_chunks(ms: list[dict], pkg: dict, tag: str, budget: int, count: Ca
                 bits.append("換手成功" if v["ho_success"] else "換手失敗")
             if "ping_loss_count" in v:
                 bits.append(f"ping 遺失 {_fmt(v['ping_loss_count'])}")
+            if "handover_duration" in v:
+                bits.append(f"換手時間 {_fmt(v['handover_duration'])} ms")
             lines.append(f"第 {no} 次：" + "；".join(bits))
         for text in _pack(lines, head + "各次換手（換手前→換手後）：", budget, count):
             add("measurement_rows", text, band=first.get("band"), bandwidth_mhz=first.get("bandwidth_mhz"), test_case_id=cid, source_sheet=first["source_sheet"], source_cell_range="")

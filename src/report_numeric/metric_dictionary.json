@@ -98,6 +98,12 @@
       "description": "該次換手是否成功：報告 Yes 記 1、No 記 0"
     },
     {
+      "metric_name": "handover_duration",
+      "unit": "ms",
+      "kind": "measured",
+      "description": "該次換手所花的時間（報告 Handover Duration 欄）"
+    },
+    {
       "metric_name": "ping_loss_count",
       "unit": "count",
       "kind": "measured",

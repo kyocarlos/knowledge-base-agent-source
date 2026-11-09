@@ -843,6 +843,28 @@ def _handover_texts(wb, out: Collector) -> None:
             out.text(ws.title.strip(), _ref(first), "section_text", " ".join(lines), f"{heading} {kind}")
 
 
+HANDOVER_YES, HANDOVER_NO = ("yes", "pass"), ("no", "fail")        # "Handover Success" reads Yes / No, "Handover Result" reads Pass / Fail
+HANDOVER_COLUMNS = (("lat", ("average latency", "avg. latency")), ("tput", ("average throughput", "avg. throughput")), ("ok", ("handover success", "handover result")),
+                    ("loss", ("ping loss count",)), ("dur", ("handover duration",)))
+
+
+def _handover_columns(row) -> dict[str, int]:
+    """Column of each series from the "No" header row. Newer sheets repeat the table to the right ("copy raw data", with its own "No" column): only the first table is read."""
+    found: dict[str, int] = {}
+    seen_no = False
+    for c in row:
+        label = _t(c.value).lower()
+        if label == "no":
+            if seen_no:
+                break
+            seen_no = True
+            continue
+        for key, names in HANDOVER_COLUMNS:
+            if key not in found and label.startswith(names):
+                found[key] = c.column
+    return found
+
+
 def _handover(wb, out: Collector, dut: dict) -> None:
     """One row per handover ("Handover 2 / 10 / 100 times" blocks, numbered 1..n): latency and throughput before and after, success, ping loss and the
     signed variations the report prints. The summary sheet adds each block's verdict, success rate and maxima. The performance sheets repeat their
@@ -865,9 +887,11 @@ def _handover(wb, out: Collector, dut: dict) -> None:
                 group = int(m.group(1))
                 continue
             if text == "No":
-                labels = {_t(c.value): c.column for c in row if isinstance(c.value, str)}
-                cols.update({"lat": labels.get("Average Latency", cols.get("lat", 2)), "tput": labels.get("Average Throughput", cols.get("tput", 4)),
-                             "ok": labels.get("Handover Success", cols.get("ok", 6)), "loss": labels.get("Ping Loss Count", cols.get("loss", 7))})
+                labels = _handover_columns(row)
+                cols.update({"lat": labels.get("lat", cols.get("lat", 2)), "tput": labels.get("tput", cols.get("tput", 4)),
+                             "ok": labels.get("ok", cols.get("ok", 6)), "loss": labels.get("loss", cols.get("loss", 7))})
+                if "dur" in labels:
+                    cols["dur"] = labels["dur"]
                 continue
             if _t(row[1].value) == "Before" and "Variation" in {_t(c.value) for c in row}:
                 var = next(c.column for c in row if _t(c.value) == "Variation")
@@ -891,8 +915,11 @@ def _handover(wb, out: Collector, dut: dict) -> None:
                 if c is not None and _num(c.value) is not None:
                     out.measure(title, _ref(c), cid, metric, c.value, unit, statistic="average", **extra, **common)
             ok = cell("ok")
-            if ok is not None and _t(ok.value).lower() in ("yes", "no"):
-                out.measure(title, _ref(ok), cid, "ho_success", 1 if _t(ok.value).lower() == "yes" else 0, "count", **common)
+            if ok is not None and _t(ok.value).lower() in HANDOVER_YES + HANDOVER_NO:
+                out.measure(title, _ref(ok), cid, "ho_success", 1 if _t(ok.value).lower() in HANDOVER_YES else 0, "count", **common)
+            dur = cell("dur")
+            if dur is not None and _num(dur.value) is not None:
+                out.measure(title, _ref(dur), cid, "handover_duration", dur.value, "ms", **common)
             loss = cell("loss")
             if loss is not None and _num(loss.value) is not None:
                 out.measure(title, _ref(loss), cid, "ping_loss_count", loss.value, "count", **common)
@@ -904,38 +931,66 @@ def _handover(wb, out: Collector, dut: dict) -> None:
 
 
 def _handover_summary(wb, out: Collector, dims: dict) -> None:
-    """"3.1 Xn Handover Test Summary" / "3.2 NG ...": a header row ("Latency Test | Round trip | 10 times | 100 times") and the rows below it. Columns after I are
-    the template's Example and are ignored."""
+    """"3. Test Result Summary": per block of handovers the verdict, the success rate and the maxima. Three layouts exist:
+    "3.1 Xn Handover ..." then a "Latency Test" row with the block sizes; "Xn Handover Test" / "N2 Handover Test" with the block sizes on the title row;
+    "Intra-Band Test" with the block sizes on the title row and a "Handover Mode | HO via Xn | HO via NG" row naming each column's mode. Columns after I are
+    the template's Example and are ignored. A block reported "NT" (not tested) has no result and its zeros are not data; the Inter-Band blocks are not read
+    (their per-handover sheets are not either). Rows without "Max." (an average or a maximum, the report does not say) are not read."""
     ws = _sheet(wb, "3. Test Result Summary")
     if ws is None:
         return
     title = ws.title.strip()
-    mode, groups = None, {}
+    mode, band, groups, col_modes = None, None, {}, {}
     wanted = {"HO Success Rate": ("ho_success_rate", "ratio", None), "Max. Tput Variation": ("max_throughput_variation", "Mbps", "max"),
               "Max. Latency Variation": ("max_latency_variation", "ms", "max"), "Max. Ping Loss Count": ("max_ping_loss_count", "count", "max")}
+
+    def block_sizes(row) -> dict[int, int]:
+        sizes = {}
+        for c in row[1:]:
+            t = _t(c.value)
+            if t == "Round trip":
+                sizes[c.column] = 2  # one round trip is the 2-handover block (A to B and back)
+            elif re.match(r"^\d+\s+times$", t):
+                sizes[c.column] = int(t.split()[0])
+        return sizes
     for row in ws.iter_rows(max_col=9):
-        a = _t(row[0].value)
+        a = " ".join(_t(row[0].value).split())
         m = re.match(r"^3\.\d\s+(Xn|NG)\s+Handover", a)
-        if m:
-            mode, groups = m.group(1).lower(), {}
+        t = re.match(r"^(Xn|NG|N2)\s+Handover Test", a)
+        b = re.match(r"^(Intra|Inter)-Band Test", a)
+        if m or t or b:
+            mode = (m or t).group(1).lower().replace("n2", "ng") if (m or t) else None
+            band = b.group(1).lower() if b else None
+            groups, col_modes = block_sizes(row), {}
             continue
         if a == "Latency Test":
-            groups = {}
-            for c in row[1:]:
-                t = _t(c.value)
-                if t == "Round trip":
-                    groups[c.column] = 2  # one round trip is the 2-handover block (A to B and back)
-                elif re.match(r"^\d+\s+times$", t):
-                    groups[c.column] = int(t.split()[0])
+            groups = block_sizes(row)
             continue
-        if not mode or not groups:
+        if a == "Handover Mode":
+            col_modes = {c.column: "xn" if "xn" in _t(c.value).lower() else "ng" for c in row[1:] if re.search(r"\b(xn|ng)\b", _t(c.value).lower())}
+            continue
+        if band == "inter" or not groups:
             continue
         for col, group in groups.items():
             c = row[col - 1]
-            cid = f"cellular_handover:{mode}:{group}"
-            if a == "Test Result" and _t(c.value):
+            col_mode = col_modes.get(col) or mode
+            if not col_mode:
+                continue
+            cid = f"cellular_handover:{col_mode}:{group}"
+            if a == "Test Result" and _t(c.value) and _t(c.value).upper() != "NT":
                 out.result(title, _ref(c), cid, "Latency Test", c.value)
-            elif a in wanted and _num(c.value) is not None:
+            elif a in wanted and _num(c.value) is not None and not _not_tested(ws, row[0].row, col):
                 metric, unit, stat = wanted[a]
                 extra = {"statistic": stat} if stat else {}
-                out.measure(title, _ref(c), cid, metric, c.value, unit, name=f"{'Xn' if mode == 'xn' else 'NG'} Handover {group} times", basis="reported_derived", **extra, **dims)
+                out.measure(title, _ref(c), cid, metric, c.value, unit, name=f"{'Xn' if col_mode == 'xn' else 'NG'} Handover {group} times", basis="reported_derived", **extra, **dims)
+
+
+def _not_tested(ws, row_no: int, col: int) -> bool:
+    """The block of this column is reported "NT" on the Test Result row above (an Intra-Band block never is, an untested one holds zeros)."""
+    for r in range(row_no - 1, 0, -1):
+        label = " ".join(_t(ws.cell(r, 1).value).split())
+        if label == "Test Result":
+            return _t(ws.cell(r, col).value).upper() == "NT"
+        if label.startswith(("Handover Mode", "Latency Test")) or re.match(r"^(3\.\d|Xn|NG|N2|Intra|Inter)", label):
+            return False
+    return False

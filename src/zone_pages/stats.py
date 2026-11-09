@@ -20,7 +20,7 @@ REPORT_NOTE = {"wifi_throughput": "各頻段、頻寬、通道的吞吐量；問
 METRIC_ZH = {"throughput": "吞吐量", "rssi": "RSSI", "latency_rtt": "RTT 延遲", "rsrp": "RSRP", "rsrq": "RSRQ", "sinr": "SINR", "udp_lost_ratio": "UDP 遺失率",
              "pass_count": "通過筆數", "fail_count": "失敗筆數", "total_count": "總筆數", "pass_rate": "通過率", "latency_rtt_before_ho": "換手前延遲",
              "latency_rtt_after_ho": "換手後延遲", "throughput_before_ho": "換手前下行吞吐量", "throughput_after_ho": "換手後下行吞吐量", "ho_success": "換手成功",
-             "ping_loss_count": "ping 遺失", "latency_variation": "延遲變化", "throughput_variation": "吞吐量變化"}
+             "ping_loss_count": "ping 遺失", "handover_duration": "換手時間", "latency_variation": "延遲變化", "throughput_variation": "吞吐量變化"}
 DIRECTION_ZH = {"dl": "下行（報告 Rx）", "ul": "上行（報告 Tx）", "total": "合計（Tx＋Rx）"}
 STATISTIC_ZH = {"peak": "報告的 Peak", "average": "報告的平均", "min": "報告的最小", "max": "報告的最大", "value": "數值"}
 TRAFFIC_ZH = {"unidirectional": "單向", "bidirectional": "雙向"}

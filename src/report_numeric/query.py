@@ -6,7 +6,7 @@ import re
 from typing import Any
 
 METRICS = {"throughput", "rssi", "pass_count", "fail_count", "total_count", "pass_rate", "latency_rtt", "rsrp", "rsrq", "sinr", "udp_lost_ratio",
-           "latency_rtt_before_ho", "latency_rtt_after_ho", "throughput_before_ho", "throughput_after_ho", "ho_success", "ping_loss_count", "latency_variation",
+           "latency_rtt_before_ho", "latency_rtt_after_ho", "throughput_before_ho", "throughput_after_ho", "ho_success", "handover_duration", "ping_loss_count", "latency_variation",
            "throughput_variation", "ho_success_rate", "max_throughput_variation", "max_latency_variation", "max_ping_loss_count"}
 DIRECTIONS = {"dl", "ul", "total"}
 REPORT_TYPES = {"wifi_throughput", "wifi_rvr", "cellular_throughput", "cellular_handover"}
