@@ -331,10 +331,16 @@ After `zone.6f98a89f1f90.js` the user's screenshot showed the answer column push
 
 Deployed: `zone.892848bf9292.js` copied next to the other zone files (served file identical to the repo's); only `zones/csit/index.html` points at it (it pointed at `zone.6f98a89f1f90.js`). Rollback: restore `zones/csit/index.html.before-layout-20261109` (back to the version with the widening table), or point it at `zone.35298cb9bf7a.js` (charts, squeezed tables). Other zone pages untouched; no back-end change. A browser may need Ctrl+F5.
 
-## Charts of a 5G handover report (built locally, not deployed)
+## Charts of a 5G handover report (deployed 2026-11-09, da40)
 
 The 4G/5G sample reports hold no Excel chart objects (only environment diagrams and tool screenshots), so these charts are our own, drawn from the stored per-handover values. `report_numeric.stats.measurement_stats` returns `samples` for `cellular_handover` (one value per handover for the throughput and latency before and after, the duration and the success flag; up to 6000 rows, same filters); `zone_pages.stats.handover_charts` turns the cases of 10 handovers or more into: throughput before and after (Mbps), latency before and after (ms) and handover duration (ms), each against the handover number, only the series the answer asks about (a metric in its rows), at most 8 charts. Handovers that failed (`ho_success` 0) are marked as red bands on every chart of the case. The value axis follows the data (`zero: false`): the values sit around one level and a zero baseline hides the handovers that moved.
 
 - Front end: `frontend/zones/zone.c86a196ba9fe.js` (the deployed `zone.892848bf9292.js` plus the failure bands, the non-zero axis and legend spacing for Chinese names). Back end: a new web image with `stats.py` of both packages.
 - Checked against the real data (run on the server with the new query code in a throwaway module, nothing deployed): SCU2050 gives eight charts (Xn and NG, 100 and 10 handovers; failures at handovers 51, 64, 65 for Xn 100 and 58 for NG 100, as stored); SCE2200 gives its throughput and duration charts for Xn and NG 100.
 - Decided with the user for the next step (not built): throughput by TDD slot pattern as bar charts, with TCP and UDP, unidirectional and bidirectional drawn as separate charts.
+
+### Deployed (da40): handover charts
+
+- Web image `km-da40-web:zone-pages-20261109g` (FROM `…f`, both `stats.py`); rollback: image back to `…20261109f` in `km-da40.csit-zones.image.override.yml` (backup `override.before-g2`), recreate web.
+- Front end: `zone.c86a196ba9fe.js` (served file identical to the repo's); only `zones/csit/index.html` points at it (it pointed at `zone.892848bf9292.js`). Rollback: restore `zones/csit/index.html.before-handover-20261109`. Other zone pages untouched.
+- Verified on the server with the real planner: SCU2050 handover data gives 8 charts (Xn 100 with 3 marked failures, NG 100 with 1, and the 10-handover cases without); SCE2200 handover duration gives its two duration charts; a handover success-rate question gives none; the Wi-Fi throughput (1 chart) and RvR (3 charts) questions are unchanged. A browser may need Ctrl+F5.
