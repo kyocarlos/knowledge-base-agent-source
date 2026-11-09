@@ -300,3 +300,35 @@ def test_a_question_for_the_data_is_fetched_even_when_the_planner_says_no_number
         assert got["ask"] is None and got["passages"] and "吞吐量" in got["passages"][0]["content"]
         # a question about what a report holds, without asking for the numbers, is still only asked back or answered from the documents
         assert stats.ReportStats(planner, lambda: fake_source()).consult("WiFi Throughput 報告的測試方法是什麼")["passages"] == []
+
+
+def test_a_throughput_table_by_channel_is_also_chart_data_with_the_criterion_line():
+    rows = [wifi_tput_row(ch, 5000 + ch, "throughput", d, v, "5GHz") for ch, tx, rx in ((36, 473.67, 359.56), (40, 479.85, 393.12), (44, 482.98, 349.75)) for d, v in (("ul", tx), ("dl", rx))]
+    verdicts = [{"document_id": "SIT-TR-WL-Throughput-CHS3320N", "band": "5GHz", "bandwidth_mhz": 20, "channel": ch, "result": "pass", "criteria_value": 344.2, "criteria_unit": "Mbps"} for ch in (36, 40, 44)]
+    result = {"rows": rows, "truncated": False, "series": CAT["wifi_throughput"]["series"], "group_by": ["channel", "center_freq_mhz"], "verdicts": verdicts}
+    [chart] = stats.channel_charts(result)
+    assert chart["categories"] == ["CH36", "CH40", "CH44"] and chart["unit"] == "Mbps" and "5GHz 20MHz" in chart["title"]
+    assert chart["series"] == [{"name": "Tx", "values": [473.67, 479.85, 482.98]}, {"name": "Rx", "values": [359.56, 393.12, 349.75]}]
+    assert chart["criteria"] == {"name": "Criteria", "values": [344.2, 344.2, 344.2]}
+    result["verdicts"] = []
+    assert stats.channel_charts(result)[0]["criteria"] is None            # no criterion in the report: no line drawn
+
+
+def test_only_a_throughput_table_by_channel_is_charted():
+    one = [wifi_tput_row(1, 2412, "throughput", "dl", 390.0), wifi_tput_row(1, 2412, "throughput", "ul", 350.0)]
+    base = {"truncated": False, "series": CAT["wifi_throughput"]["series"], "group_by": ["channel", "center_freq_mhz"], "verdicts": []}
+    assert stats.channel_charts({**base, "rows": one}) == []                                        # one channel is not a line
+    assert stats.channel_charts({**base, "rows": one * 2, "group_by": []}) == []                    # not listed by channel
+    aggregated = [{**r, "n": 5} for r in one]
+    assert stats.channel_charts({**base, "rows": aggregated}) == []                                 # a statistic over repeated runs is not a chart of the channels
+    assert stats.channel_charts({**base, "rows": [{**r, "report_type": "wifi_rvr"} for r in one]}) == []
+
+
+def test_the_consult_carries_the_chart_but_not_for_the_overview():
+    rows = [wifi_tput_row(i, 2400 + i, m, d, 400.0 + i, "2.4GHz", 20) for i in range(1, 12) for m, d in (("throughput", "dl"), ("throughput", "ul"), ("rssi", None))]
+    reply = lambda m: plan_reply()
+    got = stats.ReportStats(reply, wide_source(rows)).consult("列出 CHS3320N 的 2.4G Throughput 測試數據")
+    assert len(got["charts"]) == 1 and got["charts"][0]["categories"][0] == "CH1"
+    big = [wifi_tput_row(i, 2400 + i, m, d, 400.0 + i, band, 20) for band, n in (("2.4GHz", 11), ("5GHz", 90)) for i in range(1, n + 1) for m, d in (("throughput", "dl"), ("throughput", "ul"), ("rssi", None))]
+    overview = stats.ReportStats(reply, wide_source(big)).consult("列出 CHS3320N 的所有 WiFi Throughput 測試數據（全部頻段（只看摘要））")
+    assert overview["charts"] == []

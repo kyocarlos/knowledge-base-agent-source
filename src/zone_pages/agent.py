@@ -173,6 +173,8 @@ class ZoneAgent:
                   "stop_reason": "end_turn（完成）", "trace": trace, "grounding": grounding(main, text, len(docs), sum(1 for c in docs if c["analysis_eligible"])),
                   "extension": {"related": ("相關文件：" + "、".join(dict.fromkeys(c["source"] for c in docs[:3]))) if docs else "", "followups": followups},
                   "elapsed_ms": int((self.clock() - started) * 1000)}
+        if consult and consult.get("charts") and any(c["ref"] == "S1" for c in cited):     # the picture of the numbers the answer rests on, drawn by the page
+            result["charts"] = consult["charts"]
         for i in range(0, len(main), 24):
             emit({"type": "delta", "text": main[i:i + 24]})
         return result

@@ -230,3 +230,20 @@ def test_the_same_device_in_two_documents_is_told_apart_by_document():
 def test_one_report_alone_is_not_asked():
     one = {"wifi_throughput": {**ONE_PROJECT["wifi_throughput"], "products": ONE_PROJECT["wifi_throughput"]["products"][:1]}}
     assert stats.next_step(stats.with_hints(BASE, "吞吐量", one), one)["plan"]["documents"] == ["DOC-A"]
+
+
+CHART = {"kind": "channel_throughput", "title": "t", "source": "d", "unit": "Mbps", "categories": ["CH1", "CH2"], "series": [{"name": "Tx", "values": [1.0, 2.0]}], "criteria": None}
+
+
+class ChartStats:
+    def consult(self, question, history=None):
+        return {"ask": None, "charts": [CHART], "passages": [{"source": "測試數據彙總", "revision_id": "timescale:d", "location_label": "資料庫計算結果", "publisher": "資料庫彙總",
+                                                           "analysis_eligible": True, "content": "資料來源：x\n- Ch1：1", "scope": "x"}]}
+
+
+def test_the_chart_goes_with_an_answer_that_cites_the_numbers_and_not_with_one_that_does_not():
+    def answer(reply):
+        return ZoneAgent(Catalog(), lambda m: reply, stats=ChartStats()).answer(task_id="t", zone_label="z", zone_names=["z"], question="列出所有通道", history=[], owner={},
+                                                                                 file_records={}, emit=lambda e: None, with_stats=True)
+    assert answer("Ch1 是 1 [S1]")["charts"] == [CHART]
+    assert "charts" not in answer("沒有可引用的資料")

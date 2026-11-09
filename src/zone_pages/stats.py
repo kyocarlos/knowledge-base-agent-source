@@ -376,6 +376,37 @@ def _render_channels(lines: list[str], result: dict) -> str:
     return _finish(lines, result)
 
 
+MAX_CHARTS = 4
+
+
+def channel_charts(result: dict) -> list[dict]:
+    """The per-channel Wi-Fi throughput tables as chart data (one chart per band and bandwidth: Tx and Rx by channel, and the criterion line), from the same rows and verdicts
+    the text lists, so the picture and the table cannot disagree. Empty for any other result."""
+    rows = result["rows"]
+    if not rows or "channel" not in result["series"] + result["group_by"]:
+        return []
+    if not all(r["n"] == 1 and r["report_type"] == "wifi_throughput" and r["metric_name"] in ("throughput", "rssi") for r in rows):
+        return []
+    criteria = {(v["document_id"], v["band"], v["bandwidth_mhz"], v["channel"]): v.get("criteria_value") for v in result.get("verdicts") or []}
+    tables: dict[tuple, dict] = {}
+    for r in rows:
+        if r["metric_name"] != "throughput" or r.get("direction") not in ("dl", "ul") or r.get("channel") is None:
+            continue
+        t = tables.setdefault((r["document_id"], r.get("band"), r.get("bandwidth_mhz")), {"model": r["dut_model"], "ch": {}})
+        t["ch"].setdefault(r["channel"], {})[r["direction"]] = float(r["average"])
+    charts = []
+    for (doc, band, bw), t in tables.items():
+        chans = sorted(t["ch"])
+        if len(chans) < 2:
+            continue
+        limit = [criteria.get((doc, band, bw, ch)) for ch in chans]
+        charts.append({"kind": "channel_throughput", "title": f"{t['model']}／{band} {bw}MHz　吞吐量（Mbps）依通道", "source": doc, "unit": "Mbps",
+                       "categories": [f"CH{ch}" for ch in chans],
+                       "series": [{"name": name, "values": [t["ch"][ch].get(d) for ch in chans]} for name, d in (("Tx", "ul"), ("Rx", "dl")) if any(d in t["ch"][ch] for ch in chans)],
+                       "criteria": {"name": "Criteria", "values": limit} if any(x is not None for x in limit) else None})
+    return charts[:MAX_CHARTS]
+
+
 def _render_sweep(lines: list[str], result: dict, series: list[str]) -> str:
     """An attenuation sweep (one value per attenuation, channel and direction): one line per metric listing the values by attenuation, as the report's table does, never
     a statistic over the channels."""
@@ -515,13 +546,14 @@ class ReportStats:
         docs = ", ".join(dict.fromkeys(r["document_id"] for r in result["rows"])) or params["report_type"]
         scope = scope_of(result["rows"], cat) or None
         body = render(result, params)
+        charts = channel_charts(result)
         if scope and len(body) > WIDE_RESULT_CHARS:
             combos = band_bandwidths(result["rows"])
             if OVERVIEW_WORDS.search(question):
-                body = render_overview(result)
+                body, charts = render_overview(result), []
             elif len(combos) > 1:                  # the model can neither read nor write this much in one answer: the user picks a band and bandwidth, or the overview
                 return {"passages": info, "ask": {"text": f"符合的數據有 {len(result['rows'])} 筆，分成 {len(combos)} 個頻段與頻寬，一次列出太長。請問要看哪一個頻段與頻寬？",
                                                   "options": [f"{b} {w}MHz" for b, w in combos] + ["全部頻段（只看摘要）"]}}
         content = f"資料來源：{scope}\n{body}" if scope else render_empty(params)
         return {"passages": [{"source": f"測試數據彙總（{docs}）", "revision_id": f"timescale:{docs[:40]}", "location_label": "資料庫計算結果", "publisher": "資料庫彙總",
-                              "analysis_eligible": True, "content": content, "limit": MAX_CHARS, "scope": scope}, *info], "ask": None}
+                              "analysis_eligible": True, "content": content, "limit": MAX_CHARS, "scope": scope}, *info], "ask": None, "charts": charts if scope else []}

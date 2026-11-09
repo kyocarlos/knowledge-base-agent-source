@@ -291,3 +291,11 @@ CSIT 的分類變更通知不再改專區。程式:`zones.py`、`doclib_metadata
 - **Change** (`zone_pages/stats.py`): in that case, a question that asks for the numbers (`LIST_WORDS`: 列出、所有、全部、數據、數值、平均、最大、最小、比較…) goes on to fetch the data; a question about what a report holds without asking for numbers is handled as before. A lookup that raises is now logged (`logger.warning` with the traceback) instead of swallowed. Test in `tests/zone_pages/test_stats.py`.
 - **Image**: web `km-da40-web:zone-pages-20261109d` (3 layers, on `…c`; override backup `~/.km-control/agg-20261106/override.before-d2`; roll back by setting the image to `…20261109c`).
 - **Checked on the server**: the three stub planners now give the band and bandwidth question; the whole `ZoneAgent` path with the real model asks the band and bandwidth question 6 of 6 times.
+
+## Chart of the per-channel Wi-Fi throughput table (not deployed)
+
+A zone answer that lists a Wi-Fi throughput report by channel now carries the same numbers as chart data (`charts` in the task result: Tx, Rx by channel and the report's criterion line), and the page draws them as an SVG line chart under the answer. Only for the per-channel table of one band and bandwidth: the overview, other report types and aggregated results carry no chart. The chart is attached only when the answer cites the database numbers (S1).
+
+- Back end: `zone_pages.stats.channel_charts`, `ReportStats.consult` returns `charts`, `ZoneAgent.answer` puts them in the result. A new web image is needed.
+- Front end: `frontend/zones/zone.563d06560c21.js` (the previous `zone.52de2cf98422.js` plus `chartHtml`); the ten zone `index.html` pages point at it. The pages are served by `kb-nginx` from a static directory shared by the planes (`/srv/knowledge-base-production-rebaseline-20260829-v3/.frontend-build-runtime-user8`), so putting the file there is a change to what the other planes serve too: decide that before deploying.
+- Checked against CHS3320N 5GHz 20MHz read from the database: Tx 473.67 / Rx 359.56 at CH36 and the 344.2 Mbps criterion, the same shape as the chart in the report's own sheet. A conversation restored after a page reload has the text only, not the chart.
