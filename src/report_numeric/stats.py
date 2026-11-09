@@ -29,7 +29,7 @@ INTEGERS = ("bandwidth_mhz", "channel", "center_freq_mhz")
 FLOATS = ("attenuation_db", "angle_deg")
 NAME = re.compile(r"^[A-Za-z0-9_]{1,60}$")
 CASE = re.compile(r"^[\w:.@+#*, \-/()]{1,160}$")        # what a test case id holds: band@frequency, a time slot such as DDDSU+UDSUU (4:4), #case4
-MAX_ROWS = 240
+MAX_ROWS = 400
 EACH_VALUE_UP_TO = 10          # a group of this many measurements or fewer also returns each value (the report's #1, #2, #3), not only the statistics
 MAX_CASES = 60
 
@@ -144,4 +144,14 @@ def measurement_stats(conn, report_type: str, products: list[str] | None = None,
     params: dict[str, Any] = {"rt": report_type, "roles": list(roles), "p": pids, "metrics": metrics or None, "cases": f["test_cases"], "docs": list(documents) if documents else None, "lo": from_no, "hi": to_no, "lim": MAX_ROWS + 1, "each": EACH_VALUE_UP_TO}
     params.update({d: f[d] for d in CONDITIONS if f.get(d) is not None})
     rows = _rows(conn, sql, params)
-    return {"rows": rows[:MAX_ROWS], "truncated": len(rows) > MAX_ROWS, "series": list(series_of(report_type)), "group_by": extra}
+    verdicts: list[dict] = []
+    if report_type == "wifi_throughput" and "channel" in extra:       # each channel's Pass / Fail and the criterion it was judged by
+        verdicts = _rows(conn, """SELECT r.document_id, i.band, i.bandwidth_mhz, i.channel, i.result, i.criteria_value, i.criteria_unit
+            FROM km_test.test_item_result i JOIN km_test.test_run r USING (test_run_id)
+            WHERE r.report_type = %(rt)s AND r.access_roles && %(roles)s AND r.publish_status = 'published' AND i.channel IS NOT NULL
+              AND (%(p)s::text[] IS NULL OR r.product_id = ANY(%(p)s)) AND (%(docs)s::text[] IS NULL OR r.document_id = ANY(%(docs)s))
+              AND (%(cases)s::text[] IS NULL OR i.test_case_id = ANY(%(cases)s)) AND (%(band)s::text IS NULL OR i.band = %(band)s)
+              AND (%(bw)s::int IS NULL OR i.bandwidth_mhz = %(bw)s) AND (%(ch)s::int IS NULL OR i.channel = %(ch)s)""",
+                         {"rt": report_type, "roles": list(roles), "p": pids, "docs": list(documents) if documents else None, "cases": f["test_cases"],
+                          "band": f.get("band"), "bw": f.get("bandwidth_mhz"), "ch": f.get("channel")})
+    return {"rows": rows[:MAX_ROWS], "truncated": len(rows) > MAX_ROWS, "series": list(series_of(report_type)), "group_by": extra, "verdicts": verdicts}

@@ -22,6 +22,7 @@ METRIC_ZH = {"throughput": "吞吐量", "rssi": "RSSI", "latency_rtt": "RTT 延�
              "latency_rtt_after_ho": "換手後延遲", "throughput_before_ho": "換手前下行吞吐量", "throughput_after_ho": "換手後下行吞吐量", "ho_success": "換手成功",
              "ping_loss_count": "ping 遺失", "handover_duration": "換手時間", "latency_variation": "延遲變化", "throughput_variation": "吞吐量變化"}
 DIRECTION_ZH = {"dl": "下行（報告 Rx）", "ul": "上行（報告 Tx）", "total": "合計（Tx＋Rx）"}
+RESULT_ZH = {"pass": "Pass", "fail": "Fail", "n/a": "N/A", "error": "Error", "skipped": "Skipped"}
 STATISTIC_ZH = {"peak": "報告的 Peak", "average": "報告的平均", "min": "報告的最小", "max": "報告的最大", "value": "各次量測"}
 TRAFFIC_ZH = {"unidirectional": "單向", "bidirectional": "雙向"}
 MAX_CHARS = 12000
@@ -274,6 +275,8 @@ def render(result: dict, params: dict) -> str:
     lines = [f"以下由資料庫對報告的量測數據計算{span}（n 為筆數，p95 為第 95 百分位；不同{'、'.join(result['series'] + result['group_by']) or '條件'}不會被平均在一起）："]
     if "attenuation_db" in series and rows and all(r["n"] == 1 and r["metric_name"] != "ho_success" for r in rows):
         return _render_sweep(lines, result, series)
+    if rows and "channel" in series and all(r["n"] == 1 and r["report_type"] == "wifi_throughput" and r["metric_name"] in ("throughput", "rssi") for r in rows):
+        return _render_channels(lines, result)
     head = None
     for r in rows:
         key = (r["product_id"], r["document_id"], r.get("test_case_name"), tuple(r.get(d) for d in series))
@@ -295,9 +298,49 @@ def render(result: dict, params: dict) -> str:
         else:
             total = f"，合計 {_num(r['total'])}" if r["unit"] == "count" else ""
             lines.append(f"- {label}：n {r['n']}，平均 {_num(r['average'])}{unit}，最小 {_num(r['minimum'])}，最大 {_num(r['maximum'])}，中位數 {_num(r['median'])}，p95 {_num(r['p95'])}{total}{basis}")
-    if result["truncated"]:
-        lines.append(f"（結果超過 {rs.MAX_ROWS} 組，已截斷；請指定設備、頻段、方向或衰減等條件縮小範圍。）")
-    return "\n".join(lines)[:MAX_CHARS]
+    return _finish(lines, result)
+
+
+def _finish(lines: list[str], result: dict) -> str:
+    """The lines as text within MAX_CHARS, cut at a whole line. When anything is left out the notice comes first (it is what the answer must say), never at the end where
+    the cut would take it."""
+    body = "\n".join(lines)
+    if not result["truncated"] and len(body) <= MAX_CHARS:
+        return body
+    shown, size = [], 0
+    for line in lines:
+        if size + len(line) + 1 > MAX_CHARS - 300:
+            break
+        shown.append(line)
+        size += len(line) + 1
+    why = f"查詢結果超過 {rs.MAX_ROWS} 組，已截斷" if result["truncated"] else "內容太長，已截斷"
+    return f"【注意】{why}，下面的資料不完整，回答時要說明這一點，並請使用者指定設備、頻段、頻寬、方向或衰減等條件縮小範圍。\n" + "\n".join(shown)
+
+
+def _val(v: Any) -> str:
+    return f"{float(v):.2f}".rstrip("0").rstrip(".")
+
+
+def _render_channels(lines: list[str], result: dict) -> str:
+    """A Wi-Fi throughput report as its tables: per band and bandwidth one line per channel with the uplink, downlink, RSSI and the verdict the report gives."""
+    verdict = {(v["document_id"], v["band"], v["bandwidth_mhz"], v["channel"]): v for v in result.get("verdicts") or []}
+    tables: dict[tuple, dict] = {}
+    for r in result["rows"]:
+        t = tables.setdefault((r["product_id"], r["document_id"], r.get("band"), r.get("bandwidth_mhz")), {"row": r, "channels": {}})
+        c = t["channels"].setdefault(r["channel"], {"freq": r.get("center_freq_mhz")})
+        c["rssi" if r["metric_name"] == "rssi" else r.get("direction") or "x"] = r["average"]
+    for (_, doc, band, bw), t in tables.items():
+        lines.append(f"【{t['row']['dut_model']}／{band}，{bw}MHz】（報告 {doc}；下行為報告的 Rx，上行為 Tx）")
+        for ch, c in sorted(t["channels"].items()):
+            bits = [f"{label} {_val(c[k])}" for k, label in (("dl", "下行"), ("ul", "上行")) if k in c]
+            line = f"- Ch{ch}" + (f"（{c['freq']} MHz）" if c.get("freq") is not None else "") + "：" + "，".join(bits) + (" Mbps" if bits else "")
+            if "rssi" in c:
+                line += f"，RSSI {_val(c['rssi'])} dBm"
+            v = verdict.get((doc, band, bw, ch))
+            if v and v.get("result"):
+                line += f"，判定 {RESULT_ZH.get(v['result'], v['result'])}" + (f"（基準 {_val(v['criteria_value'])} {v.get('criteria_unit') or ''}）" if v.get("criteria_value") is not None else "")
+            lines.append(line)
+    return _finish(lines, result)
 
 
 def _render_sweep(lines: list[str], result: dict, series: list[str]) -> str:
@@ -321,9 +364,7 @@ def _render_sweep(lines: list[str], result: dict, series: list[str]) -> str:
                 lines.append(f"- {label}：" + "；".join(_num(v) + unit for _, v, _ in points) + basis)
             else:
                 lines.append(f"- {label}{unit}（依衰減）：" + "；".join(f"{_num(a)} dB {_num(v)}" for a, v, _ in sorted(points, key=lambda x: (x[0] is None, x[0] or 0))) + basis)
-    if result["truncated"]:
-        lines.append(f"（結果超過 {rs.MAX_ROWS} 組，已截斷；請指定設備、頻段、方向或衰減等條件縮小範圍。）")
-    return "\n".join(lines)[:MAX_CHARS]
+    return _finish(lines, result)
 
 
 def project_label(p: dict) -> str:

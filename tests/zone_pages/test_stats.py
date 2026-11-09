@@ -42,7 +42,7 @@ class Conn:
 
 
 def test_each_report_type_always_separates_the_conditions_that_must_not_be_averaged():
-    group = lambda rt, **kw: (lambda c: (rs.measurement_stats(c, rt, **kw), c.sql[-1].split("GROUP BY")[1].split("ORDER BY")[0])[1])(Conn())
+    group = lambda rt, **kw: (lambda c: (rs.measurement_stats(c, rt, **kw), [q for q in c.sql if "GROUP BY" in q][0].split("GROUP BY")[1].split("ORDER BY")[0])[1])(Conn())
     wifi = group("wifi_throughput")
     assert all(c in wifi for c in ("m.band", "m.bandwidth_mhz", "m.direction", "m.protocol", "m.metric_name", "m.value_basis")) and "m.channel" not in wifi
     assert "m.channel" in group("wifi_throughput", group_by=["channel"])
@@ -54,7 +54,7 @@ def test_each_report_type_always_separates_the_conditions_that_must_not_be_avera
 
 
 def test_a_report_type_nobody_described_is_grouped_on_every_condition():
-    strict = (lambda c: (rs.measurement_stats(c, "fiber_olt_power"), c.sql[-1].split("GROUP BY")[1].split("ORDER BY")[0])[1])(Conn())
+    strict = (lambda c: (rs.measurement_stats(c, "fiber_olt_power"), [q for q in c.sql if "GROUP BY" in q][0].split("GROUP BY")[1].split("ORDER BY")[0])[1])(Conn())
     assert all(f"m.{d}" in strict for d in ("test_case_id", *rs.CONDITIONS))
     assert rs.optional_dims("fiber_olt_power") == []
 
@@ -234,3 +234,38 @@ def test_a_few_measurements_of_one_condition_are_listed_each_before_the_statisti
 def test_the_query_returns_each_value_of_a_small_group():
     from src.report_numeric import stats as rs
     assert rs.EACH_VALUE_UP_TO == 10
+
+
+def wifi_tput_row(ch, freq, metric, direction, value, band="2.4GHz", bw=20):
+    return {"product_id": "CHS3320N", "dut_model": "CHS3320N-D388", "report_type": "wifi_throughput", "document_id": "SIT-TR-WL-Throughput-CHS3320N", "metric_name": metric,
+            "unit": "dBm" if metric == "rssi" else "Mbps", "value_basis": "measured", "band": band, "bandwidth_mhz": bw, "direction": direction, "protocol": "tcp" if direction else None,
+            "channel": ch, "center_freq_mhz": freq, "n": 1, "total": value, "average": value, "minimum": value, "maximum": value, "median": value, "p95": value, "first_no": None, "last_no": None}
+
+
+def test_a_wifi_throughput_report_is_one_line_per_channel_with_uplink_downlink_rssi_and_the_verdict():
+    rows = [wifi_tput_row(1, 2412, "throughput", "dl", 390.77), wifi_tput_row(1, 2412, "throughput", "ul", 356.75), wifi_tput_row(1, 2412, "rssi", None, -24.63),
+            wifi_tput_row(2, 2417, "throughput", "dl", 408.43), wifi_tput_row(2, 2417, "throughput", "ul", 411.98), wifi_tput_row(2, 2417, "rssi", None, -24.75)]
+    verdicts = [{"document_id": "SIT-TR-WL-Throughput-CHS3320N", "band": "2.4GHz", "bandwidth_mhz": 20, "channel": 1, "result": "pass", "criteria_value": 344.2, "criteria_unit": "Mbps"}]
+    text = stats.render({"rows": rows, "truncated": False, "series": CAT["wifi_throughput"]["series"], "group_by": ["channel", "center_freq_mhz"], "verdicts": verdicts}, {})
+    assert "【CHS3320N-D388／2.4GHz，20MHz】" in text
+    assert "- Ch1（2412 MHz）：下行 390.77，上行 356.75 Mbps，RSSI -24.63 dBm，判定 Pass（基準 344.2 Mbps）" in text
+    assert "- Ch2（2417 MHz）：下行 408.43，上行 411.98 Mbps，RSSI -24.75 dBm" in text and "判定" not in text.split("Ch2")[1]
+
+
+def test_a_cut_result_says_so_first_and_keeps_whole_lines():
+    rows = [wifi_tput_row(i, 2400 + i, "throughput", "dl", 400.0 + i) for i in range(1, 400)]
+    text = stats.render({"rows": rows, "truncated": False, "series": CAT["wifi_throughput"]["series"], "group_by": ["channel", "center_freq_mhz"], "verdicts": []}, {})
+    assert len(text) <= stats.MAX_CHARS + 400 and text.startswith("【注意】內容太長，已截斷") and "資料不完整" in text.split(chr(10))[0]
+    assert text.rstrip().endswith("Mbps")                      # cut at a whole line, not in the middle of a number
+    flagged = stats.render({"rows": rows[:3], "truncated": True, "series": CAT["wifi_throughput"]["series"], "group_by": ["channel"]}, {})
+    assert flagged.startswith("【注意】查詢結果超過") and "已截斷" in flagged.split(chr(10))[0]
+
+
+def test_the_verdicts_of_each_channel_are_asked_for_with_the_same_filters():
+    conn = Conn()
+    rs.measurement_stats(conn, "wifi_throughput", filters={"band": "2.4GHz", "bandwidth_mhz": 20}, group_by=["channel"], documents=["SIT-TR-WL-Throughput-CHS3320N"])
+    sql = [q for q in conn.sql if "test_item_result" in q]
+    assert len(sql) == 1 and conn.params[conn.sql.index(sql[0])]["band"] == "2.4GHz" and conn.params[conn.sql.index(sql[0])]["docs"] == ["SIT-TR-WL-Throughput-CHS3320N"]
+    other = Conn()
+    rs.measurement_stats(other, "wifi_throughput")
+    assert not [q for q in other.sql if "test_item_result" in q]
