@@ -317,6 +317,10 @@ For an RvR answer listed by channel (one band and bandwidth), `zone_pages.stats.
 - Front end: `zone.35298cb9bf7a.js` copied next to the other zone files; only `zones/csit/index.html` points at it (it pointed at `zone.72801450518c.js`). Rollback: restore `zones/csit/index.html.before-rvr-20261109`. Other zone pages untouched.
 - Verified on the server with the real planner: CHS3320N 2.4GHz 20MHz RvR gives three charts (Tx, Rx, RSSI; 3 channels, 18 attenuation points); 5GHz 80MHz asked for throughput gives Tx and Rx (6 channels); the 5GHz 20MHz throughput question still gives its channel chart; "all RvR data" asks for a band and bandwidth and carries no chart. The pages' HTML has no cache header, so a browser may need Ctrl+F5 to load the new file.
 
-## Wide tables in an answer stay readable (built locally, not deployed)
+## Wide tables in an answer stay readable (deployed 2026-11-09, da40)
 
 The style sheet gives every table equal fixed columns that fit the box (`table { width: 100%; table-layout: fixed }`). An RvR answer written as a table with the attenuation as columns (19 columns) was squeezed until each number broke digit by digit. `frontend/zones/zone.6f98a89f1f90.js` (the deployed `zone.35298cb9bf7a.js` plus a change to `renderMarkdown` only) renders each answer table with inline styles: columns take the width their content needs, no wrapping in a cell, the table scrolls sideways in its box (`.md-table` already had `overflow-x: auto`) and the first column stays in view. A narrow table still fills the box. The style sheet is untouched (no new hash for it). Checked with the CHS3320N 5GHz 80MHz RvR values (18 attenuation columns) in the real style sheet: 1240 px of table in a 549 px box, the first column still at the left edge after scrolling 400 px. To deploy: copy the file next to the others and point `zones/csit/index.html` at it; no back-end change.
+
+### Deployed (da40): wide tables
+
+`zone.6f98a89f1f90.js` copied next to the other zone files (served file identical to the repo's); only `zones/csit/index.html` points at it now (it pointed at `zone.35298cb9bf7a.js`). No back-end change. Rollback: restore `zones/csit/index.html.before-table-20261109`. The earlier files `zone.35298cb9bf7a.js` and `zone.72801450518c.js` are still in the directory. Other zone pages untouched. A browser may need Ctrl+F5 to load it.
