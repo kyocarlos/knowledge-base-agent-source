@@ -3,11 +3,14 @@ import hashlib,json,shutil,uuid
 from datetime import datetime,timezone
 from pathlib import Path
 from .errors import IntegrationError,LeaseLost
-from .pipeline import FORMAT_MIME,Parser,validate_file,normalize,stable_id
+from .pipeline import FORMAT_MIME,validate_file,normalize,stable_id
+from .v2_pipeline import V2Parser,validate_v2_file
 from .doclib_metadata import build_result
 from .doclib_metadata import zone_fields
 
 PARSER_VERSION="km-csit-doclib-parser-v1"
+# Slides and Markdown are read like the v2 route reads them (seminar handouts, lab posters and environment decks are mostly .pptx); the other types keep the v1 checks.
+EXTRA_SUFFIXES=(".md",".pptx")
 
 def doclib_dir(root,csit_job_id):
     return Path(root)/"doclib"/str(csit_job_id)
@@ -47,20 +50,21 @@ class DocLibQdrantWriter:
 class DocLibPipeline:
     def __init__(self,settings,repository,client,qdrant_writer,parser=None,semantic=None):
         self.settings,self.repo,self.client,self.qdrant=settings,repository,client,qdrant_writer
-        self.parser=parser or Parser(settings)
+        self.parser=parser or V2Parser(settings)
         self.semantic=semantic # text -> dict|None (see doclib_metadata.make_semantic_extractor)
     def run(self,job):
         s=self.settings
         root=doclib_dir(s.storage_root,job["csit_job_id"])
         suffix=Path(job["original_file_name"]).suffix.lower()
-        if suffix not in FORMAT_MIME:raise IntegrationError("UNSUPPORTED_DOCUMENT_FORMAT","Document format unsupported")
+        if suffix not in FORMAT_MIME and suffix not in EXTRA_SUFFIXES:raise IntegrationError("UNSUPPORTED_DOCUMENT_FORMAT","Document format unsupported")
         path=root/("source-"+str(job["lease_token"])+suffix)
         self.repo.phase(job,"Downloading")
         digest=self.client.download_file(job,path)
         self.repo.set_hash(job,digest)
         self.repo.phase(job,"Validating")
         # CSIT's declared MIME is advisory here; the extension and the file signature decide.
-        validate_file(path,{"file_name":job["original_file_name"],"content_type":FORMAT_MIME[suffix]},s)
+        if suffix in EXTRA_SUFFIXES:validate_v2_file(path,suffix,job["original_file_name"],s)
+        else:validate_file(path,{"file_name":job["original_file_name"],"content_type":FORMAT_MIME[suffix]},s)
         self.repo.phase(job,"Parsing")
         extraction=normalize(self.parser.parse(path,suffix),job,())
         if not extraction.text.strip():raise IntegrationError("EMPTY_EXTRACTION","No text could be extracted from the document")

@@ -11,6 +11,7 @@ from .pipeline import FORMAT_MIME,Parser,Extraction,validate_file,check_ooxml,no
 from .doclib_metadata import detect_language,clean_semantic,_page_count
 from .v2_models import SOURCE_SPECIFIC_DEFAULTS,validate_result_v2
 from .doclib_metadata import zone_fields
+from .zones import ZONE_BY_ID,zone_by_classification
 
 PARSER_VERSION="km-csit-v2-parser-v1"
 PARSEABLE=tuple(FORMAT_MIME)+(".md",".pptx")
@@ -107,9 +108,13 @@ def metadata_payload(change_payload):
     cls=change_payload["classification"]
     a=change_payload["attributes"]
     names={k:(cls.get(k) or {}).get("name") for k in ("l1","l2","l3")}
-    return {"classification":names, # the zone stays: KM decided it from the content, CSIT's classification is not the zone
-            "tags":a["tags"],"keywords":a["keywords"],"display_name":a["displayName"],
-            "model_numbers":a["modelNumbers"],"vendor_reference":a["vendorReference"]}
+    out={"classification":names,
+         "tags":a["tags"],"keywords":a["keywords"],"display_name":a["displayName"],
+         "model_numbers":a["modelNumbers"],"vendor_reference":a["vendorReference"]}
+    # A document moved to another CSIT classification moves to the zone that classification maps to; when the table does not decide, the zone KM chose from the content stays.
+    zone_id=zone_by_classification(names["l1"],names["l2"],names["l3"]) if change_payload.get("sourceType")!="TestReport" else None
+    if zone_id:out.update({"zone_id":zone_id,"topic_zone":ZONE_BY_ID[zone_id],"zone_basis":"classification_table"})
+    return out
 
 class V2QdrantWriter:
     """Chunks go to the document-library collection stamped with the exact source identity (source, entity, document, version)."""

@@ -1,10 +1,11 @@
 """Which KM knowledge zone a CSIT document belongs to.
 
 The nine zones are the entries of the KM left navigation. CSIT does not classify documents, so KM decides from the content with the same LLM call that
-produces documentType / summary / keywords. The rules, in order:
+produces documentType / summary / keywords, except where the CSIT classification (mapping table 2026-11-10) already names the zone. The rules, in order:
   1. a Test Report is always 產品驗證專區 (CSIT's Test Report source, or a document the LLM recognises as a test report), whatever its technology;
-  2. any other document goes to the zone the LLM named for its content;
-  3. when the LLM gave nothing usable (unavailable, or unsure): CSIT's first classification level if it happens to be a zone name;
+  2. the zone CSIT's classification maps to (zone_by_classification: e.g. 外部認證資料 -> 認證, 部門文管專區 -> 文管, 技術相關文件／Wi-Fi -> WiFi);
+  3. otherwise the zone the LLM named for the content (research seminars, Broadband Forum documents and anything the table does not decide);
+  3b. when the LLM gave nothing usable (unavailable, or unsure): CSIT's first classification level if it happens to be a zone name;
   4. then the home zone of the attachment sources (verification-application attachment, vendor file, equipment attachment);
   5. otherwise 待分類 — kept, not guessed.
 KM stores the result on every point it writes (zone_id, topic_zone, zone_basis); the zone pages filter on topic_zone.
@@ -41,13 +42,40 @@ def search_names(zone_id):
     return [ZONE_BY_ID[zone_id]] + [k for k, v in ALIASES.items() if v == zone_id and k != ZONE_BY_ID[zone_id]] if zone_id in ZONE_BY_ID else []
 
 
-def resolve_zone(source_type, l1_name=None, document_type=None, zone_hint=None):
-    """-> (zone_id, topic_zone, basis). basis says why: source_type / document_type (a test report), llm (the content), classification (CSIT's L1),
-    source_default, or none."""
+# CSIT's own classification (the document-centre table, 第一層／第二層／第三層) decides the zone when the table says so (mapping table 2026-11-10).
+L1_ZONE = {"產品驗證資料": "verification", "外部認證資料": "cert", "設備儀器管理": "equipment", "實驗室內部管理": "lab", "部門文管專區": "admin", "公司官方文件": "admin"}
+# Under 技術相關文件 and 國際組織規範 the second level names the technology / organisation. Research seminars and Broadband Forum documents are not here:
+# the content decides (seminars of several technologies, TR-398 versus PON).
+_TECH_ZONE = (("wifi", re.compile(r"wi-?fi|802\.11|ieee")), ("mobile", re.compile(r"cellular|lte|5g|\bnr\b|ntn|redcap|6g|small ?cell|3gpp|\bcpe\b")),
+              ("broadband", re.compile(r"(?<![a-z])pon(?![a-z])|\bcable\b|docsis|xdsl|dsl")))
+
+
+def zone_by_classification(l1=None, l2=None, l3=None):
+    """The zone CSIT's classification names, or None when it does not decide (or the names are not those of the table)."""
+    l1, l2, l3 = (str(x or "").strip() for x in (l1, l2, l3))
+    if l1 == "實驗室內部管理":                              # two rows leave the lab: test plans are product verification, calibration reports belong to the instrument
+        if "測試計畫" in l2:
+            return "verification"
+        if "環境校驗" in l3:
+            return "equipment"
+    if l1 in L1_ZONE:
+        return L1_ZONE[l1]
+    if l1 in ("技術相關文件", "國際組織規範") and l2 and "研討會" not in l2 and not (l1 == "國際組織規範" and "broadband forum" in l2.casefold()):
+        text = l2.casefold()
+        return next((zone for zone, pattern in _TECH_ZONE if pattern.search(text)), None)
+    return None
+
+
+def resolve_zone(source_type, l1_name=None, document_type=None, zone_hint=None, l2_name=None, l3_name=None):
+    """-> (zone_id, topic_zone, basis). basis says why: source_type / document_type (a test report), classification_table (CSIT's classification as the table
+    maps it), llm (the content), classification (CSIT's L1 is itself a zone name), source_default, or none."""
     if source_type == "TestReport":
         return "verification", ZONE_BY_ID["verification"], "source_type"
     if document_type == "TestReport":
         return "verification", ZONE_BY_ID["verification"], "document_type"
+    zone_id = zone_by_classification(l1_name, l2_name, l3_name)
+    if zone_id:
+        return zone_id, ZONE_BY_ID[zone_id], "classification_table"
     if zone_hint in ZONE_BY_ID:
         return zone_hint, ZONE_BY_ID[zone_hint], "llm"
     zone_id = zone_id_for_name(l1_name)
@@ -61,5 +89,6 @@ def resolve_zone(source_type, l1_name=None, document_type=None, zone_hint=None):
 
 def zone_payload(source_type, classification_names=None, document_type=None, zone_hint=None):
     """The three payload fields for a point. classification_names: {"l1": name|None, ...} (names, not ids)."""
-    zone_id, topic_zone, basis = resolve_zone(source_type, (classification_names or {}).get("l1"), document_type, zone_hint)
+    names = classification_names or {}
+    zone_id, topic_zone, basis = resolve_zone(source_type, names.get("l1"), document_type, zone_hint, names.get("l2"), names.get("l3"))
     return {"zone_id": zone_id, "topic_zone": topic_zone, "zone_basis": basis}

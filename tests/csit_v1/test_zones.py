@@ -3,7 +3,7 @@ import pytest
 from src.csit_integration_v1.doclib_pipeline import DocLibQdrantWriter
 from src.csit_integration_v1.v2_pipeline import V2QdrantWriter, metadata_payload
 from src.csit_integration_v1.writers import QdrantWriter
-from src.csit_integration_v1.zones import ZONES, resolve_zone, zone_payload
+from src.csit_integration_v1.zones import ZONES, resolve_zone, zone_by_classification, zone_payload
 
 NAMES = ["WiFi 知識專區", "行動通訊知識專區", "固網寬頻知識專區", "認證知識專區", "產品驗證專區", "設備儀器專區", "實驗室管理專區", "Confluence / Jira / TestRail 查詢專區", "部門與公司文管專區"]
 
@@ -29,6 +29,51 @@ def test_the_names_the_zones_had_before_the_rename_still_land_correctly():
 def test_a_test_report_is_always_product_verification_whatever_its_classification():
     assert resolve_zone("TestReport", None) == ("verification", "產品驗證專區", "source_type")
     assert resolve_zone("TestReport", "WiFi 知識專區")[0] == "verification"
+
+
+@pytest.mark.parametrize("l1,l2,l3,zone", [
+    ("產品驗證資料", "RTF7907VW-D223", "測試報告", "verification"), ("外部認證資料", "RTF7907VW-D223", "Wi-Fi", "cert"),
+    ("設備儀器管理", "設備資訊", "Candela Wi-Fi7 Testbed_12345678", "equipment"), ("設備儀器管理", "廠商資訊", "Keysight", "equipment"),
+    ("實驗室內部管理", "實驗室規劃相關", "實驗室介紹", "lab"), ("實驗室內部管理", "測試環境相關", "環境介紹簡報", "lab"),
+    ("實驗室內部管理", "測試環境相關", "環境校驗報告", "equipment"), ("實驗室內部管理", "測試計畫文件", "Wi-Fi", "verification"),
+    ("部門文管專區", "Time Report", None, "admin"), ("公司官方文件", "人事行政相關", None, "admin"),
+    ("技術相關文件", "Wi-Fi", "Wi-Fi7", "wifi"), ("技術相關文件", "技術名稱：Wi-Fi", None, "wifi"), ("技術相關文件", "Cellular", "5G-NR", "mobile"),
+    ("技術相關文件", "Small Cell", None, "mobile"), ("技術相關文件", "PON", None, "broadband"), ("技術相關文件", "Cable", None, "broadband"),
+    ("國際組織規範", "Wi-Fi Alliance", "SPEC", "wifi"), ("國際組織規範", "IEEE", "SPEC", "wifi"), ("國際組織規範", "3GPP", "SPEC", "mobile"),
+])
+def test_the_csit_classification_decides_the_zone_as_the_mapping_table_says(l1, l2, l3, zone):
+    assert zone_by_classification(l1, l2, l3) == zone
+    assert resolve_zone("DocumentLibraryFile", l1, "Specification", "wifi" if zone != "wifi" else "cert", l2, l3)[::2] == (zone, "classification_table")   # before the LLM
+
+
+@pytest.mark.parametrize("l1,l2", [("技術相關文件", "研討會講義"), ("國際組織規範", "Broadband Forum"), ("技術相關文件", None), ("未知分類", "Wi-Fi"), (None, None)])
+def test_where_the_table_does_not_decide_the_content_does(l1, l2):
+    assert zone_by_classification(l1, l2, None) is None
+    assert resolve_zone("DocumentLibraryFile", l1, "Presentation", "mobile", l2, None)[::2] == ("mobile", "llm")
+
+
+def test_a_test_report_stays_product_verification_whatever_the_classification_says():
+    assert resolve_zone("TestReport", "技術相關文件", None, None, "Wi-Fi")[0] == "verification"
+    assert resolve_zone("DocumentLibraryFile", "技術相關文件", "TestReport", None, "Cellular")[0] == "verification"
+
+
+def test_zone_fields_use_all_three_classification_levels():
+    from src.csit_integration_v1.doclib_metadata import zone_fields
+    f = zone_fields("DocumentLibraryFile", {"l1": "技術相關文件", "l2": "PON", "l3": None}, {"documentType": "Manual", "zone": "WiFi 知識專區"}, "t")
+    assert (f["zone_id"], f["zone_basis"]) == ("broadband", "classification_table")
+
+
+def test_a_metadata_change_to_another_classification_moves_the_zone_only_when_the_table_decides():
+    from src.csit_integration_v1.v2_pipeline import metadata_payload
+    change = {"sourceType": "DocumentLibraryFile", "classification": {"l1": {"id": "1", "name": "外部認證資料"}, "l2": None, "l3": None},
+              "attributes": {"tags": [], "keywords": [], "displayName": None, "modelNumbers": [], "vendorReference": None}}
+    out = metadata_payload(change)
+    assert (out["zone_id"], out["topic_zone"], out["zone_basis"]) == ("cert", "認證知識專區", "classification_table")
+    change["classification"] = {"l1": {"id": "1", "name": "技術相關文件"}, "l2": {"id": "2", "name": "研討會講義"}, "l3": None}
+    assert "zone_id" not in metadata_payload(change)                       # the zone KM chose from the content stays
+    change["sourceType"] = "TestReport"
+    change["classification"] = {"l1": {"id": "1", "name": "外部認證資料"}, "l2": None, "l3": None}
+    assert "zone_id" not in metadata_payload(change)
 
 
 def test_sources_without_a_usable_l1_fall_back_to_their_home_zone():
