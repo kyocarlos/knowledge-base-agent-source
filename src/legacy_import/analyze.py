@@ -11,7 +11,7 @@ import re
 from dataclasses import dataclass, field
 from typing import Callable
 
-from .taxonomy import ON_HOLD, UNCLASSIFIED, Row, choices
+from .taxonomy import UNCLASSIFIED, Row, choices
 
 DOCUMENT_TYPES = ("Specification", "Manual", "TestReport", "SOP", "MeetingMinutes", "IssueAnalysis", "Presentation", "Other")
 TECHNOLOGIES = ("Wi-Fi", "Cellular", "Small Cell", "PON", "Cable")
@@ -25,9 +25,10 @@ SYSTEM = """你是企業知識庫的文件整理員。依「文件路徑」與�
 
 一、分類：從下列分類表選出最符合的一列（row_id），不可自創。再依該列的第二層、第三層描述，從路徑或內容填入具體名稱（例如機種名稱、認證項目、廠商名稱、設備名稱、實驗室名稱、研討會名稱、組織名稱），找不到就填 null。
   classification.evidence 必須是路徑或內容中「一字不差」的一小段文字，作為判斷依據。信心 confidence 為 0 到 1。
-  CPE 相關文件歸入 Cellular（4G/5G）。
+  CPE 相關文件（CPE、路由器、閘道器、用戶端設備）歸入 Cellular（行動通訊）。
+  研討會講義若跨多種技術，選內容最接近的那個技術的研討會講義列，不要因為跨技術就放棄分類。
   IEEE 標準目前只對應 IEEE 802.11（Wi-Fi）；802.3（乙太網路）等其他標準不屬於 Wi-Fi 的 IEEE 列。
-  人事行政、採購請款、預算、簽呈、費用、Time Report、合約、報價類文件，請選擇對應的列（即使它們看起來像雜項），不要歸入內部雜項。
+  人事行政、採購請款、預算、簽呈、費用、Time Report、報價類文件，請選擇對應的列（即使它們看起來像雜項），不要歸入內部雜項。
   xDSL／ADSL／VDSL／DSLAM 文件選 s1；設備預約系統（Project System）文件選 s2；實驗室管理辦法選 s3；IEEE 802.3、ITU-T 等非 802.11 標準選 s4。
   內容明確屬於認證（含 USB-IF、Wi-Fi Alliance 等認證流程）、設備、實驗室或某項技術的文件，優先選該類的列；31 只用於這些都不符合的公司內部事務文件。
   廠商的產品介紹、規格書、操作手冊不是採購請款文件；只有報價單、請購單、訂單、發票、請款單才選採購請款列。
@@ -60,7 +61,7 @@ class Result:
     document: dict = field(default_factory=dict)
     technical: dict = field(default_factory=dict)
     warnings: list[str] = field(default_factory=list)
-    skip_reason: str | None = None          # set for sensitive documents (HR / procurement / Time Report): never written to any store
+    skip_reason: str | None = None          # set when a document must not be written to any store (none of the classification rows does this any more)
 
 
 def _norm(text: str) -> str:
@@ -139,10 +140,6 @@ def analyze(complete: Callable[[list[dict]], str], path: str, text: str, rows: l
     result.confidence = confidence
     result.evidence = evidence if isinstance(evidence, str) else None
     result.suggested_row = row_id if row_id in by_id else None
-    if row_id in ON_HOLD and confidence >= 0.4:                  # a doubtful sensitive guess is still not imported
-        result.row = by_id[row_id]
-        result.skip_reason = f"sensitive: {result.row.label()}"
-        return result
     if row_id in by_id and confidence >= MIN_CONFIDENCE:
         result.row = by_id[row_id]
     else:

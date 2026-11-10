@@ -68,7 +68,9 @@ def _entity_zones(question: str) -> list[dict]:
     by_name = {name: zone_id for zone_id, name in ZONE_NAMES.items()}
     counts: dict[str, int] = {}
     for token in tokens:
-        rows = _catalogue()._run("MATCH (d:LegacyDocument)-[:MENTIONS]->(e:LegacyEntity) WHERE toLower(e.name) CONTAINS toLower($t) "
+        # a name the documents mention, or part of a document's title (a seminar named "date_host_name" is found by the name, wherever its content put it)
+        rows = _catalogue()._run("MATCH (d:LegacyDocument) OPTIONAL MATCH (d)-[:MENTIONS]->(e:LegacyEntity) "
+                                 "WITH d, e WHERE toLower(e.name) CONTAINS toLower($t) OR toLower(d.title) CONTAINS toLower($t) "
                                  "RETURN d.topic_zone AS zone, count(DISTINCT d) AS n", t=token)
         for row in rows:
             zone_id = by_name.get(row["zone"])

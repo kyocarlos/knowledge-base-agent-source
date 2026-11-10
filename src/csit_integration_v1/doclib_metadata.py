@@ -1,6 +1,6 @@
 """Completed.result builder (spec v1.3 section 5).
 
-Rule-derived fields are computed here. Only documentType, summary and keywords may come from a model, and each is
+Rule-derived fields are computed here. Only documentType, summary, keywords, the zone and the technology tag may come from a model, and each is
 validated before use. Everything unknown stays null / [] and nothing is guessed (no author, date, model, measurement).
 """
 import json,re
@@ -12,6 +12,9 @@ from .zones import GIVE_UP,zone_id_for_name,zone_payload
 MAX_SUMMARY=600
 MAX_KEYWORDS=20
 SEMANTIC_INPUT_CHARS=12000
+TECHNOLOGY_TAGS=("Wi-Fi","Cellular","Small Cell","PON","Cable")
+# CPE documents belong to 行動通訊知識專區 (mapping table row 15). Used only when the model named no zone; the CPE model list CSIT is to provide is not here yet.
+CPE_WORDS=re.compile(r"\bCPE\b|路由器|閘道器|用戶端設備|customer premises",re.I)
 
 def detect_language(text):
     sample=text[:20000]
@@ -22,10 +25,13 @@ def detect_language(text):
 
 def clean_semantic(raw,text):
     """Validate model output. Anything not provable from the extracted text is dropped."""
-    out={"documentType":"Other","summary":None,"keywords":[],"zone_hint":None}
+    out={"documentType":"Other","summary":None,"keywords":[],"zone_hint":None,"technology":None}
     if not isinstance(raw,dict):return out
+    tech=raw.get("technology")
+    if tech in TECHNOLOGY_TAGS:out["technology"]=tech
     z=raw.get("zone")
     if isinstance(z,str):out["zone_hint"]=zone_id_for_name(z) # a name that is not one of the zones (or the give-up answer) leaves no hint
+    if out["zone_hint"] is None and CPE_WORDS.search(text[:SEMANTIC_INPUT_CHARS]):out["zone_hint"]="mobile"
     dt=raw.get("documentType")
     if isinstance(dt,str) and dt in DOCUMENT_TYPES:out["documentType"]=dt
     summary=raw.get("summary")
@@ -73,19 +79,21 @@ def build_result(job,extraction,suffix,source_path,semantic,index_id,chunk_count
 def llm_prompt(text):
     body=text[:SEMANTIC_INPUT_CHARS]
     return ("你是文件分類器。只根據下列文件內容回答，不得臆測；不確定就留空。\n"
-        "輸出 JSON 物件，鍵為 documentType、summary、keywords、zone。\n"
+        "輸出 JSON 物件，鍵為 documentType、summary、keywords、zone、technology。\n"
+        "technology：文件主要談的技術，只能是 "+"、".join(TECHNOLOGY_TAGS)+" 其中之一（CPE 屬於 Cellular）；看不出來或跨多種技術就留空。\n"
         "documentType 只能是："+"、".join(DOCUMENT_TYPES)+"。\n"
         "summary：不超過 "+str(MAX_SUMMARY)+" 字，使用文件原語言。\n"
         "keywords：最多 "+str(MAX_KEYWORDS)+" 個，必須是文件中實際出現的字詞。\n"
         "zone：這份文件該放進哪個知識專區，只能是下列名稱之一，或「"+GIVE_UP+"」。依文件內容的主題判斷，不看檔名。\n"
-        "  產品驗證專區：測試報告（documentType 為 TestReport 的文件一律填這個，不論它測的是哪種技術）、產品資訊、驗證申請單\n"
+        "  跨多種技術的文件（例如研討會講義）選內容最接近的專區，不要回「"+GIVE_UP+"」；只有完全看不出主題才回「"+GIVE_UP+"」。\n"
+        "  產品驗證專區：測試報告（documentType 為 TestReport 的文件一律填這個，不論它測的是哪種技術）、產品資訊、驗證申請單、測試計畫文件（各技術都放這裡）\n"
         "  WiFi 知識專區：Wi-Fi／802.11 的技術、規範與標準文件（不是測試報告）\n"
-        "  行動通訊知識專區：4G／5G／LTE／NR、Small Cell、CPE 的技術、規範與標準文件（不是測試報告）\n"
+        "  行動通訊知識專區：4G／5G／LTE／NR、Small Cell、CPE（路由器、閘道器、用戶端設備）的技術、規範與標準文件（不是測試報告）\n"
         "  固網寬頻知識專區：PON、Cable、DSL 的技術、規範與標準文件（不是測試報告）\n"
         "  認證知識專區：認證與法規、送測流程、認證項目\n"
         "  設備儀器專區：儀器設備資訊、廠商資訊、校驗與使用說明\n"
         "  實驗室管理專區：實驗室規劃、建置、測試環境與管理辦法\n"
-        "  Confluence / Jira / TestRail 查詢專區：Jira 單、Confluence 週報、TestRail 測試計畫與執行結果\n"
+        "  Confluence / Jira / TestRail 查詢專區：預留給之後的功能，目前不收文件，不要選這個專區\n"
         "  部門與公司文管專區：Time Report、Weekly Report、部門內部文件、人事行政、採購請款、組織架構等公司內部管理文件\n\n文件內容：\n"+body)
 
 def parse_llm_json(reply):
@@ -108,4 +116,4 @@ def zone_fields(source_type,classification_names,semantic,text):
     the document (type, summary, keywords, when it was indexed)."""
     sem=clean_semantic(semantic,text)
     return {**zone_payload(source_type,classification_names,sem["documentType"],sem["zone_hint"]),"document_type":sem["documentType"],"summary":sem["summary"],
-            "keywords":sem["keywords"],"indexed_at":datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")}
+            "technology_tag":sem["technology"],"keywords":sem["keywords"],"indexed_at":datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")}

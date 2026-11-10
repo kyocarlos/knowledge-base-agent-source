@@ -14,8 +14,7 @@ CSV_PATH = Path(__file__).resolve().parents[2] / "config" / "csit-topic-map.csv"
 
 # Rows that do not describe NAS files: requests / weekly reports kept in Jira or Confluence.
 NOT_FILES = {"3b", "30b"}
-# Time Report, HR and procurement documents: not imported until a permission rule exists.
-ON_HOLD = {"29", "32", "33"}
+# Time Report, HR and procurement documents are imported like any other (decision A of the 2026-11-10 mapping table: no access rules, everyone sees them).
 
 MISC_ZONE = "CSIT雜項專區"
 
@@ -44,12 +43,8 @@ def load(path: Path = CSV_PATH) -> list[Row]:
         return [Row(*[cell.strip() for cell in (record + [""] * 7)[:7]]) for record in reader if record and record[0].strip()]
 
 
-SENSITIVE_PATH_TERMS = (
-    "人力資源", "人事", "薪資", "考核", "請假", "績效",                       # HR (row 32)
-    "費用", "請款", "採購", "簽呈", "預算", "報價", "發票",                    # procurement / budget (row 33)
-    "time report", "timereport", "工時",                                      # Time Report (row 29)
-    "合約", "合同", "contract", "quotation", "invoice", "nda", "保密",         # contracts / quotes in English paths
-)
+# Only contracts and confidentiality agreements stay out: the topic table has no row for them. HR, procurement and Time Report documents have rows (32, 33, 29).
+SENSITIVE_PATH_TERMS = ("合約", "合同", "contract", "nda", "保密")
 
 # Driver packages, binaries and vendor codec source trees: no knowledge value, never read.
 NOISE_PATH_TERMS = ("/drivers/", "/binaries/", "/binary/", "g729", "g.729", "g723", "g.723", "/node_modules/", "/.git/",
@@ -88,10 +83,9 @@ SUPPLEMENT = (
 
 
 def choices(rows: list[Row] | None = None) -> list[Row]:
-    """Rows a legacy document may be classified into. The on-hold rows stay selectable so the classifier can name a sensitive document;
-    analyze() then marks it as skipped instead of letting it fall into a catch-all row."""
+    """Rows a legacy document may be classified into."""
     return [row for row in (rows if rows is not None else load()) if row.id not in NOT_FILES] + list(SUPPLEMENT)
 
 
 def zones(rows: list[Row] | None = None) -> list[str]:
-    return sorted({row.topic for row in choices(rows) if row.id not in ON_HOLD})
+    return sorted({row.topic for row in choices(rows)})

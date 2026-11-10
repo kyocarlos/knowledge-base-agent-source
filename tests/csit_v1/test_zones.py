@@ -141,6 +141,28 @@ def test_the_prompt_lists_every_zone_and_the_test_report_rule():
     assert all(name in prompt for _,name in ZONES) and "無法判斷" in prompt and "TestReport" in prompt and "不看檔名" in prompt
 
 
+def test_the_prompt_asks_for_the_closest_zone_for_cross_technology_documents_and_a_technology_tag():
+    prompt=llm_prompt("內容")
+    assert "跨多種技術的文件（例如研討會講義）選內容最接近的專區" in prompt and "technology" in prompt and "測試計畫文件" in prompt
+    assert "目前不收文件" in prompt
+
+
+def test_the_technology_tag_is_kept_only_when_it_is_one_of_the_known_technologies():
+    assert clean_semantic({"technology":"Wi-Fi"},"t")["technology"]=="Wi-Fi"
+    assert clean_semantic({"technology":"Cellular"},"t")["technology"]=="Cellular"
+    assert clean_semantic({"technology":"藍牙"},"t")["technology"] is None and clean_semantic({"technology":5},"t")["technology"] is None
+    f=zone_fields("DocumentLibraryFile",{"l1":None},{"documentType":"Other","zone":"產品驗證專區","technology":"PON"},"t")
+    assert (f["zone_id"],f["technology_tag"])==("verification","PON")
+    assert zone_fields("DocumentLibraryFile",{"l1":None},None,"t")["technology_tag"] is None
+
+
+def test_a_cpe_document_without_a_zone_from_the_llm_goes_to_mobile():
+    assert clean_semantic({"zone":"無法判斷"},"本文件說明 CPE 韌體升級流程")["zone_hint"]=="mobile"
+    assert clean_semantic({"documentType":"Manual"},"路由器設定手冊")["zone_hint"]=="mobile"
+    assert clean_semantic({"zone":"認證知識專區"},"CPE 認證")["zone_hint"]=="cert"      # the LLM's zone wins; the keywords are only the fallback
+    assert clean_semantic({"zone":"無法判斷"},"the specification of a cell")["zone_hint"] is None
+
+
 def test_zone_fields_combine_the_documents_type_and_the_llms_zone():
     assert zone_fields("DocumentLibraryFile",{"l1":None},{"documentType":"TestReport","zone":"WiFi 知識專區"},"t")["zone_id"]=="verification"
     f=zone_fields("DocumentLibraryFile",{"l1":None},{"documentType":"Manual","zone":"認證知識專區","summary":"摘要","keywords":["t"]},"t")

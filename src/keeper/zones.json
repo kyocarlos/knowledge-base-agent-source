@@ -9,7 +9,7 @@
       "covers": [
         "Wi-Fi 技術文件（Wi-Fi 7、Wi-Fi 8、TR-398）",
         "Wi-Fi Alliance、IEEE 802.11 的 Test Plan／MRD／SPEC",
-        "以 Wi-Fi 為主的研討會講義"
+        "Wi-Fi 為主的研討會講義；跨多種技術的講義若內容最接近 Wi-Fi 也放這裡"
       ],
       "keywords": [
         "wifi",
@@ -31,7 +31,7 @@
     },
     {
       "id": "mobile",
-      "name": "4G/5G 知識專區",
+      "name": "行動通訊知識專區",
       "url": "/zones/mobile/",
       "summary": "行動通訊技術：LTE、5G NR、NTN、RedCap、6G 與 3GPP 規範，也包含 CPE 用戶端設備與 Small Cell 小型基地台。",
       "covers": [
@@ -39,7 +39,7 @@
         "3GPP 的 Test Plan／MRD／SPEC",
         "CPE 用戶端設備：路由器、閘道器的規格與韌體測試",
         "Small Cell 小型基地台：部署、OAM、O-RAN 互通",
-        "以 Cellular、Small Cell／O-RAN 為主的研討會講義"
+        "Cellular、Small Cell／O-RAN 為主的研討會講義；跨多種技術的講義若內容最接近行動通訊也放這裡"
       ],
       "keywords": [
         "4g",
@@ -79,7 +79,8 @@
       "covers": [
         "PON 技術與細項",
         "Cable 技術與細項",
-        "Broadband Forum 的 Test Plan／MRD／SPEC（PON、Cable 相關）"
+        "Broadband Forum 的 Test Plan／MRD／SPEC（PON、Cable 相關）",
+        "PON／Cable 為主的研討會講義；跨多種技術的講義若內容最接近固網也放這裡"
       ],
       "keywords": [
         "pon",
@@ -98,14 +99,13 @@
     },
     {
       "id": "csit",
-      "name": "CSIT雜項專區",
+      "name": "產品驗證專區",
       "url": "/zones/csit/",
-      "summary": "各機種的產品驗證資料：測試報告、產品資訊、申請單檔案，以及實驗室的測試計畫與跨技術研討會講義。",
+      "summary": "各機種的產品驗證資料：測試報告（不論測哪種技術）、產品資訊、申請單檔案，以及各技術的測試計畫。",
       "covers": [
         "各機種的測試報告與產品資訊",
         "測試申請單（存放於檔案者）",
-        "測試計畫（Wi-Fi／5G／Small Cell／PON）",
-        "跨多種技術的研討會講義"
+        "測試計畫（Wi-Fi／5G／Small Cell／PON，以技術標籤區分）"
       ],
       "keywords": [
         "測試報告",
@@ -123,7 +123,7 @@
     },
     {
       "id": "cert",
-      "name": "認證與法規知識專區",
+      "name": "認證知識專區",
       "url": "/zones/cert/",
       "summary": "外部認證與法規：Wi-Fi、藍牙、GCF、PTCRB 等認證項目、送測流程與各機種的認證資料。",
       "covers": [
@@ -152,7 +152,7 @@
       "id": "integrations",
       "name": "Confluence / Jira / TestRail 查詢專區",
       "url": "/zones/integrations/",
-      "summary": "存放在 Confluence、Jira、TestRail 裡的資料：申請單、週報、議題與測試執行結果的整合查詢。目前是模擬資料，尚未接上實際的系統。",
+      "summary": "預留給 Confluence、Jira、TestRail 的整合查詢（申請單、週報、議題與測試執行結果）。這是之後擴充的功能，目前沒有收件，也尚未接上實際的系統。",
       "covers": [
         "Jira 上的測試申請單與議題",
         "Confluence 上的 Weekly Report",
@@ -172,7 +172,7 @@
     },
     {
       "id": "equipment",
-      "name": "設備預約知識專區",
+      "name": "設備儀器專區",
       "url": "/zones/equipment/",
       "summary": "測試設備與儀器：設備資訊、廠商資料、環境校驗報告，以及預約與借用規範。",
       "covers": [
@@ -198,7 +198,7 @@
     },
     {
       "id": "lab",
-      "name": "實驗室與測試環境知識專區",
+      "name": "實驗室管理專區",
       "url": "/zones/lab/",
       "summary": "實驗室與測試環境：實驗室介紹、規劃與架構圖、建置資料與測試環境介紹。",
       "covers": [
@@ -220,20 +220,36 @@
       "id": "admin",
       "name": "部門與公司文管專區",
       "url": "/zones/admin/",
-      "summary": "部門與公司的一般文件：Weekly Report、內部雜項文件與組織架構。人事行政、採購請款、工時等敏感資料不收錄在此。",
+      "summary": "部門與公司的內部管理文件：Time Report、Weekly Report、內部雜項、人事行政、採購請款與組織架構。不分權限，所有使用者都可以看到。",
       "covers": [
+        "Time Report",
         "Weekly Report（存放於檔案者）",
         "內部雜項文件",
+        "人事行政相關文件",
+        "採購請款相關文件",
         "組織架構"
       ],
       "keywords": [
         "週報",
         "weekly report",
+        "time report",
+        "工時",
         "組織架構",
         "部門",
         "公司文件",
         "內部文件",
-        "組織"
+        "組織",
+        "人事",
+        "人事行政",
+        "薪資",
+        "考核",
+        "請假",
+        "績效",
+        "採購",
+        "請款",
+        "報價",
+        "發票",
+        "預算"
       ]
     }
   ]

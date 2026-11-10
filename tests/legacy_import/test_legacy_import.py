@@ -31,13 +31,13 @@ def run(**override):
 
 def test_table_has_the_expected_rows_and_zones():
     rows = taxonomy.load()
-    assert len(rows) == 36 and {r.id for r in rows} >= {"1", "14", "30b", "34"}
+    assert len(rows) == 35 and {r.id for r in rows} >= {"1", "14", "30b", "34"} and "23" not in {r.id for r in rows}   # no catch-all row for cross-technology seminars
     ids = {r.id for r in taxonomy.choices(rows)}
-    assert len(ids) == 38 and ids.isdisjoint({"3b", "30b"})         # Jira/Confluence rows are not files; the sensitive rows stay selectable
+    assert len(ids) == 37 and ids.isdisjoint({"3b", "30b"})         # Jira/Confluence rows are not files; HR, procurement and Time Report rows are ordinary rows
     assert {"29", "32", "33", "s1", "s2", "s3", "s4"} <= ids        # s1-s4: supplement rows for documents the CSIT table has no row for
     assert {r.id: r.topic for r in taxonomy.SUPPLEMENT} == {"s1": "固網寬頻知識專區", "s2": "設備預約知識專區", "s3": "實驗室與測試環境知識專區", "s4": "CSIT雜項專區"}
     zones = taxonomy.zones(rows)
-    assert "WiFi 知識專區" in zones and "認證與法規知識專區" in zones and "Confluence / Jira / TestRail 查詢專區" not in zones
+    assert "WiFi 知識專區" in zones and "認證與法規知識專區" in zones and "部門與公司文管專區" in zones and "Confluence / Jira / TestRail 查詢專區" not in zones
 
 
 def test_grounded_answer_is_accepted():
@@ -62,16 +62,14 @@ def test_unknown_row_or_missing_evidence_goes_to_review():
     assert no_evidence.row is taxonomy.UNCLASSIFIED and no_evidence.needs_review and no_evidence.suggested_row == "4" and no_evidence.confidence <= 0.4
 
 
-def test_sensitive_documents_are_skipped_by_path_and_by_classification():
-    held = run(classification__row_id="32")                              # the model names an HR document
-    assert held.skip_reason and held.row.id == "32"
-    assert run(classification__row_id="33", classification__confidence=0.45).skip_reason
-    assert run().skip_reason is None
+def test_hr_procurement_and_time_report_documents_are_imported_into_their_rows_only_contracts_stay_out():
+    held = run(classification__row_id="32")                              # the model names an HR document: an ordinary row now (no access rules)
+    assert held.skip_reason is None and held.row.id == "32" and held.row.topic == "部門與公司文管專區"
+    assert run(classification__row_id="33", classification__confidence=0.45).skip_reason is None
     for path in ("SIT文管專區/人力資源/人才管理學習.docx", "認證專區/認証預算/RD認証測試預算表.pptx", "設備廠商資訊/X/2015簽呈_X.docx",
-                 "部門/Time Report/2020.xlsx", "DA40費用支出統計料號表/DA40_July.xlsx"):
-        assert taxonomy.sensitive_path(path), path
-    assert taxonomy.sensitive_path("認證專區/WiFi/各年度認證/2012/Application Form.pdf") is None
-    for path in ("廠商/Meshlink Druid contract V3.docx", "認證/DLNA Certification Quotation For Swisscom.xlsx", "法務/NDA_Vendor.pdf", "廠商/保密協議.docx"):
+                 "部門/Time Report/2020.xlsx", "DA40費用支出統計料號表/DA40_July.xlsx", "認證/DLNA Certification Quotation For Swisscom.xlsx"):
+        assert taxonomy.sensitive_path(path) is None, path
+    for path in ("廠商/Meshlink Druid contract V3.docx", "法務/NDA_Vendor.pdf", "廠商/保密協議.docx"):   # the topic table has no row for contracts
         assert taxonomy.sensitive_path(path), path
     for path in ("標準/IEEE Standard 802.11.pdf", "會議/Agenda 2015.docx"):          # "nda" only counts as a whole word
         assert taxonomy.sensitive_path(path) is None, path

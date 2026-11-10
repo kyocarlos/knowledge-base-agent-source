@@ -47,10 +47,21 @@ def test_nothing_matching_asks_back_and_lists_every_island():
     assert asked["clarify"].startswith("你想找") and asked["answer"] == asked["clarify"]
 
 
-def test_sensitive_topics_are_not_routed_and_the_model_is_not_asked():
-    called = []
-    out = routing.route("我的薪資單在哪裡？", lambda m: called.append(m) or "{}")
-    assert out["mode"] == "rule" and "沒有收錄" in out["answer"] and out["zones"] == [] and not called
+def test_hr_procurement_and_time_report_questions_go_to_the_records_zone():
+    """Mapping table decision A: the records zone holds them and everyone may see them, so the keeper points there instead of refusing."""
+    out = routing.route("我的薪資單在哪裡？", llm({"intent": "route", "zones": [{"id": "admin", "reason": "人事行政文件在文管專區"}]}))
+    assert out["mode"] == "llm" and [z["id"] for z in out["zones"]] == ["admin"]
+    for question in ("採購請款單放哪裡", "Time Report 在哪", "人事行政文件"):
+        assert routing.route(question, None)["zones"][0]["id"] == "admin", question
+
+
+def test_the_catalogue_uses_the_names_of_the_navigation_and_describes_the_records_zone_fully():
+    names = {z["id"]: z["name"] for z in ZONES}
+    assert names["csit"] == "產品驗證專區" and names["mobile"] == "行動通訊知識專區" and names["cert"] == "認證知識專區"
+    assert names["equipment"] == "設備儀器專區" and names["lab"] == "實驗室管理專區" and names["admin"] == "部門與公司文管專區"
+    admin = next(z for z in ZONES if z["id"] == "admin")
+    assert "不分權限" in admin["summary"] and any("人事行政" in c for c in admin["covers"]) and any("採購請款" in c for c in admin["covers"])
+    assert "不要說找不到" in routing.SYSTEM and "跨多種技術" in routing.SYSTEM
 
 
 def test_news_uses_the_numbers_from_the_page_not_from_the_model():
