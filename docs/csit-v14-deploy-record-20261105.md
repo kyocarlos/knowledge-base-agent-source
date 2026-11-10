@@ -375,3 +375,11 @@ The 4G/5G sample reports hold no Excel chart objects (only environment diagrams 
 - Web image `km-da40-web:zone-pages-20261110d` (FROM `…20261110c`, `Dockerfile.web23`, overlay `ov14/web`: `zones.py` only). Override backup `override.before-k2`.
 - Checked in the worker container (no database writes): `zone_by_classification` gives cert / equipment / admin / admin / broadband / None (seminar: the LLM decides) / equipment for the table rows tried; a Cellular classification beats an LLM answer of WiFi (basis `classification_table`); a .pptx run through `DocLibPipeline` with fake repository, client and writer is read slide text and ends Completed (sourceFormat pptx). Web container knows the function. No traceback in the worker log. Not run: the database-backed CSIT tests; the screen; a real CSIT document.
 - Rollback: `images.env.before-v14s` to `images.env` and `csit-mode.sh reapply`; override image back to `…20261110c` (`override.before-k2`) and recreate web.
+
+## 2026-11-10 — the 7 sample reports removed from DA40 (approved by the user), to be re-sent by the real CSIT
+
+- Why: a re-sent report of identical content is answered "unchanged" and writes nothing, so a real-CSIT test would look green without proving the flow.
+- What: the 7 Test Reports the simulator had sent in live mode (5G: SCE2200 / SCU2050 handover, SCU2060 / SCU2140 / SCU5050 throughput; WiFi: CHS3320N RvR and Throughput). Their `source_record_id`s matched the 7 documentIds before anything was sent. Method: the simulator's `/api/delete-by-id` (v1, TestReport, `confirmLiveData`), i.e. the normal CSIT deletion flow.
+- Result: 7 deletion jobs Completed, 7 tombstones, callbacks `cleanupVerified=true`. Timescale `km_test`: test_run / measurement / item_result / condition / report_package all 0. Qdrant `ai_km_knowledge_v1`: 0 points. Neo4j: Document, TestRun, Report 0.
+- Left on purpose: Neo4j Product (6), Firmware (6), TestCase (51) nodes (shared-node rule; a later upload merges into them); the control-database job history (21 rows); the other collections (`wifi8_*`, `km_dev_upload_v1_da40`, `km_csit_docs_sim`).
+- Not undoable: the stored data is gone; the 18 sample files in `D:\Source_Code\know-ledge\測試報告範例檔案\` are the source for sending them again. 11 of the 18 (the other WiFi devices) were never in DA40.
