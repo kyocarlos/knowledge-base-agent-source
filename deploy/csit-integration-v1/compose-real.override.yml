@@ -12,8 +12,9 @@ x-real-env: &real-env
   # The v2 callbacks (verification attachments, vendor, equipment, metadata change, v2 deletion) need csit.km.status.write and csit.km.deletion-status.write as well
   # (v1.4.1 C.3): add them here once CSIT has registered them and the M2M contract test passed.
   KM_CSIT_OUTBOUND_SCOPES: csit.document.read,csit.ingestion.status.write
-  # false: check the outbound token against what the CSIT specs fix (issuer, audience, expiry, scope), not the Shared Identity claims (principal_type, client_id, sub).
-  KM_CSIT_OUTBOUND_STRICT: "false"
+  # true: the full Shared Identity check (principal_type, client_id, sub as well as issuer, audience, expiry, scope). CSIT's reply of 2026-11-10 does not accept a relaxed check
+  # without its Owner's approval; the relaxed mode stays in the code but is not switched on here.
+  KM_CSIT_OUTBOUND_STRICT: "true"
   # v1.4.1 C.2: stays off until CSIT has deployed the Test Report Correlation Resolver (task C).
   KM_CSIT_ANALYSIS_RESULTS_ENABLED: "false"
   KM_CSIT_DOCLIB_LLM: "1"
