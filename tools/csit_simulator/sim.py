@@ -22,7 +22,8 @@ TAXONOMY=[
  {"id":"10","name":"設備儀器專區","children":[{"id":"11","name":"頻譜分析儀","children":[{"id":"111","name":"FSW 系列"},{"id":"112","name":"MS269x 系列"}]},
                                     {"id":"12","name":"網路分析儀","children":[]}]},
  {"id":"70","name":"實驗室管理專區","children":[]},
- {"id":"80","name":"Confluence / Jira / TestRail 查詢專區","children":[]}]
+ {"id":"80","name":"Confluence / Jira / TestRail 查詢專區","children":[]},
+ {"id":"90","name":"部門與公司文管專區","children":[]}]
 # CSIT does not classify documents into KM zones. KM reads the content with its LLM: a Test Report goes to 產品驗證專區 whatever its technology, any other
 # document to the zone its content belongs to. The classification a CSIT user picks (L1/L2/L3 above) travels in the notice but is only a fallback for KM.
 VERIFICATION_ZONE="產品驗證專區"

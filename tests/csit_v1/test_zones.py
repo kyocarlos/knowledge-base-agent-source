@@ -1,18 +1,18 @@
-"""Zone routing of CSIT documents: the eight KM zones, decided by the CSIT L1 name (Test Reports are always 產品驗證專區)."""
+"""Zone routing of CSIT documents: the nine KM zones, decided by the CSIT L1 name (Test Reports are always 產品驗證專區)."""
 import pytest
 from src.csit_integration_v1.doclib_pipeline import DocLibQdrantWriter
 from src.csit_integration_v1.v2_pipeline import V2QdrantWriter, metadata_payload
 from src.csit_integration_v1.writers import QdrantWriter
 from src.csit_integration_v1.zones import ZONES, resolve_zone, zone_payload
 
-NAMES = ["WiFi 知識專區", "行動通訊知識專區", "固網寬頻知識專區", "認證知識專區", "產品驗證專區", "設備儀器專區", "實驗室管理專區", "Confluence / Jira / TestRail 查詢專區"]
+NAMES = ["WiFi 知識專區", "行動通訊知識專區", "固網寬頻知識專區", "認證知識專區", "產品驗證專區", "設備儀器專區", "實驗室管理專區", "Confluence / Jira / TestRail 查詢專區", "部門與公司文管專區"]
 
 
-def test_there_are_exactly_the_eight_navigation_zones():
+def test_there_are_exactly_the_nine_navigation_zones():
     assert [n for _, n in ZONES] == NAMES
 
 
-@pytest.mark.parametrize("name,zone_id", list(zip(NAMES, ["wifi", "mobile", "broadband", "cert", "verification", "equipment", "lab", "integrations"])))
+@pytest.mark.parametrize("name,zone_id", list(zip(NAMES, ["wifi", "mobile", "broadband", "cert", "verification", "equipment", "lab", "integrations", "admin"])))
 def test_l1_names_map_to_their_zone(name, zone_id):
     assert resolve_zone("DocumentLibraryFile", name) == (zone_id, name, "classification")
 

@@ -1,6 +1,6 @@
 """Which KM knowledge zone a CSIT document belongs to.
 
-The eight zones are the entries of the KM left navigation. CSIT does not classify documents, so KM decides from the content with the same LLM call that
+The nine zones are the entries of the KM left navigation. CSIT does not classify documents, so KM decides from the content with the same LLM call that
 produces documentType / summary / keywords. The rules, in order:
   1. a Test Report is always 產品驗證專區 (CSIT's Test Report source, or a document the LLM recognises as a test report), whatever its technology;
   2. any other document goes to the zone the LLM named for its content;
@@ -12,7 +12,8 @@ KM stores the result on every point it writes (zone_id, topic_zone, zone_basis);
 import re
 
 ZONES = (("wifi", "WiFi 知識專區"), ("mobile", "行動通訊知識專區"), ("broadband", "固網寬頻知識專區"), ("cert", "認證知識專區"),
-         ("verification", "產品驗證專區"), ("equipment", "設備儀器專區"), ("lab", "實驗室管理專區"), ("integrations", "Confluence / Jira / TestRail 查詢專區"))
+         ("verification", "產品驗證專區"), ("equipment", "設備儀器專區"), ("lab", "實驗室管理專區"), ("integrations", "Confluence / Jira / TestRail 查詢專區"),
+         ("admin", "部門與公司文管專區"))
 ZONE_BY_ID = dict(ZONES)
 # The zone page keys of the front end differ for one zone: the page "csit" is 產品驗證專區.
 PAGE_KEY = {"verification": "csit"}

@@ -85,7 +85,8 @@ def llm_prompt(text):
         "  認證知識專區：認證與法規、送測流程、認證項目\n"
         "  設備儀器專區：儀器設備資訊、廠商資訊、校驗與使用說明\n"
         "  實驗室管理專區：實驗室規劃、建置、測試環境與管理辦法\n"
-        "  Confluence / Jira / TestRail 查詢專區：Jira 單、Confluence 週報、TestRail 測試計畫與執行結果\n\n文件內容：\n"+body)
+        "  Confluence / Jira / TestRail 查詢專區：Jira 單、Confluence 週報、TestRail 測試計畫與執行結果\n"
+        "  部門與公司文管專區：Time Report、Weekly Report、部門內部文件、人事行政、採購請款、組織架構等公司內部管理文件\n\n文件內容：\n"+body)
 
 def parse_llm_json(reply):
     if not isinstance(reply,str):return None

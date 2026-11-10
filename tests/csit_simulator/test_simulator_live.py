@@ -103,9 +103,9 @@ def test_a_second_delete_by_id_while_the_first_is_running_is_refused(api):
 
 
 # ---------- zones: the L1 names are the KM navigation zones ----------
-def test_taxonomy_l1_names_are_the_eight_km_zones():
+def test_taxonomy_l1_names_are_the_nine_km_zones():
     from tools.csit_simulator.sim import TAXONOMY
-    assert [n["name"] for n in TAXONOMY]==["WiFi 知識專區","行動通訊知識專區","固網寬頻知識專區","認證知識專區","產品驗證專區","設備儀器專區","實驗室管理專區","Confluence / Jira / TestRail 查詢專區"]
+    assert [n["name"] for n in TAXONOMY]==["WiFi 知識專區","行動通訊知識專區","固網寬頻知識專區","認證知識專區","產品驗證專區","設備儀器專區","實驗室管理專區","Confluence / Jira / TestRail 查詢專區","部門與公司文管專區"]
 
 
 def test_only_a_test_report_has_a_zone_before_kms_llm_has_read_it(api):
