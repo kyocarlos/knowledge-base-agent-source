@@ -8,9 +8,9 @@
 |---|---|
 | 依 v1.4.1 實作 v2 路由、事件白名單、失敗碼、409 策略、換版、metadata 變更、刪除七項證明 | 已部署(API `v14b-spec141`) |
 | 專區:第 9 個專區、導覽助理、分類對應(CSIT 分類優先於 LLM)、PPTX/MD、技術標籤、CPE 關鍵字 | 已部署 |
-| 外送 token 檢查可設定:`KM_CSIT_OUTBOUND_STRICT=false` 時只檢查規格有定的項目(issuer、audience、exp、scope 包含要求的),`principal_type`/`client_id`/`sub` 有才比對 | **程式已改,未部署** |
-| 收件端:scope 是 JSON 陣列也能讀;`KM_CSIT_SERVICE_MARKER_REQUIRED=false` 可不要求服務標記(核准的 client 清單仍檢查) | **程式已改,未部署** |
-| TestReport 換版(v2 `TestReportCommitted`):KM 尚未能取代數值庫的舊版,現在明確回 `Failed / REPLACEMENT_NOT_SUPPORTED`(不可重試),舊版維持現行 | **程式已改,未部署** |
+| 外送 token 檢查可設定:`KM_CSIT_OUTBOUND_STRICT=false` 時只檢查規格有定的項目(issuer、audience、exp、scope 包含要求的),`principal_type`/`client_id`/`sub` 有才比對 | **已部署(DEV,2026-11-10)** |
+| 收件端:scope 是 JSON 陣列也能讀;`KM_CSIT_SERVICE_MARKER_REQUIRED=false` 可不要求服務標記(核准的 client 清單仍檢查) | **已部署(DEV,2026-11-10)** |
+| TestReport 換版(v2 `TestReportCommitted`):KM 尚未能取代數值庫的舊版,現在明確回 `Failed / REPLACEMENT_NOT_SUPPORTED`(不可重試),舊版維持現行 | **已部署(DEV,2026-11-10)** |
 | 真實模式設定檔 `compose-real.override.yml`(伺服器 `~/.km-control/csit-mode/`,備份 `.before-20261110`;repo 副本 `deploy/csit-integration-v1/`) | 已更新,真實模式未啟用所以尚未生效 |
 
 真實模式設定檔補上的項目(原本只有 v1.3 的三個變數,切過去會悄悄少掉這些):報告範本 `KM_CSIT_REPORT_TEMPLATES=1`、LLM 擷取(`KM_CSIT_DOCLIB_LLM` 與 LLM 連線、金鑰檔掛載、`host.docker.internal`)、`KM_CSIT_ANALYSIS_RESULTS_ENABLED=false`、`KM_CSIT_OUTBOUND_STRICT=false`、外送 scope。合併後的設定已用 `docker compose config` 驗證(只列非機密鍵)。
@@ -56,3 +56,11 @@
 3. `csit-mode.sh real`(會停掉模擬器、換成真實身分與位址;進行中的工作會被擋,除非 `--force`)。
 4. 通知 Patty 開始;由 CSIT 打開 `KmIntegration.Enabled` 後,先送一份 TestReport v1 與一份文件專區 v1(各格式),再逐項做 v2。
 5. 回復:`csit-mode.sh live --confirm-real-data`(回到模擬器扮演 CSIT);設定檔備份 `compose-real.override.yml.before-20261110`。
+
+## 七、部署紀錄(2026-11-10)
+
+- API 映像 `km-csit-integration:v14c-auth-20261110`(FROM `…v14b-spec141-20261105`,`Dockerfile.api2`,疊加 `auth.py`、`config.py`);worker 映像 `km-csit-worker:v14t-auth-20261110`(FROM `…v14s-classify-pptx-20261110`,`Dockerfile.worker16`,疊加 `auth.py`、`config.py`、`v2_pipeline.py`)。換之前容器內三個檔案與修改前的提交逐位元相同。API 映像裡的 `v2_pipeline.py` 與 repo 不同(較舊),API 不跑管線,所以沒有動它。
+- 用 `csit-mode.sh reapply` 切換(無進行中的工作),`images.env` 備份 `images.env.before-v14t`。仍是 live(模擬器)模式,真實模式沒切。
+- 換映像前,在 Linux 以新 worker 映像加拋棄式 Postgres 跑整個 `tests/csit_v1`:521 通過、4 略過、5 失敗(同樣的環境因素:真實 Neo4j / Timescale 兩項、租戶設定三項)。
+- 換映像後:兩個容器 healthy,日誌無 traceback;6 條收件路由無 token 各回 401(表示路由到得了 KM 且認證在作用);worker 設定讀到 `outbound_strict=True`、`service_marker_required=True`(live 模式的行為沒變,放寬只在真實模式的設定檔裡開)。
+- 回復:`images.env.before-v14t` 還原為 `images.env`,再 `csit-mode.sh reapply`。
