@@ -344,3 +344,12 @@ The 4G/5G sample reports hold no Excel chart objects (only environment diagrams 
 - Web image `km-da40-web:zone-pages-20261109g` (FROM `…f`, both `stats.py`); rollback: image back to `…20261109f` in `km-da40.csit-zones.image.override.yml` (backup `override.before-g2`), recreate web.
 - Front end: `zone.c86a196ba9fe.js` (served file identical to the repo's); only `zones/csit/index.html` points at it (it pointed at `zone.892848bf9292.js`). Rollback: restore `zones/csit/index.html.before-handover-20261109`. Other zone pages untouched.
 - Verified on the server with the real planner: SCU2050 handover data gives 8 charts (Xn 100 with 3 marked failures, NG 100 with 1, and the 10-handover cases without); SCE2200 handover duration gives its two duration charts; a handover success-rate question gives none; the Wi-Fi throughput (1 chart) and RvR (3 charts) questions are unchanged. A browser may need Ctrl+F5.
+
+## 2026-11-10 — ninth zone: 部門與公司文管專區 (admin)
+
+- Web image `km-da40-web:zone-pages-20261110a` (FROM `…20261109g`, overlay `csit_integration_v1/zones.py`; `Dockerfile.web20`). The zone API now serves the zone `admin` (9 zones). Override backup `override.before-h2`.
+- Home page: `zones/hub.d44c78007fb1.js` is `hub.7ea3b30e8078.js` with `admin` added to the second navigation group (between 實驗室管理 and Confluence / Jira / TestRail); only that line differs. `hub/index.html` points to it (backup `hub/index.html.before-admin-20261110`). The source line is in the `repo` clone, `frontend/zones/src/hub-1-data.js` (not committed there).
+- Not changed: the CSIT worker / integration images (they carry the LLM zone prompt; rebuilt when KmIntegration is enabled), other zone pages.
+- Checked: container lists 9 zones; the zone routes know `admin`; the real overview handler returns for `admin` (0 documents); the file served from the nginx container holds the new group line. Not checked: the screen (login needed).
+- Open: access rules for the sensitive sub-areas (人事行政, 採購請款).
+- Rollback: restore `hub/index.html.before-admin-20261110`; set the override image back to `…20261109g` (`override.before-h2`) and recreate web.
