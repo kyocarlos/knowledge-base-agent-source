@@ -71,3 +71,11 @@
 - 真實模式設定檔的 `KM_CSIT_OUTBOUND_STRICT` 改回 `true`(伺服器上未生效的那份仍是 `false`,部署時同步)。
 - 測試:Windows 上相關 255 項通過;需要 Postgres 的 20 項在 Windows 無法執行(`TEST_DATABASE_URL`),部署前要在 Linux(worker 映像加拋棄式 Postgres)再跑整個 `tests/csit_v1`。
 - 影響:對照表未決定的文件(研討會、Broadband Forum 等)會進待分類。CSIT 文件庫目前沒有待分類的審查頁。
+
+### 部署紀錄(2026-11-10,第八節的修改)
+
+- worker 映像 `km-csit-worker:v14u-zone-csit-20261110`(FROM `…v14t-auth-20261110`,`Dockerfile.worker17`,疊加 `zones.py`、`doclib_metadata.py`;容器內雜湊與 repo 一致)。API 映像不變(不跑專區判定)。以 `csit-mode.sh reapply` 換上,換之前無進行中的工作;`images.env` 備份 `images.env.before-v14u`。仍是 live 模式。
+- 換之前在 Linux 以新映像加拋棄式 Postgres 跑整個 `tests/csit_v1`:520 通過、4 略過、5 失敗(與上一輪相同的環境因素:Neo4j／Timescale 各一、租戶設定三項)。測試容器與網路已刪除。
+- 伺服器上的真實模式設定檔 `KM_CSIT_OUTBOUND_STRICT` 已改為 `"true"`(備份 `compose-real.override.yml.before-strict-20261110`),真實模式仍未啟用。
+- 換後驗證:worker healthy、日誌無錯誤;容器內 `resolve_zone`:無分類的文件庫檔案、LLM 說是 TestReport 或指定專區 → `unclassified／none`;TestReport 來源 → 產品驗證專區;外部認證資料 → 認證;6 條收件路由無 token 各回 401。
+- 回復:`images.env.before-v14u` 還原為 `images.env`,再 `csit-mode.sh reapply`;設定檔還原用 `compose-real.override.yml.before-strict-20261110`。
