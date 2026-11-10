@@ -368,3 +368,10 @@ The 4G/5G sample reports hold no Excel chart objects (only environment diagrams 
 - Checked with the real model in the web container: Keysight World Tech Day → equipment, wifi, mobile; "Keysight 研討會講義" → equipment, wifi; a seminar question with no topic → wifi, mobile, broadband (no clarifying question); 5G + Wi-Fi handout → mobile, wifi. Unchanged: 實驗室介紹簡報 → lab only, 薪資單 → admin, Wi-Fi 認證流程 → cert.
 - Candidates are guesses from the zone catalogue, not where the document is. Not checked on the screen (login needed).
 - Rollback: override image back to `…20261110b` and recreate web.
+
+## 2026-11-10 — CSIT classification decides the zone; pptx / md in the document-library route
+
+- Worker image `km-csit-worker:v14s-classify-pptx-20261110` (FROM `…v14r-zones-20261110`, `Dockerfile.worker15`, overlay `ov14/w`: `zones.py`, `doclib_pipeline.py`, `v2_pipeline.py`); the three files in the old worker were byte-identical to the previous commit. Switched with `csit-mode.sh reapply` (nothing in flight); `images.env` backup `images.env.before-v14s`. API image and `KM_CSIT_*` flags unchanged.
+- Web image `km-da40-web:zone-pages-20261110d` (FROM `…20261110c`, `Dockerfile.web23`, overlay `ov14/web`: `zones.py` only). Override backup `override.before-k2`.
+- Checked in the worker container (no database writes): `zone_by_classification` gives cert / equipment / admin / admin / broadband / None (seminar: the LLM decides) / equipment for the table rows tried; a Cellular classification beats an LLM answer of WiFi (basis `classification_table`); a .pptx run through `DocLibPipeline` with fake repository, client and writer is read slide text and ends Completed (sourceFormat pptx). Web container knows the function. No traceback in the worker log. Not run: the database-backed CSIT tests; the screen; a real CSIT document.
+- Rollback: `images.env.before-v14s` to `images.env` and `csit-mode.sh reapply`; override image back to `…20261110c` (`override.before-k2`) and recreate web.
