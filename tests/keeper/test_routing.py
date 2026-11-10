@@ -72,6 +72,24 @@ def test_news_uses_the_numbers_from_the_page_not_from_the_model():
     assert quiet["zones"] == [] and "沒有" in quiet["answer"]
 
 
+def test_a_seminar_question_always_lists_at_least_two_candidate_zones_and_says_they_are_candidates():
+    one = llm({"intent": "route", "zones": [{"id": "equipment", "reason": "Keysight"}]})
+    out = routing.route("Keysight 研討會講義", one)
+    ids = [z["id"] for z in out["zones"]]
+    assert ids[0] == "equipment" and 2 <= len(ids) <= routing.MAX_ZONES and len(set(ids)) == len(ids) and "不一定每一座都有" in out["answer"]
+    assert {"wifi", "mobile"} & set(ids)
+    none = routing.route("某場研討會的簡報放在哪", llm({"intent": "route", "zones": [], "clarify": "請提供主題"}))
+    assert [z["id"] for z in none["zones"]] == ["wifi", "mobile", "broadband"] and none["clarify"] is None
+    named = routing.route("5G 研討會講義", llm({"intent": "route", "zones": [{"id": "mobile", "reason": "5G"}]}))
+    assert named["zones"][0]["id"] == "mobile" and len(named["zones"]) >= 2
+    two = routing.route("研討會講義", llm({"intent": "route", "zones": [{"id": "wifi", "reason": "a"}, {"id": "cert", "reason": "b"}]}))
+    assert [z["id"] for z in two["zones"]] == ["wifi", "cert"]            # the model's own two candidates are kept as they are
+    for complete in (None, broken):
+        assert len(routing.route("Wi-Fi 研討會講義", complete)["zones"]) >= 2
+    assert len(routing.route("實驗室介紹簡報", llm({"intent": "route", "zones": [{"id": "lab", "reason": "x"}]}))["zones"]) == 1   # not every presentation is a seminar
+    assert "至少兩個" in routing.SYSTEM
+
+
 def test_intro_and_help_use_the_catalogue_text():
     intro = routing.route("認證專區是做什麼的？", llm({"intent": "intro", "zones": [{"id": "cert", "reason": "x"}]}))
     cert = next(z for z in ZONES if z["id"] == "cert")
