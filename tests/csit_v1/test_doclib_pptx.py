@@ -89,3 +89,23 @@ def test_images_and_unknown_types_still_fail_in_the_v1_vocabulary(tmp_path):
         with pytest.raises(IntegrationError) as bad:
             run(tmp_path, name, b"x" * 64)
         assert bad.value.code == "UNSUPPORTED_DOCUMENT_FORMAT", name
+
+
+def test_a_replacement_version_of_a_test_report_fails_clearly_and_leaves_the_old_version_alone(tmp_path):
+    from src.csit_integration_v1.v2_pipeline import V2Pipeline
+    touched = []
+
+    class Repo2:
+        def __getattr__(self, name):
+            touched.append(name)
+            raise AssertionError("nothing may be done for it: " + name)
+
+    class Qdrant:
+        def __getattr__(self, name):
+            touched.append(name)
+            raise AssertionError(name)
+
+    job = {"source_type": "TestReport", "original_file_name": "SIT-TR-WL-Throughput-X-V2.xlsx", "file_size_bytes": 10}
+    with pytest.raises(IntegrationError) as e:
+        V2Pipeline(replace(Settings(), storage_root=str(tmp_path)), Repo2(), None, Qdrant()).run(job)
+    assert e.value.code == "REPLACEMENT_NOT_SUPPORTED" and e.value.retryable is False and not touched

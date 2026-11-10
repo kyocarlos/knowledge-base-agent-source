@@ -23,6 +23,12 @@ class Settings:
     outbound_scopes: tuple[str,...] = ("csit.document.read","csit.ingestion.status.write")
     # Spec 5.4 / v1.4.1 C.2: v2 analysis-results for Test Report. Off until CSIT has deployed the Correlation Resolver (task C).
     analysis_results_enabled: bool = False
+    # The outbound token check. True (the default, as tested against the simulator): every claim of the Shared Identity design and exactly the requested scopes.
+    # False (KM_CSIT_OUTBOUND_STRICT=false): only what the CSIT specs fix, see ClientCredentialsProvider._validate_relaxed.
+    outbound_strict: bool = True
+    # Inbound: True demands the service marker claim (service_claim == service_claim_value) of the token CSIT sends; False leaves it to the approved client list
+    # (service_clients), which is checked either way. KM_CSIT_SERVICE_MARKER_REQUIRED=false when the real CSIT's tokens carry no such claim.
+    service_marker_required: bool = True
     service_claim: str = "principal_type"
     service_claim_value: str = "service"
     client_claim: str = "client_id"
@@ -58,7 +64,7 @@ class Settings:
             else: values[name]=raw
         return cls(**values)
     def validate_inbound(self):
-        for key in ("authority","audience","jwks_uri","service_claim","service_claim_value","client_claim"):
+        for key in ("authority","audience","jwks_uri","client_claim")+(("service_claim","service_claim_value") if self.service_marker_required else ()):
             if not getattr(self,key):raise ValueError("inbound auth configuration required: "+key)
         if not self.service_clients:raise ValueError("approved service clients required")
         if self.algorithm not in ("RS256","ES256"):raise ValueError("asymmetric token algorithm required")

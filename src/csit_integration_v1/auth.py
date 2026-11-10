@@ -9,6 +9,11 @@ from .errors import IntegrationError
 
 SUBMIT_SCOPE="km.ingestion.submit"
 OUTBOUND_SCOPES=("csit.document.read","csit.ingestion.status.write")
+def scope_set(raw):
+    """The scopes of a token claim: OAuth writes them space-delimited, but many identity servers put a JSON array in a JWT (RFC 9068 allows both readings in practice)."""
+    if isinstance(raw,str):return frozenset(raw.split())
+    if isinstance(raw,(list,tuple)):return frozenset(x for x in raw if isinstance(x,str) and x)
+    return frozenset()
 @dataclass(frozen=True)
 class ServiceIdentity:
     client_id: str
@@ -32,7 +37,7 @@ class JwtServiceTokenValidator:
                 options={"require":["exp","iat","iss","aud"]})
             d.update(signature='PASS',issuer='PASS',audience='PASS',token_time='PASS',jwt_principal_created=True)
             client=claims.get(s.client_claim)
-            if claims.get(s.service_claim)!=s.service_claim_value:
+            if s.service_marker_required and claims.get(s.service_claim)!=s.service_claim_value:
                 d.update(principal_type='FAIL',failure_check='SERVICE_MARKER_MISMATCH')
                 raise ValueError()
             d['principal_type']='PASS'
@@ -40,9 +45,7 @@ class JwtServiceTokenValidator:
                 d.update(service_identity='FAIL',failure_check='CLIENT_NOT_ALLOWED')
                 raise ValueError()
             d['service_identity']='PASS'
-            raw=claims.get('scope','')
-            scopes=frozenset(raw.split()) if isinstance(raw,str) else frozenset()
-            return ServiceIdentity(client,scopes)
+            return ServiceIdentity(client,scope_set(claims.get('scope','')))
         except self.jwt.ExpiredSignatureError:
             d.update(signature='PASS',token_time='FAIL',failure_check='TOKEN_EXPIRED')
         except self.jwt.ImmatureSignatureError:
@@ -121,11 +124,24 @@ class ClientCredentialsProvider:
         exc.diagnostic=diagnostic
         return exc
 
+    def _validate_relaxed(self, token, key):
+        """What the CSIT specs actually fix (issuer, audience, expiry, scope): signature, issuer, audience containing ours, exp / iat, every requested scope granted.
+        The claims the strict check also demands (principal_type, client_id, sub) were KM's own assumption from the Shared Identity design, not CSIT's: here they
+        are checked only when the token carries them (under the claim names inbound uses), and a token that has extra scopes is fine."""
+        s=self.settings
+        claims=self.jwt.decode(token,key,algorithms=[s.algorithm],issuer=s.authority,audience=s.outbound_audience,options={"require":["exp","iat","iss","aud","scope"]})
+        if not set(s.outbound_scopes)<=scope_set(claims["scope"]):
+            raise IntegrationError("M2M_SCOPE_MISSING","Outbound service token scopes invalid")
+        if s.client_claim in claims and claims[s.client_claim]!=s.client_id:raise ValueError()
+        if s.service_claim in claims and claims[s.service_claim]!=s.service_claim_value:raise ValueError()
+        return claims
+
     def _validate_token(self, token):
         s=self.settings
         try:
             if not s.outbound_audience:raise ValueError()
             key=self.keys.get_signing_key_from_jwt(token).key
+            if not s.outbound_strict:return self._validate_relaxed(token,key)
             claims=self.jwt.decode(token,key,algorithms=[s.algorithm],issuer=s.authority,
                 audience=s.outbound_audience,options={"require":["exp","iat","iss","aud","sub","client_id","principal_type","scope"]})
             audiences=claims["aud"] if isinstance(claims["aud"],list) else [claims["aud"]]
@@ -155,8 +171,10 @@ class ClientCredentialsProvider:
                     ttl=int(d["expires_in"])
                     if ttl<=0:raise ValueError()
                     # The response scope field is optional. Signed JWT claims remain mandatory.
-                    if "scope" in d and (not isinstance(d["scope"],str) or set(d["scope"].split())!=set(s.outbound_scopes)):
-                        raise IntegrationError("M2M_SCOPE_MISSING","Outbound response scopes invalid")
+                    if "scope" in d:
+                        granted=set(d["scope"].split()) if isinstance(d["scope"],str) else None
+                        if granted is None or (granted!=set(s.outbound_scopes) if s.outbound_strict else not set(s.outbound_scopes)<=granted):
+                            raise IntegrationError("M2M_SCOPE_MISSING","Outbound response scopes invalid")
                     claims=self._validate_token(d["access_token"])
                     self._token=d["access_token"]
                     self._expires=time.monotonic()+max(0,min(ttl,claims["exp"]-time.time())-30)

@@ -185,6 +185,10 @@ class V2Pipeline:
     def _run(self,job):
         s=self.settings
         suffix=Path(job["original_file_name"]).suffix.lower()
+        if job["source_type"]=="TestReport":
+            # A new version of a Test Report (the only kind of TestReport job the v2 route takes) would have to replace the numeric rows, the graph and the report vectors of
+            # the old version as well. That is not built: read as plain text it would leave the old numbers current beside it. Failing leaves the old version untouched.
+            raise IntegrationError("REPLACEMENT_NOT_SUPPORTED","A replacement version of a Test Report is not supported by this KM yet; the previous version stays current",False)
         if job["file_size_bytes"]>s.max_file_size:raise IntegrationError("FILE_TOO_LARGE","File exceeds the size KM accepts ("+str(s.max_file_size)+" bytes)")
         if suffix in IMAGE_SUFFIXES:raise IntegrationError("UNSUPPORTED_FORMAT","Image content cannot be analysed: OCR and vision are not enabled in this KM")
         if suffix not in PARSEABLE:raise IntegrationError("UNSUPPORTED_FORMAT","File format "+(suffix or "(no extension)")+" cannot be analysed")

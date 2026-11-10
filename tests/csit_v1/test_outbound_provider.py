@@ -83,3 +83,35 @@ def test_transport_error_not_leaked(outbound_settings,capsys):
     with pytest.raises(IntegrationError,match='M2M_UNAVAILABLE') as e:p.headers()
     assert e.value.__cause__ is None and 'test-only' not in str(e.value)
     assert not capsys.readouterr().out
+
+# ---- KM_CSIT_OUTBOUND_STRICT=false: what the CSIT specs fix, not the Shared Identity assumptions ----
+@pytest.fixture
+def relaxed(outbound_settings):return replace(outbound_settings,outbound_strict=False)
+@pytest.mark.parametrize('mutation',[
+    {}, {'principal_type':None}, {'client_id':None}, {'sub':None}, {'sub':'service-account-7'}, {'aud':['csit.integration.dev','other']},
+    {'scope':' '.join(OUTBOUND_SCOPES)+' extra.privilege'}, {'principal_type':None,'client_id':None,'sub':None}])
+def test_relaxed_accepts_a_token_without_the_shared_identity_claims_or_with_more_scopes(relaxed,key,mutation):
+    p,_=make(relaxed,key,signed(relaxed,key,mutation),{'scope':' '.join(OUTBOUND_SCOPES)+' extra.privilege'} if 'scope' in mutation else None)
+    assert p.headers()['Authorization'].startswith('Bearer ');p.close()
+@pytest.mark.parametrize('mutation',[
+    {'aud':'km.integration.dev'}, {'iss':'https://wrong.invalid/'}, {'exp':1}, {'exp':None}, {'iat':None}, {'scope':'csit.document.read'}, {'scope':None},
+    {'principal_type':'human'}, {'client_id':'km-dev'}])
+def test_relaxed_still_fails_closed_on_what_the_specs_fix(relaxed,key,mutation):
+    p,_=make(relaxed,key,signed(relaxed,key,mutation))
+    with pytest.raises(IntegrationError):p.headers()
+    assert p._token is None;p.close()
+def test_relaxed_signature_and_response_scope(relaxed,key):
+    other=rsa.generate_private_key(public_exponent=65537,key_size=2048)
+    p,_=make(relaxed,key,signed(relaxed,other))
+    with pytest.raises(IntegrationError,match='M2M_TOKEN_INVALID'):p.headers()
+    p,_=make(relaxed,key,signed(relaxed,key),{'scope':'csit.document.read'})                      # fewer than requested
+    with pytest.raises(IntegrationError,match='M2M_SCOPE_MISSING'):p.headers()
+    p,_=make(relaxed,key,signed(relaxed,key),{'scope':' '.join(OUTBOUND_SCOPES)+' more'})          # more than requested
+    assert p.headers() and p.close() is None
+def test_the_default_stays_strict_and_the_environment_switches_it_off(outbound_settings,monkeypatch):
+    assert outbound_settings.outbound_strict is True
+    monkeypatch.setenv('KM_CSIT_OUTBOUND_STRICT','false')
+    assert Settings.from_env().outbound_strict is False
+def test_relaxed_reads_a_scope_claim_that_is_an_array(relaxed,key):
+    p,_=make(relaxed,key,signed(relaxed,key,{'scope':list(OUTBOUND_SCOPES)+['more']}))
+    assert p.headers() and p.close() is None

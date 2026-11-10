@@ -59,3 +59,22 @@ def test_invalid_signature_no_principal_or_job(inbound_settings,signing_key):
     app=create_app(inbound_settings,repo,validator(inbound_settings,signing_key))
     with TestClient(app) as c:r=c.post('/api/integrations/csit/v1/ingestion-jobs',json={},headers={'Authorization':'Bearer '+make_token(inbound_settings,other)})
     assert r.status_code==401 and repo.submissions==0
+
+
+# ---- real identity servers: scope as a JSON array, tokens without the service marker (KM_CSIT_SERVICE_MARKER_REQUIRED=false) ----
+def test_a_scope_claim_that_is_a_json_array_is_read_like_the_space_delimited_string(inbound_settings,signing_key):
+    s=inbound_settings
+    assert validator(s,signing_key).validate(make_token(s,signing_key,{'scope':['km.ingestion.submit','km.metadata.write']})).scopes=={'km.ingestion.submit','km.metadata.write'}
+    assert validator(s,signing_key).validate(make_token(s,signing_key,{'scope':'km.ingestion.submit km.metadata.write'})).scopes=={'km.ingestion.submit','km.metadata.write'}
+    assert validator(s,signing_key).validate(make_token(s,signing_key,{'scope':None})).scopes==frozenset()
+    assert validator(s,signing_key).validate(make_token(s,signing_key,{'scope':[1,None,'']})).scopes==frozenset()
+def test_without_the_service_marker_requirement_the_approved_client_list_still_decides(inbound_settings,signing_key):
+    s=replace(inbound_settings,service_marker_required=False)
+    token=make_token(s,signing_key,{'principal_type':None})
+    assert validator(s,signing_key).validate(token).client_id=='csit-km-ingestion-dev'
+    with pytest.raises(HTTPException) as ex:validator(s,signing_key).validate(make_token(s,signing_key,{'principal_type':None,'client_id':'someone-else'}))
+    assert ex.value.status_code==401
+    with pytest.raises(HTTPException):validator(inbound_settings,signing_key).validate(token)      # required by default
+    s.validate_inbound()
+    replace(s,service_claim='',service_claim_value='').validate_inbound()
+    with pytest.raises(ValueError):replace(inbound_settings,service_claim='').validate_inbound()

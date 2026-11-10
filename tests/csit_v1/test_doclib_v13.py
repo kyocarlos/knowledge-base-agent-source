@@ -111,7 +111,7 @@ def test_semantic_failure_falls_back_to_nulls():
     assert extract("some text") is None
     r=build_result({"content_type":"t"},_extraction(),".txt",pathlib.Path(tempfile.gettempdir())/"a.txt",None,"i",1,datetime.now(timezone.utc))
     assert r["document"]["summary"] is None and r["document"]["documentType"]=="Other" and r["warnings"]
-    assert clean_semantic({"documentType":"Poem","summary":"  "},"x")=={"documentType":"Other","summary":None,"keywords":[],"zone_hint":None}
+    assert clean_semantic({"documentType":"Poem","summary":"  "},"x")=={"documentType":"Other","summary":None,"keywords":[],"zone_hint":None,"technology":None}
 
 def test_incomplete_result_is_rejected():
     from datetime import datetime,timezone
