@@ -47,14 +47,16 @@ def test_the_csit_classification_decides_the_zone_as_the_mapping_table_says(l1, 
 
 
 @pytest.mark.parametrize("l1,l2", [("技術相關文件", "研討會講義"), ("國際組織規範", "Broadband Forum"), ("技術相關文件", None), ("未知分類", "Wi-Fi"), (None, None)])
-def test_where_the_table_does_not_decide_the_content_does(l1, l2):
+def test_where_the_table_does_not_decide_the_document_waits_unclassified_whatever_the_llm_suggests(l1, l2):
     assert zone_by_classification(l1, l2, None) is None
-    assert resolve_zone("DocumentLibraryFile", l1, "Presentation", "mobile", l2, None)[::2] == ("mobile", "llm")
+    assert resolve_zone("DocumentLibraryFile", l1, "Presentation", "mobile", l2, None) == ("unclassified", "待分類", "none")
 
 
 def test_a_test_report_stays_product_verification_whatever_the_classification_says():
     assert resolve_zone("TestReport", "技術相關文件", None, None, "Wi-Fi")[0] == "verification"
-    assert resolve_zone("DocumentLibraryFile", "技術相關文件", "TestReport", None, "Cellular")[0] == "verification"
+    # a document the LLM calls a test report is not one: only CSIT's Test Report source is
+    assert resolve_zone("DocumentLibraryFile", "技術相關文件", "TestReport", None, "Cellular")[::2] == ("mobile", "classification_table")
+    assert resolve_zone("DocumentLibraryFile", None, "TestReport", None)[:2] == ("unclassified", "待分類")
 
 
 def test_zone_fields_use_all_three_classification_levels():
@@ -157,17 +159,14 @@ def test_registered_template_reports_and_their_graph_document_are_product_verifi
 from src.csit_integration_v1.doclib_metadata import clean_semantic, llm_prompt, zone_fields
 
 
-def test_a_document_the_llm_recognises_as_a_test_report_is_product_verification_whatever_its_technology_or_source():
-    assert resolve_zone("DocumentLibraryFile","WiFi 知識專區","TestReport","wifi")==("verification","產品驗證專區","document_type")
-    assert resolve_zone("VendorFile",None,"TestReport","equipment")[0]=="verification"
+def test_the_llm_never_sets_the_zone_neither_by_its_zone_nor_by_its_document_type():
+    assert resolve_zone("DocumentLibraryFile","WiFi 知識專區","TestReport","mobile")==("wifi","WiFi 知識專區","classification")
+    assert resolve_zone("VendorFile",None,"TestReport","verification")[::2]==("equipment","source_default")
+    assert resolve_zone("DocumentLibraryFile","WiFi 知識專區","Specification","mobile")[0]=="wifi"       # CSIT's L1 wins over the suggestion
+    assert resolve_zone("DocumentLibraryFile",None,"Manual","lab")==("unclassified","待分類","none")        # nothing from CSIT: waits for review
 
 
-def test_other_documents_go_to_the_zone_the_llm_named_even_against_the_csit_l1():
-    assert resolve_zone("DocumentLibraryFile","WiFi 知識專區","Specification","mobile")==("mobile","行動通訊知識專區","llm")
-    assert resolve_zone("VendorFile",None,"Manual","lab")[0]=="lab"
-
-
-def test_without_a_usable_hint_the_old_rules_apply():
+def test_the_rules_that_follow_from_csits_own_data_still_apply():
     assert resolve_zone("DocumentLibraryFile","認證知識專區","SOP",None)[2]=="classification"
     assert resolve_zone("VendorFile",None,"SOP","nonsense")[2]=="source_default"
     assert resolve_zone("DocumentLibraryFile",None,"SOP",None)[2]=="none"
@@ -197,7 +196,7 @@ def test_the_technology_tag_is_kept_only_when_it_is_one_of_the_known_technologie
     assert clean_semantic({"technology":"Cellular"},"t")["technology"]=="Cellular"
     assert clean_semantic({"technology":"藍牙"},"t")["technology"] is None and clean_semantic({"technology":5},"t")["technology"] is None
     f=zone_fields("DocumentLibraryFile",{"l1":None},{"documentType":"Other","zone":"產品驗證專區","technology":"PON"},"t")
-    assert (f["zone_id"],f["technology_tag"])==("verification","PON")
+    assert (f["zone_id"],f["technology_tag"],f["zone_suggestion"])==("unclassified","PON","產品驗證專區")
     assert zone_fields("DocumentLibraryFile",{"l1":None},None,"t")["technology_tag"] is None
 
 
@@ -208,24 +207,27 @@ def test_a_cpe_document_without_a_zone_from_the_llm_goes_to_mobile():
     assert clean_semantic({"zone":"無法判斷"},"the specification of a cell")["zone_hint"] is None
 
 
-def test_zone_fields_combine_the_documents_type_and_the_llms_zone():
-    assert zone_fields("DocumentLibraryFile",{"l1":None},{"documentType":"TestReport","zone":"WiFi 知識專區"},"t")["zone_id"]=="verification"
+def test_zone_fields_keep_the_llm_zone_only_as_a_suggestion():
+    f=zone_fields("DocumentLibraryFile",{"l1":None},{"documentType":"TestReport","zone":"WiFi 知識專區"},"t")
+    assert (f["zone_id"],f["zone_basis"],f["zone_suggestion"])==("unclassified","none","WiFi 知識專區")
     f=zone_fields("DocumentLibraryFile",{"l1":None},{"documentType":"Manual","zone":"認證知識專區","summary":"摘要","keywords":["t"]},"t")
-    assert (f["zone_id"],f["topic_zone"],f["zone_basis"],f["document_type"],f["summary"],f["keywords"])==("cert","認證知識專區","llm","Manual","摘要",["t"]) and f["indexed_at"].endswith("Z")
-    assert zone_fields("DocumentLibraryFile",{"l1":None},None,"t")["zone_id"]=="unclassified"
+    assert (f["zone_id"],f["topic_zone"],f["zone_basis"],f["zone_suggestion"],f["document_type"],f["summary"],f["keywords"])==("unclassified","待分類","none","認證知識專區","Manual","摘要",["t"]) and f["indexed_at"].endswith("Z")
+    f=zone_fields("DocumentLibraryFile",{"l1":None},None,"t")
+    assert f["zone_id"]=="unclassified" and f["zone_suggestion"] is None
+    assert zone_fields("DocumentLibraryFile",{"l1":"外部認證資料"},{"zone":"WiFi 知識專區"},"t")["zone_id"]=="cert"
 
 
-def test_library_points_follow_the_llm_zone_not_the_csit_l1():
+def test_library_points_follow_the_csit_l1_not_the_llm_zone():
     c=Client()
     DocLibQdrantWriter(c,"km_csit_docs",embed,1000).write("hello world",{"document_file_id":"f1","csit_job_id":"j","original_file_name":"a.txt","expected_sha256":"a"*64,
         "request_payload":{"classification":{"l1":{"id":"20","name":"WiFi 知識專區"},"l2":None,"l3":None}}},{"documentType":"Manual","zone":"行動通訊知識專區"})
-    assert {(p.payload["zone_id"],p.payload["zone_basis"]) for p in c.points}=={("mobile","llm")}
+    assert {(p.payload["zone_id"],p.payload["zone_basis"],p.payload["zone_suggestion"]) for p in c.points}=={("wifi","classification","行動通訊知識專區")}
 
 
-def test_v2_points_of_a_recognised_test_report_are_product_verification():
+def test_v2_points_of_a_vendor_file_the_llm_calls_a_test_report_stay_in_the_vendor_home_zone():
     c=Client()
-    V2QdrantWriter(c,"km_csit_docs",embed,1000).write("hello world",v2_job("VendorFile",None),None,{"documentType":"TestReport","zone":"設備儀器專區"})
-    assert {(p.payload["zone_id"],p.payload["zone_basis"]) for p in c.points}=={("verification","document_type")}
+    V2QdrantWriter(c,"km_csit_docs",embed,1000).write("hello world",v2_job("VendorFile",None),None,{"documentType":"TestReport","zone":"產品驗證專區"})
+    assert {(p.payload["zone_id"],p.payload["zone_basis"]) for p in c.points}=={("equipment","source_default")}
 
 
 def test_search_names_include_the_names_a_zone_had_before():

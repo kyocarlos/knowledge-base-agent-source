@@ -64,3 +64,10 @@
 - 換映像前,在 Linux 以新 worker 映像加拋棄式 Postgres 跑整個 `tests/csit_v1`:521 通過、4 略過、5 失敗(同樣的環境因素:真實 Neo4j / Timescale 兩項、租戶設定三項)。
 - 換映像後:兩個容器 healthy,日誌無 traceback;6 條收件路由無 token 各回 401(表示路由到得了 KM 且認證在作用);worker 設定讀到 `outbound_strict=True`、`service_marker_required=True`(live 模式的行為沒變,放寬只在真實模式的設定檔裡開)。
 - 回復:`images.env.before-v14t` 還原為 `images.env`,再 `csit-mode.sh reapply`。
+
+## 八、依 CSIT 2026-11-10 回覆的修改(尚未部署)
+
+- 專區判定不再使用 LLM:`resolve_zone` 拿掉「LLM 建議的專區」與「LLM 判斷為 TestReport」兩步。剩下的規則都來自 CSIT 資料(TestReport 來源、分類對照表、第一層等於專區名、附件來源所屬專區),其餘進「待分類」。LLM 的建議存成 `zone_suggestion`。
+- 真實模式設定檔的 `KM_CSIT_OUTBOUND_STRICT` 改回 `true`(伺服器上未生效的那份仍是 `false`,部署時同步)。
+- 測試:Windows 上相關 255 項通過;需要 Postgres 的 20 項在 Windows 無法執行(`TEST_DATABASE_URL`),部署前要在 Linux(worker 映像加拋棄式 Postgres)再跑整個 `tests/csit_v1`。
+- 影響:對照表未決定的文件(研討會、Broadband Forum 等)會進待分類。CSIT 文件庫目前沒有待分類的審查頁。

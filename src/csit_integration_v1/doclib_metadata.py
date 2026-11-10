@@ -7,7 +7,7 @@ import json,re
 from datetime import datetime,timezone
 from pathlib import Path
 from .doclib_models import DOCUMENT_TYPES,validate_result
-from .zones import GIVE_UP,zone_id_for_name,zone_payload
+from .zones import GIVE_UP,ZONE_BY_ID,zone_id_for_name,zone_payload
 
 MAX_SUMMARY=600
 MAX_KEYWORDS=20
@@ -116,4 +116,4 @@ def zone_fields(source_type,classification_names,semantic,text):
     the document (type, summary, keywords, when it was indexed)."""
     sem=clean_semantic(semantic,text)
     return {**zone_payload(source_type,classification_names,sem["documentType"],sem["zone_hint"]),"document_type":sem["documentType"],"summary":sem["summary"],
-            "technology_tag":sem["technology"],"keywords":sem["keywords"],"indexed_at":datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")}
+            "zone_suggestion":ZONE_BY_ID.get(sem["zone_hint"]),"technology_tag":sem["technology"],"keywords":sem["keywords"],"indexed_at":datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")}

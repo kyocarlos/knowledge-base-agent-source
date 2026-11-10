@@ -1,13 +1,13 @@
 """Which KM knowledge zone a CSIT document belongs to.
 
-The nine zones are the entries of the KM left navigation. CSIT does not classify documents, so KM decides from the content with the same LLM call that
-produces documentType / summary / keywords, except where the CSIT classification (mapping table 2026-11-10) already names the zone. The rules, in order:
-  1. a Test Report is always 產品驗證專區 (CSIT's Test Report source, or a document the LLM recognises as a test report), whatever its technology;
+The nine zones are the entries of the KM left navigation. CSIT owns the official classification (CSIT reply of 2026-11-10: KM may not override it with keywords or an
+AI guess, and a document that cannot be mapped goes to 待分類, not to an arbitrary zone), so only rules that follow from CSIT's own data assign a zone, in order:
+  1. a Test Report is always 產品驗證專區 (CSIT's Test Report source), whatever its technology;
   2. the zone CSIT's classification maps to (zone_by_classification: e.g. 外部認證資料 -> 認證, 部門文管專區 -> 文管, 技術相關文件／Wi-Fi -> WiFi);
-  3. otherwise the zone the LLM named for the content (research seminars, Broadband Forum documents and anything the table does not decide);
-  3b. when the LLM gave nothing usable (unavailable, or unsure): CSIT's first classification level if it happens to be a zone name;
-  4. then the home zone of the attachment sources (verification-application attachment, vendor file, equipment attachment);
-  5. otherwise 待分類 — kept, not guessed.
+  3. CSIT's first classification level if it happens to be a zone name;
+  4. the home zone of the attachment sources (verification-application attachment, vendor file, equipment attachment);
+  5. otherwise 待分類 — kept for review, not guessed.
+The zone the LLM would pick is only stored as a suggestion (zone_suggestion) next to the document, for the person who reviews 待分類; it never sets topic_zone.
 KM stores the result on every point it writes (zone_id, topic_zone, zone_basis); the zone pages filter on topic_zone.
 """
 import re
@@ -71,13 +71,9 @@ def resolve_zone(source_type, l1_name=None, document_type=None, zone_hint=None, 
     maps it), llm (the content), classification (CSIT's L1 is itself a zone name), source_default, or none."""
     if source_type == "TestReport":
         return "verification", ZONE_BY_ID["verification"], "source_type"
-    if document_type == "TestReport":
-        return "verification", ZONE_BY_ID["verification"], "document_type"
     zone_id = zone_by_classification(l1_name, l2_name, l3_name)
     if zone_id:
         return zone_id, ZONE_BY_ID[zone_id], "classification_table"
-    if zone_hint in ZONE_BY_ID:
-        return zone_hint, ZONE_BY_ID[zone_hint], "llm"
     zone_id = zone_id_for_name(l1_name)
     if zone_id:
         return zone_id, ZONE_BY_ID[zone_id], "classification"
