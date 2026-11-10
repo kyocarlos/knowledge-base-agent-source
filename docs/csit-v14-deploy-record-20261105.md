@@ -361,3 +361,10 @@ The 4G/5G sample reports hold no Excel chart objects (only environment diagrams 
 - Checked with the real model in the web container: 薪資單 / 採購請款單 / Time Report questions → 部門與公司文管專區 (before: refused); Wi-Fi 認證流程 → 認證知識專區. A Keysight seminar question went to 設備儀器專區 (the name is a vendor). Worker container: 9 zones, prompt carries the technology key and the records zone, `technology_tag` and the CPE fallback work.
 - Not deployed: the CSIT simulator taxonomy (still 8 names), `config/csit-topic-map.csv` (offline import only). Legacy HR / procurement files skipped earlier are not back-filled; they need a new import run.
 - Rollback: override image back to `…20261110a` and recreate web; `images.env.before-v14r` to `images.env` and `csit-mode.sh reapply`.
+
+## 2026-11-10 — keeper: seminar questions list at least two candidate zones
+
+- Web image `km-da40-web:zone-pages-20261110c` (FROM `…20261110b`, `Dockerfile.web22`, overlay `ov13`: `keeper/routing.py`). Override backup `override.before-j2`.
+- Checked with the real model in the web container: Keysight World Tech Day → equipment, wifi, mobile; "Keysight 研討會講義" → equipment, wifi; a seminar question with no topic → wifi, mobile, broadband (no clarifying question); 5G + Wi-Fi handout → mobile, wifi. Unchanged: 實驗室介紹簡報 → lab only, 薪資單 → admin, Wi-Fi 認證流程 → cert.
+- Candidates are guesses from the zone catalogue, not where the document is. Not checked on the screen (login needed).
+- Rollback: override image back to `…20261110b` and recreate web.
