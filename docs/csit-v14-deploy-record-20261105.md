@@ -353,3 +353,11 @@ The 4G/5G sample reports hold no Excel chart objects (only environment diagrams 
 - Checked: container lists 9 zones; the zone routes know `admin`; the real overview handler returns for `admin` (0 documents); the file served from the nginx container holds the new group line. Not checked: the screen (login needed).
 - Open: access rules for the sensitive sub-areas (人事行政, 採購請款).
 - Rollback: restore `hub/index.html.before-admin-20261110`; set the override image back to `…20261109g` (`override.before-h2`) and recreate web.
+
+## 2026-11-10 — KM follows the decided mapping table (A–F)
+
+- Web image `km-da40-web:zone-pages-20261110b` (FROM `…20261110a`, `Dockerfile.web21`, overlay `ov12/web`): keeper `routing.py` (no sensitive-word refusal, rule 6 for cross-technology documents), `zones.json` (navigation names, records zone covers HR / procurement / Time Report), `keeper_routes.py` (title match in the entity lookup), `legacy_import/taxonomy.py` and `analyze.py`. Override backup `override.before-i2`.
+- Worker image `km-csit-worker:v14r-zones-20261110` (FROM `…v14q-handover-cond-20261109`, `Dockerfile.worker14`, overlay `ov12/w`): `doclib_metadata.py` (zone prompt, technology tag, CPE keyword fallback) and `zones.py` (9 zones). Switched with `csit-mode.sh reapply` (nothing in flight); `images.env` backup `images.env.before-v14r`. The API image and the `KM_CSIT_*` flags are unchanged.
+- Checked with the real model in the web container: 薪資單 / 採購請款單 / Time Report questions → 部門與公司文管專區 (before: refused); Wi-Fi 認證流程 → 認證知識專區. A Keysight seminar question went to 設備儀器專區 (the name is a vendor). Worker container: 9 zones, prompt carries the technology key and the records zone, `technology_tag` and the CPE fallback work.
+- Not deployed: the CSIT simulator taxonomy (still 8 names), `config/csit-topic-map.csv` (offline import only). Legacy HR / procurement files skipped earlier are not back-filled; they need a new import run.
+- Rollback: override image back to `…20261110a` and recreate web; `images.env.before-v14r` to `images.env` and `csit-mode.sh reapply`.
