@@ -108,7 +108,7 @@ def metadata_payload(change_payload):
     cls=change_payload["classification"]
     a=change_payload["attributes"]
     names={k:(cls.get(k) or {}).get("name") for k in ("l1","l2","l3")}
-    out={"classification":names,
+    out={"classification":names,"classification_ids":{k:(cls.get(k) or {}).get("id") for k in ("l1","l2","l3")},
          "tags":a["tags"],"keywords":a["keywords"],"display_name":a["displayName"],
          "model_numbers":a["modelNumbers"],"vendor_reference":a["vendorReference"]}
     # A document moved to another CSIT classification moves to the zone that classification maps to; when the table does not decide, the zone KM chose from the content stays.
@@ -141,8 +141,9 @@ class V2QdrantWriter:
         if len(vectors)!=len(chunks):raise IntegrationError("EMBEDDING_INVALID","Embedding result shape invalid")
         req=job["request_payload"]
         cls={k:(v or {}).get("name") for k,v in (req.get("classification") or {}).items() if isinstance(v,dict) or v is None}
+        ids={k:(v or {}).get("id") for k,v in (req.get("classification") or {}).items() if isinstance(v,dict) or v is None}
         src=req.get("source") or {}
-        extra={"classification":cls,**zone_fields(job["source_type"],cls,semantic,text),**(overrides or {})}
+        extra={"classification":cls,"classification_ids":ids,**zone_fields(job["source_type"],cls,semantic,text),**(overrides or {})}
         # A re-ingest of the same version replaces its points instead of accumulating stale ones.
         self.client.delete(self.collection,points_selector=self.flt(job["source_entity_id"],job["document_id"],job["version"]),wait=True)
         points=[PointStruct(id=stable_id("CSIT",job["source_type"],str(job["source_entity_id"]),str(job["document_id"]),job["version"],job["expected_sha256"],"chunk",i),

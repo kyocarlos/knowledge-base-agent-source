@@ -11,6 +11,9 @@ x-real-env: &real-env
   # Asking it for an unregistered scope would fail the whole token request, so the first real test asks for the registered pair: Test Report v1 and document-library v1.
   # The v2 callbacks (verification attachments, vendor, equipment, metadata change, v2 deletion) need csit.km.status.write and csit.km.deletion-status.write as well
   # (v1.4.1 C.3): add them here once CSIT has registered them and the M2M contract test passed.
+  # The v1 deletion callback (POST /api/integrations/km/v1/document-deletion-status) needs csit.km.deletion-status.write, not csit.ingestion.status.write
+  # (CSIT Runtime 8fe25c60, round 2 reply 2026-11-11). It is not requested until CSIT confirms the IdP grants it; without it KM does not send that callback,
+  # so no v1 deletion E2E can run before then.
   KM_CSIT_OUTBOUND_SCOPES: csit.document.read,csit.ingestion.status.write
   # true: the full Shared Identity check (principal_type, client_id, sub as well as issuer, audience, expiry, scope). CSIT's reply of 2026-11-10 does not accept a relaxed check
   # without its Owner's approval; the relaxed mode stays in the code but is not switched on here.

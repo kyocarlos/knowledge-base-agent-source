@@ -111,6 +111,16 @@ def test_library_points_carry_the_zone():
     assert {(p.payload["zone_id"],p.payload["topic_zone"],p.payload["zone_basis"]) for p in c.points}=={("wifi","WiFi 知識專區","classification")}
 
 
+def test_csits_own_classification_ids_are_kept_next_to_the_names():
+    c=Client()
+    DocLibQdrantWriter(c,"km_csit_docs",embed,1000).write("hello world",{"document_file_id":"f1","csit_job_id":"j","original_file_name":"a.txt","expected_sha256":"a"*64,
+        "request_payload":{"classification":{"l1":{"id":"20","name":"x"},"l2":{"id":"21","name":"y"},"l3":None}}})
+    assert {(str(p.payload["classification"]),str(p.payload["classification_ids"])) for p in c.points}=={("{'l1': 'x', 'l2': 'y', 'l3': None}","{'l1': '20', 'l2': '21', 'l3': None}")}
+    out=metadata_payload({"sourceType":"DocumentLibraryFile","classification":{"l1":{"id":"7","name":"a"},"l2":None,"l3":None},
+                          "attributes":{"tags":[],"keywords":[],"displayName":None,"modelNumbers":[],"vendorReference":None}})
+    assert out["classification_ids"]=={"l1":"7","l2":None,"l3":None} and out["classification"]["l1"]=="a"
+
+
 def test_a_library_file_with_no_classification_is_unclassified():
     c=Client()
     DocLibQdrantWriter(c,"km_csit_docs",embed,1000).write("hello world",{"document_file_id":"f1","csit_job_id":"j","original_file_name":"a.txt","expected_sha256":"a"*64,"request_payload":{}})

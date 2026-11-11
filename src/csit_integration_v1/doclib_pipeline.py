@@ -35,13 +35,14 @@ class DocLibQdrantWriter:
         if len(vectors)!=len(chunks):raise IntegrationError("EMBEDDING_INVALID","Embedding result shape invalid")
         cls=(job["request_payload"].get("classification") or {})
         names={k:(v or {}).get("name") for k,v in cls.items() if isinstance(v,dict) or v is None}
+        ids={k:(v or {}).get("id") for k,v in cls.items() if isinstance(v,dict) or v is None}      # CSIT's own classification ids, kept as sent
         # Re-ingest of the same file replaces its points instead of accumulating stale ones.
         self.client.delete(self.collection,points_selector=self.flt(fid),wait=True)
         points=[PointStruct(id=stable_id("CSIT","DocumentLibraryFile",fid,job["expected_sha256"],"chunk",i),vector=v,
             payload={"content":t,"source_system":"CSIT","source_type":"DocumentLibraryFile","document_file_id":fid,
                 "csit_job_id":str(job["csit_job_id"]),"doc_name":job["original_file_name"],"source_name":job["original_file_name"],
                 "source_ext":Path(job["original_file_name"]).suffix.lower(),"chunk_index":i,"sha256":job["expected_sha256"],
-                "classification":names,**zone_fields("DocumentLibraryFile",names,semantic,text)}) for i,(t,v) in enumerate(zip(chunks,vectors))]
+                "classification":names,"classification_ids":ids,**zone_fields("DocumentLibraryFile",names,semantic,text)}) for i,(t,v) in enumerate(zip(chunks,vectors))]
         if points:self.client.upsert(collection_name=self.collection,points=points,wait=True)
         return {"collection":self.collection,"pointCount":len(points),"indexId":self.collection+"/"+fid}
     def delete(self,document_file_id):
