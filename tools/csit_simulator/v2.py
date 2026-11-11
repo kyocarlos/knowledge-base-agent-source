@@ -21,11 +21,11 @@ REPORT_V1="/api/integrations/csit/v1/ingestion-jobs"
 CORRELATION="/api/integrations/km/v2/test-report-correlations/"
 # route family -> (source types served, scope aliases that allow the download)
 # v1.4.1 C.3: csit.document.read (singular) for GET, csit.km.status.write for v2 job / change / analysis callbacks, csit.km.deletion-status.write
-# for v2 deletion callbacks. The v1 callbacks keep csit.ingestion.status.write.
+# for v2 deletion callbacks AND the v1 deletion callback (CSIT Runtime 8fe25c60). The v1 ingestion callback keeps csit.ingestion.status.write.
 READ_SCOPES=("csit.document.read",)
 STATUS_SCOPES=("csit.km.status.write",)
 DELETION_SCOPES=("csit.km.deletion-status.write",)
-V1_STATUS_SCOPES=("csit.ingestion.status.write",)
+V1_STATUS_SCOPES=("csit.ingestion.status.write",)   # v1 ingestion callback only; the v1 deletion callback needs DELETION_SCOPES (CSIT Runtime 8fe25c60)
 V2_PATHS={"jobs":"/api/integrations/km/v2/document-jobs/status","changes":"/api/integrations/km/v2/document-metadata-changes/status",
           "deletions":"/api/integrations/km/v2/document-deletions/status","analysis":"/api/integrations/km/v2/analysis-results"}
 

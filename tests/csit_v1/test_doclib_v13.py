@@ -215,6 +215,7 @@ def test_deletion_202_idempotent_and_conflict(client):
     assert client.post(DELS,json=other,headers=AUTH).status_code==409
 
 def test_verified_deletion_removes_only_the_targeted_same_name_file(dsettings,drepo):
+    dsettings=replace(dsettings,outbound_scopes=dsettings.outbound_scopes+("csit.km.deletion-status.write",))      # the v1 deletion callback needs it (CSIT Runtime 8fe25c60)
     csit,q=Csit(),FakeQdrant();w=make_worker(dsettings,drepo,csit,q)
     a,_=submit(drepo,name="same.txt");b,_=submit(drepo,name="same.txt")
     w.process_one();w.process_one();drain_callbacks(w);csit.callbacks.clear()

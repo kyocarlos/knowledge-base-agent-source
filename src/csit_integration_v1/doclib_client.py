@@ -15,6 +15,8 @@ STATUS_PATHS={"ingestion":INGESTION_STATUS_PATH,"deletion":DELETION_STATUS_PATH,
     "deletion2":"/api/integrations/km/v2/document-deletions/status",
     "change":"/api/integrations/km/v2/document-metadata-changes/status",
     "analysis":"/api/integrations/km/v2/analysis-results"}
+V1_DELETION_KINDS=("deletion",)
+V1_DELETION_SCOPE="csit.km.deletion-status.write"
 CORRELATION_PATH="/api/integrations/km/v2/test-report-correlations/{event_id}"
 # Authorised GET by source type; the payload downloadUrl is never followed.
 V2_DOWNLOAD_PATHS={"VerificationApplicationAttachment":"/api/integrations/km/v1/documents/{id}/versions/{version}/content",
@@ -55,6 +57,10 @@ class DocLibClient(CsitIntegrationClient):
         finally:temporary.unlink(missing_ok=True)
     def post_status(self,kind,payload):
         path=STATUS_PATHS[kind]
+        # CSIT Runtime 8fe25c60 (round 2 reply, 2026-11-11): the v1 deletion callback needs csit.km.deletion-status.write, not csit.ingestion.status.write.
+        # Without that scope in the outbound token the call would be refused; do not send it (and do not ask CSIT to loosen the policy).
+        if kind in V1_DELETION_KINDS and V1_DELETION_SCOPE not in self.settings.outbound_scopes:
+            raise IntegrationError("M2M_SCOPE_MISSING",f"v1 deletion callback needs scope {V1_DELETION_SCOPE}, which the outbound token does not request",True)
         headers=self.auth.headers()
         if kind not in ("ingestion","deletion"):headers["Idempotency-Key"]=payload["callbackId"] # spec v1.4 3.1; v1 callbacks stay as they were
         try:

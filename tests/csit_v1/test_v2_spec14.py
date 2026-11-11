@@ -406,6 +406,7 @@ def test_in_flight_job_is_cancelled_by_a_deletion(dsettings,vrepo):
 def test_v1_verification_deletion_also_cleans_v2_data(dsettings,vrepo):
     """Spec 7.1: the v1 deletion route stays valid for verification attachments, which v1.4 ingests through v2."""
     from src.csit_integration_v1.doclib_models import DeletionRequest
+    dsettings=replace(dsettings,outbound_scopes=dsettings.outbound_scopes+("csit.km.deletion-status.write",))      # the v1 deletion callback needs it (CSIT Runtime 8fe25c60)
     csit,q=Csit(),FakeQdrant();w=make(dsettings,vrepo,csit,q)
     a,_=submit(vrepo);w.v2.ingest_one();drain(w);csit.callbacks.clear()
     vrepo.submit_deletion(DeletionRequest.model_validate({"schemaVersion":"1.0","sourceSystem":"CSIT","eventType":"DocumentDeletionRequested",

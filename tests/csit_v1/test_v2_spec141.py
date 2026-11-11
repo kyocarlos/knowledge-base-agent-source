@@ -128,10 +128,20 @@ def test_only_analysis_job_not_completed_is_retried_on_409(dsettings):
 
 def test_v1_callbacks_keep_their_old_409_behaviour_and_transient_errors_still_retry(dsettings):
     assert post(dsettings,"ingestion",[(409,"x")])[0].retryable is True
-    assert post(dsettings,"deletion",[(409,"x")])[0].retryable is True
+    with_deletion=replace(dsettings,outbound_scopes=dsettings.outbound_scopes+("csit.km.deletion-status.write",))
+    assert post(with_deletion,"deletion",[(409,"x")])[0].retryable is True
     for code in (429,500,503):assert post(dsettings,"ingestion2",[(code,"")])[0].retryable is True
     assert post(dsettings,"ingestion2",[(401,"")])[0].retryable is False
     assert post(dsettings,"ingestion2",[(204,"")])[0] is None
+
+def test_the_v1_deletion_callback_needs_the_deletion_status_scope_and_is_not_sent_without_it(dsettings):
+    # CSIT Runtime 8fe25c60: POST /api/integrations/km/v1/document-deletion-status requires csit.km.deletion-status.write, not csit.ingestion.status.write.
+    err,csit=post(dsettings,"deletion",[(204,"")])
+    assert err.code=="M2M_SCOPE_MISSING" and err.retryable is True and csit.posts==[]          # nothing went over the wire
+    with_scope=replace(dsettings,outbound_scopes=("csit.document.read","csit.km.deletion-status.write"))
+    err,csit=post(with_scope,"deletion",[(204,"")])
+    assert err is None and [p for p,_ in csit.posts]==["/api/integrations/km/v1/document-deletion-status"]
+    assert post(dsettings,"ingestion",[(204,"")])[0] is None                                  # the v1 ingestion callback keeps csit.ingestion.status.write
 
 def test_a_refused_callback_is_failed_after_one_attempt_and_logs_the_ids(dsettings,vrepo,caplog):
     csit,q=Csit(),FakeQdrant();w=make(dsettings,vrepo,csit,q);submit(vrepo)

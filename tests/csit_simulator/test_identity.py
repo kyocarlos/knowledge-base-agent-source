@@ -25,6 +25,7 @@ def idp(tmp_path,monkeypatch):
         try:socket.create_connection(("127.0.0.1",port),0.2).close();break
         except OSError:time.sleep(0.1)
     monkeypatch.setenv("SSL_CERT_FILE",str(files["ca.pem"]))
+    import urllib.request;monkeypatch.setattr(urllib.request,"_opener",None)   # PyJWKClient uses urlopen, whose cached opener keeps the CA of the first test in the process
     from src.csit_integration_v1.config import Settings
     settings=Settings(enabled=True,csit_base_url=base,authority=base+"/",audience="km.integration.sim",outbound_audience="csit.integration.sim",jwks_uri=base+"/.well-known/jwks",
                       token_url=base+"/oauth/token",client_id="km-csit-integration-sim",secret_file=str(secret),service_clients=("csit-km-ingestion-sim",),

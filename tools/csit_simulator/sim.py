@@ -290,7 +290,8 @@ class Sim(V2Mixin):
             self._save()
             if raise_:raise HTTPException(code,note or "rejected")
             return Response(status_code=204)
-        if not self._auth_ok(request,"csit.ingestion.status.write"):return answer(401,"service bearer required",raise_=True)
+        # CSIT Runtime 8fe25c60: the v1 deletion callback needs csit.km.deletion-status.write; the v1 ingestion callback keeps csit.ingestion.status.write.
+        if not self._auth_ok(request,"csit.ingestion.status.write" if kind=="ingestion" else "csit.km.deletion-status.write"):return answer(401,"service bearer required",raise_=True)
         with self.lock:
             g=self.faults
             if g["callbackFailures"]>0:
