@@ -79,3 +79,17 @@
 - 伺服器上的真實模式設定檔 `KM_CSIT_OUTBOUND_STRICT` 已改為 `"true"`(備份 `compose-real.override.yml.before-strict-20261110`),真實模式仍未啟用。
 - 換後驗證:worker healthy、日誌無錯誤;容器內 `resolve_zone`:無分類的文件庫檔案、LLM 說是 TestReport 或指定專區 → `unclassified／none`;TestReport 來源 → 產品驗證專區;外部認證資料 → 認證;6 條收件路由無 token 各回 401。
 - 回復:`images.env.before-v14u` 還原為 `images.env`,再 `csit-mode.sh reapply`;設定檔還原用 `compose-real.override.yml.before-strict-20261110`。
+
+## 九、乾淨建置與部署(2026-11-11,CSIT 第二輪要求第 1 項)
+
+- 分支 `feature/csit-spec-v14-20261105` 已推到 GitHub,commit **`670e7c80b2b722865ed7f8085439cf52315c9b40`**。
+- 以 `git archive` 取該 commit,用 repo 的 `deploy/csit-integration-v1/Dockerfile`(target `api`、`worker`,`--build-arg SOURCE_COMMIT=…`)從固定基底映像重建,不疊加舊映像。映像 label `org.opencontainers.image.revision` 即該 commit。
+  - API:`km-csit-integration:670e7c8-clean-20261111`,映像 ID `sha256:6efff66be6a57841766ed6f5210dd7422e7384c509c50f4056408dd586721bd4`
+  - Worker:`km-csit-worker:670e7c8-clean-20261111`,映像 ID `sha256:76b24de8232c7638cbd491cd674a9da70126dbee22386cf6eadc6c668e564867`
+  - 映像 ID 是本機建置的內容雜湊;這些映像沒有推到映像倉庫,所以沒有 registry digest。
+- 乾淨建置發現 repo 的 worker 需求檔缺 `pypdf==5.9.0`、`redis==6.4.0`(程式有 import,舊的疊加映像因基底已有而沒發現)。已補進 `requirements-worker.txt`／`.lock.txt`。補完後,新映像的 `pip freeze` 與原本運作中的映像完全相同(worker、API 各比一次)。
+- 逐檔驗證:映像 `/app` 內 207 個檔案(`src`、`km_credentials`、`contracts`、`app`、`config` 的數值規則、`fixtures`)與該 commit 逐位元相同(sha256),API、Worker 各比一次。
+- 換上:`images.env` 備份 `images.env.before-670e7c8`,`csit-mode.sh reapply`;換之前無進行中的工作。仍是 live(模擬器)模式。
+- 換後:兩個容器 healthy,日誌無錯誤;6 條收件路由無 token 各回 401;worker 內 `pypdf 5.9.0`、`redis 6.4.0` 可匯入,`resolve_zone` 對無分類文件回待分類;外送 scope 設定(live 模式)含 `csit.km.deletion-status.write`。
+- 這次一併部署:v1 刪除回報沒有 `csit.km.deletion-status.write` 就不送(`M2M_SCOPE_MISSING`)、模擬器同規則、CSIT 分類 ID 與名稱一併保存。
+- 回復:`images.env.before-670e7c8` 還原為 `images.env`,再 `csit-mode.sh reapply`(舊映像 `v14c-auth-20261110`／`v14u-zone-csit-20261110` 仍在伺服器上)。
