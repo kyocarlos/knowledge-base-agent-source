@@ -83,7 +83,13 @@ def worker():
         executor=DeletionExecutor(drepo,s.storage_root,qdrant=vector.client,doclib_collection=collection,report_collections=report_collections,
             neo4j_driver=driver if os.getenv("KM_CSIT_NEO4J_URI") else None,neo4j_database=os.getenv("KM_CSIT_NEO4J_DATABASE"),
             timescale_connect=(lambda:psycopg.connect(dsn)) if os.getenv("KM_CSIT_TIMESCALE_DSN_FILE") else None,cache_clear=_cache_clear)
-        v2=V2Processor(s,drepo,V2Pipeline(s,drepo,dclient,v2writer,semantic=semantic),v2writer,report_collections=report_collections,client=dclient)
+        from .image_reader import ImageReader
+        vision=None
+        if os.getenv("KM_CSIT_VISION_ENABLED")=="1" and os.getenv("KM_CSIT_LLM_BASE_URL"):
+            from .doclib_llm import describe_image
+            vision=describe_image
+        images=ImageReader(vision=vision) if os.getenv("KM_CSIT_IMAGES_ENABLED")=="1" else None
+        v2=V2Processor(s,drepo,V2Pipeline(s,drepo,dclient,v2writer,semantic=semantic,images=images),v2writer,report_collections=report_collections,client=dclient)
         doclib_worker=DocLibWorker(s,drepo,dclient,DocLibPipeline(s,drepo,dclient,qwriter,semantic=semantic),executor,extra_steps=v2.steps())
         worker_obj_tombstones=drepo
     stop=threading.Event()

@@ -14,7 +14,8 @@ from .doclib_metadata import zone_fields
 from .zones import ZONE_BY_ID,zone_by_classification
 
 PARSER_VERSION="km-csit-v2-parser-v1"
-PARSEABLE=tuple(FORMAT_MIME)+(".md",".pptx")
+PATCH_SUFFIXES=(".patch",".diff")
+PARSEABLE=tuple(FORMAT_MIME)+(".md",".pptx")+PATCH_SUFFIXES
 IMAGE_SUFFIXES=(".png",".jpg",".jpeg",".gif",".bmp",".tif",".tiff",".webp")
 OLE_MAGIC=b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1" # password-protected Office files are OLE containers, not zip packages
 # Codes of spec 5.3. Anything the v1 validators raise is renamed here so CSIT sees one vocabulary.
@@ -51,7 +52,42 @@ class V2Parser(Parser):
             except zipfile.BadZipFile:raise IntegrationError("CORRUPT_DOCUMENT","Office archive invalid") from None
             if len(text)>self.settings.max_text_chars:raise IntegrationError("PARSER_LIMIT_EXCEEDED","Text parser size limit exceeded")
             return Extraction(text=text)
+        if suffix in PATCH_SUFFIXES:return parse_patch(path,self.settings)
         return super().parse(path,suffix)
+
+def parse_patch(path,settings):
+    """A patch is read as plain text and never applied or executed: the diff stays as written, and each hunk is preceded by the file it changes
+    so a chunk taken from the middle of a long diff still names its file. The per-file counts go to a table."""
+    raw=path.read_bytes()
+    if len(raw)>settings.max_text_chars*4:raise IntegrationError("PARSER_LIMIT_EXCEEDED","Text parser size limit exceeded")
+    try:text=raw.decode("utf-8-sig")
+    except UnicodeDecodeError:raise IntegrationError("CORRUPT_FILE","Patch is not valid UTF-8 text") from None
+    if len(text)>settings.max_text_chars:raise IntegrationError("PARSER_LIMIT_EXCEEDED","Text parser size limit exceeded")
+    files,order,out,current=({}),[],[],None
+    def entry(name):
+        if name not in files:files[name]={"additions":0,"deletions":0,"hunks":0};order.append(name)
+        return files[name]
+    lines=text.replace("\r\n","\n").split("\n")
+    in_hunk=False
+    for i,line in enumerate(lines):
+        m=re.match(r"diff --git a/(.+?) b/(.+)$",line)
+        if m:current=m.group(2);entry(current);in_hunk=False
+        elif line.startswith("+++ ") and not in_hunk:
+            name=re.sub(r"\t.*$","",line[4:]).strip()
+            name=name[2:] if name.startswith("b/") else name
+            if name and name!="/dev/null":current=name;entry(current)
+            elif i>0 and lines[i-1].startswith("--- "):
+                old=re.sub(r"\t.*$","",lines[i-1][4:]).strip();current=old[2:] if old.startswith("a/") else old;entry(current)
+        elif line.startswith("@@") and current is not None:
+            entry(current)["hunks"]+=1;in_hunk=True
+            out.append("[file: "+current+"]")
+        elif in_hunk and line.startswith("+"):entry(current)["additions"]+=1
+        elif in_hunk and line.startswith("-"):entry(current)["deletions"]+=1
+        out.append(line)
+    tables=[]
+    if order:tables=[{"name":"PatchFiles","headers":["path","additions","deletions","hunks"],
+        "rows":[[n,files[n]["additions"],files[n]["deletions"],files[n]["hunks"]] for n in order[:2000]]}]
+    return Extraction(text="\n".join(out),tables=tables)
 
 def validate_v2_file(path,suffix,name,settings):
     """Format gate. Executable content, broken containers and password-protected documents get their own codes."""
@@ -75,6 +111,15 @@ def validate_v2_file(path,suffix,name,settings):
     elif suffix==".md":
         try:path.read_bytes().decode("utf-8-sig")
         except UnicodeDecodeError:raise IntegrationError("CORRUPT_FILE","Markdown is not valid UTF-8") from None
+    elif suffix in PATCH_SUFFIXES:
+        data=path.read_bytes()
+        if b"\x00" in data:raise IntegrationError("CORRUPT_FILE","Patch contains binary data")
+        if head.startswith((b"#!",b"PK\x03\x04")):raise IntegrationError("MALWARE_DETECTED","Script or archive content rejected")
+        try:data.decode("utf-8-sig")
+        except UnicodeDecodeError:raise IntegrationError("CORRUPT_FILE","Patch is not valid UTF-8 text") from None
+    elif suffix in IMAGE_SUFFIXES:
+        from .image_reader import inspect
+        inspect(path,suffix)
 
 def source_specific(job,extraction,suffix):
     out=dict(SOURCE_SPECIFIC_DEFAULTS.get(job["source_type"],{}))
@@ -82,7 +127,7 @@ def source_specific(job,extraction,suffix):
     if "sheetNames" in out:out["sheetNames"]=sheets
     return out
 
-def build_result_v2(job,extraction,suffix,source_path,semantic,index_id,chunk_count,indexed_at,warnings=()):
+def build_result_v2(job,extraction,suffix,source_path,semantic,index_id,chunk_count,indexed_at,warnings=(),method="Text",ocr_used=False):
     text=extraction.text
     sem=clean_semantic(semantic,text)
     warnings=list(warnings)
@@ -93,9 +138,9 @@ def build_result_v2(job,extraction,suffix,source_path,semantic,index_id,chunk_co
         "documentDate":None,"authors":[],"department":None,"documentVersionLabel":None,"keywords":sem["keywords"],"tags":[]},
       "technical":{"productNames":[],"modelNumbers":[],"vendorNames":[],"technologies":[],"standards":[],"softwareVersions":[],
         "hardwareVersions":[],"projectNames":[],"testItems":[],"measurements":[],"issueKeys":[],"errorCodes":[]},
-      "extraction":{"sourceFormat":suffix.lstrip("."),"method":"Text","pageCount":_page_count(source_path,suffix),
+      "extraction":{"sourceFormat":suffix.lstrip("."),"method":method,"pageCount":_page_count(source_path,suffix),
         "sheetNames":[t["name"] for t in extraction.tables] if suffix==".xlsx" else [],
-        "extractedCharacterCount":len(text),"ocrUsed":False},
+        "extractedCharacterCount":len(text),"ocrUsed":ocr_used},
       "indexing":{"status":"Completed","indexId":index_id,"chunkCount":chunk_count,
         "indexedAt":indexed_at.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")},
       "warnings":warnings,
@@ -176,10 +221,11 @@ class V2QdrantWriter:
         self.client.set_payload(self.collection,payload=payload,points=flt,wait=True)
 
 class V2Pipeline:
-    def __init__(self,settings,repository,client,qdrant_writer,parser=None,semantic=None):
+    def __init__(self,settings,repository,client,qdrant_writer,parser=None,semantic=None,images=None):
         self.settings,self.repo,self.client,self.qdrant=settings,repository,client,qdrant_writer
         self.parser=parser or V2Parser(settings)
         self.semantic=semantic
+        self.images=images # image_reader.ImageReader; without it an image still ends Failed UNSUPPORTED_FORMAT
     def run(self,job):
         try:self._run(job)
         except IntegrationError as e:raise renamed(e) from None
@@ -191,8 +237,9 @@ class V2Pipeline:
             # the old version as well. That is not built: read as plain text it would leave the old numbers current beside it. Failing leaves the old version untouched.
             raise IntegrationError("REPLACEMENT_NOT_SUPPORTED","A replacement version of a Test Report is not supported by this KM yet; the previous version stays current",False)
         if job["file_size_bytes"]>s.max_file_size:raise IntegrationError("FILE_TOO_LARGE","File exceeds the size KM accepts ("+str(s.max_file_size)+" bytes)")
-        if suffix in IMAGE_SUFFIXES:raise IntegrationError("UNSUPPORTED_FORMAT","Image content cannot be analysed: OCR and vision are not enabled in this KM")
-        if suffix not in PARSEABLE:raise IntegrationError("UNSUPPORTED_FORMAT","File format "+(suffix or "(no extension)")+" cannot be analysed")
+        if suffix in IMAGE_SUFFIXES and (self.images is None or not self.images.available):
+            raise IntegrationError("UNSUPPORTED_FORMAT","Image content cannot be analysed: OCR and vision are not enabled in this KM")
+        if suffix not in PARSEABLE and suffix not in IMAGE_SUFFIXES:raise IntegrationError("UNSUPPORTED_FORMAT","File format "+(suffix or "(no extension)")+" cannot be analysed")
         root=v2_dir(s.storage_root,job["event_id"])
         path=root/("source-"+str(job["lease_token"])+suffix)
         self.repo.phase_job(job,"Downloading")
@@ -201,7 +248,12 @@ class V2Pipeline:
         self.repo.phase_job(job,"Validating")
         validate_v2_file(path,suffix,job["original_file_name"],s)
         self.repo.phase_job(job,"Parsing")
-        extraction=normalize(self.parser.parse(path,suffix),job,())
+        method,ocr_used,reading_warnings="Text",False,[]
+        if suffix in IMAGE_SUFFIXES:
+            reading=self.images.read(path,root)
+            method,ocr_used,reading_warnings=reading.method,reading.ocr_used,reading.warnings
+            extraction=normalize(Extraction(text=reading.text),job,())
+        else:extraction=normalize(self.parser.parse(path,suffix),job,())
         # Spec v1.4.1 C.4: Completed means something was parsed and indexed. A file with no extractable text (a scan, an empty sheet) is not.
         if not extraction.text.strip():raise IntegrationError("EMPTY_EXTRACTION","No text could be extracted from the document; nothing was indexed")
         semantic=None
@@ -219,7 +271,7 @@ class V2Pipeline:
         except IntegrationError:raise
         except Exception:raise IntegrationError("STORAGE_UNAVAILABLE","Vector index unavailable",True) from None
         self.repo.checkpoint_job(job,"Qdrant",indexed)
-        result=build_result_v2(job,extraction,suffix,path,semantic,indexed["indexId"],indexed["pointCount"],indexed_at)
+        result=build_result_v2(job,extraction,suffix,path,semantic,indexed["indexId"],indexed["pointCount"],indexed_at,reading_warnings,method,ocr_used)
         try:self.repo.finish_job(job,result,{"Storage":{"artifact":str(stored)},"Qdrant":indexed})
         except LeaseLost:
             # Deleted while we worked: leave nothing behind. A superseded lease must not touch the new owner's data.

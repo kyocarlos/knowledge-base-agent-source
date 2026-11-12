@@ -10,7 +10,7 @@ from .doclib_metadata import zone_fields
 
 PARSER_VERSION="km-csit-doclib-parser-v1"
 # Slides and Markdown are read like the v2 route reads them (seminar handouts, lab posters and environment decks are mostly .pptx); the other types keep the v1 checks.
-EXTRA_SUFFIXES=(".md",".pptx")
+EXTRA_SUFFIXES=(".md",".pptx",".patch",".diff")
 
 def doclib_dir(root,csit_job_id):
     return Path(root)/"doclib"/str(csit_job_id)

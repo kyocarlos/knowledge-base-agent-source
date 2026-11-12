@@ -14,13 +14,15 @@ x-real-env: &real-env
   # The v1 deletion callback (POST /api/integrations/km/v1/document-deletion-status) needs csit.km.deletion-status.write, not csit.ingestion.status.write
   # (CSIT Runtime 8fe25c60, round 2 reply 2026-11-11). It is not requested until CSIT confirms the IdP grants it; without it KM does not send that callback,
   # so no v1 deletion E2E can run before then.
-  KM_CSIT_OUTBOUND_SCOPES: csit.document.read,csit.ingestion.status.write
+  KM_CSIT_OUTBOUND_SCOPES: csit.document.read,csit.ingestion.status.write,csit.km.status.write
   # true: the full Shared Identity check (principal_type, client_id, sub as well as issuer, audience, expiry, scope). CSIT's reply of 2026-11-10 does not accept a relaxed check
   # without its Owner's approval; the relaxed mode stays in the code but is not switched on here.
   KM_CSIT_OUTBOUND_STRICT: "true"
   # v1.4.1 C.2: stays off until CSIT has deployed the Test Report Correlation Resolver (task C).
   KM_CSIT_ANALYSIS_RESULTS_ENABLED: "false"
   KM_CSIT_DOCLIB_LLM: "1"
+  KM_CSIT_IMAGES_ENABLED: "1"   # image OCR (Tesseract); a vision model only for images OCR cannot read
+  KM_CSIT_VISION_ENABLED: "1"
   KM_CSIT_LLM_BASE_URL: http://host.docker.internal:18080/v1
   KM_CSIT_LLM_MODEL: gpt-5.6-luna
   KM_CSIT_LLM_API_KEY_FILE: /run/secrets/llm-api-key

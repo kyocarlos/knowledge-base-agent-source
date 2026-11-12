@@ -23,6 +23,8 @@ ENV PYTHONPATH=/app:/app/tests/control_v1
 CMD ["python","-m","pytest","-q","tests/csit_v1","tests/control_v1"]
 
 FROM api AS worker
+# Tesseract for image OCR (traditional Chinese + English). Used only by the worker; the OCR runs as a subprocess on a re-encoded copy of the image.
+RUN apt-get update && apt-get install -y --no-install-recommends tesseract-ocr tesseract-ocr-chi-tra tesseract-ocr-eng && rm -rf /var/lib/apt/lists/*
 COPY deploy/csit-integration-v1/requirements-worker.txt deploy/csit-integration-v1/requirements-worker.lock.txt /tmp/
 RUN pip install --no-cache-dir --index-url https://download.pytorch.org/whl/cpu torch==2.13.0 && pip install --no-cache-dir -r /tmp/requirements-worker.lock.txt
 CMD ["python","-m","src.csit_integration_v1.runtime"]
