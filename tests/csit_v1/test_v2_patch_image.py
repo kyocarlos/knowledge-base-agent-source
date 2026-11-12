@@ -189,7 +189,7 @@ def test_an_empty_text_patch_is_not_completed(tmp_path):
 # ---- images -------------------------------------------------------------------------------------------------------------------------
 
 def test_without_ocr_or_vision_an_image_still_fails_as_unsupported(tmp_path):
-    for images in (None, ImageReader(vision=None, tesseract=None)):
+    for images in (None, ImageReader(vision=None, tesseract="")):
         with pytest.raises(IntegrationError) as e:
             run_v2(tmp_path, "shot.png", png("hello"), images=images)
         assert e.value.code == "UNSUPPORTED_FORMAT"

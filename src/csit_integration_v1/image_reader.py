@@ -68,7 +68,7 @@ class ImageReader:
         self.langs=langs or os.getenv("KM_CSIT_OCR_LANGS","chi_tra+eng")
         self.min_chars=int(min_chars if min_chars is not None else os.getenv("KM_CSIT_OCR_MIN_CHARS","20"))
         self.timeout=float(timeout if timeout is not None else os.getenv("KM_CSIT_OCR_TIMEOUT","90"))
-        self.tesseract=tesseract or shutil.which("tesseract")
+        self.tesseract=(tesseract or None) if tesseract is not None else shutil.which("tesseract")   # tesseract="" switches OCR off
 
     @property
     def available(self):
