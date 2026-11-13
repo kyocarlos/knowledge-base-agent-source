@@ -27,6 +27,22 @@ def _cache_clear(resource):
     try:return sum(1 for key in client.scan_iter("search:*",count=500) if client.delete(key))
     finally:client.close()
 
+def _cache_check(resource):
+    """After the search cache was cleared: no cached search entry may still mention the deleted source. Entries are looked at, not trusted to be gone."""
+    url=os.getenv("KM_CSIT_DOCLIB_REDIS_URL")
+    ident=str(resource.get("documentFileId") or resource.get("documentId") or "")
+    if not url or not ident:return 0
+    import redis
+    client=redis.from_url(url,decode_responses=True)
+    try:
+        left=0
+        for key in client.scan_iter("search:*",count=500):
+            try:value=client.get(key)
+            except Exception:continue # an entry of another type holds no search result
+            if isinstance(value,str) and ident in value:left+=1
+        return left
+    finally:client.close()
+
 def worker():
     from .auth import ClientCredentialsProvider
     from .client import CsitIntegrationClient
@@ -82,7 +98,7 @@ def worker():
         report_collections=tuple(x for x in (os.getenv("KM_CSIT_QDRANT_COLLECTION"),"ai_km_knowledge_v1") if x)
         executor=DeletionExecutor(drepo,s.storage_root,qdrant=vector.client,doclib_collection=collection,report_collections=report_collections,
             neo4j_driver=driver if os.getenv("KM_CSIT_NEO4J_URI") else None,neo4j_database=os.getenv("KM_CSIT_NEO4J_DATABASE"),
-            timescale_connect=(lambda:psycopg.connect(dsn)) if os.getenv("KM_CSIT_TIMESCALE_DSN_FILE") else None,cache_clear=_cache_clear)
+            timescale_connect=(lambda:psycopg.connect(dsn)) if os.getenv("KM_CSIT_TIMESCALE_DSN_FILE") else None,cache_clear=_cache_clear,cache_check=_cache_check)
         from .image_reader import ImageReader
         vision=None
         if os.getenv("KM_CSIT_VISION_ENABLED")=="1" and os.getenv("KM_CSIT_LLM_BASE_URL"):

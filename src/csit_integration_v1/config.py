@@ -21,6 +21,11 @@ class Settings:
     # The official v2 set is csit.document.read (singular), csit.km.status.write, csit.km.deletion-status.write; once both sides passed
     # the M2M contract test, set KM_CSIT_OUTBOUND_SCOPES to it (add csit.ingestion.status.write while v1 callbacks are still sent).
     outbound_scopes: tuple[str,...] = ("csit.document.read","csit.ingestion.status.write")
+    # Extra scopes asked for only when a deletion callback is sent (its own token, cached on its own). The v1 deletion callback needs csit.km.deletion-status.write
+    # (CSIT Runtime 8fe25c60). It must not go into outbound_scopes: while the identity server has not registered it, the whole token request would be refused
+    # and every other callback with it. Empty (the default): deletion callbacks use the ordinary token, and the v1 one is not sent (M2M_SCOPE_MISSING, retried).
+    # KM_CSIT_DELETION_CALLBACK_SCOPES, comma separated, once the identity server grants the scope.
+    deletion_callback_scopes: tuple[str,...] = ()
     # Spec 5.4 / v1.4.1 C.2: v2 analysis-results for Test Report. Off until CSIT has deployed the Correlation Resolver (task C).
     analysis_results_enabled: bool = False
     # The outbound token check. True (the default, as tested against the simulator): every claim of the Shared Identity design and exactly the requested scopes.

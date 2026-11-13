@@ -22,10 +22,11 @@ def _is_copy(name):
 
 class DeletionExecutor:
     def __init__(self,repo,storage_root,*,qdrant=None,doclib_collection=None,report_collections=(),neo4j_driver=None,
-                 neo4j_database=None,timescale_connect=None,cache_clear=None):
+                 neo4j_database=None,timescale_connect=None,cache_clear=None,cache_check=None):
         self.repo,self.root=repo,Path(storage_root)
         self.qdrant,self.doclib_collection,self.report_collections=qdrant,doclib_collection,tuple(report_collections)
         self.neo4j,self.neo4j_database,self.timescale,self.cache_clear=neo4j_driver,neo4j_database,timescale_connect,cache_clear
+        self.cache_check=cache_check # resource -> number of cached search entries that still mention the source
         self._template_cache={}
 
     # -- identity helpers --
@@ -192,7 +193,8 @@ class DeletionExecutor:
         # Verification pass: query again, anything left means the cleanup is not proven.
         residue={"storedCopies":self._files_present(job,True),"extractedText":self._files_present(job,False),
                  "chunks":self._qdrant_count(job) if self.qdrant is not None else 0,"graphRelations":self._graph(job,False),
-                 "metadata":self.repo.metadata_residue(job)+self._numeric(job,False)}
+                 "metadata":self.repo.metadata_residue(job)+self._numeric(job,False),
+                 "cache":self.cache_check(job["resource"]) if self.cache_check else 0}
         residue["vectorIndex"]=residue["chunks"]
         bad=sorted(k for k,v in residue.items() if v)
         if bad:raise IntegrationError("CLEANUP_NOT_VERIFIED","Residual data remains: "+",".join(bad),True)

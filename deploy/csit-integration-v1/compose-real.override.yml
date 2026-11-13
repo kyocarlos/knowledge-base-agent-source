@@ -15,6 +15,8 @@ x-real-env: &real-env
   # (CSIT Runtime 8fe25c60, round 2 reply 2026-11-11). It is not requested until CSIT confirms the IdP grants it; without it KM does not send that callback,
   # so no v1 deletion E2E can run before then.
   KM_CSIT_OUTBOUND_SCOPES: csit.document.read,csit.ingestion.status.write,csit.km.status.write
+  # Deletion callbacks ask for their own token. Set KM_CSIT_DELETION_CALLBACK_SCOPES=csit.km.deletion-status.write here only after the identity server lists that scope
+  # (checked 2026-11-13: scopes_supported does not have it yet). Until then the v1 deletion callback is held (M2M_SCOPE_MISSING) and no ordinary callback is affected.
   # true: the full Shared Identity check (principal_type, client_id, sub as well as issuer, audience, expiry, scope). CSIT's reply of 2026-11-10 does not accept a relaxed check
   # without its Owner's approval; the relaxed mode stays in the code but is not switched on here.
   KM_CSIT_OUTBOUND_STRICT: "true"

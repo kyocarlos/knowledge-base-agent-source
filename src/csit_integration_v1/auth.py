@@ -100,8 +100,13 @@ class ClientCredentialsProvider:
         self.keys=jwt.PyJWKClient(settings.jwks_uri, timeout=settings.timeout)
         self.http=httpx.Client(timeout=settings.timeout,verify=True,follow_redirects=False,transport=transport)
         self._lock=threading.Lock()
-        self._token=None
-        self._expires=0
+        self._tokens={}   # sorted scope tuple -> (access token, monotonic expiry)
+
+    @property
+    def _token(self):
+        """The cached ordinary token (None when there is none): what the provider tests look at."""
+        cached=self._tokens.get(tuple(sorted(self.settings.outbound_scopes)))
+        return cached[0] if cached else None
 
     def _response_error(self, code, message, response, secret, retryable=False):
         import base64,re
@@ -124,43 +129,48 @@ class ClientCredentialsProvider:
         exc.diagnostic=diagnostic
         return exc
 
-    def _validate_relaxed(self, token, key):
+    def _validate_relaxed(self, token, key, wanted=None):
         """What the CSIT specs actually fix (issuer, audience, expiry, scope): signature, issuer, audience containing ours, exp / iat, every requested scope granted.
         The claims the strict check also demands (principal_type, client_id, sub) were KM's own assumption from the Shared Identity design, not CSIT's: here they
         are checked only when the token carries them (under the claim names inbound uses), and a token that has extra scopes is fine."""
         s=self.settings
         claims=self.jwt.decode(token,key,algorithms=[s.algorithm],issuer=s.authority,audience=s.outbound_audience,options={"require":["exp","iat","iss","aud","scope"]})
-        if not set(s.outbound_scopes)<=scope_set(claims["scope"]):
+        if not set(wanted or s.outbound_scopes)<=scope_set(claims["scope"]):
             raise IntegrationError("M2M_SCOPE_MISSING","Outbound service token scopes invalid")
         if s.client_claim in claims and claims[s.client_claim]!=s.client_id:raise ValueError()
         if s.service_claim in claims and claims[s.service_claim]!=s.service_claim_value:raise ValueError()
         return claims
 
-    def _validate_token(self, token):
+    def _validate_token(self, token, wanted=None):
         s=self.settings
+        wanted=tuple(wanted or s.outbound_scopes)
         try:
             if not s.outbound_audience:raise ValueError()
             key=self.keys.get_signing_key_from_jwt(token).key
-            if not s.outbound_strict:return self._validate_relaxed(token,key)
+            if not s.outbound_strict:return self._validate_relaxed(token,key,wanted)
             claims=self.jwt.decode(token,key,algorithms=[s.algorithm],issuer=s.authority,
                 audience=s.outbound_audience,options={"require":["exp","iat","iss","aud","sub","client_id","principal_type","scope"]})
             audiences=claims["aud"] if isinstance(claims["aud"],list) else [claims["aud"]]
             if audiences!=[s.outbound_audience]:raise ValueError()
             if claims["principal_type"]!="service" or claims["client_id"]!=s.client_id or claims["sub"]!=s.client_id:raise ValueError()
-            if not isinstance(claims["scope"],str) or set(claims["scope"].split())!=set(s.outbound_scopes):
+            if not isinstance(claims["scope"],str) or set(claims["scope"].split())!=set(wanted):
                 raise IntegrationError("M2M_SCOPE_MISSING","Outbound service token scopes invalid")
             return claims
         except IntegrationError:raise
         except Exception:
             raise IntegrationError("M2M_TOKEN_INVALID","Outbound service token validation failed") from None
 
-    def headers(self):
+    def headers(self,scopes=None):
+        """The bearer header. scopes=None asks for the configured outbound scopes; a deletion callback passes its own (outbound + deletion) and gets its own token."""
+        wanted=tuple(dict.fromkeys(scopes)) if scopes else tuple(self.settings.outbound_scopes)
+        slot=tuple(sorted(wanted))
         with self._lock:
-            if not self._token or time.monotonic()>=self._expires:
+            cached=self._tokens.get(slot)
+            if not cached or time.monotonic()>=cached[1]:
                 s=self.settings
                 secret=Path(s.secret_file).read_text().strip()
                 try:
-                    r=self.http.post(s.token_url,data={"grant_type":"client_credentials","scope":" ".join(s.outbound_scopes)},
+                    r=self.http.post(s.token_url,data={"grant_type":"client_credentials","scope":" ".join(wanted)},
                         auth=httpx.BasicAuth(s.client_id,secret))
                     if r.status_code in (401,403):
                         raise self._response_error("M2M_AUTH_FAILED","Outbound service authentication rejected",r,secret)
@@ -173,17 +183,16 @@ class ClientCredentialsProvider:
                     # The response scope field is optional. Signed JWT claims remain mandatory.
                     if "scope" in d:
                         granted=set(d["scope"].split()) if isinstance(d["scope"],str) else None
-                        if granted is None or (granted!=set(s.outbound_scopes) if s.outbound_strict else not set(s.outbound_scopes)<=granted):
+                        if granted is None or (granted!=set(wanted) if s.outbound_strict else not set(wanted)<=granted):
                             raise IntegrationError("M2M_SCOPE_MISSING","Outbound response scopes invalid")
-                    claims=self._validate_token(d["access_token"])
-                    self._token=d["access_token"]
-                    self._expires=time.monotonic()+max(0,min(ttl,claims["exp"]-time.time())-30)
+                    claims=self._validate_token(d["access_token"],wanted)
+                    cached=(d["access_token"],time.monotonic()+max(0,min(ttl,claims["exp"]-time.time())-30))
+                    self._tokens[slot]=cached
                 except IntegrationError:raise
                 except (httpx.HTTPError,ValueError,KeyError,TypeError,AttributeError):
                     raise IntegrationError("M2M_UNAVAILABLE","Outbound service token request failed",True) from None
                 finally:secret=None
-            return {"Authorization":"Bearer "+self._token}
+            return {"Authorization":"Bearer "+cached[0]}
     def close(self):
-        self._token=None
-        self._expires=0
+        self._tokens.clear()
         self.http.close()
