@@ -10,11 +10,24 @@ Everyone who can reach the service shares the identity "anonymous": per-user sta
 import logging
 import os
 
+from fastapi import APIRouter, HTTPException, Request
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from ..instance_isolation import configured_instance_id
 
 logger = logging.getLogger(__name__)
+
+# The reverse proxy's session check (nginx auth_request /_km_session_check) calls GET /api/auth/me and expects 200 (let in) or 401 (login page).
+# The instance login used to answer it; without the login nothing did, nginx saw 404 and answered 500 for every page.
+router = APIRouter(prefix="/api/auth", tags=["KM anonymous identity"])
+
+
+@router.get("/me")
+async def me(request: Request):
+    identity = getattr(request.state, "km_identity", None)
+    if not identity:
+        raise HTTPException(status_code=401, detail="KM login required")
+    return {"user_id": identity["sub"], "instance_id": identity.get("instance_id", ""), "role": identity.get("role", "anonymous")}
 
 
 def enabled() -> bool:
@@ -37,6 +50,7 @@ def install_anonymous_identity(app) -> bool:
     if any(getattr(m.cls, "__name__", "") == "InstanceAuthMiddleware" for m in app.user_middleware):
         return False
     app.add_middleware(AnonymousIdentityMiddleware)
+    app.include_router(router)
     if enabled():
         logger.warning("KM instance login is not installed: every request uses the anonymous identity (set KM_ANONYMOUS_IDENTITY=0 to refuse instead)")
     return True

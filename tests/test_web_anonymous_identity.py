@@ -50,3 +50,29 @@ def test_it_never_replaces_an_identity_that_is_already_there(monkeypatch):
         scope.setdefault("state", {})["km_identity"] = {"sub": "alice", "instance_id": "da40"}
         await app(scope, receive, send)
     assert TestClient(with_identity).get("/who").json()["identity"]["sub"] == "alice"
+
+
+def test_auth_me_answers_the_reverse_proxy_session_check_with_the_anonymous_identity(monkeypatch):
+    monkeypatch.setattr(anon, "configured_instance_id", lambda: "da40")
+    app = FastAPI()
+    anon.install_anonymous_identity(app)
+    r = TestClient(app).get("/api/auth/me")
+    assert r.status_code == 200 and r.json() == {"user_id": "anonymous", "instance_id": "da40", "role": "anonymous"}
+
+
+def test_auth_me_answers_401_when_the_anonymous_identity_is_switched_off(monkeypatch):
+    monkeypatch.setenv("KM_ANONYMOUS_IDENTITY", "0")
+    app = FastAPI()
+    anon.install_anonymous_identity(app)
+    assert TestClient(app).get("/api/auth/me").status_code == 401
+
+
+def test_auth_me_is_not_added_next_to_the_instance_login():
+    app = FastAPI()
+
+    class InstanceAuthMiddleware(BaseHTTPMiddleware):
+        async def dispatch(self, request, call_next):
+            return await call_next(request)
+    app.add_middleware(InstanceAuthMiddleware)
+    anon.install_anonymous_identity(app)
+    assert TestClient(app).get("/api/auth/me").status_code == 404
