@@ -1,0 +1,256 @@
+"""Root-cause narrative over a comparison pack: the model proposes, code checks.
+
+The model never sees the database and never computes a number. It gets the evidence pack from compare.py and must answer in a fixed JSON shape in which
+every observation and hypothesis cites evidence ids. The result is verified before anyone sees it: unknown ids, uncited claims, numbers that are not in
+the evidence, overconfident attribution when several factors changed at once. A failed check sends the model one correction round; if it still fails
+the analysis is rejected instead of shown. Hypotheses are candidates to verify, never conclusions.
+"""
+from __future__ import annotations
+
+import copy
+import json
+import re
+from typing import Any, Callable
+
+CONFIDENCE = ("low", "medium", "high")
+MAX_HYPOTHESES = 3
+MAX_OBSERVATIONS = 5
+FREE_INTEGERS = range(0, 11)  # "2 項", "第 3" and similar counting words are not data
+SYSTEM_PROMPT = """你是 CSIT 測試報告的根因分析（RCA）助理。你只會拿到一份由程式整理好的「差異證據包」，不能查資料庫，也不能計算。
+規則：
+1. 只能根據證據包回答。每一條觀察與每一個假設都要在 evidence / supports 欄位列出證據編號（F#、P#、D#、R#、C#、Q#、T#），只能使用證據包裡存在的編號。
+2. 數值、單位、版本、通道、頻段一律原樣照抄證據包；不要自行計算、換算、四捨五入或估計，沒有出現在證據包的數字不要寫。尤其不要把兩個數值相加、相乘、取倍數或平均得到新的數字；要說明差異時，只引用證據包已列出的數值與百分比。
+3. 先陳述事實（observations），再提出假設（hypotheses）。假設只是「待驗證的候選原因」，不是結論；每個假設要寫機制（mechanism）、支持與反對的證據、缺少什麼證據、信心等級（low/medium/high），以及具體的驗證步驟（verify_steps）。
+4. confounded 為 true 時，代表韌體、硬體、晶片或乙太網路類型同時變動，無法歸因到單一因素：信心不得高於 medium，並在 data_gaps 說明需要如何拆開變因（例如只換一個變因重測）。
+5. 沒有證據支持的機制只能是 low，且 supports 可以只引用觀察到的差異；不要把一般工程常識當成證據，也不要為它編造引用。
+6. 指標的 higher_is_better 未定義時（assessment 為 changed），只描述差異，不要使用「較佳、較差、進步、退步、劣化」。
+7. 證據包若有 findings，那是程式整理好的重點（P#）：每個 P# 是一個「頻段＋頻寬＋方向」範圍。只談 findings 裡的範圍，不要另外找題目；observations 最多 5 條、hypotheses 最多 3 個、summary 最多 2 句。每個假設的 supports 至少要有一個 P#，說明它在解釋哪個範圍的變化。
+   RvR 的 peak 是曲線最高的吞吐量，cliff 是吞吐量掉到峰值一半以下的衰減值（dB，數字越小代表越早掉）；Throughput 的 agreement 表示兩份報告都測到的通道中，變動達門檻的筆數，higher/lower 一致代表整個範圍同向變動，混雜代表只是個別通道的波動。
+   證據包的 mode 為 describe 時（報告之間不只一個變因不同），這是「差異描述」而非根因分析：重點放在 observations；hypotheses 最多 2 個，信心一律 low，且只能寫成「待驗證的候選因素」。
+8. 證據包沒有解釋到的差異放進 unexplained；資料品質問題（Q#）、涵蓋缺口與單位不符放進 data_gaps，不要略過。
+9. 以繁體中文回答，輸出單一 JSON 物件，不要加說明文字或程式碼區塊。格式：
+{"summary": "...", "observations": [{"text": "...", "evidence": ["D1"]}],
+ "hypotheses": [{"cause": "...", "mechanism": "...", "supports": ["F1","D1"], "against": [], "missing_evidence": ["..."], "confidence": "low", "verify_steps": ["..."]}],
+ "unexplained": [{"text": "...", "evidence": ["D3"]}], "data_gaps": ["..."]}"""
+BAN_WORDS_WHEN_UNDEFINED = ("較佳", "較差", "進步", "退步", "劣化", "變好", "變差")
+
+
+class RcaError(RuntimeError):
+    pass
+
+
+def _norm(x: float) -> str:
+    return f"{x:g}"
+
+
+def allowed_numbers(evidence: dict[str, dict], extra_text: str = "") -> set[str]:
+    """Every number the model may quote: those in the evidence (plus common roundings and magnitudes) and in the user's own question."""
+    out: set[str] = set()
+
+    def walk(v: Any) -> None:
+        if isinstance(v, bool) or v is None:
+            return
+        if isinstance(v, (int, float)):
+            for r in (v, round(v, 1), round(v, 2), round(v, 0)):
+                out.add(_norm(float(r))); out.add(_norm(abs(float(r))))
+        elif isinstance(v, str):
+            for m in re.findall(r"-?\d+(?:\.\d+)?", v):
+                out.add(_norm(float(m))); out.add(_norm(abs(float(m))))
+        elif isinstance(v, dict):
+            for x in v.values():
+                walk(x)
+        elif isinstance(v, (list, tuple)):
+            for x in v:
+                walk(x)
+    walk(evidence)
+    for m in re.findall(r"-?\d+(?:\.\d+)?", extra_text):
+        out.add(_norm(float(m)))
+    return out
+
+
+def _strings(analysis: dict) -> list[str]:
+    out = [str(analysis.get("summary") or "")]
+    out += [str(o.get("text") or "") for o in analysis.get("observations", []) if isinstance(o, dict)]
+    for h in analysis.get("hypotheses", []):
+        if isinstance(h, dict):
+            out += [str(h.get("cause") or ""), str(h.get("mechanism") or "")] + [str(x) for x in (h.get("missing_evidence") or []) + (h.get("verify_steps") or [])]
+    out += [str(u.get("text") or "") for u in analysis.get("unexplained", []) if isinstance(u, dict)]
+    out += [str(x) for x in analysis.get("data_gaps", [])]
+    return out
+
+
+def verify(analysis: Any, pack: dict, texts: dict[str, dict] | None = None, question: str = "") -> dict:
+    """{'ok': bool, 'violations': [...], 'warnings': [...], 'analysis': cleaned} -- never raises on model output."""
+    violations: list[str] = []
+    warnings: list[str] = []
+    evidence = {**pack.get("evidence", {}), **(texts or {})}
+    if pack.get("model_ids") is not None:  # D# rows the model was not shown cannot be cited
+        evidence = {k: v for k, v in evidence.items() if k in pack["model_ids"] or k not in pack.get("evidence", {})}
+    if not isinstance(analysis, dict):
+        return {"ok": False, "violations": ["輸出不是 JSON 物件"], "warnings": [], "analysis": None}
+    analysis = copy.deepcopy(analysis)  # the caller's object is never edited
+    for key in ("summary", "observations", "hypotheses", "unexplained", "data_gaps"):
+        if key not in analysis:
+            violations.append(f"缺少欄位 {key}")
+    if violations:
+        return {"ok": False, "violations": violations, "warnings": [], "analysis": None}
+    cited: set[str] = set()
+
+    def check_ids(ids: Any, where: str, *, required: bool) -> list[str]:
+        ids = ids if isinstance(ids, list) else []
+        if required and not ids:
+            violations.append(f"{where} 沒有引用任何證據")
+        good = []
+        for i in ids:
+            if i in evidence:
+                good.append(i); cited.add(i)
+            else:
+                violations.append(f"{where} 引用了不存在的證據編號 {i}")
+        return good
+
+    if isinstance(analysis["observations"], list) and len(analysis["observations"]) > MAX_OBSERVATIONS:
+        warnings.append(f"觀察超過 {MAX_OBSERVATIONS} 條，只保留前 {MAX_OBSERVATIONS} 條"); analysis["observations"] = analysis["observations"][:MAX_OBSERVATIONS]
+    for n, o in enumerate(analysis["observations"], 1):
+        if not isinstance(o, dict) or not str(o.get("text") or "").strip():
+            violations.append(f"observations[{n}] 格式不正確"); continue
+        o["evidence"] = check_ids(o.get("evidence"), f"observations[{n}]", required=True)
+    hyps = analysis["hypotheses"] if isinstance(analysis["hypotheses"], list) else []
+    if len(hyps) > MAX_HYPOTHESES:
+        warnings.append(f"假設超過 {MAX_HYPOTHESES} 個，只保留前 {MAX_HYPOTHESES} 個"); hyps = hyps[:MAX_HYPOTHESES]
+    for n, h in enumerate(hyps, 1):
+        if not isinstance(h, dict) or not str(h.get("cause") or "").strip():
+            violations.append(f"hypotheses[{n}] 格式不正確"); continue
+        h["supports"] = check_ids(h.get("supports"), f"hypotheses[{n}].supports", required=True)
+        h["against"] = check_ids(h.get("against"), f"hypotheses[{n}].against", required=False)
+        for k in ("missing_evidence", "verify_steps"):
+            h[k] = [str(x) for x in (h.get(k) or []) if str(x).strip()]
+        if not h["verify_steps"]:
+            violations.append(f"hypotheses[{n}] 沒有驗證步驟")
+        conf = h.get("confidence")
+        if conf not in CONFIDENCE:
+            violations.append(f"hypotheses[{n}].confidence 必須是 {CONFIDENCE}"); continue
+        kinds = {evidence[i].get("kind") for i in h["supports"] if i in evidence}
+        if conf == "high" and (len(h["supports"]) < 2 or not ({"factor", "condition"} & kinds) or not ({"measurement", "pattern", "result"} & kinds)):
+            h["confidence"] = "medium"; warnings.append(f"hypotheses[{n}] 的信心由 high 降為 medium：需要同時有變因與量測兩類證據")
+        if pack.get("findings") and not any(i.startswith("P") for i in h["supports"]):
+            warnings.append(f"hypotheses[{n}] 沒有引用任何 findings 範圍（P#）")
+        if pack.get("findings") and pack.get("confounded") and h["confidence"] != "low":
+            h["confidence"] = "low"; warnings.append(f"hypotheses[{n}] 的信心降為 low：報告之間不只一個變因不同，只做差異描述")
+        if pack.get("confounded") and h["confidence"] == "high":
+            h["confidence"] = "medium"; warnings.append(f"hypotheses[{n}] 的信心由 high 降為 medium：多個變因同時變動，無法歸因")
+    analysis["hypotheses"] = hyps
+    for n, u in enumerate(analysis["unexplained"], 1):
+        if isinstance(u, dict):
+            u["evidence"] = check_ids(u.get("evidence"), f"unexplained[{n}]", required=False)
+    if pack.get("confounded") and not any(("變因" in str(g) or "拆開" in str(g) or "重測" in str(g)) for g in analysis["data_gaps"]):
+        violations.append("多個變因同時變動，data_gaps 必須說明如何拆開變因")
+    if pack.get("quality") and not any("品質" in str(g) or "公式" in str(g) or "錯誤" in str(g) for g in analysis["data_gaps"]):
+        warnings.append("證據包有資料品質旗標，但 data_gaps 沒有提到")
+    # everything the model was shown counts as given: sheet names such as "4.3 Concurrent Test" or cell addresses are in the run info, not in an evidence entry
+    allowed = allowed_numbers({"evidence": evidence, "shown": prompt_view(pack)}, question)
+    stray = sorted({m for s in _strings(analysis) for m in re.findall(r"(?<![A-Za-z#\[])-?\d+(?:\.\d+)?", re.sub(r"\[[A-Z]\d+\]", "", s))
+                    if _norm(float(m)) not in allowed and not (float(m).is_integer() and int(float(m)) in FREE_INTEGERS)})
+    if stray:
+        violations.append("出現證據包以外的數字：" + "、".join(stray[:8]))
+    if not pack.get("directions_defined"):
+        text = "\n".join(_strings(analysis))
+        banned = [w for w in BAN_WORDS_WHEN_UNDEFINED if w in text]
+        if banned:
+            violations.append("指標好壞方向尚未定義，不可使用：" + "、".join(banned))
+    analysis["cited"] = sorted(cited)
+    return {"ok": not violations, "violations": violations, "warnings": warnings, "analysis": analysis if not violations else None}
+
+
+PROMPT_KEYS = ("runs", "factors", "confounded", "confounded_note", "counts", "diffs", "coverage", "result_changes", "criteria_changes", "quality", "directions_defined", "findings")
+
+
+def prompt_view(pack: dict) -> dict:
+    view = {k: pack[k] for k in PROMPT_KEYS if k in pack}
+    if pack.get("findings"):
+        # the model reasons over the reduced scopes, not the aligned rows; the page still shows the rows
+        view.pop("diffs", None)
+        view.pop("coverage", None)  # only the count of coverage gaps and the partial scopes go to the model
+        view["result_changes"] = view.get("result_changes", [])[:10]
+        view["criteria_changes"] = view.get("criteria_changes", [])[:10]
+        f = pack["findings"]
+        view["findings"] = {k: f[k] for k in ("focus", "method", "thresholds", "scopes_total", "scopes_complete", "scopes_notable", "scopes_unchanged", "scopes_partial") if k in f}
+        view["findings"]["scopes"] = [{k: v for k, v in sc.items() if k not in ("key", "magnitude", "complete", "notable")} for sc in f["scopes"]]
+        view["mode"] = analysis_mode(pack)
+    return view
+
+
+def analysis_mode(pack: dict) -> str:
+    return "describe" if pack.get("confounded") else "rca"
+
+
+NUMBER_VIOLATION = "出現證據包以外的數字："
+OMITTED_SUMMARY = "（模型的摘要含有證據包以外的數字，已省略；請參考下方的觀察與假設。）"
+
+
+def _stray(text: str, allowed: set[str]) -> list[str]:
+    return [m for m in re.findall(r"(?<![A-Za-z#\[])-?\d+(?:\.\d+)?", re.sub(r"\[[A-Z]\d+\]", "", text or ""))
+            if _norm(float(m)) not in allowed and not (float(m).is_integer() and int(float(m)) in FREE_INTEGERS)]
+
+
+def salvage(analysis: dict, pack: dict, texts: dict[str, dict] | None = None, question: str = "") -> tuple[dict, int] | None:
+    """Drop only the items that quote numbers the model was never given, keep everything else, and say how much was dropped.
+    Returns (cleaned analysis, removed count) or None when there is nothing safe to keep. The numbers themselves are never shown."""
+    allowed = allowed_numbers({"evidence": {**pack.get("evidence", {}), **(texts or {})}, "shown": prompt_view(pack)}, question)
+    clean = copy.deepcopy(analysis)
+    removed = 0
+    if _stray(str(clean.get("summary") or ""), allowed):
+        clean["summary"] = OMITTED_SUMMARY; removed += 1
+    def keep(item, fields):
+        nonlocal removed
+        text = " ".join(str(x) for f in fields for x in ((item.get(f) if isinstance(item.get(f), list) else [item.get(f)]) or []))
+        if _stray(text, allowed):
+            removed += 1; return False
+        return True
+    clean["observations"] = [o for o in clean.get("observations", []) if isinstance(o, dict) and keep(o, ("text",))]
+    clean["hypotheses"] = [h for h in clean.get("hypotheses", []) if isinstance(h, dict) and keep(h, ("cause", "mechanism", "missing_evidence", "verify_steps"))]
+    clean["unexplained"] = [u for u in clean.get("unexplained", []) if isinstance(u, dict) and keep(u, ("text",))]
+    clean["data_gaps"] = [g for g in clean.get("data_gaps", []) if not _stray(str(g), allowed) or not (removed := removed + 1)]
+    if not removed or not (clean["observations"] or clean["hypotheses"]):
+        return None
+    return clean, removed
+
+
+def pack_for_prompt(pack: dict, texts: dict[str, dict] | None = None) -> str:
+    """The evidence the model sees: findings with ids, not the raw rows. Text evidence (T#) from the knowledge base is appended when supplied."""
+    view = {k: v for k, v in prompt_view(pack).items()}
+    if "diffs" in view:
+        view["diffs"] = [{k: v for k, v in d.items() if k != "key"} for d in view["diffs"]]  # the raw key dict is not sent; the caller's pack is not edited
+    if texts:
+        view["knowledge_texts"] = list(texts.values())
+    return json.dumps(view, ensure_ascii=False, default=str)
+
+
+def run_rca(pack: dict, llm: Callable[[list[dict]], str], *, texts: dict[str, dict] | None = None, question: str = "", retries: int = 1) -> dict:
+    """llm(messages) -> str. Returns {'status': 'ok'|'rejected', 'analysis', 'violations', 'warnings', 'attempts'}."""
+    messages = [{"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "user", "content": (f"使用者關心：{question}\n" if question else "") + "證據包：\n" + pack_for_prompt(pack, texts)}]
+    violations: list[str] = []
+    last_raw = None
+    result: dict = {"ok": False, "violations": ["未取得回答"], "warnings": [], "analysis": None}
+    for attempt in range(1, retries + 2):
+        reply = llm(messages)
+        try:
+            raw = json.loads(re.search(r"\{.*\}", reply or "", re.S).group(0))
+        except (AttributeError, ValueError):
+            raw = None
+        result = verify(raw, pack, texts, question)
+        if result["ok"]:
+            return {"status": "ok", "analysis": result["analysis"], "violations": [], "warnings": result["warnings"], "attempts": attempt}
+        violations = result["violations"]
+        last_raw = raw
+        messages += [{"role": "assistant", "content": (reply or "")[:4000]},
+                     {"role": "user", "content": "你的輸出未通過檢查，請只修正下列問題後重新輸出完整 JSON：\n- " + "\n- ".join(violations[:10])}]
+    if violations and all(v.startswith(NUMBER_VIOLATION) for v in violations) and isinstance(last_raw, dict):
+        kept = salvage(last_raw, pack, texts, question)
+        if kept:
+            cleaned, removed = kept
+            again = verify(cleaned, pack, texts, question)   # what is left must pass every check on its own
+            if again["ok"]:
+                note = f"模型有 {removed} 項內容引用了證據包以外的數字，已整項移除（數字不會顯示）；以下是通過檢查的部分。"
+                return {"status": "ok", "analysis": again["analysis"], "violations": [], "warnings": [note, *again["warnings"]], "attempts": retries + 1, "redacted": removed}
+    return {"status": "rejected", "analysis": None, "violations": violations, "warnings": result["warnings"], "attempts": retries + 1}

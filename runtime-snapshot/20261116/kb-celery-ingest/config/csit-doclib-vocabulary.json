@@ -1,0 +1,24 @@
+{
+  "_comment": "Data-driven vocabulary for document library metadata. Deterministic extraction only reports what the document text literally contains; edit here, not in code.",
+  "technologies": ["5G NR", "LTE", "WiFi 7", "WiFi 6E", "WiFi 6", "WiFi 5", "Wi-Fi 7", "Wi-Fi 6E", "Wi-Fi 6", "iPerf3", "iPerf", "Bluetooth", "Small Cell", "CPE"],
+  "vendors": [],
+  "products": ["small cell", "CPE"],
+  "model_patterns": ["\\b(?:SCU|NCQ|NCM|CHS|PKE)\\d{3,5}[A-Z0-9]*(?:-[A-Z]\\d{3})?\\b", "\\bTP-Link Archer BE\\d{3}\\b"],
+  "standard_patterns": ["3GPP\\s+TS\\s*\\d{2}\\.\\d{3}", "IEEE\\s*802\\.\\d+[a-z]{0,2}"],
+  "issue_key_prefixes": [],
+  "error_code_patterns": [],
+  "author_labels": ["作者", "Author", "Authors", "Prepared by", "撰寫"],
+  "department_labels": ["部門", "Department", "Team"],
+  "software_version_labels": ["Firmware Version", "Firmware", "FW Version", "FW", "Software Version", "Software", "SW Version", "韌體版本", "韌體", "軟體版本"],
+  "hardware_version_labels": ["Hardware Version", "Hardware Revision", "HW Version", "HW Rev", "Board Version", "硬體版本"],
+  "date_labels": ["日期", "文件日期", "發佈日期", "Date", "Release Date", "Issue Date", "Document Date"],
+  "version_patterns": ["\\bRev(?:ision)?\\.?\\s*[:：]?\\s*[A-Za-z]?\\d+(?:\\.\\d+)*[A-Za-z]?\\b", "(?:版本|Version)\\s*[:：]\\s*V?\\d+(?:\\.\\d+)+"],
+  "document_type_rules": [
+    {"type": "TestReport", "patterns": ["test report", "測試報告", "SIT-TR-"]},
+    {"type": "MeetingMinutes", "patterns": ["meeting minutes", "會議記錄", "會議紀錄"]},
+    {"type": "IssueAnalysis", "patterns": ["issue analysis", "root cause", "問題分析", "根因分析"]},
+    {"type": "SOP", "patterns": ["standard operating procedure", "\\bSOP\\b", "標準作業"]},
+    {"type": "Manual", "patterns": ["user manual", "user guide", "使用手冊", "操作手冊"]},
+    {"type": "Specification", "patterns": ["specification", "規格書", "\\bspec\\b"]}
+  ]
+}

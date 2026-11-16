@@ -1,0 +1,553 @@
+{
+ "createdAt": "2026-11-16T01:45:41Z",
+ "containers": {
+  "kb-web": {
+   "image": "km-chat-v2-secure:keeper-20261112-on-rca-20261105f",
+   "imageId": "sha256:3ff016122a5714fa7134a90746ace87b811c4e679dffccb27a076a92d89445ab",
+   "imageCreated": "2026-11-12T01:15:55.327592591Z",
+   "labelRevision": "c7869ce",
+   "codeFilesInContainer": 130,
+   "filesNotInAnyCommit": 19,
+   "files": [
+    {
+     "path": "src/web_api/__init__.py",
+     "gitBlobSha1": "644d7f211dc308efea990e228cc320e1b6bff661",
+     "bytes": 148317,
+     "kind": "modified-from-base"
+    },
+    {
+     "path": "src/web_api/keeper_routes.py",
+     "gitBlobSha1": "c4bef3e66cfdc6d031ce1bc7128d96cadd8e20a3",
+     "bytes": 5097,
+     "kind": "not-in-repo-at-base"
+    },
+    {
+     "path": "src/web_api/rca_routes.py",
+     "gitBlobSha1": "f12e3ec2898db96f9d77547ab5b5769f4fd15a36",
+     "bytes": 8853,
+     "kind": "not-in-repo-at-base"
+    },
+    {
+     "path": "src/web_api/rca_tasks.py",
+     "gitBlobSha1": "b40a208479f7d01afff83da2984b69d2a601a1d5",
+     "bytes": 2121,
+     "kind": "not-in-repo-at-base"
+    },
+    {
+     "path": "src/report_numeric/agent.py",
+     "gitBlobSha1": "72cbe1dd508345f7c04284f552944ce568e390c5",
+     "bytes": 17735,
+     "kind": "modified-from-base"
+    },
+    {
+     "path": "src/report_numeric/query.py",
+     "gitBlobSha1": "1248fcde482d124d6881320667c18d7cbf85d5a2",
+     "bytes": 14063,
+     "kind": "modified-from-base"
+    },
+    {
+     "path": "src/report_numeric/vector.py",
+     "gitBlobSha1": "601d4bba789904f7619f0805f31f4823115396c9",
+     "bytes": 5712,
+     "kind": "modified-from-base"
+    },
+    {
+     "path": "src/report_numeric/chunks.py",
+     "gitBlobSha1": "b75a57af65cb8db363f71a879f94e2d3a1536740",
+     "bytes": 12311,
+     "kind": "modified-from-base"
+    },
+    {
+     "path": "src/report_numeric/parser.py",
+     "gitBlobSha1": "9f67cbd5efa4345b96438c490a4ffb408921546d",
+     "bytes": 37593,
+     "kind": "modified-from-base"
+    },
+    {
+     "path": "src/report_numeric/timescale.py",
+     "gitBlobSha1": "529ea5df6daf573268a8e6651fe560ddbdcd7abb",
+     "bytes": 9966,
+     "kind": "modified-from-base"
+    },
+    {
+     "path": "src/report_numeric/graph.py",
+     "gitBlobSha1": "6b7a8f856674e317c0e9340d4f60a989a0c4d140",
+     "bytes": 6044,
+     "kind": "modified-from-base"
+    },
+    {
+     "path": "src/report_numeric/metric_dictionary.json",
+     "gitBlobSha1": "9540accfa7112c3a07dd09c0d1f878a5878ef400",
+     "bytes": 1783,
+     "kind": "modified-from-base"
+    },
+    {
+     "path": "src/report_numeric/__init__.py",
+     "gitBlobSha1": "729d53f03a679582dc714c6554658c5f84dffe1d",
+     "bytes": 241,
+     "kind": "modified-from-base"
+    },
+    {
+     "path": "src/report_numeric/schema.sql",
+     "gitBlobSha1": "3862b8a79a67be174dead148808569fd5ced7a90",
+     "bytes": 6736,
+     "kind": "modified-from-base"
+    },
+    {
+     "path": "src/report_numeric/rca_service.py",
+     "gitBlobSha1": "4280bb3f2378902ee72f3afd68a45644748313e9",
+     "bytes": 1265,
+     "kind": "not-in-repo-at-base"
+    },
+    {
+     "path": "src/report_numeric/compare.py",
+     "gitBlobSha1": "d8b22d0c40d5afa3bcc8653f68856e71a4a2e9f6",
+     "bytes": 17706,
+     "kind": "not-in-repo-at-base"
+    },
+    {
+     "path": "src/report_numeric/rca.py",
+     "gitBlobSha1": "632e1dcbdc64550ab13ac39ce1929e0e8f123789",
+     "bytes": 18066,
+     "kind": "not-in-repo-at-base"
+    },
+    {
+     "path": "src/keeper/routing.py",
+     "gitBlobSha1": "30d6b8461d3fca0d0a618ba8b67a1784b77d9b98",
+     "bytes": 10317,
+     "kind": "not-in-repo-at-base"
+    },
+    {
+     "path": "src/keeper/zones.json",
+     "gitBlobSha1": "dd29b044a4129fa3e6c1dc2e5942cb0c43236ca6",
+     "bytes": 6956,
+     "kind": "not-in-repo-at-base"
+    }
+   ]
+  },
+  "km-da40-web-1": {
+   "image": "km-da40-web:keeper-20261112-on-rca-20261111",
+   "imageId": "sha256:cec22c628377257d0b5e822b22748b5249aa0a690fb5bee88ec0d9b9d9251995",
+   "imageCreated": "2026-11-12T01:16:57.278318933Z",
+   "labelRevision": "c7869ce",
+   "codeFilesInContainer": 145,
+   "filesNotInAnyCommit": 25,
+   "files": [
+    {
+     "path": "src/web_api/legacy_routes.py",
+     "gitBlobSha1": "573cf7df7492dfbf59dbf1329798b54f63098cd0",
+     "bytes": 6140,
+     "kind": "not-in-repo-at-base"
+    },
+    {
+     "path": "src/web_api/__init__.py",
+     "gitBlobSha1": "1d8c68396774eae5885fd650e105b6a22552c90c",
+     "bytes": 148396,
+     "kind": "modified-from-base"
+    },
+    {
+     "path": "src/web_api/keeper_routes.py",
+     "gitBlobSha1": "cd0426fa8d9e15b3cae43b7872aa1e84cf9325b3",
+     "bytes": 5358,
+     "kind": "not-in-repo-at-base"
+    },
+    {
+     "path": "src/web_api/zone_routes.py",
+     "gitBlobSha1": "fe76d17d193c0787f9f5e0d39da798192ad3c996",
+     "bytes": 14439,
+     "kind": "not-in-repo-at-base"
+    },
+    {
+     "path": "src/web_api/rca_routes.py",
+     "gitBlobSha1": "f12e3ec2898db96f9d77547ab5b5769f4fd15a36",
+     "bytes": 8853,
+     "kind": "not-in-repo-at-base"
+    },
+    {
+     "path": "src/web_api/rca_tasks.py",
+     "gitBlobSha1": "b40a208479f7d01afff83da2984b69d2a601a1d5",
+     "bytes": 2121,
+     "kind": "not-in-repo-at-base"
+    },
+    {
+     "path": "src/report_numeric/stats.py",
+     "gitBlobSha1": "357065ef2b51702c7753c7aee7c8e5c05cf416a6",
+     "bytes": 13843,
+     "kind": "not-in-repo-at-base"
+    },
+    {
+     "path": "src/report_numeric/agent.py",
+     "gitBlobSha1": "72cbe1dd508345f7c04284f552944ce568e390c5",
+     "bytes": 17735,
+     "kind": "modified-from-base"
+    },
+    {
+     "path": "src/report_numeric/vector.py",
+     "gitBlobSha1": "601d4bba789904f7619f0805f31f4823115396c9",
+     "bytes": 5712,
+     "kind": "modified-from-base"
+    },
+    {
+     "path": "src/report_numeric/chunks.py",
+     "gitBlobSha1": "b75a57af65cb8db363f71a879f94e2d3a1536740",
+     "bytes": 12311,
+     "kind": "modified-from-base"
+    },
+    {
+     "path": "src/report_numeric/parser.py",
+     "gitBlobSha1": "9f67cbd5efa4345b96438c490a4ffb408921546d",
+     "bytes": 37593,
+     "kind": "modified-from-base"
+    },
+    {
+     "path": "src/report_numeric/timescale.py",
+     "gitBlobSha1": "529ea5df6daf573268a8e6651fe560ddbdcd7abb",
+     "bytes": 9966,
+     "kind": "modified-from-base"
+    },
+    {
+     "path": "src/report_numeric/graph.py",
+     "gitBlobSha1": "6b7a8f856674e317c0e9340d4f60a989a0c4d140",
+     "bytes": 6044,
+     "kind": "modified-from-base"
+    },
+    {
+     "path": "src/report_numeric/metric_dictionary.json",
+     "gitBlobSha1": "9540accfa7112c3a07dd09c0d1f878a5878ef400",
+     "bytes": 1783,
+     "kind": "modified-from-base"
+    },
+    {
+     "path": "src/report_numeric/__init__.py",
+     "gitBlobSha1": "729d53f03a679582dc714c6554658c5f84dffe1d",
+     "bytes": 241,
+     "kind": "modified-from-base"
+    },
+    {
+     "path": "src/report_numeric/schema.sql",
+     "gitBlobSha1": "3862b8a79a67be174dead148808569fd5ced7a90",
+     "bytes": 6736,
+     "kind": "modified-from-base"
+    },
+    {
+     "path": "src/report_numeric/rca_service.py",
+     "gitBlobSha1": "4280bb3f2378902ee72f3afd68a45644748313e9",
+     "bytes": 1265,
+     "kind": "not-in-repo-at-base"
+    },
+    {
+     "path": "src/report_numeric/compare.py",
+     "gitBlobSha1": "d8b22d0c40d5afa3bcc8653f68856e71a4a2e9f6",
+     "bytes": 17706,
+     "kind": "not-in-repo-at-base"
+    },
+    {
+     "path": "src/report_numeric/rca.py",
+     "gitBlobSha1": "632e1dcbdc64550ab13ac39ce1929e0e8f123789",
+     "bytes": 18066,
+     "kind": "not-in-repo-at-base"
+    },
+    {
+     "path": "src/csit_integration_v1/__init__.py",
+     "gitBlobSha1": "3dde90d70406d9505e4bfe28f4c7bf1ee6b1852f",
+     "bytes": 88,
+     "kind": "modified-from-base"
+    },
+    {
+     "path": "src/zone_pages/stats.py",
+     "gitBlobSha1": "0cd0e78456e1614d121466ce3e4c86afc4394291",
+     "bytes": 44958,
+     "kind": "not-in-repo-at-base"
+    },
+    {
+     "path": "src/zone_pages/agent.py",
+     "gitBlobSha1": "d5fa6c375c6031e026df0f8a54f3c99187c61028",
+     "bytes": 13830,
+     "kind": "not-in-repo-at-base"
+    },
+    {
+     "path": "src/keeper/routing.py",
+     "gitBlobSha1": "e4c4e689abf16ae40a69aadaa0cfba53ee5559fb",
+     "bytes": 11744,
+     "kind": "not-in-repo-at-base"
+    },
+    {
+     "path": "src/keeper/zones.json",
+     "gitBlobSha1": "0a20452e2efcd223bc70454e55c3749f739244a0",
+     "bytes": 7533,
+     "kind": "not-in-repo-at-base"
+    },
+    {
+     "path": "src/legacy_import/browse.py",
+     "gitBlobSha1": "e291d5c8c398ffa6e4c36193013b1f5df2650fa2",
+     "bytes": 13323,
+     "kind": "not-in-repo-at-base"
+    }
+   ]
+  },
+  "kb-celery-search": {
+   "image": "km-test-web:rca-20261105f-on-diagram-c7869ce",
+   "imageId": "sha256:d970c9efd0fc0dc8686da4e10563a8f39aaaa30d7c45f25a2b7bb500b84e6ab5",
+   "imageCreated": "2026-11-05T01:37:39.390167235Z",
+   "labelRevision": "c7869ce",
+   "codeFilesInContainer": 131,
+   "filesNotInAnyCommit": 19,
+   "files": [
+    {
+     "path": "src/ingest.py",
+     "gitBlobSha1": "25abf63b1be496ce8316436c1d7e8e6705886421",
+     "bytes": 29582,
+     "kind": "modified-from-base"
+    },
+    {
+     "path": "src/oidc_control.py",
+     "gitBlobSha1": "fa5c80a1dcbafc544226b083f332f666432888da",
+     "bytes": 7336,
+     "kind": "modified-from-base"
+    },
+    {
+     "path": "src/web_api/tasks.py",
+     "gitBlobSha1": "8b3252a2fd154624b69ec9a03b6bfd5be0593b06",
+     "bytes": 79152,
+     "kind": "modified-from-base"
+    },
+    {
+     "path": "src/web_api/rca_routes.py",
+     "gitBlobSha1": "f12e3ec2898db96f9d77547ab5b5769f4fd15a36",
+     "bytes": 8853,
+     "kind": "not-in-repo-at-base"
+    },
+    {
+     "path": "src/web_api/rca_tasks.py",
+     "gitBlobSha1": "b40a208479f7d01afff83da2984b69d2a601a1d5",
+     "bytes": 2121,
+     "kind": "not-in-repo-at-base"
+    },
+    {
+     "path": "src/report_numeric/rca_service.py",
+     "gitBlobSha1": "4280bb3f2378902ee72f3afd68a45644748313e9",
+     "bytes": 1265,
+     "kind": "not-in-repo-at-base"
+    },
+    {
+     "path": "src/report_numeric/query.py",
+     "gitBlobSha1": "1248fcde482d124d6881320667c18d7cbf85d5a2",
+     "bytes": 14063,
+     "kind": "modified-from-base"
+    },
+    {
+     "path": "src/report_numeric/compare.py",
+     "gitBlobSha1": "d8b22d0c40d5afa3bcc8653f68856e71a4a2e9f6",
+     "bytes": 17706,
+     "kind": "not-in-repo-at-base"
+    },
+    {
+     "path": "src/report_numeric/rca.py",
+     "gitBlobSha1": "632e1dcbdc64550ab13ac39ce1929e0e8f123789",
+     "bytes": 18066,
+     "kind": "not-in-repo-at-base"
+    },
+    {
+     "path": "src/report_numeric/__init__.py",
+     "gitBlobSha1": "729d53f03a679582dc714c6554658c5f84dffe1d",
+     "bytes": 241,
+     "kind": "modified-from-base"
+    },
+    {
+     "path": "config/km-control-auth.env.example",
+     "gitBlobSha1": "eb3cf2f1817dcdd862b93d173b1eb83c75e56e8b",
+     "bytes": 569,
+     "kind": "not-in-repo-at-base"
+    },
+    {
+     "path": "config/nginx-km-dev-upload-routes.conf",
+     "gitBlobSha1": "54077ccd6efffa15581cb5cc0ae63c0c06e4e939",
+     "bytes": 1459,
+     "kind": "not-in-repo-at-base"
+    },
+    {
+     "path": "config/csit-doclib-v1.env.example",
+     "gitBlobSha1": "f5a0410d6d9f46527f6cf96282e4d5c7bb7f0e07",
+     "bytes": 1533,
+     "kind": "not-in-repo-at-base"
+    },
+    {
+     "path": "config/nginx-km-dev-upload-map.conf",
+     "gitBlobSha1": "0094772d8c07fd20ff01a269025d3a25fbc5b460",
+     "bytes": 200,
+     "kind": "not-in-repo-at-base"
+    },
+    {
+     "path": "config/nginx-km-dev-chat-search.conf",
+     "gitBlobSha1": "ca8bad5af82257e2fa94dd866bcc76dccecd16d5",
+     "bytes": 654,
+     "kind": "not-in-repo-at-base"
+    },
+    {
+     "path": "config/wp01-deployment.env.example",
+     "gitBlobSha1": "93305aeafbea05c98709fc4f55a5aed051a7e955",
+     "bytes": 1056,
+     "kind": "modified-from-base"
+    },
+    {
+     "path": "config/csit-doclib-vocabulary.json",
+     "gitBlobSha1": "f9d6c631602163d4a0eac12195479e1ec6dd522e",
+     "bytes": 1975,
+     "kind": "not-in-repo-at-base"
+    },
+    {
+     "path": "config/report-ingest.env.example",
+     "gitBlobSha1": "3ffec8561ffdf7f6c52c908257ff98445a1eb55b",
+     "bytes": 705,
+     "kind": "modified-from-base"
+    },
+    {
+     "path": "config/csit-integration-v1.env.example",
+     "gitBlobSha1": "f0426f872299afa273b908af46b6cc9ad408afa7",
+     "bytes": 1853,
+     "kind": "modified-from-base"
+    }
+   ]
+  },
+  "kb-celery-ingest": {
+   "image": "km-test-web:c8884f72-llm-ba82d79-docid-2d6a062-wifi8-c01693c-qstore-3a85eab-table-a29835b-img-7c1d2fd-cfg-bgezh",
+   "imageId": "sha256:8e7ba94b3b4900410d4b7a25cc6d3f48903679ee19ae86477e8e511380d7846b",
+   "imageCreated": "2026-10-22T09:55:14.17183553Z",
+   "labelRevision": "ba82d79550f3d56e9814d8b84ef5a97b7dfcf3da",
+   "codeFilesInContainer": 112,
+   "filesNotInAnyCommit": 11,
+   "files": [
+    {
+     "path": "src/ingest.py",
+     "gitBlobSha1": "25abf63b1be496ce8316436c1d7e8e6705886421",
+     "bytes": 29582,
+     "kind": "modified-from-base"
+    },
+    {
+     "path": "src/oidc_control.py",
+     "gitBlobSha1": "fa5c80a1dcbafc544226b083f332f666432888da",
+     "bytes": 7336,
+     "kind": "modified-from-base"
+    },
+    {
+     "path": "config/km-control-auth.env.example",
+     "gitBlobSha1": "eb3cf2f1817dcdd862b93d173b1eb83c75e56e8b",
+     "bytes": 569,
+     "kind": "not-in-repo-at-base"
+    },
+    {
+     "path": "config/nginx-km-dev-upload-routes.conf",
+     "gitBlobSha1": "54077ccd6efffa15581cb5cc0ae63c0c06e4e939",
+     "bytes": 1459,
+     "kind": "not-in-repo-at-base"
+    },
+    {
+     "path": "config/csit-doclib-v1.env.example",
+     "gitBlobSha1": "f5a0410d6d9f46527f6cf96282e4d5c7bb7f0e07",
+     "bytes": 1533,
+     "kind": "not-in-repo-at-base"
+    },
+    {
+     "path": "config/nginx-km-dev-upload-map.conf",
+     "gitBlobSha1": "0094772d8c07fd20ff01a269025d3a25fbc5b460",
+     "bytes": 200,
+     "kind": "not-in-repo-at-base"
+    },
+    {
+     "path": "config/nginx-km-dev-chat-search.conf",
+     "gitBlobSha1": "ca8bad5af82257e2fa94dd866bcc76dccecd16d5",
+     "bytes": 654,
+     "kind": "not-in-repo-at-base"
+    },
+    {
+     "path": "config/wp01-deployment.env.example",
+     "gitBlobSha1": "93305aeafbea05c98709fc4f55a5aed051a7e955",
+     "bytes": 1056,
+     "kind": "modified-from-base"
+    },
+    {
+     "path": "config/csit-doclib-vocabulary.json",
+     "gitBlobSha1": "f9d6c631602163d4a0eac12195479e1ec6dd522e",
+     "bytes": 1975,
+     "kind": "not-in-repo-at-base"
+    },
+    {
+     "path": "config/report-ingest.env.example",
+     "gitBlobSha1": "3ffec8561ffdf7f6c52c908257ff98445a1eb55b",
+     "bytes": 705,
+     "kind": "modified-from-base"
+    },
+    {
+     "path": "config/csit-integration-v1.env.example",
+     "gitBlobSha1": "f0426f872299afa273b908af46b6cc9ad408afa7",
+     "bytes": 1853,
+     "kind": "modified-from-base"
+    }
+   ]
+  },
+  "km-da40-celery_ingest_worker-1": {
+   "image": "km-da40-ingest:ddl-free-fd8dd34-llm-ba82d79-docid-2d6a062-wifi8-c01693c-qstore-3a85eab-table-a29835b-img-7c1d2fd-cfg-bgezh",
+   "imageId": "sha256:ec3d74a7e27201a03b19e5c1b013d4afaa5bd5062ac59198c7ae8a353d0eb0e4",
+   "imageCreated": "2026-10-22T09:54:44.678339996Z",
+   "labelRevision": "ba82d79550f3d56e9814d8b84ef5a97b7dfcf3da",
+   "codeFilesInContainer": 100,
+   "filesNotInAnyCommit": 2,
+   "files": [
+    {
+     "path": "src/ingest.py",
+     "gitBlobSha1": "25abf63b1be496ce8316436c1d7e8e6705886421",
+     "bytes": 29582,
+     "kind": "modified-from-base"
+    },
+    {
+     "path": "src/oidc_control.py",
+     "gitBlobSha1": "fa5c80a1dcbafc544226b083f332f666432888da",
+     "bytes": 7336,
+     "kind": "modified-from-base"
+    }
+   ]
+  }
+ },
+ "excluded": [
+  {
+   "container": "km-da40-web-1",
+   "path": "config/config.yaml",
+   "reason": "may hold credentials or is a backup/binary; not copied"
+  },
+  {
+   "container": "kb-celery-search",
+   "path": "config/config.yaml.pre-neo4j-wiring-20260904-041249",
+   "reason": "may hold credentials or is a backup/binary; not copied"
+  },
+  {
+   "container": "kb-celery-search",
+   "path": "config/config.yaml",
+   "reason": "may hold credentials or is a backup/binary; not copied"
+  },
+  {
+   "container": "kb-celery-search",
+   "path": "config/report-ingest.env",
+   "reason": "may hold credentials or is a backup/binary; not copied"
+  },
+  {
+   "container": "kb-celery-ingest",
+   "path": "config/config.yaml.pre-neo4j-wiring-20260904-041249",
+   "reason": "may hold credentials or is a backup/binary; not copied"
+  },
+  {
+   "container": "kb-celery-ingest",
+   "path": "config/config.yaml",
+   "reason": "may hold credentials or is a backup/binary; not copied"
+  },
+  {
+   "container": "kb-celery-ingest",
+   "path": "config/report-ingest.env",
+   "reason": "may hold credentials or is a backup/binary; not copied"
+  },
+  {
+   "container": "km-da40-celery_ingest_worker-1",
+   "path": "config/config.yaml",
+   "reason": "may hold credentials or is a backup/binary; not copied"
+  }
+ ]
+}
