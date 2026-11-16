@@ -1183,6 +1183,8 @@ from .zone_routes import router as zone_router
 app.include_router(zone_router)
 from .keeper_routes import router as keeper_router
 app.include_router(keeper_router)
+from .llm_profile_routes import router as llm_profile_router
+app.include_router(llm_profile_router)
 from .csit_assistant_routes import router as csit_assistant_router
 app.include_router(csit_assistant_router)
 # --- RCA report comparison (flag-gated) ---

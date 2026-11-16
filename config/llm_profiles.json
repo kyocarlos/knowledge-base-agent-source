@@ -1,0 +1,78 @@
+{
+  "default": "auto",
+  "_note": "Selectable LLM profiles (src/web_api/llm_profiles.py). A request without a profile, or with auto, behaves as before. The browser sends only an id; the model, URL and key are chosen here. external=true means the request leaves the company network. blocked_zones lists zone ids (hub = the home page guide). Zones kept off the external models by default hold CSIT reports, vendor files, internal wiki/Jira pages and personnel/finance documents; change this list only with the data owner's agreement.",
+  "profiles": [
+    {
+      "id": "auto",
+      "source": "auto",
+      "label": "自動（預設）",
+      "description": "使用主要模型；主要模型失敗時自動改用備援模型。"
+    },
+    {
+      "id": "openai",
+      "label": "OpenAI（主要模型，不使用備援）",
+      "description": "只使用主要的 OpenAI 模型；失敗時直接顯示錯誤，不改用其他模型。",
+      "source": "primary",
+      "external": true,
+      "purposes": [
+        "zone_answer",
+        "keeper"
+      ],
+      "tool_calling": true
+    },
+    {
+      "id": "modaone-gpt-oss-120b",
+      "label": "gpt-oss-120b（政府算力平台）",
+      "description": "SAM 算力平台的 OpenAI 開源模型；問題與文件節錄會送到外部平台。",
+      "source": "custom",
+      "provider": "modaone",
+      "model": "gpt-oss-120b",
+      "base_url": "https://modaone-llm-api.dginfra.gov.tw/api/v1",
+      "api_key_env": "MODAONE_API_KEY",
+      "max_tokens": 4096,
+      "max_tokens_floor": 2048,
+      "reasoning_effort": "low",
+      "timeout": 120,
+      "external": true,
+      "experimental": true,
+      "purposes": [
+        "zone_answer",
+        "keeper"
+      ],
+      "blocked_zones": [
+        "verification",
+        "equipment",
+        "integrations",
+        "admin"
+      ],
+      "rate_per_hour": 60,
+      "expires_at": "2026-12-08"
+    },
+    {
+      "id": "modaone-llama-3.3-70b",
+      "label": "Llama 3.3 70B（政府算力平台）",
+      "description": "SAM 算力平台的 Meta Llama 3.3 70B；問題與文件節錄會送到外部平台。",
+      "source": "custom",
+      "provider": "modaone",
+      "model": "Llama-3.3-70B-Instruct",
+      "base_url": "https://modaone-llm-api.dginfra.gov.tw/api/v1",
+      "api_key_env": "MODAONE_API_KEY",
+      "max_tokens": 4096,
+      "timeout": 120,
+      "external": true,
+      "experimental": true,
+      "purposes": [
+        "zone_answer",
+        "keeper"
+      ],
+      "blocked_zones": [
+        "verification",
+        "equipment",
+        "integrations",
+        "admin"
+      ],
+      "rate_per_hour": 60,
+      "expires_at": "2026-12-08"
+    }
+  ]
+}

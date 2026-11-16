@@ -381,3 +381,46 @@ def test_one_name_or_a_name_no_passage_mentions_changes_nothing():
     hits = [_hit(0.9 - i / 100, f"NG Handover {i}") for i in range(12)]
     assert spread(hits, "NG 結果", 8) == hits[:8]
     assert spread(hits, "NG 和 Zeta 的差別", 8) == hits[:8]
+
+
+# ---- choosing the model of a zone assistant (llm_profiles)
+def _profile_registry(monkeypatch, env=None):
+    from datetime import date as _date
+    from pathlib import Path as _Path
+    from src.web_api import llm_profiles as lp
+    reg = lp.Registry.load(_Path(__file__).resolve().parents[2] / "config" / "llm_profiles.json", env=env or {"MODAONE_API_KEY": "k"}, today=lambda: _date(2026, 11, 16))
+    monkeypatch.setattr(lp, "get_registry", lambda: reg)
+    return reg
+
+
+def test_a_model_choice_is_checked_against_the_zone_before_any_task_starts(client, monkeypatch):
+    _profile_registry(monkeypatch)
+    ask = lambda zone, llm: client.post(f"/api/zones/{zone}/agent", json={"question": "頻譜分析儀多久校驗", "llm": llm})
+    blocked = ask("equipment", "modaone-gpt-oss-120b")
+    assert blocked.status_code == 403 and blocked.json()["detail"]["code"] == "zone_blocked"
+    assert ask("csit", "modaone-gpt-oss-120b").status_code == 403               # the page key csit is 產品驗證專區
+    assert ask("equipment", "no-such-model").status_code == 422
+    assert ask("equipment", "x" * 65).status_code == 422
+
+
+def test_an_allowed_choice_answers_with_that_model_and_says_so(client, monkeypatch):
+    from types import SimpleNamespace
+    from src.web_api import llm_profiles as lp
+    chosen = []
+
+    class Stub:
+        def complete_for(self, profile_id, zone, purpose, owner="x", temperature=0.1):
+            chosen.append((profile_id, zone, purpose, owner))
+            return complete_ok, SimpleNamespace(id="stub-model", label="Stub model")
+    monkeypatch.setattr(lp, "get_registry", lambda: Stub())
+    tid = client.post("/api/zones/equipment/agent", json={"question": "頻譜分析儀多久校驗", "llm": "stub-model"}).json()["task_id"]
+    res = client.get(f"/api/zones/equipment/agent/{tid}").json()
+    assert res["status"] == "completed" and res["llm"] == {"profile": "stub-model", "label": "Stub model"} and res["citations"]
+    assert chosen == [("stub-model", "equipment", "zone_answer", "u1")]
+
+
+def test_without_a_choice_the_zone_assistant_uses_its_default_model(client, monkeypatch):
+    _profile_registry(monkeypatch)
+    tid = client.post("/api/zones/equipment/agent", json={"question": "頻譜分析儀多久校驗"}).json()["task_id"]
+    res = client.get(f"/api/zones/equipment/agent/{tid}").json()
+    assert res["status"] == "completed" and res["llm"]["profile"] == "auto" and res["citations"]

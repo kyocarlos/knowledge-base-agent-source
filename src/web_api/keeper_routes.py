@@ -23,6 +23,7 @@ MODEL_TOKEN = re.compile(r"[A-Za-z][A-Za-z0-9]*(?:[-_][A-Za-z0-9]+)+|[A-Za-z]{2,
 
 class RouteBody(BaseModel):
     question: str = Field(min_length=1, max_length=routing.MAX_QUESTION * 2)
+    llm: str | None = Field(default=None, max_length=64)      # LLM profile id (llm_profiles); empty = the default model
     stats: dict | None = None               # {zone id: {week, todo}} as the home page shows them; only used to order the "what is new" pointers
 
 
@@ -109,12 +110,23 @@ async def keeper_route(body: RouteBody, request: Request):
     identity = _identity(request)
     if not _allow(str(identity.get("sub") or "anonymous")):
         raise HTTPException(status_code=429, detail="問得太快了，請稍等一下再問")
+    from . import llm_profiles
+    try:
+        custom, profile = llm_profiles.get_registry().complete_for(body.llm, "hub", "keeper", owner=str(identity.get("sub") or "anonymous"))
+    except llm_profiles.ProfileError as exc:
+        raise llm_profiles.http_error(exc) from exc
 
     def work():
-        try:
-            complete = _llm_complete()
-        except Exception:  # noqa: BLE001 - not configured: keywords only
-            complete = None
-        return routing.route(body.question, complete, _zones(), body.stats, entity_zones=_entity_zones)
+        if custom is not None:
+            complete = custom
+        else:
+            try:
+                complete = _llm_complete()
+            except Exception:  # noqa: BLE001 - not configured: keywords only
+                complete = None
+        out = routing.route(body.question, complete, _zones(), body.stats, entity_zones=_entity_zones)
+        if isinstance(out, dict):
+            out["llm"] = {"profile": profile.id, "label": profile.label}
+        return out
 
     return await run_in_threadpool(work)

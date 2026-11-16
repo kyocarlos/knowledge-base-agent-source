@@ -173,17 +173,21 @@ class AgentBody(BaseModel):
     question: str = Field(min_length=1, max_length=2000)
     history: list[Turn] = Field(default_factory=list, max_length=60)
     file_ids: list[str] = Field(default_factory=list, max_length=5)
+    llm: str | None = Field(default=None, max_length=64)      # LLM profile id (llm_profiles); empty = the default model
 
 
-def _run(task_id: str, zone_label: str, names: list[str], body: AgentBody, owner: dict, records: dict, with_stats: bool = False) -> None:
+def _run(task_id: str, zone_label: str, names: list[str], body: AgentBody, owner: dict, records: dict, with_stats: bool = False,
+         custom=None, profile=None) -> None:
     redis = _redis()
     emit = progress.Emitter(redis, task_id)
     store = TaskStore(redis)
     try:
-        complete = _complete()
+        complete = custom if custom is not None else _complete()     # custom: the model the asker chose (already checked against the zone's policy)
         agent = ZoneAgent(_catalog(), complete, stats=_stats(complete) if with_stats and complete else None)
         result = agent.answer(task_id=task_id, zone_label=zone_label, zone_names=names, question=body.question.strip(), history=[t.model_dump() for t in body.history],
                               owner=owner, file_records=records, emit=emit, with_stats=with_stats)
+        if profile is not None:
+            result["llm"] = {"profile": profile.id, "label": profile.label}
         store.save(task_id, result)
         emit.done("completed")
     except Exception as exc:  # noqa: BLE001 - the page shows the failure instead of waiting for ever
@@ -204,9 +208,14 @@ async def zone_ask(zone: str, body: AgentBody, request: Request):
         from .wifi8_routes import _user_file_store
         store = _user_file_store()
         records = {i: r for i in file_ids if (r := store.get(owner, i))}
+    from . import llm_profiles
+    try:   # the chosen model must be allowed for this zone (data-egress policy), exist, and be within its per-account limit
+        custom, profile = llm_profiles.get_registry().complete_for(body.llm, zone_id, "zone_answer", owner=str(owner.get("user_id")))
+    except llm_profiles.ProfileError as exc:
+        raise llm_profiles.http_error(exc) from exc
     task_id = str(uuid.uuid4())
     progress.register(_redis(), task_id, owner)
-    _pool.submit(_run, task_id, label, names, body, owner, records, zone_id == "verification")
+    _pool.submit(_run, task_id, label, names, body, owner, records, zone_id == "verification", custom, profile)
     return {"task_id": task_id, "status": "submitted", "stream": True, "feedback": _feedback_enabled()}
 
 
