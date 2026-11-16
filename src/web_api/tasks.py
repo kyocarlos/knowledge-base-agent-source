@@ -1883,3 +1883,10 @@ try:
         logger.info(f"Celery Beat 預設排程: 每 {config.get('interval_minutes', 5)} 分鐘執行")
 except Exception as e:
     logger.warning(f"Celery Beat 初始化失敗: {e}")
+
+# --- RCA analysis task (registers tasks.rca_analyze_task) ---
+try:
+    from . import rca_tasks  # noqa: F401
+except Exception:  # noqa: BLE001 - the worker must keep serving its other tasks
+    import logging as _rca_logging
+    _rca_logging.getLogger("km.rca").exception("RCA task was not registered")

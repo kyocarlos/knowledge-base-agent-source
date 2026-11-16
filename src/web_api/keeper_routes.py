@@ -6,6 +6,7 @@ import re
 import time
 from collections import defaultdict, deque
 from functools import lru_cache
+from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.concurrency import run_in_threadpool
@@ -59,11 +60,33 @@ def _llm_complete():
     return lambda messages: client.chat(messages, temperature=0.1)
 
 
+def _csit_report_zones(tokens: list[str]) -> list[dict]:
+    """CSIT test reports (km_test.report_package, read-only role) whose document id contains a name from the question: they all live in the product verification zone, whatever test type their file name carries."""
+    dsn_file = os.getenv("KM_RCA_DSN_FILE")
+    if not dsn_file:
+        return []
+    try:
+        import psycopg
+        dsn = Path(dsn_file).read_text().strip()
+        found = 0
+        with psycopg.connect(dsn, autocommit=True, connect_timeout=3) as conn:
+            for token in tokens:
+                like = "%" + token.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
+                row = conn.execute("SELECT count(DISTINCT document_id) FROM km_test.report_package WHERE document_id ILIKE %s", (like,)).fetchone()
+                found = max(found, int(row[0] or 0))
+    except Exception:  # noqa: BLE001 - no report store: the other lookups and the model still answer
+        return []
+    return [{"id": "csit", "count": found}] if found else []
+
+
 def _entity_zones(question: str) -> list[dict]:
     """Zones whose imported legacy documents mention a model / project name found in the question (needs the legacy import and its graph)."""
     tokens = [t for t in MODEL_TOKEN.findall(question) if len(t) >= 5][:3]
     if not tokens:
         return []
+    reports = _csit_report_zones(tokens)
+    if reports:  # a test report named in the question: its zone is known, no need to ask the model
+        return reports
     from .legacy_routes import ZONE_NAMES, _catalogue
     by_name = {name: zone_id for zone_id, name in ZONE_NAMES.items()}
     counts: dict[str, int] = {}

@@ -484,22 +484,21 @@ def _resolve_openclaw_dir() -> Path:
     env_dir = os.environ.get("OPENCLAW_HOME")
     if env_dir:
         return Path(env_dir).expanduser()
-
     candidate = Path("/home/da40_ai_gb10/.openclaw")
     if candidate.exists():
         return candidate
-
     return Path.home() / ".openclaw"
 
 
-def _is_compare_like_query(text: str) -> bool:
-    return is_compare_like_query(text)
-
-
+# Legacy non-chat integrations still use these paths. Chat credentials are loaded
+# only from the narrowly mounted, read-only runtime secret file below.
 OPENCLAW_DIR = _resolve_openclaw_dir()
 OPENCLAW_IDENTITY_DIR = OPENCLAW_DIR / "identity"
 OPENCLAW_MEMORY_DIR = OPENCLAW_DIR / "workspace" / "memory"
 DEFAULT_GATEWAY_HOST = os.environ.get("OPENCLAW_GATEWAY_HOST", "100.65.63.58")
+CHAT_RUNTIME_CONFIG_PATH = Path(os.environ.get(
+    "OPENCLAW_CHAT_CONFIG_PATH", "/run/secrets/km-chat/runtime.json"
+))
 REDIS_URL = os.getenv("REDIS_URL") or os.getenv("CELERY_BROKER_URL") or "redis://redis:6379/0"
 CHAT_BROWSER_COOKIE = "kb_chat_browser_id"
 
@@ -519,6 +518,9 @@ CHAT_QUEUE_QUEUE_TTL = int(os.getenv("CHAT_QUEUE_QUEUE_TTL", "1800"))
 CHAT_QUEUE_ACTIVE_TTL = int(os.getenv("CHAT_QUEUE_ACTIVE_TTL", str(CHAT_SESSION_LOCK_TTL)))
 
 
+def _is_compare_like_query(text: str) -> bool:
+    return is_compare_like_query(text)
+
 def _upload_file_sort_key(file_path: Path) -> tuple[int, str]:
     """以修改時間排序，並用路徑做次序穩定化。"""
     try:
@@ -526,7 +528,6 @@ def _upload_file_sort_key(file_path: Path) -> tuple[int, str]:
     except FileNotFoundError:
         mtime_ns = 0
     return (mtime_ns, str(file_path))
-
 
 def _delete_upload_artifacts(raw_dir: Path, processed_dir: Path, raw_file: Path) -> None:
     """刪除 raw 檔與其對應的 processed 成果。"""
@@ -546,7 +547,6 @@ def _delete_upload_artifacts(raw_dir: Path, processed_dir: Path, raw_file: Path)
                 logger.info("已刪除舊檔: %s", target)
         except Exception as exc:
             logger.warning("刪除舊檔失敗: %s - %s", target, exc)
-
 
 def _enforce_upload_retention(limit: int = UPLOAD_RETENTION_LIMIT) -> dict:
     """
@@ -577,103 +577,89 @@ def _enforce_upload_retention(limit: int = UPLOAD_RETENTION_LIMIT) -> dict:
     }
 
 
-def _read_json_file(path: Path) -> dict:
+def _load_chat_runtime_config() -> dict:
+    """Load the zone-specific Gateway identity from a protected server-side file."""
     try:
-        return json.loads(path.read_text(encoding="utf-8"))
+        stat = CHAT_RUNTIME_CONFIG_PATH.stat()
+        if stat.st_mode & 0o077:
+            raise ValueError("unsafe permissions")
+        config = json.loads(CHAT_RUNTIME_CONFIG_PATH.read_text(encoding="utf-8"))
+        required = ("gatewayWsUrl", "sessionKey", "deviceId", "privateKeyPem",
+                    "publicKeyRaw", "deviceToken", "scopes")
+        if not isinstance(config, dict) or any(not config.get(key) for key in required):
+            raise ValueError("invalid shape")
+        if not str(config["gatewayWsUrl"]).startswith(("ws://", "wss://")):
+            raise ValueError("invalid gateway")
+        if not isinstance(config["scopes"], list) or not all(isinstance(x, str) for x in config["scopes"]):
+            raise ValueError("invalid scopes")
+        return config
     except Exception as exc:
-        raise RuntimeError(f"無法讀取設定檔: {path}") from exc
+        # Keep filesystem details and parser errors out of logs and HTTP responses.
+        raise RuntimeError("chat runtime unavailable") from exc
 
 
-def _pem_body(pem: str) -> str:
-    return "".join(
-        line.strip()
-        for line in (pem or "").splitlines()
-        if line and not line.startswith("-----")
-    )
+def _build_gateway_connect_message(config: dict, challenge_payload: dict) -> dict:
+    """Sign the Gateway challenge with the zone's server-only Ed25519 key."""
+    from cryptography.hazmat.primitives.serialization import load_pem_private_key
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
-
-def _pem_public_key_raw(pem: str) -> str:
-    body = _pem_body(pem)
-    if not body:
-        return ""
-    raw = base64.b64decode(body)
-    return base64.urlsafe_b64encode(raw[-32:]).decode("ascii").rstrip("=")
-
-
-def _load_chat_session_key() -> str:
-    override = os.environ.get("OPENCLAW_CHAT_SESSION_KEY")
-    if override:
-        return override.strip()
-
-    patterns = [
-        r"Dashboard session:\s*`([^`]+)`",
-        r"正式 Chat 網址:\s*`([^`]+)`",
-        r"session key[:：]\s*`([^`]+)`",
-        r"sessionKey[:：]\s*`([^`]+)`",
-    ]
-
-    if OPENCLAW_MEMORY_DIR.exists():
-        memory_files = sorted(OPENCLAW_MEMORY_DIR.glob("*.md"), reverse=True)
-        for memory_file in memory_files:
-            try:
-                content = memory_file.read_text(encoding="utf-8")
-            except Exception:
-                continue
-            for pattern in patterns:
-                match = re.search(pattern, content, re.IGNORECASE)
-                if match:
-                    return match.group(1).strip()
-
-    raise RuntimeError("找不到 OpenClaw chat session key，請更新 ~/.openclaw/workspace/memory/*.md")
+    nonce = str(challenge_payload.get("nonce") or "")
+    signed_at = challenge_payload.get("ts")
+    if not nonce or isinstance(signed_at, bool) or not isinstance(signed_at, int) or signed_at < 0:
+        raise ValueError("invalid gateway challenge")
+    private_key = load_pem_private_key(config["privateKeyPem"].encode(), password=None)
+    if not isinstance(private_key, Ed25519PrivateKey):
+        raise ValueError("invalid gateway device key")
+    scopes = config["scopes"]
+    signature_payload = "|".join([
+        "v3", config["deviceId"], "cli", "cli", "operator",
+        ",".join(scopes), str(signed_at), str(config.get("authToken") or config["deviceToken"]), nonce,
+        "linux", "",
+    ]).encode()
+    signature = base64.urlsafe_b64encode(private_key.sign(signature_payload)).decode().rstrip("=")
+    return {
+        "type": "req", "id": "km-connect", "method": "connect",
+        "params": {
+            "minProtocol": 3, "maxProtocol": 3,
+            "client": config.get("client", {"id": "cli", "version": "1.0.0", "platform": "linux", "mode": "cli"}),
+            "role": "operator", "scopes": scopes,
+            "auth": {
+                **({"token": config["authToken"]} if config.get("authToken") else {}),
+                "deviceToken": config["deviceToken"],
+            },
+            "device": {"id": config["deviceId"], "publicKey": config["publicKeyRaw"], "signature": signature, "signedAt": signed_at, "nonce": nonce},
+            "locale": config.get("locale", "zh-TW"),
+            "userAgent": config.get("userAgent", "openclaw-web/1.0.0"),
+        },
+    }
 
 
 def load_openclaw_chat_config() -> dict:
-    device_path = OPENCLAW_IDENTITY_DIR / "device.json"
-    auth_path = OPENCLAW_IDENTITY_DIR / "device-auth.json"
-    openclaw_path = OPENCLAW_DIR / "openclaw.json"
+    """Internal-only config; never return this dictionary from an HTTP handler."""
+    config = _load_chat_runtime_config()
+    config.setdefault("client", {"id": "cli", "version": "1.0.0", "platform": "linux", "mode": "cli"})
+    config.setdefault("locale", "zh-TW")
+    config.setdefault("userAgent", "openclaw-web/1.0.0")
+    return config
 
-    device = _read_json_file(device_path)
-    device_auth = _read_json_file(auth_path)
-    openclaw = _read_json_file(openclaw_path)
 
-    gateway_config = openclaw.get("gateway", {})
-    gateway_port = int(os.environ.get("OPENCLAW_GATEWAY_PORT") or gateway_config.get("port", 18789))
-    gateway_host = os.environ.get("OPENCLAW_GATEWAY_HOST", DEFAULT_GATEWAY_HOST)
-    gateway_ws_url = os.environ.get("OPENCLAW_GATEWAY_WS_URL") or f"ws://{gateway_host}:{gateway_port}/ws"
+def _redact_chat_session_keys(value):
+    """Strip Gateway session identifiers from every message returned to browsers."""
+    if isinstance(value, dict):
+        return {
+            key: _redact_chat_session_keys(item)
+            for key, item in value.items()
+            if key not in {"sessionKey", "session_key"}
+        }
+    if isinstance(value, list):
+        return [_redact_chat_session_keys(item) for item in value]
+    return value
 
-    operator_token = device_auth.get("tokens", {}).get("operator", {})
-    scopes = operator_token.get("scopes") or [
-        "operator.admin",
-        "operator.approvals",
-        "operator.pairing",
-        "operator.read",
-        "operator.talk.secrets",
-        "operator.write",
-    ]
 
-    return {
-        "sessionKey": _load_chat_session_key(),
-        "gatewayWsUrl": gateway_ws_url,
-        "gatewayHttpUrl": gateway_ws_url.replace("ws://", "http://", 1).replace("wss://", "https://", 1),
-        "browserWsUrl": "/ws",
-        "deviceId": device.get("deviceId", ""),
-        "deviceToken": operator_token.get("token", ""),
-        "authToken": (openclaw.get("gateway", {}).get("auth", {}) or {}).get("token", ""),
-        "privateKeyPem": device.get("privateKeyPem", ""),
-        "publicKeyPem": device.get("publicKeyPem", ""),
-        "publicKeyRaw": _pem_public_key_raw(device.get("publicKeyPem", "")),
-        "scopes": scopes,
-        "client": {
-            "id": "cli",
-            "version": "1.0.0",
-            "platform": "linux",
-            "mode": "cli",
-        },
-        "locale": "zh-TW",
-        "userAgent": "openclaw-web/1.0.0",
-        "gatewayPort": gateway_port,
-        "gatewayHost": gateway_host,
-    }
+def _build_zone_chat_session_key(base_key: str, instance_id: str, subject: str, browser_id: str) -> str:
+    """Return an opaque session namespace bound to one zone, account and browser."""
+    digest = hashlib.sha256(f"{instance_id}\0{subject}\0{browser_id}".encode()).hexdigest()[:32]
+    return f"{base_key}__km_{digest}"
 
 
 def _get_or_create_chat_browser_id(cookie_value: str | None) -> str:
@@ -925,10 +911,9 @@ def _enqueue_chat_request(r, request_id: str, browser_id: str, session_key: str,
     r.zadd(CHAT_QUEUE_KEY, {request_id: queue_seq})
     r.expire(CHAT_QUEUE_KEY, CHAT_QUEUE_QUEUE_TTL)
     logger.info(
-        "Chat queue enqueue request_id=%s browser_id=%s session_key=%s queue_seq=%s",
+        "Chat queue enqueue request_id=%s browser_id=%s queue_seq=%s",
         request_id,
         browser_id,
-        session_key,
         queue_seq,
     )
     return queue_seq
@@ -1050,9 +1035,8 @@ def _try_claim_chat_request(r, request_id: str) -> dict:
         member_session_key = member_meta.get("session_key", "")
         if member_session_key and not _acquire_chat_session_lock(r, str(member_session_key)):
             logger.info(
-                "Chat queue claim waiting session lock request_id=%s session_key=%s",
+                "Chat queue claim waiting session lock request_id=%s",
                 request_id,
-                member_session_key,
             )
             return {"state": "waiting", "queue_position": int(queue_rank) + 1}
 
@@ -1068,10 +1052,9 @@ def _try_claim_chat_request(r, request_id: str) -> dict:
         r.expire(request_key, CHAT_QUEUE_QUEUE_TTL)
         _increment_browser_active_count(r, str(member_browser_id))
         logger.info(
-            "Chat queue claim granted request_id=%s browser_id=%s session_key=%s active_count=%s",
+            "Chat queue claim granted request_id=%s browser_id=%s active_count=%s",
             request_id,
             member_browser_id,
-            member_session_key,
             r.zcard(CHAT_QUEUE_ACTIVE_KEY),
         )
         return {"state": "granted"}
@@ -1200,6 +1183,17 @@ from .zone_routes import router as zone_router
 app.include_router(zone_router)
 from .keeper_routes import router as keeper_router
 app.include_router(keeper_router)
+from .csit_assistant_routes import router as csit_assistant_router
+app.include_router(csit_assistant_router)
+# --- RCA report comparison (flag-gated) ---
+import os as _rca_os
+if _rca_os.getenv("KM_RCA_ENABLED") == "1":  # a failure here must never stop the app
+    try:
+        from .rca_routes import create_router as _create_rca_router
+        app.include_router(_create_rca_router())
+    except Exception:  # noqa: BLE001
+        import logging as _rca_logging
+        _rca_logging.getLogger("km.rca").exception("RCA routes were not registered")
 
 # CORS 允許前端跨域
 app.add_middleware(
@@ -1238,10 +1232,14 @@ async def get_openclaw_chat_config(request: Request, response: Response):
             samesite="lax",
             path="/",
         )
-        return load_openclaw_chat_config()
-    except Exception as exc:
-        logger.exception("載入 OpenClaw chat 設定失敗")
-        raise HTTPException(status_code=500, detail=str(exc))
+        config = load_openclaw_chat_config()
+        response.headers["Cache-Control"] = "no-store"
+        return {"available": True, "browserWsUrl": "/ws"}
+    except Exception:
+        trace_id = uuid.uuid4().hex[:12]
+        logger.warning("chat runtime unavailable instance=%s trace=%s", configured_instance_id() or "default", trace_id)
+        response.headers["Cache-Control"] = "no-store"
+        raise HTTPException(status_code=503, detail={"code": "chat_unavailable", "message": "聊天服務尚未就緒", "traceId": trace_id})
 
 
 @app.websocket("/ws")
@@ -1368,6 +1366,12 @@ async def websocket_chat_proxy(websocket: WebSocket):
     try:
         logger.info("WebSocket proxy[%s] accepted browser_id=%s", proxy_conn_id, browser_id)
         chat_config = load_openclaw_chat_config()
+        identity = websocket.scope.get("state", {}).get("km_identity") or {}
+        subject = str(identity.get("sub") or "anonymous")
+        plane = configured_instance_id() or "default"
+        chat_config["sessionKey"] = _build_zone_chat_session_key(
+            chat_config["sessionKey"], plane, subject, browser_id
+        )
         gateway_ws_url = chat_config.get("gatewayWsUrl")
         if not gateway_ws_url:
             logger.warning("WebSocket proxy[%s] missing gateway_ws_url browser_id=%s", proxy_conn_id, browser_id)
@@ -1384,10 +1388,28 @@ async def websocket_chat_proxy(websocket: WebSocket):
                 ping_timeout=30,
                 max_queue=32,
             )
-            logger.info("WebSocket proxy[%s] connected upstream browser_id=%s gateway=%s", proxy_conn_id, browser_id, gateway_ws_url)
+            logger.info("WebSocket proxy[%s] upstream connected instance=%s", proxy_conn_id, plane)
         except Exception as exc:
-            logger.error("WebSocket proxy[%s] 連接 gateway websocket 失敗 browser_id=%s: %s", proxy_conn_id, browser_id, exc)
+            logger.warning("WebSocket proxy[%s] upstream unavailable instance=%s", proxy_conn_id, plane)
             await send_to_browser({"error": "聊天服務暫時無法連線"})
+            await websocket.close(code=1011)
+            return
+
+        try:
+            challenge = json.loads(await asyncio.wait_for(upstream.recv(), timeout=10))
+            if challenge.get("type") != "event" or challenge.get("event") != "connect.challenge":
+                raise RuntimeError("gateway challenge missing")
+            challenge_payload = challenge.get("payload") or {}
+            connect = _build_gateway_connect_message(chat_config, challenge_payload)
+            await upstream.send(json.dumps(connect, ensure_ascii=False))
+            connected = json.loads(await asyncio.wait_for(upstream.recv(), timeout=15))
+            if connected.get("type") != "res" or connected.get("id") != "km-connect" or not connected.get("ok"):
+                raise RuntimeError("gateway authentication rejected")
+            await send_to_browser({"type": "event", "event": "connect.ready", "payload": {"connected": True}})
+            logger.info("WebSocket proxy[%s] gateway handshake succeeded instance=%s", proxy_conn_id, plane)
+        except Exception:
+            logger.warning("WebSocket proxy[%s] gateway handshake failed instance=%s", proxy_conn_id, plane)
+            await send_to_browser({"type": "event", "event": "connect.failed", "payload": {"message": "聊天服務驗證失敗"}})
             await websocket.close(code=1011)
             return
 
@@ -1406,27 +1428,27 @@ async def websocket_chat_proxy(websocket: WebSocket):
                 try:
                     message = json.loads(raw_text)
                 except Exception:
-                    await upstream.send(raw_text)
+                    await send_to_browser({"error": "無效的聊天訊息"})
                     continue
 
                 if message.get("type") == "auth":
-                    expected_auth_token = chat_config.get("authToken", "")
-                    received_token = message.get("token", "")
-                    if expected_auth_token and received_token != expected_auth_token:
-                        await send_to_browser({"error": "授權失敗"})
-                        await websocket.close(code=4401)
-                        return
-                    logger.info("WebSocket auth accepted for browser_id=%s", browser_id)
-                    await upstream.send(raw_text)
+                    await send_to_browser({"error": "不支援瀏覽器端 Gateway 驗證"})
+                    continue
+
+                if message.get("type") == "req" and message.get("method") == "connect":
+                    await send_to_browser({"type": "res", "id": message.get("id"), "ok": False, "error": {"message": "Gateway 連線由伺服器管理"}})
                     continue
 
                 if message.get("type") == "req":
                     method = message.get("method")
                     params = message.get("params") if isinstance(message.get("params"), dict) else {}
+                    if method not in {"chat.history", "chat.send"}:
+                        await send_to_browser({"type": "res", "id": message.get("id"), "ok": False, "error": {"message": "不允許的 Gateway 方法"}})
+                        continue
                     logger.info("WebSocket browser req method=%s id=%s browser_id=%s", method, message.get("id"), browser_id)
 
                     if method == "chat.history":
-                        session_key = _resolve_browser_session_key(params.get("sessionKey") or message.get("sessionKey"), browser_id)
+                        session_key = _resolve_browser_session_key(chat_config["sessionKey"], browser_id)
                         params["sessionKey"] = session_key
                         message["params"] = params
                         logger.info("WebSocket forwarding chat.history id=%s", message.get("id"))
@@ -1434,7 +1456,7 @@ async def websocket_chat_proxy(websocket: WebSocket):
                         continue
 
                     if method == "chat.send":
-                        session_key = _resolve_browser_session_key(params.get("sessionKey") or message.get("sessionKey"), browser_id)
+                        session_key = _resolve_browser_session_key(chat_config["sessionKey"], browser_id)
                         params["sessionKey"] = session_key
                         message["params"] = params
                         request_id = str(message.get("id") or f"chat-{uuid.uuid4().hex}")
@@ -1489,7 +1511,7 @@ async def websocket_chat_proxy(websocket: WebSocket):
                                 session_lock_acquired = True
                                 current_queue_position = None
                                 pending_request_ids.discard(request_id)
-                                logger.info("WebSocket chat request granted request_id=%s session_key=%s", request_id, session_key)
+                                logger.info("WebSocket chat request granted request_id=%s", request_id)
                                 csit_result = await run_csit_query_direct(params.get("message", ""))
                                 if csit_result is not None:
                                     logger.info("WebSocket CSIT read-only shortcut applied request_id=%s", request_id)
@@ -1574,13 +1596,10 @@ async def websocket_chat_proxy(websocket: WebSocket):
                             await asyncio.sleep(CHAT_QUEUE_POLL_INTERVAL)
                         continue
 
-                    logger.info("WebSocket forwarding req method=%s id=%s to upstream", method, message.get("id"))
-                    await upstream.send(json.dumps(message, ensure_ascii=False))
-                    continue
 
                 if message.get("type") == "chat.history":
-                    session_key = _resolve_browser_session_key(message.get("sessionKey"), browser_id)
-                    logger.info("WebSocket bare chat.history browser_id=%s session_key=%s", browser_id, session_key)
+                    session_key = _resolve_browser_session_key(chat_config["sessionKey"], browser_id)
+                    logger.info("WebSocket bare chat.history browser_id=%s", browser_id)
                     request_id = str(message.get("id") or f"history-{uuid.uuid4().hex}")
                     normalized_message = {
                         "type": "req",
@@ -1600,7 +1619,7 @@ async def websocket_chat_proxy(websocket: WebSocket):
                     continue
 
                 if message.get("type") == "chat.send":
-                    session_key = _resolve_browser_session_key(message.get("sessionKey"), browser_id)
+                    session_key = _resolve_browser_session_key(chat_config["sessionKey"], browser_id)
                     request_id = str(message.get("id") or f"chat-{uuid.uuid4().hex}")
                     pending_request_ids.add(request_id)
                     normalized_message = {
@@ -1665,7 +1684,7 @@ async def websocket_chat_proxy(websocket: WebSocket):
                             session_lock_acquired = True
                             current_queue_position = None
                             pending_request_ids.discard(request_id)
-                            logger.info("WebSocket bare chat request granted request_id=%s session_key=%s", request_id, session_key)
+                            logger.info("WebSocket bare chat request granted request_id=%s", request_id)
                             compare_result = await run_compare_report_graph_direct(normalized_message.get("params", {}).get("message", ""))
                             if compare_result is not None:
                                 logger.info("WebSocket bare compare shortcut applied request_id=%s", request_id)
@@ -1757,6 +1776,8 @@ async def websocket_chat_proxy(websocket: WebSocket):
                     payload = json.loads(raw_message)
                 except Exception:
                     payload = None
+                if isinstance(payload, dict) and payload.get("event") == "connect.challenge":
+                    continue
                 if isinstance(payload, dict):
                     logger.info(
                         "WebSocket upstream payload type=%s event=%s id=%s ok=%s",
@@ -1789,30 +1810,11 @@ async def websocket_chat_proxy(websocket: WebSocket):
                         message_meta.get("session_key")
                         if isinstance(message_meta, dict) else None
                     )
-                    logger.info(
-                        "WebSocket chat event keys=%s payload_keys=%s message_keys=%s session_candidates=%s",
-                        list(payload.keys()),
-                        list(chat_payload.keys()) if isinstance(chat_payload, dict) else [],
-                        list(message_payload.keys()) if isinstance(message_payload, dict) else [],
-                        {
-                            "payload.sessionKey": chat_payload.get("sessionKey") if isinstance(chat_payload, dict) else None,
-                            "payload.session_key": chat_payload.get("session_key") if isinstance(chat_payload, dict) else None,
-                            "message.sessionKey": message_payload.get("sessionKey") if isinstance(message_payload, dict) else None,
-                            "message.session_key": message_payload.get("session_key") if isinstance(message_payload, dict) else None,
-                            "message.meta.sessionKey": message_meta.get("sessionKey") if isinstance(message_meta, dict) else None,
-                            "message.meta.session_key": message_meta.get("session_key") if isinstance(message_meta, dict) else None,
-                        },
-                    )
-
                     normalized_event_session_key = _canonical_chat_session_key(event_session_key)
                     normalized_current_session_key = _canonical_chat_session_key(session_key)
 
                     if normalized_current_session_key and normalized_event_session_key and normalized_event_session_key != normalized_current_session_key:
-                        logger.info(
-                            "Skip chat event for mismatched session: event=%s current=%s",
-                            normalized_event_session_key,
-                            normalized_current_session_key,
-                        )
+                        logger.info("WebSocket skipped event for non-current session")
                         continue
 
                     if normalized_current_session_key and isinstance(chat_payload, dict) and not event_session_key:
@@ -1822,7 +1824,11 @@ async def websocket_chat_proxy(websocket: WebSocket):
                         chat_payload["sessionKey"] = normalized_current_session_key
                         payload["payload"] = chat_payload
 
-                await send_to_browser(payload if isinstance(payload, dict) else {"type": "raw", "data": raw_message})
+                await send_to_browser(
+                    _redact_chat_session_keys(payload)
+                    if isinstance(payload, dict)
+                    else {"type": "raw", "data": raw_message}
+                )
 
                 if session_key and session_lock_acquired:
                     await asyncio.to_thread(_refresh_chat_session_lock, redis_client, session_key)
@@ -1862,7 +1868,7 @@ async def websocket_chat_proxy(websocket: WebSocket):
         with suppress(Exception):
             await send_to_browser({"error": "聊天代理發生錯誤"})
     finally:
-        logger.info("WebSocket proxy[%s] teardown browser_id=%s session_key=%s active_request_id=%s", proxy_conn_id, browser_id, session_key, active_request_id)
+        logger.info("WebSocket proxy[%s] teardown browser_id=%s active_request_id=%s", proxy_conn_id, browser_id, active_request_id)
         if upstream is not None:
             with suppress(Exception):
                 await upstream.close()
