@@ -1,0 +1,307 @@
+{
+ "_note": "SYNTHETIC example for the equipment synthesis tests and demo. The equipment, documents and values are invented; they are not CSIT data.",
+ "manifest": {
+  "schemaVersion": "1.0",
+  "equipmentId": "EQ-ATS-NR-0007",
+  "manifestHash": "sha256-9a1c0e5b77d2",
+  "manifestRevision": 3,
+  "generatedAt": "2026-11-16T08:00:00Z",
+  "documents": [
+   {
+    "documentId": "11111111-1111-4111-8111-111111111111",
+    "version": 2,
+    "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "sourceType": "EquipmentAttachment",
+    "sourceEntityId": "11111111-1111-4111-8111-111111111111",
+    "analysisResultId": "csit-ar-0001",
+    "fileName": "ATS-NR datasheet.pdf"
+   },
+   {
+    "documentId": "22222222-2222-4222-8222-222222222222",
+    "version": 1,
+    "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "sourceType": "TestReport",
+    "sourceEntityId": "99999999-9999-4999-8999-999999999991",
+    "analysisResultId": "csit-ar-0002",
+    "fileName": "ATS-NR calibration report.pdf"
+   },
+   {
+    "documentId": "33333333-3333-4333-8333-333333333333",
+    "version": 1,
+    "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "sourceType": "VendorFile",
+    "sourceEntityId": "33333333-3333-4333-8333-333333333333",
+    "analysisResultId": "csit-ar-0003",
+    "fileName": "vendor quote.xlsx"
+   },
+   {
+    "documentId": "44444444-4444-4444-8444-444444444444",
+    "version": 1,
+    "sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+    "sourceType": "EquipmentAttachment",
+    "sourceEntityId": "44444444-4444-4444-8444-444444444444",
+    "analysisResultId": "csit-ar-0004",
+    "fileName": "photo list.pdf"
+   },
+   {
+    "documentId": "55555555-5555-4555-8555-555555555555",
+    "version": 1,
+    "sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+    "sourceType": "EquipmentAttachment",
+    "sourceEntityId": "55555555-5555-4555-8555-555555555555",
+    "analysisResultId": "csit-ar-0005",
+    "fileName": "ATS-NR user manual.pdf"
+   }
+  ]
+ },
+ "metadata": [
+  {
+   "documentId": "11111111-1111-4111-8111-111111111111",
+   "version": 2,
+   "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   "sourceType": "EquipmentAttachment",
+   "sourceEntityId": "11111111-1111-4111-8111-111111111111",
+   "kmJobId": "KM-ING-100001",
+   "result": {
+    "metadataSchemaVersion": "2.0",
+    "document": {
+     "title": "ATS-NR datasheet",
+     "documentType": "Specification",
+     "summary": "5G NR 測試治具 ATS-NR 的規格書，涵蓋頻段、輸出功率與吞吐量。"
+    },
+    "technical": {
+     "productNames": [
+      "ATS-NR"
+     ],
+     "modelNumbers": [
+      "ATS-NR-100"
+     ],
+     "vendorNames": [
+      "Askey"
+     ],
+     "technologies": [
+      "5G NR"
+     ],
+     "standards": [
+      "3GPP TS 38.141"
+     ],
+     "softwareVersions": [],
+     "hardwareVersions": [],
+     "testItems": [
+      "FR1 TX power"
+     ],
+     "measurements": []
+    },
+    "sourceSpecific": {
+     "specifications": [
+      {
+       "field": "Frequency range",
+       "value": "410",
+       "unit": "MHz",
+       "evidence": "datasheet p.2 table 1 (lower bound)"
+      },
+      {
+       "field": "Max throughput",
+       "value": "1.2",
+       "unit": "Gbps",
+       "evidence": "datasheet p.3"
+      },
+      {
+       "field": "TX power",
+       "value": "23",
+       "unit": "dBm",
+       "evidence": "datasheet p.3"
+      }
+     ],
+     "capabilitySummary": "可進行 FR1 的發射功率與接收靈敏度測試。",
+     "limitations": [
+      "不支援 mmWave (FR2)"
+     ]
+    }
+   }
+  },
+  {
+   "documentId": "22222222-2222-4222-8222-222222222222",
+   "version": 1,
+   "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+   "sourceType": "TestReport",
+   "sourceEntityId": "99999999-9999-4999-8999-999999999991",
+   "kmJobId": "KM-ING-100002",
+   "result": {
+    "metadataSchemaVersion": "2.0",
+    "document": {
+     "title": "ATS-NR calibration report",
+     "documentType": "TestReport",
+     "summary": "ATS-NR 的校正與量測報告。"
+    },
+    "technical": {
+     "productNames": [
+      "ATS-NR"
+     ],
+     "modelNumbers": [
+      "ATS-NR-100"
+     ],
+     "vendorNames": [],
+     "technologies": [],
+     "standards": [
+      "3GPP TS 38.141"
+     ],
+     "softwareVersions": [],
+     "hardwareVersions": [],
+     "testItems": [],
+     "measurements": [
+      {
+       "metric": "Max throughput (measured)",
+       "value": 1200,
+       "unit": "Mbps",
+       "context": "calibration run 2026-09-02"
+      },
+      {
+       "metric": "TX power (measured)",
+       "value": "20",
+       "unit": "dBm",
+       "context": "calibration run 2026-09-02"
+      }
+     ]
+    },
+    "sourceSpecific": {
+     "testCaseIds": [],
+     "testItems": [],
+     "measurements": [],
+     "passFail": null,
+     "environment": null,
+     "equipmentReferences": [],
+     "evidenceLocations": []
+    }
+   }
+  },
+  {
+   "documentId": "33333333-3333-4333-8333-333333333333",
+   "version": 1,
+   "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+   "sourceType": "VendorFile",
+   "sourceEntityId": "33333333-3333-4333-8333-333333333333",
+   "kmJobId": "KM-ING-100003",
+   "result": {
+    "metadataSchemaVersion": "2.0",
+    "document": {
+     "title": "vendor quote",
+     "documentType": "Quotation",
+     "summary": "報價單。"
+    },
+    "technical": {
+     "productNames": [],
+     "modelNumbers": [],
+     "vendorNames": [
+      "Askey"
+     ],
+     "technologies": [],
+     "standards": [],
+     "softwareVersions": [],
+     "hardwareVersions": [],
+     "testItems": [],
+     "measurements": []
+    },
+    "sourceSpecific": {
+     "vendorReferences": [],
+     "certifications": [],
+     "productCatalogReferences": [],
+     "extractedTables": []
+    }
+   }
+  },
+  {
+   "documentId": "44444444-4444-4444-8444-444444444444",
+   "version": 1,
+   "sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+   "sourceType": "EquipmentAttachment",
+   "sourceEntityId": "44444444-4444-4444-8444-444444444444",
+   "kmJobId": "KM-ING-100004",
+   "result": {
+    "metadataSchemaVersion": "2.0",
+    "document": {
+     "title": "photo list",
+     "documentType": "Other",
+     "summary": null
+    },
+    "technical": {
+     "productNames": [],
+     "modelNumbers": [],
+     "vendorNames": [],
+     "technologies": [],
+     "standards": [],
+     "softwareVersions": [],
+     "hardwareVersions": [],
+     "testItems": [],
+     "measurements": []
+    },
+    "sourceSpecific": {
+     "specifications": [],
+     "capabilitySummary": null,
+     "limitations": []
+    }
+   }
+  },
+  {
+   "documentId": "55555555-5555-4555-8555-555555555555",
+   "version": 1,
+   "sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+   "sourceType": "EquipmentAttachment",
+   "sourceEntityId": "55555555-5555-4555-8555-555555555555",
+   "kmJobId": "KM-ING-100005",
+   "result": {
+    "metadataSchemaVersion": "2.0",
+    "document": {
+     "title": "ATS-NR user manual",
+     "documentType": "Manual",
+     "summary": "ATS-NR 使用手冊，說明操作流程與主要規格。"
+    },
+    "technical": {
+     "productNames": [
+      "ATS-NR"
+     ],
+     "modelNumbers": [
+      "ATS-NR-100A"
+     ],
+     "vendorNames": [],
+     "technologies": [
+      "5G NR"
+     ],
+     "standards": [],
+     "softwareVersions": [
+      "2.4.1"
+     ],
+     "hardwareVersions": [],
+     "testItems": [],
+     "measurements": []
+    },
+    "sourceSpecific": {
+     "specifications": [
+      {
+       "field": "Max Throughput",
+       "value": "1200",
+       "unit": "Mbps",
+       "evidence": "manual §2.1"
+      },
+      {
+       "field": "TX power",
+       "value": "20",
+       "unit": "dBm",
+       "evidence": "manual §2.1"
+      },
+      {
+       "field": "Interface",
+       "value": "10GbE SFP+",
+       "unit": null,
+       "evidence": "manual §2.2"
+      }
+     ],
+     "capabilitySummary": null,
+     "limitations": [
+      "連續量測最長 8 小時"
+     ]
+    }
+   }
+  }
+ ]
+}
