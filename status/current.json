@@ -1,6 +1,6 @@
 {
   "schema": "km.phase1-runtime-status.v1",
-  "collected_at": "2026-11-15T22:54:44.738716+00:00",
+  "collected_at": "2026-11-16T02:48:16.882707+00:00",
   "manifest": "docs/phase1-status-manifest.json",
   "collector_mode": "broker",
   "source_root": "broker-managed",
