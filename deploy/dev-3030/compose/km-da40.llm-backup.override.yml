@@ -1,0 +1,32 @@
+# Backup LLM for da40 (2026-11-16): the SAM compute centre's ModaOne ModelSpace is the second tier after the primary OpenAI-compatible gateway
+# (Sub2API), and local Ollama stays the last resort. Order: primary -> ModaOne -> Ollama. See docs/llm-backup-modaone.md.
+#
+# Apply LAST (after km-da40.llm-primary.override.yml and the other overrides). The key is not in this file: it is read from
+# /home/da40_ai_gb10/.km-control/llm/modaone-km.env (MODAONE_API_KEY=..., mode 600, not in git).
+#
+# The images below are the running da40 images plus only src/web_api/llm_failover.py (new), ollama_client.py and
+# openai_compatible_client.py from this branch. Set the tags to the images built from that commit before applying.
+x-km-llm-backup: &llm_backup
+  KM_LLM_BACKUP_PROVIDER: ${KM_LLM_BACKUP_PROVIDER:-modaone}
+  KM_LLM_BACKUP_MODEL: ${KM_LLM_BACKUP_MODEL:-gpt-oss-120b}
+  KM_LLM_BACKUP_BASE_URL: ${KM_LLM_BACKUP_BASE_URL:-https://modaone-llm-api.dginfra.gov.tw/api/v1}
+  KM_LLM_BACKUP_API_KEY_ENV: MODAONE_API_KEY
+  KM_LLM_BACKUP_TIMEOUT_SECONDS: ${KM_LLM_BACKUP_TIMEOUT_SECONDS:-120}
+  KM_LLM_BACKUP_REASONING_EFFORT: ${KM_LLM_BACKUP_REASONING_EFFORT:-low}
+  KM_LLM_FAILOVER_COOLDOWN_SECONDS: ${KM_LLM_FAILOVER_COOLDOWN_SECONDS:-30}
+x-km-llm-backup-env-files: &llm_backup_env_files
+  - /home/da40_ai_gb10/.km-control/llm/sub2api-km.env
+  - /home/da40_ai_gb10/.km-control/llm/modaone-km.env
+services:
+  web:
+    image: ${KM_DA40_WEB_IMAGE:?set to the web image built with the backup LLM}
+    env_file: *llm_backup_env_files
+    environment: *llm_backup
+  celery_search_worker:
+    image: ${KM_DA40_SEARCH_IMAGE:?set to the search worker image built with the backup LLM}
+    env_file: *llm_backup_env_files
+    environment: *llm_backup
+  celery_ingest_worker:
+    image: ${KM_DA40_INGEST_IMAGE:?set to the ingest worker image built with the backup LLM}
+    env_file: *llm_backup_env_files
+    environment: *llm_backup

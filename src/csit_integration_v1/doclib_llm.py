@@ -19,13 +19,25 @@ def _primary():
             _client=client
         return _client
 
-def _gateway(prompt):
+def _chat(prefix,prompt,*,extra=None,floor=0):
     import httpx
-    key=open(os.environ["KM_CSIT_LLM_API_KEY_FILE"],encoding="utf-8").read().strip()
-    r=httpx.post(os.environ["KM_CSIT_LLM_BASE_URL"].rstrip("/")+"/chat/completions",headers={"Authorization":"Bearer "+key},timeout=float(os.getenv("KM_CSIT_LLM_TIMEOUT","60")),
-        json={"model":os.environ["KM_CSIT_LLM_MODEL"],"messages":[{"role":"user","content":prompt}],"temperature":0})
+    key=open(os.environ[prefix+"_API_KEY_FILE"],encoding="utf-8").read().strip()
+    body={**(extra or {}),"model":os.environ[prefix+"_MODEL"],"messages":[{"role":"user","content":prompt}],"temperature":0}
+    if floor:body["max_tokens"]=floor
+    r=httpx.post(os.environ[prefix+"_BASE_URL"].rstrip("/")+"/chat/completions",headers={"Authorization":"Bearer "+key},timeout=float(os.getenv(prefix+"_TIMEOUT","60")),json=body)
     r.raise_for_status()
     return r.json()["choices"][0]["message"]["content"] or ""
+
+def _gateway(prompt):
+    """The primary gateway; when it fails (429 quota, timeout, error) the same prompt goes to the backup endpoint (KM_CSIT_LLM_BACKUP_*, SAM ModaOne) if one is configured."""
+    try:
+        return _chat("KM_CSIT_LLM",prompt)
+    except Exception as exc:
+        if not os.getenv("KM_CSIT_LLM_BACKUP_BASE_URL"):raise
+        import logging
+        logging.getLogger(__name__).warning("primary LLM failed (%s); using the backup LLM",type(exc).__name__)
+        effort=os.getenv("KM_CSIT_LLM_BACKUP_REASONING_EFFORT","low")
+        return _chat("KM_CSIT_LLM_BACKUP",prompt,extra={"reasoning_effort":effort} if effort else None,floor=int(os.getenv("KM_CSIT_LLM_BACKUP_MAX_TOKENS","4096")))
 
 def complete(prompt):
     if os.getenv("KM_CSIT_LLM_BASE_URL"):return _gateway(prompt)

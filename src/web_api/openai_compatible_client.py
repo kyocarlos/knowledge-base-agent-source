@@ -13,6 +13,10 @@ import requests
 logger = logging.getLogger(__name__)
 
 
+class StreamInterrupted(RuntimeError):
+    """A streamed answer broke after text had been delivered: it must not be retried elsewhere."""
+
+
 class _Completions:
     def __init__(self, client: "OpenAICompatibleClient") -> None:
         self._client = client
@@ -51,8 +55,12 @@ class OpenAICompatibleClient:
         timeout: float = 300,
         max_tokens: int = 4096,
         api_key_env: str = "SUB2API_API_KEY",
+        max_tokens_floor: int = 0,
+        extra_payload: dict[str, Any] | None = None,
     ) -> None:
         self.model = model
+        self.max_tokens_floor = int(max_tokens_floor)   # reasoning models spend max_tokens on thinking; a caller's small limit is raised to this
+        self.extra_payload = dict(extra_payload or {})  # fixed request fields (e.g. reasoning_effort); a caller's own kwargs win
         self.base_url = base_url.rstrip("/")
         self.timeout = float(timeout)
         self.max_tokens = int(max_tokens)
@@ -70,12 +78,14 @@ class OpenAICompatibleClient:
         **kwargs: Any,
     ) -> Any:
         payload: dict[str, Any] = {
+            **self.extra_payload,
             "model": model,
             "messages": messages,
             "temperature": temperature,
             "max_tokens": kwargs.pop("max_tokens", self.max_tokens),
         }
         payload.update(kwargs)
+        payload["max_tokens"] = max(int(payload["max_tokens"]), self.max_tokens_floor)
         try:
             response = requests.post(
                 f"{self.base_url}/chat/completions",
@@ -124,9 +134,10 @@ class OpenAICompatibleClient:
         A stream that fails before the first chunk falls back to one ordinary request; a failure after text was delivered is raised,
         because the caller has already shown part of the answer.
         """
-        payload: dict[str, Any] = {"model": model, "messages": messages, "temperature": temperature,
+        payload: dict[str, Any] = {**self.extra_payload, "model": model, "messages": messages, "temperature": temperature,
                                    "max_tokens": kwargs.pop("max_tokens", self.max_tokens), "stream": True}
         payload.update(kwargs)
+        payload["max_tokens"] = max(int(payload["max_tokens"]), self.max_tokens_floor)
         content: list[str] = []
         calls: dict[int, dict[str, Any]] = {}
         finish, response_id, delivered = None, None, False
@@ -159,7 +170,7 @@ class OpenAICompatibleClient:
         except (requests.RequestException, ValueError) as exc:
             if delivered:
                 logger.error("OpenAI-compatible stream broke after text was delivered: %s", type(exc).__name__)
-                raise RuntimeError("OpenAI-compatible LLM stream was interrupted") from exc
+                raise StreamInterrupted("OpenAI-compatible LLM stream was interrupted") from exc
             logger.warning("OpenAI-compatible stream failed before any text (%s); retrying without streaming", type(exc).__name__)
             return self._complete(model=model, messages=messages, temperature=temperature, **{k: v for k, v in payload.items() if k not in ("model", "messages", "temperature", "stream")})
         return SimpleNamespace(id=response_id, model=model, choices=[SimpleNamespace(

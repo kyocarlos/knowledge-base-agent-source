@@ -57,6 +57,8 @@ def _llm_complete():
         return None
     client = OpenAICompatibleClient(model=model, base_url=base_url, timeout=float(env("KM_KEEPER_LLM_TIMEOUT") or 25), max_tokens=500,
                                     api_key_env=env("KM_LLM_PRIMARY_API_KEY_ENV") or "SUB2API_API_KEY")
+    from .llm_failover import with_backup
+    client = with_backup(client)
     return lambda messages: client.chat(messages, temperature=0.1)
 
 

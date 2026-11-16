@@ -191,6 +191,8 @@ def _build_primary_client(config: dict):
         logger.error("主要 LLM %s 建立失敗，維持只用 Ollama: %s", provider, exc)
         return None, ""
     label = f"{provider}:{model}"
+    from .llm_failover import with_backup   # KM_LLM_BACKUP_*: a second OpenAI-compatible endpoint (SAM ModaOne) between the primary and Ollama
+    client = with_backup(client, label)
     logger.info("主要 LLM：%s（%s），Ollama 為備援", label, base_url)
     return client, label
 

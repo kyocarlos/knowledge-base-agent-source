@@ -92,6 +92,8 @@ def _llm_complete():
         raise RuntimeError("no LLM model / base URL configured for the export service")
     client = OpenAICompatibleClient(model=model, base_url=base_url, timeout=float(env("KM_EXPORT_LLM_TIMEOUT") or env("KM_LLM_PRIMARY_TIMEOUT_SECONDS") or 120),
                                     max_tokens=6000, api_key_env=env("KM_LLM_PRIMARY_API_KEY_ENV") or "SUB2API_API_KEY")
+    from ..web_api.llm_failover import with_backup
+    client = with_backup(client)
     return lambda messages: client.chat(messages, temperature=0.2)
 
 
