@@ -81,3 +81,6 @@ celerybeat-schedule*
 
 # company slide templates carry the logo; installed on the server, not committed
 config/templates/
+
+# KM own usage ledger for a metered external LLM account (runtime state, host-specific, not a secret)
+config/llm_usage.json

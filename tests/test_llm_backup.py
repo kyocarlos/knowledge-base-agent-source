@@ -36,7 +36,8 @@ class Tier:
             self.owner.calls.append(kw)
             if self.owner.fail:
                 raise self.owner.fail
-            return types.SimpleNamespace(choices=[types.SimpleNamespace(message=types.SimpleNamespace(content=self.owner.name + " answer"))])
+            return types.SimpleNamespace(choices=[types.SimpleNamespace(message=types.SimpleNamespace(content=self.owner.name + " answer"))],
+                                         usage={"prompt_tokens": 5, "completion_tokens": 7})
 
 
 class Clock:
@@ -288,3 +289,52 @@ def test_csit_worker_gateway_without_a_backup_still_raises(monkeypatch, tmp_path
     monkeypatch.setattr(httpx, "post", lambda *a, **k: R())
     with pytest.raises(httpx.HTTPStatusError):
         doclib_llm._gateway("p")
+
+
+# ---------------------------------------------------------------- usage ledger: recorded only for a real backup answer
+
+def test_a_successful_backup_answer_records_its_usage(tmp_path, monkeypatch):
+    from src.web_api import llm_usage as lu
+    monkeypatch.setenv("KM_LLM_USAGE_FILE", str(tmp_path / "usage.json"))
+    p, b = Tier("primary", fail=RuntimeError()), Tier("backup")
+    client = lf.FailoverClient(p, b, clock=Clock(), backup_account="modaone")
+    client.chat.completions.create(messages=MSG)
+    assert lu.summary("modaone")["callsRecorded"] == 1
+
+
+def test_a_primary_answer_records_nothing(tmp_path, monkeypatch):
+    from src.web_api import llm_usage as lu
+    monkeypatch.setenv("KM_LLM_USAGE_FILE", str(tmp_path / "usage.json"))
+    client = lf.FailoverClient(Tier("primary"), Tier("backup"), clock=Clock(), backup_account="modaone")
+    client.chat.completions.create(messages=MSG)
+    assert lu.summary("modaone")["callsRecorded"] == 0
+
+
+def test_chat_text_call_also_records_usage_and_still_returns_text(tmp_path, monkeypatch):
+    from src.web_api import llm_usage as lu
+    monkeypatch.setenv("KM_LLM_USAGE_FILE", str(tmp_path / "usage.json"))
+    client = lf.FailoverClient(Tier("primary", fail=RuntimeError()), Tier("backup"), clock=Clock(), backup_account="modaone")
+    assert client.chat(MSG) == "backup answer" and lu.summary("modaone")["callsRecorded"] == 1
+
+
+def test_with_backup_sets_the_backup_account_from_settings(monkeypatch):
+    for k, v in BACKUP_ENV.items():
+        monkeypatch.setenv(k, v)
+    client = lf.with_backup(Tier("primary"), env=BACKUP_ENV)
+    assert client.backup_account == "modaone"
+
+
+def test_no_usage_object_is_silently_skipped(tmp_path, monkeypatch):
+    from src.web_api import llm_usage as lu
+    monkeypatch.setenv("KM_LLM_USAGE_FILE", str(tmp_path / "usage.json"))
+
+    class NoUsageBackup(Tier):
+        class _Chat(Tier._Chat):
+            def create(self, **kw):
+                self.owner.calls.append(kw)
+                return types.SimpleNamespace(choices=[types.SimpleNamespace(message=types.SimpleNamespace(content="backup answer"))], usage=None)
+    b = NoUsageBackup("backup")
+    b.chat = NoUsageBackup._Chat(b)
+    client = lf.FailoverClient(Tier("primary", fail=RuntimeError()), b, clock=Clock(), backup_account="modaone")
+    client.chat.completions.create(messages=MSG)
+    assert lu.summary("modaone")["callsRecorded"] == 0

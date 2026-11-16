@@ -14,6 +14,13 @@ ENV = {"MODAONE_API_KEY": "test-modaone-key", "KM_LLM_PRIMARY_MODEL": "gpt-test"
 FILE = Path(__file__).resolve().parents[1] / "config" / "llm_profiles.json"
 
 
+@pytest.fixture(autouse=True)
+def _isolated_usage_file(tmp_path, monkeypatch):
+    """Every test here defaults to its own usage ledger, never the repository's config/llm_usage.json; a test about the ledger itself
+    overrides this with its own monkeypatch.setenv, which simply wins (last write stands)."""
+    monkeypatch.setenv("KM_LLM_USAGE_FILE", str(tmp_path / "default-usage.json"))
+
+
 def registry(env=None, today=date(2026, 11, 16), clock=None, path=FILE):
     return lp.Registry.load(path, env=dict(ENV if env is None else env), today=lambda: today, **({"clock": clock} if clock else {}))
 
@@ -144,7 +151,7 @@ class Resp:
         pass
 
     def json(self):
-        return {"choices": [{"message": {"content": "chosen model answer"}}]}
+        return {"choices": [{"message": {"content": "chosen model answer"}}], "usage": {"prompt_tokens": 5, "completion_tokens": 7}}
 
 
 def test_an_explicit_profile_calls_its_own_endpoint_with_its_own_model_and_no_failover(monkeypatch):
@@ -312,3 +319,82 @@ def test_keeper_says_when_the_chosen_model_did_not_answer(api, monkeypatch):
     assert out["llm"]["profile"] == "modaone-gpt-oss-120b" and out["llm"]["failed"] is True
     monkeypatch.setattr("src.web_api.openai_compatible_client.requests.post", lambda *a, **k: Resp())
     assert "failed" not in api.post("/api/keeper/route", json={"question": "Wi-Fi 認證", "llm": "modaone-gpt-oss-120b"}).json()["llm"]
+
+
+# ---------------------------------------------------------------- usage: KM's own running total, never the provider's official balance
+
+def test_an_explicit_profile_answer_records_its_usage(tmp_path, monkeypatch):
+    from src.web_api import llm_usage as lu
+    monkeypatch.setenv("KM_LLM_USAGE_FILE", str(tmp_path / "usage.json"))
+    monkeypatch.setattr("src.web_api.openai_compatible_client.requests.post", lambda *a, **k: Resp())
+    monkeypatch.setenv("MODAONE_API_KEY", "test-modaone-key")
+    complete, profile = lp.Registry.load(FILE, env={**ENV}).complete_for("modaone-gpt-oss-120b", "mobile", "zone_answer", owner="u1")
+    assert profile.account == "modaone"
+    complete([{"role": "user", "content": "hi"}])
+    assert lu.summary("modaone")["callsRecorded"] == 1 and lu.summary("modaone")["tokensUsed"] == 12
+
+
+def test_a_failed_explicit_call_records_nothing(tmp_path, monkeypatch):
+    import requests
+    from src.web_api import llm_usage as lu
+    monkeypatch.setenv("KM_LLM_USAGE_FILE", str(tmp_path / "usage.json"))
+    monkeypatch.setattr("src.web_api.openai_compatible_client.requests.post", lambda *a, **k: (_ for _ in ()).throw(requests.Timeout()))
+    monkeypatch.setenv("MODAONE_API_KEY", "test-modaone-key")
+    complete, _ = lp.Registry.load(FILE, env={**ENV}).complete_for("modaone-gpt-oss-120b", "mobile", "zone_answer")
+    with pytest.raises(RuntimeError):
+        complete([{"role": "user", "content": "hi"}])
+    assert lu.summary("modaone")["callsRecorded"] == 0
+
+
+def test_the_openai_profile_has_no_metered_account(monkeypatch):
+    monkeypatch.setattr("src.web_api.openai_compatible_client.requests.post", lambda *a, **k: Resp())
+    monkeypatch.setenv("TEST_PRIMARY_KEY", "primary-test-key")
+    _, profile = lp.Registry.load(FILE, env={**ENV}).complete_for("openai", "cert", "zone_answer")
+    assert profile.account is None
+
+
+def test_listing_shows_usage_only_for_metered_profiles(tmp_path, monkeypatch):
+    from src.web_api import llm_usage as lu
+    monkeypatch.setenv("KM_LLM_USAGE_FILE", str(tmp_path / "usage.json"))
+    lu.record("modaone", 60000, 40000)   # 1.0 point, outside this registry's own calls (as if made earlier)
+    env = {**ENV, "KM_LLM_BACKUP_PROVIDER": "modaone", "KM_LLM_BACKUP_MODEL": "gpt-oss-120b", "KM_LLM_BACKUP_BASE_URL": "https://modaone-llm-api.dginfra.gov.tw/api/v1"}
+    by = {p["id"]: p for p in registry(env=env).listing("mobile", "zone_answer")["profiles"]}
+    assert by["modaone-gpt-oss-120b"]["usage"]["pointsUsed"] == 1.0
+    assert by["modaone-llama-3.3-70b"]["usage"]["pointsUsed"] == 1.0   # same shared account
+    assert "usage" not in by["openai"]
+    assert by["auto"]["usage"]["pointsUsed"] == 1.0                    # auto may silently fall back to the same account
+    assert "grantedPoints" not in by["modaone-gpt-oss-120b"]["usage"]  # the shipped file leaves granted_points null: no total is invented
+
+
+def test_auto_shows_no_usage_when_no_backup_is_configured(tmp_path, monkeypatch):
+    from src.web_api import llm_usage as lu
+    monkeypatch.setenv("KM_LLM_USAGE_FILE", str(tmp_path / "usage.json"))
+    lu.record("modaone", 50000, 0)
+    env = {k: v for k, v in ENV.items() if k != "MODAONE_API_KEY"}
+    by = {p["id"]: p for p in registry(env=env).listing("mobile", "zone_answer")["profiles"]}
+    assert "usage" not in by["auto"]   # no KM_LLM_BACKUP_PROVIDER in this env: auto never touches modaone
+
+
+def test_a_configured_grant_shows_remaining_points(tmp_path, monkeypatch):
+    from src.web_api import llm_usage as lu
+    f = tmp_path / "profiles.json"
+    f.write_text(json.dumps({"default": "auto", "accounts": {"modaone": {"granted_points": 1000}},
+                             "profiles": [{"id": "m", "source": "custom", "model": "x", "base_url": "http://x", "api_key_env": "K", "account": "modaone"}]}))
+    monkeypatch.setenv("KM_LLM_USAGE_FILE", str(tmp_path / "usage.json"))
+    lu.record("modaone", 50000, 50000)
+    by = {p["id"]: p for p in lp.Registry.load(f, env={"K": "k"}).listing("mobile", "zone_answer")["profiles"]}
+    assert by["m"]["usage"] == {"tokensUsed": 100000, "pointsUsed": 1.0, "callsRecorded": 1, "official": False, "grantedPoints": 1000, "pointsRemaining": 999.0}
+
+
+@pytest.mark.parametrize("accounts", [{"Bad Name": {}}, {"modaone": {"granted_points": "lots"}}])
+def test_a_bad_accounts_section_invalidates_the_file(tmp_path, accounts, caplog):
+    f = tmp_path / "profiles.json"
+    f.write_text(json.dumps({"accounts": accounts, "profiles": []}))
+    with caplog.at_level("ERROR"):
+        r = lp.Registry.load(f, env={})
+    assert list(r.profiles) == ["auto"]
+
+
+def test_the_shipped_accounts_section_is_valid():
+    r = registry()
+    assert r.accounts == {"modaone": {"granted_points": None, "label": "SAM 算力平台 ModaOne"}}

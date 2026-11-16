@@ -74,6 +74,7 @@ class Profile:
     allowed_zones: tuple[str, ...] | None = None
     expires_at: date | None = None
     rate_per_hour: int = 0                    # 0 = no limit
+    account: str | None = None                # usage-ledger account name (config "accounts"); None = not metered by KM
     extra: dict = field(default_factory=dict, compare=False)
 
 
@@ -110,12 +111,24 @@ def _parse(raw: dict) -> Profile:
                    tool_calling=bool(raw.get("tool_calling", False)), external=bool(raw.get("external", True)), experimental=bool(raw.get("experimental", False)),
                    purposes=purposes, blocked_zones=tuple(raw.get("blocked_zones") or ()),
                    allowed_zones=tuple(raw["allowed_zones"]) if raw.get("allowed_zones") else None, expires_at=expires,
-                   rate_per_hour=int(raw.get("rate_per_hour") or 0))
+                   rate_per_hour=int(raw.get("rate_per_hour") or 0), account=(str(raw["account"]) if raw.get("account") else None))
+
+
+def _parse_accounts(raw: dict | None) -> dict:
+    out = {}
+    for name, cfg in (raw or {}).items():
+        if not isinstance(name, str) or not re.fullmatch(r"[a-z][a-z0-9_-]{0,31}", name):
+            raise ValueError(f"account name {name!r} must be 1-32 lowercase letters/digits/-/_")
+        granted = (cfg or {}).get("granted_points")
+        if granted is not None and not isinstance(granted, (int, float)):
+            raise ValueError(f"account {name}: granted_points must be a number or null")
+        out[name] = {"granted_points": (float(granted) if granted is not None else None), "label": str((cfg or {}).get("label") or name)[:80]}
+    return out
 
 
 class Registry:
     def __init__(self, profiles: list[Profile], default: str = AUTO, env=os.environ, clock: Callable[[], float] = time.monotonic,
-                 today: Callable[[], date] = lambda: datetime.now(timezone.utc).date()):
+                 today: Callable[[], date] = lambda: datetime.now(timezone.utc).date(), accounts: dict | None = None):
         by_id = {AUTO: AUTO_PROFILE}
         for p in profiles:
             if p.id == AUTO:
@@ -126,6 +139,7 @@ class Registry:
         self._clients: dict[str, Any] = {}
         self._recent: dict[tuple[str, str], deque] = defaultdict(deque)
         self._health: dict[str, tuple[bool, float]] = {}     # profile id -> (last call succeeded, when)
+        self.accounts = accounts or {}     # usage-ledger accounts: {name: {"granted_points": float|None, "label": str}}
         self._lock = threading.Lock()
 
     # ---- loading
@@ -136,7 +150,8 @@ class Registry:
             return cls([], env=env, **kw)
         try:
             data = json.loads(file.read_text(encoding="utf-8"))
-            return cls([_parse(raw) for raw in data.get("profiles", [])], default=str(data.get("default") or AUTO), env=env, **kw)
+            accounts = _parse_accounts(data.get("accounts"))
+            return cls([_parse(raw) for raw in data.get("profiles", [])], default=str(data.get("default") or AUTO), accounts=accounts, env=env, **kw)
         except Exception as exc:  # noqa: BLE001 - a bad file must not take the assistants down: only auto stays
             logger.error("LLM profile file %s is invalid (%s); only the automatic profile is offered", file, exc)
             return cls([], env=env, **kw)
@@ -178,13 +193,25 @@ class Registry:
             raise ProfileError(*problem)
         return p
 
+    def _account_usage(self, account: str | None) -> dict | None:
+        if not account or account not in self.accounts:
+            return None
+        from . import llm_usage
+        return llm_usage.summary(account, self.accounts[account]["granted_points"])
+
     def listing(self, zone: str, purpose: str) -> dict:
+        from .llm_failover import backup_settings
+        auto_account = (backup_settings(self.env) or {}).get("provider")   # the account "auto" may silently use on a primary failure
         items = []
         for p in self.profiles.values():
             problem = self.why_not(p, zone, purpose)
-            items.append({"id": p.id, "label": p.label, "description": p.description, "external": p.external, "experimental": p.experimental,
-                          "default": p.id == self.default, "available": problem is None, "reason": problem[2] if problem else None,
-                          "degraded": problem is None and p.source != "auto" and self.degraded(p.id)})
+            entry = {"id": p.id, "label": p.label, "description": p.description, "external": p.external, "experimental": p.experimental,
+                     "default": p.id == self.default, "available": problem is None, "reason": problem[2] if problem else None,
+                     "degraded": problem is None and p.source != "auto" and self.degraded(p.id)}
+            usage = self._account_usage(p.account if p.id != AUTO else auto_account)
+            if usage:
+                entry["usage"] = usage
+            items.append(entry)
         return {"zone": zone_key(zone), "purpose": purpose, "default": self.default, "profiles": items}
 
     # ---- health: only what real calls showed (no probe calls, which would spend compute points)
@@ -234,12 +261,20 @@ class Registry:
 
         def complete(messages):
             try:
-                text = normalise_citations(client.chat(messages, temperature=temperature))
+                response = client.chat.completions.create(messages=messages, temperature=temperature)
+                text = normalise_citations(response.choices[0].message.content or "")
             except Exception:
                 state["failed"] = True
                 self._note(p.id, False)
                 raise
             self._note(p.id, True)
+            if p.account:
+                try:
+                    from . import llm_usage
+                    usage = getattr(response, "usage", None) or {}
+                    llm_usage.record(p.account, usage.get("prompt_tokens") or 0, usage.get("completion_tokens") or 0)
+                except Exception:  # noqa: BLE001 - a usage-ledger problem must never break an answer that already succeeded
+                    logger.warning("could not record LLM usage", exc_info=True)
             return text
         complete.state = state      # the caller can tell that the chosen model failed (the assistant then answers without it)
         return complete, p

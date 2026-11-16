@@ -1,6 +1,12 @@
 {
   "default": "auto",
-  "_note": "Selectable LLM profiles (src/web_api/llm_profiles.py). A request without a profile, or with auto, behaves as before. The browser sends only an id; the model, URL and key are chosen here. external=true means the request leaves the company network. blocked_zones lists zone ids (hub = the home page guide). Zones kept off the external models by default hold CSIT reports, vendor files, internal wiki/Jira pages and personnel/finance documents; change this list only with the data owner's agreement.",
+  "_note": "Selectable LLM profiles (src/web_api/llm_profiles.py). A request without a profile, or with auto, behaves as before. The browser sends only an id; the model, URL and key are chosen here. external=true means the request leaves the company network. blocked_zones lists zone ids (hub = the home page guide). Zones kept off the external models by default hold CSIT reports, vendor files, internal wiki/Jira pages and personnel/finance documents; change this list only with the data owner's agreement. accounts: KM's own running total for a metered external account (src/web_api/llm_usage.py), not the provider's official balance (ModaOne has no balance API, only a daily email). Set granted_points once SAM tells you the real total, to also show pointsRemaining; leave it null to show only KM's cumulative usage.",
+  "accounts": {
+    "modaone": {
+      "label": "SAM 算力平台 ModaOne",
+      "granted_points": null
+    }
+  },
   "profiles": [
     {
       "id": "auto",
@@ -26,6 +32,7 @@
       "description": "SAM 算力平台的 OpenAI 開源模型；問題與文件節錄會送到外部平台。",
       "source": "custom",
       "provider": "modaone",
+      "account": "modaone",
       "model": "gpt-oss-120b",
       "base_url": "https://modaone-llm-api.dginfra.gov.tw/api/v1",
       "api_key_env": "MODAONE_API_KEY",
@@ -54,6 +61,7 @@
       "description": "SAM 算力平台的 Meta Llama 3.3 70B；問題與文件節錄會送到外部平台。",
       "source": "custom",
       "provider": "modaone",
+      "account": "modaone",
       "model": "Llama-3.3-70B-Instruct",
       "base_url": "https://modaone-llm-api.dginfra.gov.tw/api/v1",
       "api_key_env": "MODAONE_API_KEY",

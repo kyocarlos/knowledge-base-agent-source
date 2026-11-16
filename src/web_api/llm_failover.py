@@ -43,16 +43,18 @@ class _Chat:
         self.completions = _Completions(owner)
 
     def __call__(self, messages: list[dict[str, Any]], temperature: float = 0.3) -> str:
-        return self._owner._run(lambda client, is_backup: client.chat(messages, temperature=temperature))
+        # client.chat.completions.create (not client.chat) so the usage on a successful backup call can be recorded.
+        response = self._owner._run(lambda client, is_backup: client.chat.completions.create(messages=messages, temperature=temperature))
+        return response.choices[0].message.content or ""
 
 
 class FailoverClient:
     """Same surface as OpenAICompatibleClient (chat(...), chat.completions.create(...), generate(...))."""
 
     def __init__(self, primary, backup, *, primary_label: str = "primary", backup_label: str = "backup", cooldown_seconds: float = 30.0,
-                 clock: Callable[[], float] = time.monotonic) -> None:
+                 backup_account: str | None = None, clock: Callable[[], float] = time.monotonic) -> None:
         self.primary, self.backup = primary, backup
-        self.primary_label, self.backup_label = primary_label, backup_label
+        self.primary_label, self.backup_label, self.backup_account = primary_label, backup_label, backup_account
         self.cooldown, self._clock = float(cooldown_seconds), clock
         self._down_until = 0.0
         self._lock = threading.Lock()
@@ -89,8 +91,21 @@ class FailoverClient:
                 with self._lock:
                     self.stats["backup_calls"] += 1
                 logger.info("LLM answered by the backup %s", self.backup_label)
+                self._record_usage(result)
             return result
         raise RuntimeError("primary and backup LLM both failed") from last
+
+    def _record_usage(self, result: Any) -> None:
+        """KM's own running total for the backup account (llm_usage); never the official balance. Best-effort: a streamed answer
+        carries no usage (usage=None) and is simply not counted."""
+        usage = getattr(result, "usage", None)
+        if not usage or not self.backup_account:
+            return
+        try:
+            from . import llm_usage
+            llm_usage.record(self.backup_account, usage.get("prompt_tokens") or 0, usage.get("completion_tokens") or 0)
+        except Exception:  # noqa: BLE001 - a usage-ledger problem must never break the answer that already succeeded
+            logger.warning("could not record backup LLM usage", exc_info=True)
 
 
 def backup_settings(env=os.environ) -> dict | None:
@@ -132,4 +147,5 @@ def with_backup(primary, primary_label: str = "primary", env=os.environ):
         return primary
     cooldown = (backup_settings(env) or {}).get("cooldown", 30.0)
     logger.info("LLM chain: %s -> %s (backup)", primary_label, label)
-    return FailoverClient(primary, backup, primary_label=primary_label, backup_label=label, cooldown_seconds=cooldown)
+    settings = backup_settings(env) or {}
+    return FailoverClient(primary, backup, primary_label=primary_label, backup_label=label, cooldown_seconds=cooldown, backup_account=settings.get("provider"))

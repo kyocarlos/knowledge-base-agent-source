@@ -42,3 +42,13 @@ def test_the_deploy_script_targets_the_pages_and_has_a_rollback():
         assert page in script
     assert "wifi8/index.html" not in script.split("PAGES=(")[1].split(")")[0] and "zones/admin" not in script.split("PAGES=(")[1].split(")")[0]
     assert "--rollback" in script and "pre-llm-select" in script
+
+
+def test_usage_is_shown_but_never_claimed_as_the_official_balance():
+    assert "pointsRemaining" in TEXT and "pointsUsed" in TEXT
+    assert "非官方" in TEXT or "非官方餘額" in TEXT
+    assert "p.usage" in TEXT   # the option text and the note both read it from the server's listing
+
+
+def test_the_menu_reloads_after_an_answer_so_the_usage_figure_stays_current():
+    assert TEXT.count("load();") >= 2   # once on a policy error (existing), once after every successful answer (new)

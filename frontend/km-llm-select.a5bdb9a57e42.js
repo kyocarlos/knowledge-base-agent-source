@@ -39,9 +39,21 @@
   document.head.appendChild(style);
 
   // ---- the menu
+  const fmtPoints = (n) => (Math.round(n * 10) / 10).toString();
+
+  // KM's own running total for this model's account, never the provider's official balance (there is no balance API for ModaOne).
+  function usageText(usage, short) {
+    if (!usage) return '';
+    if (typeof usage.pointsRemaining === 'number') {
+      return short ? '剩餘約 ' + fmtPoints(usage.pointsRemaining) + ' 點' : '剩餘約 ' + fmtPoints(usage.pointsRemaining) + ' 點（核發 ' + fmtPoints(usage.grantedPoints) + ' 點）';
+    }
+    return 'KM 已用約 ' + fmtPoints(usage.pointsUsed) + ' 點';
+  }
+
   function optionText(p) {
     let text = p.label;
     if (p.experimental) text += ' · 實驗';
+    if (p.usage) text += '（' + usageText(p.usage, true) + '）';
     if (!p.available) text += ' — 不可用';
     else if (p.degraded) text += ' — 最近失敗';
     return text;
@@ -61,8 +73,11 @@
     select.value = state.current;
     const note = box.querySelector('.km-llm-note');
     const p = find(state.current);
-    note.textContent = p && p.experimental && p.external ? '使用此模型時，問題與搜尋到的文件節錄會送到外部算力平台。' : '';
-    note.hidden = !note.textContent;
+    const lines = [];
+    if (p && p.experimental && p.external) lines.push('使用此模型時，問題與搜尋到的文件節錄會送到外部算力平台。');
+    if (p && p.usage) lines.push(usageText(p.usage, false) + '（KM 自行估算，非官方數字，實際以政府算力平台通知為準）。');
+    note.textContent = lines.join('');
+    note.hidden = lines.length === 0;
   }
 
   function makeBox() {
@@ -163,10 +178,10 @@
         }
       } else if (ask && response.ok && zone === 'hub') {
         const data = await response.clone().json().catch(() => null);
-        if (data && data.llm) { tag('#hub-ask-log', data.llm); if (data.llm.failed) load(); }
+        if (data && data.llm) { tag('#hub-ask-log', data.llm); load(); }   // reload so a ModaOne option's usage figure stays current
       } else if (response.ok && result(url, method)) {
         const data = await response.clone().json().catch(() => null);
-        if (data && data.status === 'completed' && data.llm) tag('#conversation', data.llm, data.task_id || url);
+        if (data && data.status === 'completed' && data.llm) { tag('#conversation', data.llm, data.task_id || url); load(); }
       }
     } catch (_) { /* never break the page's own request */ }
     return response;
