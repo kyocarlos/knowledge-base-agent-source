@@ -55,7 +55,19 @@ def _upload(test_client):
     return test_client.post("/api/ui/upload/ingest?extraction_mode=wifi", files={"file": ("notes.md", b"# notes\n", "text/markdown")})
 
 
-def test_upload_without_session_is_rejected(client):
+def test_upload_without_session_is_accepted_as_the_anonymous_identity_of_the_instance(client, monkeypatch):
+    """No instance login is installed: the request carries the anonymous identity bound to the configured instance (here "test")."""
+    from src.web_api import anonymous_identity
+    monkeypatch.setattr(anonymous_identity, "configured_instance_id", lambda: "test")
+    test_client, calls, _ = client
+    calls["identity"] = None
+    response = _upload(test_client)
+    assert response.status_code == 200, response.text
+    assert calls["record"] and calls["record"][0] is not None
+
+
+def test_upload_without_session_is_rejected_when_the_anonymous_identity_is_switched_off(client, monkeypatch):
+    monkeypatch.setenv("KM_ANONYMOUS_IDENTITY", "0")
     test_client, calls, _ = client
     calls["identity"] = None
     response = _upload(test_client)

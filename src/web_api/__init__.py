@@ -1203,6 +1203,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+from .anonymous_identity import install_anonymous_identity
+install_anonymous_identity(app)
 
 
 # ===== API Endpoints =====
