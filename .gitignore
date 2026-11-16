@@ -78,3 +78,6 @@ data/
 *.db
 *.sqlite*
 celerybeat-schedule*
+
+# company slide templates carry the logo; installed on the server, not committed
+config/templates/

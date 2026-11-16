@@ -23,6 +23,13 @@ SPEC = {
 }
 
 
+@pytest.fixture(autouse=True)
+def _no_company_template(monkeypatch, request):
+    """The plain deck is the default these tests describe; the template tests below opt in with the `company_template` marker."""
+    if "company_template" not in request.keywords:
+        monkeypatch.setenv("KM_EXPORT_PPTX_TEMPLATE", str(Path(__file__).parent / "no-such-template.potx"))
+
+
 def spec(fmt: str) -> ExportSpec:
     return ExportSpec.model_validate({**SPEC, "format": fmt})
 
@@ -298,3 +305,97 @@ def test_several_answer_reports_have_their_own_smaller_hourly_limit(client, monk
 
 def test_config_tells_the_page_the_answer_limit(client):
     assert client.get("/api/export/config").json()["max_answers"] == 5
+
+
+# ---- the company slide template (Askey Template.potx is not in the repository; these run where config/templates/askey.potx is installed)
+from src.km_export import askey_pptx  # noqa: E402
+
+_TEMPLATE = askey_pptx.DEFAULT_TEMPLATE
+needs_template = pytest.mark.skipif(not _TEMPLATE.is_file(), reason="company template not installed")
+company_template = pytest.mark.company_template
+
+
+def _template_spec(**over):
+    data = {
+        "format": "pptx", "title": "Wi-Fi 8 重點整理", "subtitle": "依知識庫回答整理",
+        "sections": [
+            {"heading": "第一部分", "layout": "chapter", "paragraphs": ["先看整體方向"]},
+            {"heading": "概觀", "bullets": [f"重點 {i}：" + "這是一段比較長的說明文字用來測試換行與分頁。" * 2 for i in range(1, 15)], "sources": ["WFA 規格 v1.0"]},
+            {"heading": "兩組做法", "layout": "two_column", "bullets": [f"要點 {i}，說明內容" for i in range(1, 9)]},
+            {"heading": "Wi-Fi 7 對 Wi-Fi 8", "layout": "comparison", "table": {"columns": ["Wi-Fi 7", "Wi-Fi 8"], "rows": [["320 MHz", "更穩定的延遲"], ["MLO", "協調式多 AP"]]}},
+            {"heading": "規格表", "table": {"columns": ["項目", "值", "備註"], "rows": [[f"列{i}", str(i), "備註文字" * 3] for i in range(14)]}, "sources": ["IEEE 802.11bn D1.0"]},
+        ],
+    }
+    data.update(over)
+    return ExportSpec.model_validate(data)
+
+
+@needs_template
+@company_template
+def test_template_deck_uses_the_template_layouts_and_drops_its_sample_slides():
+    from pptx import Presentation
+    deck = Presentation(io.BytesIO(builders.build(_template_spec())[0]))
+    names = [s.slide_layout.name for s in deck.slides]
+    assert names[0] == "First" and names[-1] == "Thank you"
+    assert {"Chapter title", "Two objects", "Comparison", "Title and object"} <= set(names)
+    texts = " ".join(sh.text_frame.text for s in deck.slides for sh in s.shapes if sh.has_text_frame)
+    assert "Wi-Fi 8 重點整理" in texts
+    assert "Bullet 1" not in texts and "Presentation Title" not in texts   # no sample text left from the template
+    assert any(sh.has_table for s in deck.slides for sh in s.shapes)
+
+
+@needs_template
+@company_template
+def test_template_deck_has_no_leftover_sample_parts_and_is_well_formed():
+    with zipfile.ZipFile(io.BytesIO(builders.build(_template_spec())[0])) as z:
+        names = z.namelist()
+        assert not [n for n in names if n.startswith(("ppt/charts/", "ppt/diagrams/", "ppt/embeddings/"))]
+        for part in names:
+            if part.endswith((".xml", ".rels")):
+                minidom.parseString(z.read(part))
+
+
+@needs_template
+@company_template
+def test_template_deck_splits_one_very_long_point_across_pages():
+    from pptx import Presentation
+    deck = Presentation(io.BytesIO(builders.build(_template_spec(sections=[{"heading": "長", "bullets": ["很長的一段話。" * 120]}]))[0]))
+    assert len([s for s in deck.slides if s.slide_layout.name == "Title and object" and s.shapes.title.text_frame.text.startswith("長")]) >= 2
+
+
+@needs_template
+@company_template
+def test_plain_can_be_asked_for_even_when_the_template_is_installed():
+    from pptx import Presentation
+    plain = Presentation(io.BytesIO(builders.build(_template_spec(template="plain"))[0]))
+    assert "First" not in [s.slide_layout.name for s in plain.slides]
+
+
+@company_template
+def test_a_missing_template_falls_back_to_the_plain_deck(monkeypatch):
+    from pptx import Presentation
+    monkeypatch.setenv("KM_EXPORT_PPTX_TEMPLATE", str(Path(__file__).parent / "no-such-template.potx"))
+    assert len(Presentation(io.BytesIO(builders.build(_template_spec())[0])).slides) > 3
+
+
+@company_template
+def test_a_template_that_fails_to_build_falls_back_to_the_plain_deck(monkeypatch):
+    from pptx import Presentation
+    monkeypatch.setattr(askey_pptx, "available", lambda: True)
+    monkeypatch.setattr(askey_pptx, "build", lambda spec: (_ for _ in ()).throw(RuntimeError("broken template")))
+    assert len(Presentation(io.BytesIO(builders.build(_template_spec())[0])).slides) > 3
+
+
+def test_unknown_layout_names_become_plain_bullets():
+    got = ExportSpec.model_validate({"format": "pptx", "title": "t", "sections": [{"heading": "h", "layout": "Two-Column"}, {"heading": "h", "layout": "fancy"}, {"heading": "h"}]})
+    assert [s.layout for s in got.sections] == ["two_column", "bullets", "bullets"]
+
+
+@company_template
+def test_pptx_prompt_describes_the_template_layouts_only_when_a_template_is_installed(monkeypatch):
+    monkeypatch.setattr(askey_pptx, "available", lambda: True)
+    with_template = planner.build_messages("Q", "A", [], "", "pptx")[0]["content"]
+    assert "two_column" in with_template and "chapter" in with_template
+    assert "two_column" not in planner.build_messages("Q", "A", [], "", "docx")[0]["content"]
+    monkeypatch.setattr(askey_pptx, "available", lambda: False)
+    assert "two_column" not in planner.build_messages("Q", "A", [], "", "pptx")[0]["content"]

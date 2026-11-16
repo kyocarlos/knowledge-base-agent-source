@@ -4,6 +4,7 @@ from __future__ import annotations
 import csv
 import html
 import io
+import logging
 import re
 import zipfile
 from xml.sax.saxutils import escape as xml_escape
@@ -239,6 +240,17 @@ def _chunks(items: list, size: int) -> list[list]:
 
 
 def build_pptx(spec: ExportSpec) -> bytes:
+    if spec.template != "plain":
+        from . import askey_pptx
+        if askey_pptx.available():
+            try:
+                return askey_pptx.build(spec)
+            except Exception:  # noqa: BLE001 - a template problem must not lose the export: fall back to the plain deck
+                logging.getLogger(__name__).warning("template deck failed, using the plain deck", exc_info=True)
+    return build_plain_pptx(spec)
+
+
+def build_plain_pptx(spec: ExportSpec) -> bytes:
     from pptx import Presentation
     from pptx.dml.color import RGBColor
     from pptx.util import Inches, Pt

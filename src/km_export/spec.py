@@ -7,6 +7,7 @@ from __future__ import annotations
 from pydantic import BaseModel, Field, field_validator
 
 FORMATS = ("pptx", "docx", "xlsx", "md", "csv", "html")
+LAYOUTS = ("bullets", "two_column", "comparison", "chapter")   # how a section is laid out on slides (only the template deck uses it)
 MAX_SECTIONS = 30
 MAX_ITEMS = 24
 MAX_ROWS = 200
@@ -46,12 +47,19 @@ class Section(BaseModel):
     paragraphs: list[str] = Field(default_factory=list, max_length=MAX_ITEMS)
     bullets: list[str] = Field(default_factory=list, max_length=MAX_ITEMS)
     table: Table | None = None
+    layout: str = "bullets"
     sources: list[str] = Field(default_factory=list, max_length=MAX_ITEMS)
 
     @field_validator("heading", mode="before")
     @classmethod
     def _heading(cls, value):
         return _clean(value)[:200]
+
+    @field_validator("layout", mode="before")
+    @classmethod
+    def _layout(cls, value):
+        value = str(value or "").strip().lower().replace("-", "_")
+        return value if value in LAYOUTS else "bullets"
 
     @field_validator("paragraphs", "bullets", "sources", mode="before")
     @classmethod
@@ -63,6 +71,7 @@ class ExportSpec(BaseModel):
     format: str
     title: str = Field(min_length=1, max_length=200)
     subtitle: str = Field(default="", max_length=300)
+    template: str = Field(default="", max_length=20)   # "plain" = the built-in look even when a company template is installed
     sections: list[Section] = Field(min_length=1, max_length=MAX_SECTIONS)
 
     @field_validator("format")

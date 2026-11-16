@@ -37,6 +37,15 @@ MULTI_RULES = """
 7. 若不同回答對同一件事的說法不一致，或後面的回答修正了前面的，不可自行挑一個：在報告中並列各說法，明確寫出「各回答說法不一致」，並附各自的來源。
 8. 來源一律用「來源」清單的編號 [1]、[2]…。回答裡形如 [Q1-S2] 的標記表示該來源沒有列出，不可當成來源引用，也不可編造。"""
 
+PPTX_TEMPLATE_RULES = """
+
+【簡報範本】簡報會套用公司範本，請依範本的頁型安排內容，並在每個 section 加上 "layout" 欄位：
+- "bullets"（預設）：一般條列頁。每點不超過 60 字，一個 section 最多 8 點。
+- "two_column"：左右兩欄並列的條列（例如兩組做法、前後對照的要點）。
+- "comparison"：兩個對象的比較。必須同時提供只有 2 欄的 table，欄名就是兩個比較對象，每列一個比較項目。
+- "chapter"：章節分隔頁，只用 heading 與 paragraphs 的第一句（一句話說明）；章節的內容放在後面的 section。
+標題 30 字以內。不要放圖表、圖片或組織圖；沒有資料就不要硬湊比較或雙欄。"""
+
 MAX_ANSWERS = 5  # one export covers at most this many answers
 CITE = re.compile(r"\[(S\d+)(?:[・·][^\]]*)?\]")  # [S1], and [S1・我的檔案] for a file the user attached
 SOURCE_LABEL = re.compile(r"^\s*\[(S\d+)\]\s*")
@@ -85,12 +94,20 @@ def _extract_json(raw: str) -> dict:
     return value
 
 
+def _system(fmt: str | None) -> str:
+    if fmt == "pptx":
+        from . import askey_pptx
+        if askey_pptx.available():
+            return SYSTEM + PPTX_TEMPLATE_RULES
+    return SYSTEM
+
+
 def build_messages(question: str, answer: str, sources: list[str], request: str, fmt: str | None) -> list[dict]:
     wanted = f"檔案格式：{fmt}（format 欄位必須是 {fmt}）" if fmt else f"檔案格式：使用者沒指定時由你從 {', '.join(FORMATS)} 擇一"
     listing = "\n".join(f"[{i}] {s}" for i, s in enumerate(sources, 1)) or "（沒有列出來源）"
     user = (f"使用者原本的問題：\n{question or '（未提供）'}\n\n回答：\n{answer}\n\n來源：\n{listing}\n\n"
             f"使用者對檔案的需求：\n{request.strip() or '（沒有特別要求，請做出適合閱讀的版本）'}\n\n{wanted}")
-    return [{"role": "system", "content": SYSTEM}, {"role": "user", "content": user}]
+    return [{"role": "system", "content": _system(fmt)}, {"role": "user", "content": user}]
 
 
 def build_messages_multi(pairs: list[tuple[str, str]], sources: list[str], request: str, fmt: str | None) -> list[dict]:
@@ -98,7 +115,7 @@ def build_messages_multi(pairs: list[tuple[str, str]], sources: list[str], reque
     listing = "\n".join(f"[{i}] {s}" for i, s in enumerate(sources, 1)) or "（沒有列出來源）"
     turns = "\n\n".join(f"--- 第 {i} 則 ---\n問題：{q or '（未提供）'}\n回答：\n{a}" for i, (q, a) in enumerate(pairs, 1))
     user = f"{turns}\n\n來源（全部回答共用的編號）：\n{listing}\n\n使用者對檔案的需求：\n{request.strip() or '（沒有特別要求，請整合成適合閱讀的報告）'}\n\n{wanted}"
-    return [{"role": "system", "content": SYSTEM + MULTI_RULES}, {"role": "user", "content": user}]
+    return [{"role": "system", "content": _system(fmt) + MULTI_RULES}, {"role": "user", "content": user}]
 
 
 def plan(complete: Complete, *, question: str = "", answer: str = "", sources: list[str] | None = None, request: str = "", fmt: str | None = None, items=None) -> ExportSpec:
