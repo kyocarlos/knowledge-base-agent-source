@@ -261,3 +261,54 @@ def types_resp(text):
     r = Resp()
     r.json = lambda: {"choices": [{"message": {"content": text}}]}
     return r
+
+
+# ---------------------------------------------------------------- a chosen model that fails is visible, and recovery clears it
+
+def _failing_post(monkeypatch, fail):
+    import requests
+
+    def post(url, headers, json, timeout):
+        if fail["on"]:
+            raise requests.Timeout()
+        return Resp()
+    monkeypatch.setattr("src.web_api.openai_compatible_client.requests.post", post)
+
+
+def test_a_profile_whose_last_call_failed_is_marked_degraded_until_it_works_again(monkeypatch):
+    fail = {"on": True}
+    clock = {"t": 0.0}
+    monkeypatch.setenv("MODAONE_API_KEY", "test-modaone-key")
+    _failing_post(monkeypatch, fail)
+    r = lp.Registry.load(FILE, env={**ENV}, clock=lambda: clock["t"])
+    flag = lambda: {p["id"]: p["degraded"] for p in r.listing("mobile", "zone_answer")["profiles"]}
+    assert not any(flag().values())
+    complete, _ = r.complete_for("modaone-gpt-oss-120b", "mobile", "zone_answer", owner="u1")
+    with pytest.raises(RuntimeError):
+        complete([{"role": "user", "content": "x"}])
+    assert complete.state["failed"] is True and flag()["modaone-gpt-oss-120b"] is True and flag()["auto"] is False
+    clock["t"] = 901
+    assert flag()["modaone-gpt-oss-120b"] is False                      # an old failure is forgotten
+    fail["on"] = False
+    complete2, _ = r.complete_for("modaone-gpt-oss-120b", "mobile", "zone_answer", owner="u1")
+    assert complete2([{"role": "user", "content": "x"}]) == "chosen model answer" and complete2.state["failed"] is False
+    assert flag()["modaone-gpt-oss-120b"] is False
+
+
+def test_keeper_says_when_the_chosen_model_did_not_answer(api, monkeypatch):
+    import requests
+    monkeypatch.setattr(keeper_routes, "_zones", lambda: [])
+
+    def route(question, complete, zones, stats, entity_zones=None):
+        try:
+            complete([{"role": "user", "content": question}])
+        except Exception:  # noqa: BLE001 - the real router answers by keywords when the model fails
+            pass
+        return {"mode": "keywords", "zones": []}
+    monkeypatch.setattr(keeper_routes.routing, "route", route)
+    monkeypatch.setattr("src.web_api.openai_compatible_client.requests.post", lambda *a, **k: (_ for _ in ()).throw(requests.Timeout()))
+    monkeypatch.setenv("MODAONE_API_KEY", "test-modaone-key")
+    out = api.post("/api/keeper/route", json={"question": "Wi-Fi 認證", "llm": "modaone-gpt-oss-120b"}).json()
+    assert out["llm"]["profile"] == "modaone-gpt-oss-120b" and out["llm"]["failed"] is True
+    monkeypatch.setattr("src.web_api.openai_compatible_client.requests.post", lambda *a, **k: Resp())
+    assert "failed" not in api.post("/api/keeper/route", json={"question": "Wi-Fi 認證", "llm": "modaone-gpt-oss-120b"}).json()["llm"]

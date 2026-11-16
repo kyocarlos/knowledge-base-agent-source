@@ -32,6 +32,7 @@ logger = logging.getLogger("km.llm_profiles")
 
 PURPOSES = ("zone_answer", "keeper", "wifi_agent")
 AUTO = "auto"
+DEGRADED_SECONDS = 900      # a profile whose last real call failed is marked "degraded" in the list for this long
 DEFAULT_FILE = Path(__file__).resolve().parents[2] / "config" / "llm_profiles.json"
 _PAGE_TO_ZONE = {page: zone for zone, page in PAGE_KEY.items()}     # the page key "csit" is the zone "verification"
 KNOWN_ZONES = set(ZONE_BY_ID) | {"hub"}
@@ -124,6 +125,7 @@ class Registry:
         self.default = default if default in by_id else AUTO
         self._clients: dict[str, Any] = {}
         self._recent: dict[tuple[str, str], deque] = defaultdict(deque)
+        self._health: dict[str, tuple[bool, float]] = {}     # profile id -> (last call succeeded, when)
         self._lock = threading.Lock()
 
     # ---- loading
@@ -181,8 +183,19 @@ class Registry:
         for p in self.profiles.values():
             problem = self.why_not(p, zone, purpose)
             items.append({"id": p.id, "label": p.label, "description": p.description, "external": p.external, "experimental": p.experimental,
-                          "default": p.id == self.default, "available": problem is None, "reason": problem[2] if problem else None})
+                          "default": p.id == self.default, "available": problem is None, "reason": problem[2] if problem else None,
+                          "degraded": problem is None and p.source != "auto" and self.degraded(p.id)})
         return {"zone": zone_key(zone), "purpose": purpose, "default": self.default, "profiles": items}
+
+    # ---- health: only what real calls showed (no probe calls, which would spend compute points)
+    def _note(self, profile_id: str, ok: bool) -> None:
+        with self._lock:
+            self._health[profile_id] = (ok, self._clock())
+
+    def degraded(self, profile_id: str) -> bool:
+        with self._lock:
+            ok, at = self._health.get(profile_id, (True, 0.0))
+        return (not ok) and self._clock() - at < DEGRADED_SECONDS
 
     # ---- use
     def _allow(self, owner: str, p: Profile) -> bool:
@@ -217,7 +230,19 @@ class Registry:
             raise ProfileError(429, "rate_limited", "這個模型的使用次數已達每小時上限，請稍後再試或改用其他模型")
         logger.info("llm_profile zone=%s purpose=%s profile=%s external=%s user=%s", zone_key(zone), purpose, p.id, p.external, owner)
         client = self.client(p)
-        return (lambda messages: normalise_citations(client.chat(messages, temperature=temperature))), p
+        state = {"failed": False}
+
+        def complete(messages):
+            try:
+                text = normalise_citations(client.chat(messages, temperature=temperature))
+            except Exception:
+                state["failed"] = True
+                self._note(p.id, False)
+                raise
+            self._note(p.id, True)
+            return text
+        complete.state = state      # the caller can tell that the chosen model failed (the assistant then answers without it)
+        return complete, p
 
 
 _registry: Registry | None = None

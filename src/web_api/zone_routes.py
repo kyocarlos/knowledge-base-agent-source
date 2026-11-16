@@ -192,7 +192,8 @@ def _run(task_id: str, zone_label: str, names: list[str], body: AgentBody, owner
         emit.done("completed")
     except Exception as exc:  # noqa: BLE001 - the page shows the failure instead of waiting for ever
         logger.warning("zone answer failed: %s", type(exc).__name__, exc_info=True)
-        store.save(task_id, {"task_id": task_id, "owner": owner, "status": "failed", "question": body.question, "error": "回答暫時無法產生，請稍後再試"})
+        store.save(task_id, {"task_id": task_id, "owner": owner, "status": "failed", "question": body.question,
+                         "error": (f"所選模型「{profile.label}」暫時無法使用，請改選「自動」或其他模型再試" if custom is not None and profile is not None else "回答暫時無法產生，請稍後再試")})
         emit.done("failed")
 
 

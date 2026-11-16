@@ -43,6 +43,7 @@
     let text = p.label;
     if (p.experimental) text += ' · 實驗';
     if (!p.available) text += ' — 不可用';
+    else if (p.degraded) text += ' — 最近失敗';
     return text;
   }
 
@@ -133,7 +134,8 @@
       if (!last || last.querySelector('.km-llm-tag')) return;
       const el = document.createElement('div');
       el.className = 'km-llm-tag';
-      el.textContent = '回答模型：' + (llm.label || llm.profile);
+      const name = llm.label || llm.profile;
+      el.textContent = llm.failed ? '回答模型：' + name + '（這次沒有回應，以上是關鍵字比對的結果；可改選「自動」再問一次）' : '回答模型：' + name;
       last.appendChild(el);
     }, 600);
   }
@@ -161,7 +163,7 @@
         }
       } else if (ask && response.ok && zone === 'hub') {
         const data = await response.clone().json().catch(() => null);
-        if (data && data.llm) tag('#hub-ask-log', data.llm);
+        if (data && data.llm) { tag('#hub-ask-log', data.llm); if (data.llm.failed) load(); }
       } else if (response.ok && result(url, method)) {
         const data = await response.clone().json().catch(() => null);
         if (data && data.status === 'completed' && data.llm) tag('#conversation', data.llm, data.task_id || url);

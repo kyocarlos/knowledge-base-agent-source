@@ -127,6 +127,8 @@ async def keeper_route(body: RouteBody, request: Request):
         out = routing.route(body.question, complete, _zones(), body.stats, entity_zones=_entity_zones)
         if isinstance(out, dict):
             out["llm"] = {"profile": profile.id, "label": profile.label}
+            if custom is not None and getattr(custom, "state", {}).get("failed"):
+                out["llm"]["failed"] = True       # the chosen model did not answer; the page says so and suggests the automatic model
         return out
 
     return await run_in_threadpool(work)

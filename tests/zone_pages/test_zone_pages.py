@@ -424,3 +424,24 @@ def test_without_a_choice_the_zone_assistant_uses_its_default_model(client, monk
     tid = client.post("/api/zones/equipment/agent", json={"question": "頻譜分析儀多久校驗"}).json()["task_id"]
     res = client.get(f"/api/zones/equipment/agent/{tid}").json()
     assert res["status"] == "completed" and res["llm"]["profile"] == "auto" and res["citations"]
+
+
+def test_a_failed_answer_from_a_chosen_model_names_the_model_and_suggests_the_automatic_one(client, monkeypatch):
+    from types import SimpleNamespace
+    from src.web_api import llm_profiles as lp
+
+    def boom(messages):
+        raise RuntimeError("model down")
+
+    class Stub:
+        def complete_for(self, profile_id, zone, purpose, owner="x", temperature=0.1):
+            return boom, SimpleNamespace(id="stub-model", label="Stub model")
+    monkeypatch.setattr(lp, "get_registry", lambda: Stub())
+    tid = client.post("/api/zones/equipment/agent", json={"question": "頻譜分析儀多久校驗", "llm": "stub-model"}).json()["task_id"]
+    res = client.get(f"/api/zones/equipment/agent/{tid}").json()
+    assert res["status"] == "failed" and "Stub model" in res["error"] and "自動" in res["error"]
+    tid = client.post("/api/zones/equipment/agent", json={"question": "頻譜分析儀多久校驗"}).json()["task_id"]       # no choice: unchanged
+    monkeypatch.setattr(lp, "get_registry", lambda: lp.Registry.load("/nonexistent", env={}))
+    monkeypatch.setattr(zone_routes, "_complete", lambda: boom)
+    tid = client.post("/api/zones/equipment/agent", json={"question": "頻譜分析儀多久校驗"}).json()["task_id"]
+    assert client.get(f"/api/zones/equipment/agent/{tid}").json()["error"] == "回答暫時無法產生，請稍後再試"
