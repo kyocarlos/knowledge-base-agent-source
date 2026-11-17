@@ -79,3 +79,19 @@ LLM 說明與結論：
 Source commit：`556643b6f04083b3fd2cd1eded295fa26a0cc429`，分支 `feature/equipment-aggregate-analysis-20261117`（已推送 origin，**尚未**併入 main）。
 
 **最終狀態：KM DEV 的 `km-csit-integration-api`/`km-csit-v1-dev-worker-1` 已換上含設備跨文件綜合分析功能的新影像並驗證無回歸，功能本身預設關閉待雙方驗收。尚未併入 main、尚未與真實 CSIT 做過這個新功能的真實端對端測試。**
+
+## 2026-11-17：RCA 指標好壞方向（km_test.metric_dictionary.higher_is_better）
+- 正式 DA40 的 km_test.metric_dictionary 原本 24 筆 higher_is_better 全為 NULL（比較只能標示 changed）。已填入 23 筆，total_count 刻意維持 NULL（只是筆數）。
+- True：throughput、throughput_before_ho、throughput_after_ho、throughput_variation、rsrp、rsrq、rssi、sinr、ho_success、ho_success_rate、pass_count、pass_rate。
+- False：fail_count、handover_duration、latency_rtt、latency_rtt_before_ho、latency_rtt_after_ho、latency_variation、max_latency_variation、max_ping_loss_count、max_throughput_variation、ping_loss_count、udp_lost_ratio。
+- 這是工程慣例預設值，尚未經 CSIT 領域人員確認（尤其 latency_variation／throughput_variation 這類換手前後差值）。值只存在資料庫，重建資料庫需重新套用。
+- 驗證：用唯讀 RCA 連線比較 2 份 wifi_throughput 報告，directions_defined=23，diffs 出現 improvement／regression（regression 85 筆）。CSIT 連動不受影響（in flight=0，api／worker healthy）。
+- 還原：UPDATE km_test.metric_dictionary SET higher_is_better = NULL;
+- 後續：src/report_numeric/query.py:150 仍寫死「higher_is_better 尚未定義」提示，尚未調整。
+
+## 2026-11-17：RCA 歷史雜訊門檻（分支 rca-noise-threshold，commit ef63784 + 95e19d0，尚未併入 main）
+- 比較與重點範圍的「顯著差異」門檻，改為「固定門檻」與「同產品、同報告類型歷史報告自然波動的 3 倍（中位數／MAD）」中較大者；歷史只會讓判斷更保守。少於 5 份歷史報告時沿用固定門檻，並在 pack.noise 與 findings.noise 說明。新增 src/report_numeric/noise.py，改 compare.py／findings.py／rca.py（提示新增 noise 說明）／rca_service.py／rca_routes.py（共用 compare.build_pack）。
+- 部署：疊加映像 km-da40-web:rca-noise-95e19d0（底 km-da40-web:llm-usage-0e9a163）、km-test-web:rca-noise-95e19d0（底 km-test-web:llm-backup-86afb14），override 檔 ~/.km-control/compose/km-da40.rca-noise.image.override.yml，只重建 web 與 celery_search_worker。
+- 驗證：新測試 11 筆通過；正式報告實測結果與部署前完全相同（132 筆顯著差異）。目前每個產品只有 1 份報告，所以此功能暫不會生效，等同一產品累積到 6 份以上才啟動。
+- 還原：以 llm-profiles（web）與 llm-backup（worker）override 為最後一個檔重新 up 即回到 llm-usage-0e9a163／llm-backup-86afb14。
+- 已知既有問題：tests/zone_pages/test_zone_pages.py::test_the_page_endpoints_answer_in_the_wifi_pages_shapes 在 main 上本來就失敗，與本次無關。
