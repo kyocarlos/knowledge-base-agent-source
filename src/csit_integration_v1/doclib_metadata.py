@@ -52,7 +52,10 @@ def _grounded_strings(items,lowered,limit,max_len=128):
     return out
 
 def _grounded_measurements(items,lowered):
-    """A measurement/spec value (frequency, band, limit, ...) is kept only when both its metric name and its value occur in the text."""
+    """A measurement/spec value (frequency, band, limit, ...) is kept only when both its metric name and its value occur in the text.
+    value is always written out as a string: CSIT's own KmAnalysisMetadataValidator.ValidTechnical (pattymou/CSIT-System,
+    KmAnalysisContracts.cs) requires measurements[].value to be a JSON string -- our own schema is laxer (string or number) but CSIT's
+    receiving validator is the one that decides whether a document is accepted, so it is the one this follows."""
     out=[]
     if not isinstance(items,list):return out
     for item in items:
@@ -69,8 +72,7 @@ def _grounded_measurements(items,lowered):
         unit=item.get("unit");unit=unit.strip()[:32] if isinstance(unit,str) and unit.strip() else None
         context=item.get("context")
         context=" ".join(context.split())[:200] if isinstance(context,str) and context.strip() else None
-        out.append({"metric":metric.strip()[:64],"value":value if isinstance(value,(int,float)) and not isinstance(value,bool) else value_text[:64],
-            "unit":unit,"context":context})
+        out.append({"metric":metric.strip()[:64],"value":value_text[:64],"unit":unit,"context":context})
         if len(out)>=MAX_MEASUREMENTS:break
     return out
 
