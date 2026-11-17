@@ -1,14 +1,17 @@
 """Equipment-level cross-document synthesis against CSIT's real contract (CSIT requirement doc, 2026-11-17)."""
 import uuid
+from dataclasses import replace
 from datetime import datetime, timezone
 from types import SimpleNamespace
 
+import httpx
 import pytest
 from fastapi.testclient import TestClient
 from psycopg.types.json import Jsonb
 
 from src.csit_integration_v1.api import create_app
 from src.csit_integration_v1.auth import ServiceIdentity
+from src.csit_integration_v1.doclib_client import DocLibClient
 from src.csit_integration_v1.equipment_aggregate import V2JobMetadataSource, analyze
 from src.csit_integration_v1.equipment_aggregate_models import EquipmentAggregateRequest, build_equipment_aggregate_callback
 from src.csit_integration_v1.errors import IntegrationError
@@ -237,3 +240,126 @@ def test_an_idempotency_key_that_does_not_match_the_body_is_refused(settings, re
     body = _request([]).model_dump(mode="json")
     r = client.post(ROUTE, json=body, headers={**AUTH, "Idempotency-Key": str(uuid.uuid4())})
     assert r.status_code == 400
+
+
+def test_a_token_without_the_required_scope_is_refused(settings, repo):
+    client = TestClient(_app(settings, repo, enabled=True))
+    body = _request([]).model_dump(mode="json")
+    r = client.post(ROUTE, json=body, headers={"Authorization": "Bearer test-wrong-scope"})
+    assert r.status_code == 403
+
+
+def test_no_bearer_token_at_all_is_refused(settings, repo):
+    client = TestClient(_app(settings, repo, enabled=True))
+    r = client.post(ROUTE, json=_request([]).model_dump(mode="json"))
+    assert r.status_code == 401
+
+
+# ---------------------------------------------------------------- part 4: callback 409 classification, worker restart, retry exhaustion
+
+class FakeAuth:
+    def headers(self, scopes=None):
+        return {"Authorization": "Bearer fake-outbound"}
+
+
+class StatusCsit:
+    def __init__(self, answers):
+        self.answers = list(answers)
+        self.posts = []
+    def __call__(self, r):
+        self.posts.append((r.url.path, r.headers.get("idempotency-key")))
+        status, body = self.answers.pop(0) if self.answers else (204, "")
+        return httpx.Response(status, text=body)
+
+
+def _post_equipment_aggregate(settings, answers):
+    csit = StatusCsit(answers)
+    client = DocLibClient(settings, FakeAuth(), transport=httpx.MockTransport(csit))
+    err = None
+    try:
+        client.post_status("equipment_aggregate", {"callbackId": str(uuid.uuid4()), "status": "Completed"})
+    except IntegrationError as e:
+        err = e
+    return err, csit
+
+
+@pytest.mark.parametrize("code", ["feature_disabled", "callback_id_conflict", "stale_or_mismatched_manifest",
+                                   "request_already_failed", "stale_manifest"])
+def test_every_csit_409_reason_is_classified_and_not_retried(settings, code):
+    err, _ = _post_equipment_aggregate(settings, [(409, '{"error":"%s"}' % code)])
+    assert err.retryable is False and err.code == "CSIT_EQUIPMENT_AGGREGATE_" + code.upper()
+
+
+def test_an_unrecognised_409_body_is_still_refused_not_retried(settings):
+    err, _ = _post_equipment_aggregate(settings, [(409, "not json")])
+    assert err.retryable is False and err.code == "CSIT_EQUIPMENT_AGGREGATE_UNKNOWN"
+
+
+def test_429_and_5xx_on_the_equipment_aggregate_callback_still_retry_like_every_other_kind(settings):
+    for status in (429, 500, 503):
+        err, _ = _post_equipment_aggregate(settings, [(status, "")])
+        assert err.retryable is True
+
+
+def test_the_idempotency_key_header_sent_to_csit_is_the_callback_id(settings):
+    callback_id = str(uuid.uuid4())
+    csit = StatusCsit([(204, "")])
+    client = DocLibClient(settings, FakeAuth(), transport=httpx.MockTransport(csit))
+    client.post_status("equipment_aggregate", {"callbackId": callback_id, "status": "Completed"})
+    assert csit.posts[0][1] == callback_id
+
+
+def test_a_lease_that_expired_after_a_worker_crash_is_reclaimed_by_the_next_worker(repo):
+    req = _request([])
+    repo.submit_equipment_aggregate_request(req)
+    row = repo.claim_equipment_aggregate("worker-a", lease_seconds=60)
+    assert row is not None
+    # worker-a crashed mid-processing without finishing or failing it: simulate the lease having already expired.
+    with repo.connect() as c:
+        c.execute("UPDATE km_csit_equipment_aggregate_requests SET lease_until=clock_timestamp()-interval '1 second' WHERE request_id=%s",
+                   (req.requestId,))
+    reclaimed = repo.claim_equipment_aggregate("worker-b", lease_seconds=60)
+    assert reclaimed is not None and reclaimed["request_id"] == row["request_id"] and reclaimed["attempt_count"] == 2
+    assert reclaimed["worker_id"] == "worker-b"
+
+
+def test_retrying_a_renewed_lease_is_refused_as_lease_lost(repo):
+    from src.csit_integration_v1.errors import LeaseLost
+    req = _request([])
+    repo.submit_equipment_aggregate_request(req)
+    row = repo.claim_equipment_aggregate("worker-a", lease_seconds=60)
+    with repo.connect() as c:
+        c.execute("UPDATE km_csit_equipment_aggregate_requests SET lease_token=NULL,lease_until=NULL,status='Accepted' WHERE request_id=%s",
+                   (req.requestId,))
+    with pytest.raises(LeaseLost):
+        repo.finish_equipment_aggregate(row, {}, datetime.now(timezone.utc))
+
+
+def test_a_retryable_failure_is_requeued_with_a_backoff_then_fails_for_good_once_the_budget_is_spent(repo):
+    req = _request([])
+    repo.submit_equipment_aggregate_request(req)
+    row = repo.claim_equipment_aggregate("worker-a", lease_seconds=60)
+    repo.fail_equipment_aggregate(row, IntegrationError("TRANSIENT", "try later", True), retry_delays=(0, 0))
+    after_first = repo.get_equipment_aggregate_request(req.requestId)
+    assert after_first["status"] == "Accepted" and after_first["next_retry_at"] is not None
+    row2 = repo.claim_equipment_aggregate("worker-b", lease_seconds=60)
+    repo.fail_equipment_aggregate(row2, IntegrationError("TRANSIENT", "try later", True), retry_delays=(0, 0))
+    after_second = repo.get_equipment_aggregate_request(req.requestId)
+    assert after_second["status"] == "Accepted"
+    row3 = repo.claim_equipment_aggregate("worker-c", lease_seconds=60)
+    repo.fail_equipment_aggregate(row3, IntegrationError("TRANSIENT", "try later", True), retry_delays=(0, 0))
+    final = repo.get_equipment_aggregate_request(req.requestId)
+    assert final["status"] == "Failed" and final["last_error_code"] == "TRANSIENT"
+    with repo.connect() as c:
+        delivered = c.execute("SELECT * FROM km_csit_v13_callbacks WHERE kind='equipment_aggregate' AND ref_id=%s",
+                               (str(req.requestId),)).fetchall()
+    assert len(delivered) == 1 and delivered[0]["payload"]["status"] == "Failed"
+
+
+def test_a_non_retryable_failure_goes_straight_to_failed_on_the_first_attempt(repo):
+    req = _request([])
+    repo.submit_equipment_aggregate_request(req)
+    row = repo.claim_equipment_aggregate("worker-a", lease_seconds=60)
+    repo.fail_equipment_aggregate(row, IntegrationError("PERMANENT", "will never work", False), retry_delays=(0, 0, 0))
+    final = repo.get_equipment_aggregate_request(req.requestId)
+    assert final["status"] == "Failed"
