@@ -8,7 +8,7 @@ from html import unescape
 from pathlib import Path
 from .errors import IntegrationError,LeaseLost
 from .pipeline import FORMAT_MIME,Parser,Extraction,validate_file,check_ooxml,normalize,stable_id
-from .doclib_metadata import detect_language,clean_semantic,_page_count
+from .doclib_metadata import detect_language,clean_semantic,semantic_warning,_page_count
 from .v2_models import SOURCE_SPECIFIC_DEFAULTS,validate_result_v2
 from .doclib_metadata import zone_fields
 from .zones import ZONE_BY_ID,zone_by_classification
@@ -121,30 +121,39 @@ def validate_v2_file(path,suffix,name,settings):
         from .image_reader import inspect
         inspect(path,suffix)
 
-def source_specific(job,extraction,suffix):
+def source_specific(job,extraction,suffix,sem):
     out=dict(SOURCE_SPECIFIC_DEFAULTS.get(job["source_type"],{}))
     sheets=[t["name"] for t in extraction.tables] if suffix==".xlsx" else []
     if "sheetNames" in out:out["sheetNames"]=sheets
+    # EquipmentAttachment is the source type the CSIT device cross-document synthesis reads (spec part 3): these three fields carry the
+    # real, document-grounded specs/capability/limitations a single attachment contributes, instead of staying permanently empty.
+    if job["source_type"]=="EquipmentAttachment":
+        if "specifications" in out:out["specifications"]=sem["specifications"]
+        if "capabilitySummary" in out:out["capabilitySummary"]=sem["capabilitySummary"]
+        if "limitations" in out:out["limitations"]=sem["limitations"]
     return out
 
 def build_result_v2(job,extraction,suffix,source_path,semantic,index_id,chunk_count,indexed_at,warnings=(),method="Text",ocr_used=False):
     text=extraction.text
     sem=clean_semantic(semantic,text)
     warnings=list(warnings)
-    if semantic is None:warnings.append("semantic extraction not available; documentType, summary and keywords left empty")
+    warning=semantic_warning(semantic)
+    if warning:warnings.append(warning)
     result={
       "metadataSchemaVersion":"2.0",
       "document":{"title":None,"documentType":sem["documentType"],"summary":sem["summary"],"language":detect_language(text),
         "documentDate":None,"authors":[],"department":None,"documentVersionLabel":None,"keywords":sem["keywords"],"tags":[]},
-      "technical":{"productNames":[],"modelNumbers":[],"vendorNames":[],"technologies":[],"standards":[],"softwareVersions":[],
-        "hardwareVersions":[],"projectNames":[],"testItems":[],"measurements":[],"issueKeys":[],"errorCodes":[]},
+      "technical":{"productNames":sem["productNames"],"modelNumbers":sem["modelNumbers"],"vendorNames":sem["vendorNames"],
+        "technologies":sem["technologies"],"standards":sem["standards"],"softwareVersions":sem["softwareVersions"],
+        "hardwareVersions":sem["hardwareVersions"],"projectNames":sem["projectNames"],"testItems":sem["testItems"],
+        "measurements":sem["measurements"],"issueKeys":sem["issueKeys"],"errorCodes":sem["errorCodes"]},
       "extraction":{"sourceFormat":suffix.lstrip("."),"method":method,"pageCount":_page_count(source_path,suffix),
         "sheetNames":[t["name"] for t in extraction.tables] if suffix==".xlsx" else [],
         "extractedCharacterCount":len(text),"ocrUsed":ocr_used},
       "indexing":{"status":"Completed","indexId":index_id,"chunkCount":chunk_count,
         "indexedAt":indexed_at.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")},
       "warnings":warnings,
-      "sourceSpecific":source_specific(job,extraction,suffix)}
+      "sourceSpecific":source_specific(job,extraction,suffix,sem)}
     validate_result_v2(result)
     return result
 

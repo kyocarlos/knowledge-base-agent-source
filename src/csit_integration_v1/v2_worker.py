@@ -5,16 +5,18 @@ from pathlib import Path
 from qdrant_client.models import FieldCondition,Filter,MatchValue
 from .errors import IntegrationError,LeaseLost
 from .doclib_worker import _Heartbeat
+from .doclib_metadata import clean_semantic,semantic_warning
 from .v2_pipeline import metadata_payload,V2QdrantWriter
 from .v2_models import SOURCE_SPECIFIC_DEFAULTS,validate_result_v2
 
 logger=logging.getLogger("km.csit.v2")
 
 class V2Processor:
-    def __init__(self,settings,repo,pipeline,qdrant,report_collections=(),client=None):
+    def __init__(self,settings,repo,pipeline,qdrant,report_collections=(),client=None,semantic=None):
         self.settings,self.repo,self.pipeline,self.qdrant=settings,repo,pipeline,qdrant
         self.client=client # DocLibClient: the Correlation Resolver call of the analysis-results flow
         self.report_collections=tuple(report_collections)
+        self.semantic=semantic # text -> dict|None (doclib_metadata.make_semantic_extractor); same extractor the v2 ingest pipeline uses
         self.id=uuid.uuid4().hex
     def steps(self):
         out=[(self.ingest_one,"v2-ingest"),(self.change_one,"v2-change"),(self.supersede_one,"v2-supersede")]
@@ -121,18 +123,30 @@ class V2Processor:
         points=(refs.get("Qdrant") or {}).get("pointIds") or []
         suffix=Path(job["file_name"]).suffix.lower()
         done=job["updated_at"].astimezone(timezone.utc)
+        if not points or not text.strip():raise IntegrationError("NO_EXTRACTION","The Test Report was not indexed as text; nothing to report")
+        # A retryable/non-retryable LLM failure from the extractor propagates as IntegrationError straight out of this method: analysis_one()
+        # already distinguishes retryable (requeue) from not (skip_analysis), the same as every other failure of this flow.
+        semantic=self.semantic(text) if self.semantic else None
+        sem=clean_semantic(semantic,text)
+        warnings=[]
+        warning=semantic_warning(semantic)
+        if warning:warnings.append(warning)
+        source_specific=dict(SOURCE_SPECIFIC_DEFAULTS["TestReport"])
+        source_specific["testItems"]=sem["testItems"]
+        source_specific["measurements"]=sem["measurements"]
         result={"metadataSchemaVersion":"2.0",
-          "document":{"title":None,"documentType":"TestReport","summary":None,"language":None,"documentDate":None,"authors":[],
-            "department":None,"documentVersionLabel":None,"keywords":[],"tags":[]},
-          "technical":{k:[] for k in ("productNames","modelNumbers","vendorNames","technologies","standards","softwareVersions",
-            "hardwareVersions","projectNames","testItems","measurements","issueKeys","errorCodes")},
+          "document":{"title":None,"documentType":"TestReport","summary":sem["summary"],"language":None,"documentDate":None,"authors":[],
+            "department":None,"documentVersionLabel":None,"keywords":sem["keywords"],"tags":[]},
+          "technical":{"productNames":sem["productNames"],"modelNumbers":sem["modelNumbers"],"vendorNames":sem["vendorNames"],
+            "technologies":sem["technologies"],"standards":sem["standards"],"softwareVersions":sem["softwareVersions"],
+            "hardwareVersions":sem["hardwareVersions"],"projectNames":sem["projectNames"],"testItems":sem["testItems"],
+            "measurements":sem["measurements"],"issueKeys":sem["issueKeys"],"errorCodes":sem["errorCodes"]},
           "extraction":{"sourceFormat":suffix.lstrip("."),"method":"Text","pageCount":None,"sheetNames":[],
             "extractedCharacterCount":len(text),"ocrUsed":False},
           "indexing":{"status":"Completed","indexId":"km-test-report/"+str(job["job_id"]),"chunkCount":len(points),
             "indexedAt":done.strftime("%Y-%m-%dT%H:%M:%SZ")},
-          "warnings":["semantic extraction not available; fields left empty"],
-          "sourceSpecific":dict(SOURCE_SPECIFIC_DEFAULTS["TestReport"])}
-        if not points or not text.strip():raise IntegrationError("NO_EXTRACTION","The Test Report was not indexed as text; nothing to report")
+          "warnings":warnings,
+          "sourceSpecific":source_specific}
         validate_result_v2(result)
         fields={"source_entity_id":corr["sourceEntityId"],"document_id":job["document_id"],"version":job["version"],
                 "csit_job_id":corr["csitJobId"],"km_job_id":str(job["job_id"]),"source_sha256":corr["sourceSha256"]}

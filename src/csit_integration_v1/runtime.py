@@ -105,7 +105,7 @@ def worker():
             from .doclib_llm import describe_image
             vision=describe_image
         images=ImageReader(vision=vision) if os.getenv("KM_CSIT_IMAGES_ENABLED")=="1" else None
-        v2=V2Processor(s,drepo,V2Pipeline(s,drepo,dclient,v2writer,semantic=semantic,images=images),v2writer,report_collections=report_collections,client=dclient)
+        v2=V2Processor(s,drepo,V2Pipeline(s,drepo,dclient,v2writer,semantic=semantic,images=images),v2writer,report_collections=report_collections,client=dclient,semantic=semantic)
         doclib_worker=DocLibWorker(s,drepo,dclient,DocLibPipeline(s,drepo,dclient,qwriter,semantic=semantic),executor,extra_steps=v2.steps())
         worker_obj_tombstones=drepo
     stop=threading.Event()

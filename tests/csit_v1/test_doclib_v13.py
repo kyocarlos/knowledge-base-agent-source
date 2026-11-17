@@ -104,14 +104,23 @@ def test_result_has_every_key_and_drops_invented_keywords(tmp_path):
     assert r["document"]["authors"]==[] and r["document"]["documentDate"] is None and r["technical"]["measurements"]==[]
     assert r["indexing"]["status"]=="Completed" and r["extraction"]["ocrUsed"] is False
 
-def test_semantic_failure_falls_back_to_nulls():
+def test_semantic_failure_is_never_silently_swallowed():
+    """A completion failure must never degrade into "nothing technical found": extract() raises instead of returning None (spec: a
+    necessary technical-analysis failure must not silently become an empty result reported as a complete success)."""
+    extract=make_semantic_extractor(lambda p:(_ for _ in ()).throw(RuntimeError("llm down")))
+    with pytest.raises(IntegrationError):
+        extract("some text")
+
+def test_unconfigured_semantic_still_falls_back_to_nulls_with_a_clear_warning():
     from datetime import datetime,timezone
     import tempfile,pathlib
-    extract=make_semantic_extractor(lambda p:(_ for _ in ()).throw(RuntimeError("llm down")))
-    assert extract("some text") is None
     r=build_result({"content_type":"t"},_extraction(),".txt",pathlib.Path(tempfile.gettempdir())/"a.txt",None,"i",1,datetime.now(timezone.utc))
     assert r["document"]["summary"] is None and r["document"]["documentType"]=="Other" and r["warnings"]
-    assert clean_semantic({"documentType":"Poem","summary":"  "},"x")=={"documentType":"Other","summary":None,"keywords":[],"zone_hint":None,"technology":None}
+    assert "not available" in r["warnings"][0]
+    empty_technical={"productNames":[],"modelNumbers":[],"vendorNames":[],"technologies":[],"standards":[],
+        "softwareVersions":[],"hardwareVersions":[],"projectNames":[],"testItems":[],"issueKeys":[],"errorCodes":[]}
+    assert clean_semantic({"documentType":"Poem","summary":"  "},"x")=={"documentType":"Other","summary":None,"keywords":[],
+        "zone_hint":None,"technology":None,"measurements":[],"specifications":[],"capabilitySummary":None,"limitations":[],**empty_technical}
 
 def test_incomplete_result_is_rejected():
     from datetime import datetime,timezone
