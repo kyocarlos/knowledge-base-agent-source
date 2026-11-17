@@ -1,11 +1,12 @@
 """Spec v1.4 work loops: v2 ingestion, metadata changes, version replacement and Test Report analysis results."""
 import json,logging,re,uuid
-from datetime import timezone
+from datetime import datetime,timezone
 from pathlib import Path
 from qdrant_client.models import FieldCondition,Filter,MatchValue
 from .errors import IntegrationError,LeaseLost
 from .doclib_worker import _Heartbeat
 from .doclib_metadata import clean_semantic,semantic_warning
+from .equipment_aggregate import V2JobMetadataSource,analyze
 from .v2_pipeline import metadata_payload,V2QdrantWriter
 from .v2_models import SOURCE_SPECIFIC_DEFAULTS,validate_result_v2
 
@@ -21,7 +22,28 @@ class V2Processor:
     def steps(self):
         out=[(self.ingest_one,"v2-ingest"),(self.change_one,"v2-change"),(self.supersede_one,"v2-supersede")]
         if self.settings.analysis_results_enabled:out.append((self.analysis_one,"v2-analysis"))
+        if self.settings.equipment_aggregate_enabled:out.append((self.equipment_aggregate_one,"v2-equipment-aggregate"))
         return out
+
+    # -- CSIT requirement doc 2026-11-17: equipment-level cross-document synthesis --
+    def equipment_aggregate_one(self):
+        from .equipment_aggregate_models import EquipmentAggregateRequest
+        s=self.settings
+        row=self.repo.claim_equipment_aggregate(self.id,s.lease_seconds)
+        if not row:return False
+        try:
+            with _Heartbeat(lambda:self.repo.renew_equipment_aggregate(row,s.lease_seconds),s.lease_seconds):
+                request=EquipmentAggregateRequest.model_validate(row["request_payload"])
+                source=V2JobMetadataSource(self.repo.v2_jobs_for_files([d.fileId for d in request.documents]))
+                result=analyze(request,source)
+            self.repo.finish_equipment_aggregate(row,result,datetime.now(timezone.utc))
+        except LeaseLost:pass
+        except Exception as e:
+            error=e if isinstance(e,IntegrationError) else IntegrationError("PROCESSING_FAILED","KM processing unavailable",True)
+            try:self.repo.fail_equipment_aggregate(row,error,s.retry_delays)
+            except LeaseLost:pass
+        logger.info(json.dumps({"kmJobId":row["km_job_id"],"attempt":row["attempt_count"]}))
+        return True
 
     def ingest_one(self):
         s=self.settings

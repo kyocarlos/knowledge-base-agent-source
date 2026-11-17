@@ -21,6 +21,7 @@ def db_url():
         c.execute(Path(__file__).resolve().parents[2].joinpath("migrations/20261014_csit_integration_v1_nullable_lineage.sql").read_text())
         c.execute(Path(__file__).resolve().parents[2].joinpath("migrations/20261104_csit_document_library_v1.sql").read_text())
         c.execute(Path(__file__).resolve().parents[2].joinpath("migrations/20261105_csit_integration_v2.sql").read_text())
+        c.execute(Path(__file__).resolve().parents[2].joinpath("migrations/20261117_csit_equipment_aggregate_analysis.sql").read_text())
     with psycopg.connect(dsn) as c:
         c.execute("CREATE TABLE km_users(user_id text PRIMARY KEY,status text NOT NULL,is_admin boolean NOT NULL)")
         c.execute("CREATE TABLE km_audit_events(event_id text PRIMARY KEY,occurred_at bigint NOT NULL,actor_user_id text,target_user_id text,event_type text NOT NULL,detail_json text NOT NULL)")

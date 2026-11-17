@@ -3,17 +3,19 @@ import uuid
 from psycopg.types.json import Jsonb
 from .errors import IntegrationError, LeaseLost
 from .doclib_repository import DocLibRepository, doc_file_id
+from .equipment_aggregate_repository import EquipmentAggregateRepository
 from .v2_models import identity_key, build_job_callback, build_change_callback, build_analysis_payload
 
 LIVE = ("Accepted", "Processing", "Completed")
 
-class V2Repository(DocLibRepository):
+class V2Repository(DocLibRepository, EquipmentAggregateRepository):
     def check_schema(self):
         super().check_schema()
         with self.connect() as c:
             for table in ("km_csit_v2_jobs", "km_csit_v2_checkpoints", "km_csit_v2_changes", "km_csit_v2_analysis"):
                 c.execute(f"SELECT 1 FROM {table} LIMIT 0")
             c.execute("SELECT api_version FROM km_csit_deletion_jobs LIMIT 0")
+        self.check_equipment_aggregate_schema()
 
     # ---- document-jobs intake ----
     def submit_job(self, request):

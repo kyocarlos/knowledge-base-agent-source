@@ -6,13 +6,17 @@ from .auth import authorize, SUBMIT_SCOPE
 from .errors import IntegrationError
 from .v2_models import (DocumentJobRequest, DocumentJobAccepted, MetadataChangeRequest, MetadataChangeAccepted,
                         V2DeletionRequest, V2DeletionAccepted)
+from .equipment_aggregate_models import EquipmentAggregateRequest, EquipmentAggregateAccepted
 
 JOBS_ROUTE='/api/integrations/csit/v2/document-jobs'
 CHANGES_ROUTE='/api/integrations/csit/v2/document-metadata-changes'
 DELETIONS_ROUTE='/api/integrations/csit/v2/document-deletions'
+# CSIT requirement doc 2026-11-17 part 3: a new, independent entry rather than folding it into the single-document routes above.
+EQUIPMENT_AGGREGATE_ROUTE='/api/integrations/csit/v1/equipment-aggregate-analyses'
 MAX_BODY=262144
 # Spec 3.2 suggests exact scopes per direction; the v1.3 scope stays accepted until CSIT IT confirms the mapping.
-SCOPES={'jobs':{SUBMIT_SCOPE,'km.ingestion.write'},'changes':{SUBMIT_SCOPE,'km.metadata.write'},'deletions':{SUBMIT_SCOPE,'km.deletion.write'}}
+SCOPES={'jobs':{SUBMIT_SCOPE,'km.ingestion.write'},'changes':{SUBMIT_SCOPE,'km.metadata.write'},'deletions':{SUBMIT_SCOPE,'km.deletion.write'},
+        'equipment_aggregate':{SUBMIT_SCOPE,'km.ingestion.write'}}
 # Spec 3.3: tombstoned/unknown sources are 410/404, everything else a conflict.
 STATUS={'DOCUMENT_DELETED':410,'DOCUMENT_NOT_FOUND':404}
 
@@ -70,3 +74,11 @@ def register(app:FastAPI,settings,repo,get_validator):
         if not settings.doclib_enabled:raise HTTPException(503,'Deletion integration disabled; no requests accepted')
         row=_call(repo.submit_deletion_v2,payload)
         return V2DeletionAccepted(deletionRequestId=row['deletion_request_id'],kmDeletionJobId=row['km_deletion_job_id'])
+    @app.post(EQUIPMENT_AGGREGATE_ROUTE,status_code=202,response_model=EquipmentAggregateAccepted)
+    async def equipment_aggregate_analyses(request:Request):
+        authorize(request,get_validator(),SCOPES['equipment_aggregate'])
+        payload=await _body(request,EquipmentAggregateRequest)
+        _idempotency(request,payload.requestId)
+        if not settings.equipment_aggregate_enabled:raise HTTPException(503,'Equipment aggregate analysis disabled; no requests accepted')
+        row=_call(repo.submit_equipment_aggregate_request,payload)
+        return EquipmentAggregateAccepted(requestId=row['request_id'],kmJobId=row['km_job_id'])

@@ -28,6 +28,8 @@ class Settings:
     deletion_callback_scopes: tuple[str,...] = ()
     # Spec 5.4 / v1.4.1 C.2: v2 analysis-results for Test Report. Off until CSIT has deployed the Correlation Resolver (task C).
     analysis_results_enabled: bool = False
+    # CSIT requirement doc 2026-11-17: equipment-level cross-document synthesis. Off until both sides have accepted it (KM_CSIT_EQUIPMENT_AGGREGATE_ENABLED=true).
+    equipment_aggregate_enabled: bool = False
     # The outbound token check. True (the default, as tested against the simulator): every claim of the Shared Identity design and exactly the requested scopes.
     # False (KM_CSIT_OUTBOUND_STRICT=false): only what the CSIT specs fix, see ClientCredentialsProvider._validate_relaxed.
     outbound_strict: bool = True

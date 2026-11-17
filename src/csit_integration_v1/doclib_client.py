@@ -14,7 +14,13 @@ STATUS_PATHS={"ingestion":INGESTION_STATUS_PATH,"deletion":DELETION_STATUS_PATH,
     "ingestion2":"/api/integrations/km/v2/document-jobs/status",
     "deletion2":"/api/integrations/km/v2/document-deletions/status",
     "change":"/api/integrations/km/v2/document-metadata-changes/status",
-    "analysis":"/api/integrations/km/v2/analysis-results"}
+    "analysis":"/api/integrations/km/v2/analysis-results",
+    # CSIT requirement doc 2026-11-17 part 4; KmAnalysisCallbackController.EquipmentAggregateStatus.
+    "equipment_aggregate":"/api/integrations/km/v2/equipment-aggregate-analyses/status"}
+# KmAnalysisCallbackController.EquipmentAggregateStatus's 409 {"error": "<code>"} body. Every one of these is a case the same callback
+# would never fix by being resent as-is (the request was superseded, already finished, or the feature is off CSIT's side): classified,
+# not retried, so a stuck request is visible instead of looping forever (spec part 4: "CSIT 回覆 409 時的分類與安全停止").
+EQUIPMENT_AGGREGATE_409_CODES={"feature_disabled","callback_id_conflict","stale_or_mismatched_manifest","request_already_failed","stale_manifest"}
 V1_DELETION_KINDS=("deletion",)
 V1_DELETION_SCOPE="csit.km.deletion-status.write"
 CORRELATION_PATH="/api/integrations/km/v2/test-report-correlations/{event_id}"
@@ -75,6 +81,11 @@ class DocLibClient(CsitIntegrationClient):
                 # result may be retried, and only while CSIT says the v1 job is not Completed yet.
                 if kind=="analysis" and "job_not_completed" in r.text[:500].lower():
                     raise IntegrationError("CSIT_ANALYSIS_JOB_NOT_COMPLETED","CSIT has not recorded the v1 job as Completed yet",True)
+                if kind=="equipment_aggregate":
+                    try:code=r.json().get("error")
+                    except ValueError:code=None
+                    code=code if code in EQUIPMENT_AGGREGATE_409_CODES else "unknown"
+                    raise IntegrationError("CSIT_EQUIPMENT_AGGREGATE_"+code.upper(),"CSIT answered 409 ("+code+"); not retried",False)
                 raise IntegrationError("CSIT_CALLBACK_CONFLICT","CSIT answered 409 (conflict); not retried",False)
             if not 200<=r.status_code<300:raise response_error(r.status_code,"callback")
         except httpx.HTTPError:raise IntegrationError("CSIT_CALLBACK_NETWORK_ERROR","CSIT callback unavailable",True) from None
