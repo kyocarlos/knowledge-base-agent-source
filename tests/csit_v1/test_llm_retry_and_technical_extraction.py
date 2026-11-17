@@ -150,14 +150,15 @@ def test_clean_semantic_keeps_only_technical_facts_that_occur_in_the_text():
         "softwareVersions": ["v2.3.1"], "testItems": ["Throughput Test", "Roaming Test", "Made Up Test"],
         "measurements": [{"metric": "發射功率限制", "value": "23", "unit": "dBm", "context": "頻率 5 GHz"},
                           {"metric": "Invented Metric", "value": "999"}],
-        "specifications": ["支援 5GHz 頻段"], "capabilitySummary": "可進行輸出功率與漫遊測試", "limitations": ["高溫環境下吞吐量下降"],
+        "specifications": [{"field": "頻率", "value": "5 GHz"}, {"field": "Invented Field", "value": "999"}],
+        "capabilitySummary": "可進行輸出功率與漫遊測試", "limitations": ["高溫環境下吞吐量下降"],
     }
     sem = clean_semantic(raw, TEXT)
     assert sem["modelNumbers"] == ["FSW26-A1"]  # the invented model number is dropped
     assert sem["vendorNames"] == ["Askey"]
     assert sem["testItems"] == ["Throughput Test", "Roaming Test"]
     assert sem["measurements"] == [{"metric": "發射功率限制", "value": "23", "unit": "dBm", "context": "頻率 5 GHz"}]
-    assert sem["specifications"] == ["支援 5GHz 頻段"]
+    assert sem["specifications"] == [{"field": "頻率", "value": "5 GHz"}]  # the invented field is dropped
     assert sem["capabilitySummary"] == "可進行輸出功率與漫遊測試"
     assert sem["limitations"] == ["高溫環境下吞吐量下降"]
 
@@ -220,12 +221,13 @@ def test_build_result_v2_carries_the_grounded_technical_fields_and_equipment_spe
     import pathlib
     job = {"source_type": "EquipmentAttachment"}
     semantic = {"modelNumbers": ["FSW26-A1"], "vendorNames": ["Askey"], "testItems": ["Throughput Test"],
-                "specifications": ["支援 5GHz 頻段"], "capabilitySummary": "可進行輸出功率測試", "limitations": ["高溫環境下吞吐量下降"]}
+                "specifications": [{"field": "頻率", "value": "5 GHz"}], "capabilitySummary": "可進行輸出功率測試",
+                "limitations": ["高溫環境下吞吐量下降"]}
     r = build_result_v2(job, Extraction(text=TEXT), ".txt", pathlib.Path("a.txt"), semantic, "i", 1, datetime.now(timezone.utc))
     assert r["technical"]["modelNumbers"] == ["FSW26-A1"]
     assert r["technical"]["vendorNames"] == ["Askey"]
     assert r["technical"]["testItems"] == ["Throughput Test"]
-    assert r["sourceSpecific"] == {"specifications": ["支援 5GHz 頻段"], "capabilitySummary": "可進行輸出功率測試",
+    assert r["sourceSpecific"] == {"specifications": [{"field": "頻率", "value": "5 GHz"}], "capabilitySummary": "可進行輸出功率測試",
                                     "limitations": ["高溫環境下吞吐量下降"]}
     assert r["warnings"] == []  # a real, successful extraction needs no warning
 

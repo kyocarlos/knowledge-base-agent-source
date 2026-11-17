@@ -76,6 +76,27 @@ def _grounded_measurements(items,lowered):
         if len(out)>=MAX_MEASUREMENTS:break
     return out
 
+def _grounded_specifications(items,lowered):
+    """CSIT's own EquipmentKmMetadataProjection (pattymou/CSIT-System) reads sourceSpecific.specifications as a list of {field, value}
+    objects, not sentences -- a plain string there is silently dropped on their side. Grounded the same way as measurements: both field
+    and value must occur in the text, so a specification can never be invented."""
+    out=[]
+    if not isinstance(items,list):return out
+    for item in items:
+        if not isinstance(item,dict):continue
+        f=item.get("field")
+        value=item.get("value")
+        if not isinstance(f,str) or not f.strip():continue
+        if isinstance(value,str):
+            value_text=value.strip()
+            if not value_text:continue
+        elif isinstance(value,(int,float)) and not isinstance(value,bool):value_text=str(value)
+        else:continue
+        if f.strip().lower() not in lowered or value_text.lower() not in lowered:continue
+        out.append({"field":f.strip()[:64],"value":value_text[:128]})
+        if len(out)>=MAX_SPECIFICATIONS:break
+    return out
+
 def _free_text_list(items,limit,max_len):
     """A holistic field (a specification sentence, a limitation) the model may phrase in its own words, the same latitude summary already
     has below -- but still only from what the document actually says, never extended with outside knowledge."""
@@ -117,7 +138,7 @@ def clean_semantic(raw,text):
     for field in TECHNICAL_LIST_FIELDS:
         out[field]=_grounded_strings(raw.get(field),lowered,MAX_TECHNICAL_ITEMS)
     out["measurements"]=_grounded_measurements(raw.get("measurements"),lowered)
-    out["specifications"]=_free_text_list(raw.get("specifications"),MAX_SPECIFICATIONS,200)
+    out["specifications"]=_grounded_specifications(raw.get("specifications"),lowered)
     out["limitations"]=_free_text_list(raw.get("limitations"),MAX_LIMITATIONS,200)
     cap=raw.get("capabilitySummary")
     if isinstance(cap,str) and cap.strip():out["capabilitySummary"]=" ".join(cap.split())[:MAX_CAPABILITY_SUMMARY]
@@ -189,8 +210,9 @@ def llm_prompt(text,*,retry=False):
         "softwareVersions：韌體／軟體版本字串。hardwareVersions：硬體版本字串。projectNames：專案名稱。\n"
         "testItems：文件中列出的可執行測試項目名稱。issueKeys：問題追蹤編號。errorCodes：錯誤代碼。\n"
         "measurements：量測數據、頻段／頻率等技術規格，每筆為 {metric, value, unit, context} 物件；metric 與 value 都必須是文件中出現的字詞。\n"
+        "specifications：條列式的技術規格，每筆為 {field, value} 物件（例如 {\"field\":\"支援頻段\",\"value\":\"2.4GHz/5GHz\"}），"
+        "field 與 value 都必須是文件中出現的字詞。\n"
         "以下欄位可以用你自己的話摘要，但內容必須完全根據文件，不得延伸或補充文件沒有的資訊：\n"
-        "specifications：條列式的技術規格摘要，每項一句話。\n"
         "capabilitySummary：這份文件描述的設備可執行哪些測試或具備哪些能力，一段話摘要；文件沒有提到就留 null。\n"
         "limitations：文件中提到的限制條件、注意事項或已知問題；沒有就留空陣列。\n\n文件內容：\n"+body)
 
