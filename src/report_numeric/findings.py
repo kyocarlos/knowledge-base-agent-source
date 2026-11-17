@@ -15,6 +15,8 @@ from __future__ import annotations
 import statistics
 from dataclasses import dataclass
 
+from . import noise
+
 CLIFF_RATIO = 0.5       # a curve has "fallen off" where it first drops below this share of its own peak
 MAX_SCOPES = 8          # what the model is shown; the rest is only counted
 FOCUS_KEYS = ("band", "bandwidth_mhz", "direction")
@@ -105,7 +107,7 @@ def _channel_agreement(base_points: dict, other_points: dict, th: FindingThresho
     return {"common_points": len(common), "higher": up, "lower": down, "within_threshold": same}
 
 
-def _throughput_scopes(runs: list[dict], focus: dict, th: FindingThresholds) -> list[dict]:
+def _throughput_scopes(runs: list[dict], focus: dict, th: FindingThresholds, spread: dict | None = None) -> list[dict]:
     per_run = [_throughput_per_run(r) for r in runs]
     scopes = []
     for key in sorted({k for t in per_run for k in t}, key=lambda t: tuple("" if x is None else str(x) for x in t)):
@@ -124,9 +126,11 @@ def _throughput_scopes(runs: list[dict], focus: dict, th: FindingThresholds) -> 
             rows.append(row)
         movers = [r["median_delta_pct"] for r in rows if r.get("median_delta_pct") is not None]
         magnitude = max((abs(x) for x in movers), default=0.0)
+        s_noise = (spread or {}).get(key, {})
+        limit = noise.effective(th.pct, s_noise.get("pct"))
         scopes.append({"scope": _scope_label(key), "key": dict(zip(FOCUS_KEYS, key)), "unit": "Mbps", "metric": "throughput", "per_run": rows,
                        "complete": all(c is not None for c in cells), "magnitude": magnitude,
-                       "notable": any(abs(x) >= th.pct for x in movers)})
+                       "notable": any(abs(x) >= limit for x in movers), **_noise_field(s_noise, limit)})
     return scopes
 
 
@@ -161,7 +165,7 @@ def _rvr_per_run(run: dict) -> dict[tuple, dict]:
     return out
 
 
-def _rvr_scopes(runs: list[dict], focus: dict, th: FindingThresholds) -> list[dict]:
+def _rvr_scopes(runs: list[dict], focus: dict, th: FindingThresholds, spread: dict | None = None) -> list[dict]:
     per_run = [_rvr_per_run(r) for r in runs]
     scopes = []
     for key in sorted({k for t in per_run for k in t}, key=lambda t: tuple("" if x is None else str(x) for x in t)):
@@ -170,6 +174,10 @@ def _rvr_scopes(runs: list[dict], focus: dict, th: FindingThresholds) -> list[di
         cells = [t.get(key) for t in per_run]
         base = cells[0]
         rows, magnitude, notable = [], 0.0, False
+        s_noise = (spread or {}).get(key, {})
+        peak_limit = noise.effective(th.pct, s_noise.get("peak_pct"))
+        mean_limit = noise.effective(th.pct, s_noise.get("mean_pct"))
+        cliff_limit = noise.effective(th.cliff_db, s_noise.get("cliff_db"))
         for i, c in enumerate(cells):
             if c is None:
                 rows.append({"run": i, "present": False}); continue
@@ -183,30 +191,61 @@ def _rvr_scopes(runs: list[dict], focus: dict, th: FindingThresholds) -> list[di
                     row["cliff_delta_db"] = _round(c["cliff_median"] - base["cliff_median"], 1)
                 elif (base["cliff_median"] is None) != (c["cliff_median"] is None):
                     row["cliff_note"] = "只有其中一份報告的曲線掉到峰值一半以下"
-                for name, val, limit in (("peak", row["peak_delta_pct"], th.pct), ("mean", row["mean_delta_pct"], th.pct), ("cliff", row.get("cliff_delta_db"), th.cliff_db)):
+                for name, val, limit in (("peak", row["peak_delta_pct"], peak_limit), ("mean", row["mean_delta_pct"], mean_limit), ("cliff", row.get("cliff_delta_db"), cliff_limit)):
                     if val is not None and abs(val) >= limit:
-                        notable = True; magnitude = max(magnitude, abs(val) if name != "cliff" else abs(val) / th.cliff_db * th.pct)
+                        notable = True; magnitude = max(magnitude, abs(val) if name != "cliff" else abs(val) / cliff_limit * th.pct)
                 if row.get("cliff_note"):
                     notable = True; magnitude = max(magnitude, 50.0)
             rows.append(row)
         scopes.append({"scope": _scope_label(key), "key": dict(zip(FOCUS_KEYS, key)), "unit": "Mbps", "metric": "throughput", "per_run": rows,
-                       "complete": all(c is not None for c in cells), "magnitude": magnitude, "notable": notable})
+                       "complete": all(c is not None for c in cells), "magnitude": magnitude, "notable": notable,
+                       **_noise_field(s_noise, max(peak_limit, mean_limit))})
     return scopes
 
 
+def _noise_field(s_noise: dict, limit: float) -> dict:
+    """What the model and the page may say about a scope's threshold: only present when history set it."""
+    if not s_noise:
+        return {}
+    return {"noise": {"history_runs": s_noise["n"], "threshold_pct": round(limit, 1)}}
+
+
+def _history_spread(history: list[dict] | None, report_type: str) -> dict[tuple, dict]:
+    """Natural spread of each scope over the history, in the same terms the scope is compared in (median / peak / mean as % of the median, cliff in dB)."""
+    if not history or len(history) < noise.MIN_HISTORY:
+        return {}
+    rvr = report_type == "wifi_rvr"
+    per_run = [(_rvr_per_run if rvr else _throughput_per_run)(r) for r in history]
+    out = {}
+    for key in {k for t in per_run for k in t}:
+        cells = [t[key] for t in per_run if key in t]
+        if rvr:
+            entry = {"peak_pct": noise.relative_pct([c["peak_median"] for c in cells]), "mean_pct": noise.relative_pct([c["mean_median"] for c in cells]),
+                     "cliff_db": noise.robust_sigma([c["cliff_median"] for c in cells if c["cliff_median"] is not None])}
+            pcts = [x for x in (entry["peak_pct"], entry["mean_pct"]) if x is not None]
+        else:
+            entry = {"pct": noise.relative_pct([c["median"] for c in cells])}
+            pcts = [entry["pct"]] if entry["pct"] is not None else []
+        if pcts or entry.get("cliff_db") is not None:
+            out[key] = {**entry, "n": len(cells)}
+    return out
+
+
 # ---------------------------------------------------------------- entry
-def build(runs: list[dict], report_type: str, focus: dict | None = None, thresholds: FindingThresholds | None = None) -> dict | None:
+def build(runs: list[dict], report_type: str, focus: dict | None = None, thresholds: FindingThresholds | None = None, history: list[dict] | None = None) -> dict | None:
     """None when this report type has no reduction yet (the page then falls back to the plain difference table)."""
     if not supported(report_type):
         return None
     focus = {k: v for k, v in (focus or {}).items() if k in FOCUS_KEYS and v not in (None, "")}
     th = thresholds or FindingThresholds()
-    scopes = (_rvr_scopes if report_type == "wifi_rvr" else _throughput_scopes)(runs, focus, th)
+    spread = _history_spread(history, report_type)
+    scopes = (_rvr_scopes if report_type == "wifi_rvr" else _throughput_scopes)(runs, focus, th, spread)
     shown = sorted([s for s in scopes if s["complete"] and s["notable"]], key=lambda s: -s["magnitude"])[:MAX_SCOPES]
     return {"report_type": report_type, "focus": focus, "available": available_focus(runs),
             "method": ("曲線特徵：峰值＝曲線最高的吞吐量；斷崖＝峰值之後第一個低於峰值 50% 的衰減值（dB）；數值取各曲線的中位數。" if report_type == "wifi_rvr"
                        else "每個範圍取各通道吞吐量的中位數、最小、最大；agreement 為兩份報告都測到的通道中，變動達門檻的筆數。"),
             "thresholds": {"pct": th.pct, "cliff_db": th.cliff_db, "cliff_ratio": CLIFF_RATIO},
+            "noise": {"applied": bool(spread), "history_runs": len(history or []), "scopes_with_spread": len(spread), "k": noise.K, "min_history": noise.MIN_HISTORY},
             "scopes_total": len(scopes), "scopes_complete": sum(1 for s in scopes if s["complete"]),
             "scopes_notable": sum(1 for s in scopes if s["complete"] and s["notable"]), "scopes_unchanged": sum(1 for s in scopes if s["complete"] and not s["notable"]),
             "scopes_partial": [s["scope"] for s in scopes if not s["complete"]], "scopes": shown}

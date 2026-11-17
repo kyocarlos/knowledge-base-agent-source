@@ -27,7 +27,8 @@ SYSTEM_PROMPT = """你是 CSIT 測試報告的根因分析（RCA）助理。你�
 7. 證據包若有 findings，那是程式整理好的重點（P#）：每個 P# 是一個「頻段＋頻寬＋方向」範圍。只談 findings 裡的範圍，不要另外找題目；observations 最多 5 條、hypotheses 最多 3 個、summary 最多 2 句。每個假設的 supports 至少要有一個 P#，說明它在解釋哪個範圍的變化。
    RvR 的 peak 是曲線最高的吞吐量，cliff 是吞吐量掉到峰值一半以下的衰減值（dB，數字越小代表越早掉）；Throughput 的 agreement 表示兩份報告都測到的通道中，變動達門檻的筆數，higher/lower 一致代表整個範圍同向變動，混雜代表只是個別通道的波動。
    證據包的 mode 為 describe 時（報告之間不只一個變因不同），這是「差異描述」而非根因分析：重點放在 observations；hypotheses 最多 2 個，信心一律 low，且只能寫成「待驗證的候選因素」。
-8. 證據包沒有解釋到的差異放進 unexplained；資料品質問題（Q#）、涵蓋缺口與單位不符放進 data_gaps，不要略過。
+8. 證據包的 noise 說明門檻是否已依同產品歷史報告的自然波動調整；applied 為 false 代表歷史報告不足、沿用固定門檻，此時不要宣稱某個差異「超出正常波動」。範圍（scope）若帶有 noise，threshold_pct 是該範圍實際採用的門檻。
+   證據包沒有解釋到的差異放進 unexplained；資料品質問題（Q#）、涵蓋缺口與單位不符放進 data_gaps，不要略過。
 9. 以繁體中文回答，輸出單一 JSON 物件，不要加說明文字或程式碼區塊。格式：
 {"summary": "...", "observations": [{"text": "...", "evidence": ["D1"]}],
  "hypotheses": [{"cause": "...", "mechanism": "...", "supports": ["F1","D1"], "against": [], "missing_evidence": ["..."], "confidence": "low", "verify_steps": ["..."]}],
@@ -161,7 +162,7 @@ def verify(analysis: Any, pack: dict, texts: dict[str, dict] | None = None, ques
     return {"ok": not violations, "violations": violations, "warnings": warnings, "analysis": analysis if not violations else None}
 
 
-PROMPT_KEYS = ("runs", "factors", "confounded", "confounded_note", "counts", "diffs", "coverage", "result_changes", "criteria_changes", "quality", "directions_defined", "findings")
+PROMPT_KEYS = ("runs", "factors", "confounded", "confounded_note", "counts", "diffs", "coverage", "result_changes", "criteria_changes", "quality", "directions_defined", "findings", "noise")
 
 
 def prompt_view(pack: dict) -> dict:
@@ -173,7 +174,7 @@ def prompt_view(pack: dict) -> dict:
         view["result_changes"] = view.get("result_changes", [])[:10]
         view["criteria_changes"] = view.get("criteria_changes", [])[:10]
         f = pack["findings"]
-        view["findings"] = {k: f[k] for k in ("focus", "method", "thresholds", "scopes_total", "scopes_complete", "scopes_notable", "scopes_unchanged", "scopes_partial") if k in f}
+        view["findings"] = {k: f[k] for k in ("focus", "method", "thresholds", "scopes_total", "scopes_complete", "scopes_notable", "scopes_unchanged", "scopes_partial", "noise") if k in f}
         view["findings"]["scopes"] = [{k: v for k, v in sc.items() if k not in ("key", "magnitude", "complete", "notable")} for sc in f["scopes"]]
         view["mode"] = analysis_mode(pack)
     return view

@@ -11,6 +11,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from . import findings as fnd_mod
+from . import noise
 from . import query as q
 
 MAX_RUNS = 6
@@ -33,12 +34,14 @@ class Thresholds:
         "rssi": {"abs": 3.0}, "latency_rtt": {"pct": 10.0}, "pass_rate": {"abs": 0.05},
         "pass_count": {"abs": 1.0}, "fail_count": {"abs": 1.0}, "total_count": {"abs": 1.0}})
 
-    def notable(self, metric: str, base: float, value: float) -> bool:
+    def notable(self, metric: str, base: float, value: float, noise_pct: float | None = None) -> bool:
         rule = self.per_metric.get(metric, {})
         delta = value - base
         if "abs" in rule and abs(delta) >= rule["abs"]:
             return True
         pct = rule.get("pct", self.pct) if "abs" not in rule else None
+        if pct is not None:
+            pct = noise.effective(pct, noise_pct)   # history may only raise the bar, never lower it
         if pct is not None and base != 0 and abs(delta) / abs(base) * 100 >= pct:
             return True
         return pct is not None and base == 0 and delta != 0
@@ -82,6 +85,61 @@ def load_runs(conn, run_ids: list[str], roles=q.DEFAULT_ROLES) -> list[dict]:
                                          FROM km_test.test_condition WHERE test_run_id = %(r)s""", {"r": i})
         out.append(r)
     return out
+
+
+HISTORY_LIMIT = 20
+
+
+def load_history(conn, runs: list[dict], roles=q.DEFAULT_ROLES, limit: int = HISTORY_LIMIT) -> list[dict]:
+    """Other published reports of the same report type and product(s) as the selected ones, newest first, measurements only. They are the sample from which
+    the natural spread of each value is estimated; the selected reports are never part of it. Read-only and role-filtered like load_runs."""
+    products = sorted({r["product_id"] for r in runs if r.get("product_id")})
+    if not products:
+        return []
+    rows = _rows(conn, """SELECT test_run_id FROM km_test.test_run WHERE report_type = %(t)s AND product_id = ANY(%(p)s) AND NOT (test_run_id = ANY(%(ids)s))
+                             AND access_roles && %(roles)s AND publish_status = 'published' ORDER BY test_date DESC NULLS LAST, test_run_id LIMIT %(n)s""",
+                 {"t": runs[0]["report_type"], "p": products, "ids": [r["test_run_id"] for r in runs], "roles": list(roles), "n": int(limit)})
+    out = []
+    for row in rows:
+        out.append({"test_run_id": row["test_run_id"], "measurements": _rows(conn, """SELECT test_case_id, metric_name, value, unit, value_basis, band, bandwidth_mhz, channel,
+                direction, attenuation_db, angle_deg, traffic_mode, protocol, statistic, sample_index, wireless_mode, time_slot
+            FROM km_test.test_measurement WHERE test_run_id = %(r)s""", {"r": row["test_run_id"]})})
+    return out
+
+
+def _history_noise(history: list[dict] | None) -> dict[tuple, float]:
+    """Natural spread (% of the median) of each aligned measurement key over the history; keys with too little history are left out."""
+    if not history or len(history) < noise.MIN_HISTORY:
+        return {}
+    tables = []
+    for r in history:
+        tables.append({_key(m, KEY_DIMS): m["value"] for m in r["measurements"] if m.get("value") is not None})
+    out = {}
+    for k in {k for t in tables for k in t}:
+        pct = noise.relative_pct([t[k] for t in tables if k in t])
+        if pct is not None:
+            out[k] = pct
+    return out
+
+
+def build_pack(conn, run_ids: list[str], roles=q.DEFAULT_ROLES, focus: dict | None = None) -> dict:
+    """The one way every caller builds a pack: selected reports, metric directions, and (when it can be read) the history that sets the noise threshold.
+    A history that cannot be read never stops a comparison; the fixed thresholds simply stay."""
+    runs = load_runs(conn, run_ids, roles)
+    try:
+        history = load_history(conn, runs, roles)
+    except Exception:  # noqa: BLE001
+        history = None
+    return compare_runs(runs, load_directions(conn), focus=focus, history=history)
+
+
+def noise_note(history: list[dict] | None, keys_with_spread: int) -> dict:
+    n = len(history or [])
+    if n < noise.MIN_HISTORY:
+        return {"applied": False, "history_runs": n, "min_history": noise.MIN_HISTORY,
+                "note": f"同產品、同報告類型的歷史報告只有 {n} 份（至少需要 {noise.MIN_HISTORY} 份），沿用固定門檻，不依歷史波動調整。"}
+    return {"applied": True, "history_runs": n, "k": noise.K, "keys_with_spread": keys_with_spread,
+            "note": f"門檻取固定門檻與歷史自然波動 {noise.K:g} 倍中較大者；歷史來自同產品 {n} 份報告（含可能的真實變動，所以只會讓判斷更保守）。"}
 
 
 def error_summary(quality: Any) -> list[dict]:
@@ -135,8 +193,9 @@ def _assess(metric: str, base: float, value: float, directions: dict[str, bool |
 
 
 def compare_runs(runs: list[dict], directions: dict[str, bool | None] | None = None, thresholds: Thresholds | None = None, top: int = 40,
-                 focus: dict | None = None) -> dict:
-    """runs[0] is the baseline. Returns the evidence pack described in the module docstring."""
+                 focus: dict | None = None, history: list[dict] | None = None) -> dict:
+    """runs[0] is the baseline. Returns the evidence pack described in the module docstring. `history` (load_history) lets the notable-difference
+    threshold follow each value's normal spread; without enough of it the fixed thresholds apply and the pack says so."""
     if not 2 <= len(runs) <= MAX_RUNS:
         raise CompareError(f"需要 2 到 {MAX_RUNS} 份報告")
     types = {r["report_type"] for r in runs}
@@ -186,6 +245,7 @@ def compare_runs(runs: list[dict], directions: dict[str, bool | None] | None = N
             index[k] = m
         tables.append((index, dup))
     all_keys = sorted({k for t, _ in tables for k in t}, key=lambda k: tuple("" if x is None else str(x) for x in k))
+    spread = _history_noise(history)
     diffs, only_some, unchanged = [], [], 0
     for k in all_keys:
         row = {d: v for d, v in zip(KEY_DIMS, k)}
@@ -207,7 +267,7 @@ def compare_runs(runs: list[dict], directions: dict[str, bool | None] | None = N
             v = c["value"]
             delta = v - b if i else 0.0
             pct = (delta / abs(b) * 100) if (i and b != 0) else None
-            notable = bool(i) and thresholds.notable(row["metric_name"], b, v)
+            notable = bool(i) and thresholds.notable(row["metric_name"], b, v, spread.get(k))
             assess = "baseline" if i == 0 else _assess(row["metric_name"], b, v, directions, notable)
             per_run.append({"run": i, "value": v, "delta": delta if i else None, "delta_pct": pct, "assessment": assess, "source": _cell(c)})
             if notable and (worst is None or abs(pct if pct is not None else delta) > worst):
@@ -217,6 +277,7 @@ def compare_runs(runs: list[dict], directions: dict[str, bool | None] | None = N
             continue
         eid = add("D", {"kind": "measurement", "label": _label(row), "metric": row["metric_name"], "unit": cells[0]["unit"], "per_run": per_run})
         diffs.append({"id": eid, "label": _label(row), "key": row, "metric": row["metric_name"], "unit": cells[0]["unit"], "per_run": per_run, "magnitude": worst,
+                      **({"noise_pct": round(spread[k], 2)} if k in spread else {}),
                       "worst_assessment": next((p["assessment"] for p in per_run if p["assessment"] == "regression"), None)
                       or next((p["assessment"] for p in per_run if p["assessment"] == "changed"), "improvement")})
     diffs.sort(key=lambda d: -d["magnitude"])
@@ -255,7 +316,7 @@ def compare_runs(runs: list[dict], directions: dict[str, bool | None] | None = N
             quality.append({"id": add("Q", {"kind": "duplicate_keys", "run": i, "count": tables[i][1]}), "run": i, "duplicate_keys": tables[i][1]})
 
     # ---- findings: the few scopes (band / bandwidth / direction) the model is shown instead of every aligned row ----
-    fnd = fnd_mod.build(runs, runs[0]["report_type"], focus)
+    fnd = fnd_mod.build(runs, runs[0]["report_type"], focus, history=history)
     if fnd:
         for sc in fnd["scopes"]:
             sc["id"] = add("P", {"kind": "pattern", "label": sc["scope"], "unit": sc["unit"], "per_run": sc["per_run"]})
@@ -270,5 +331,5 @@ def compare_runs(runs: list[dict], directions: dict[str, bool | None] | None = N
             "criteria_changes": criteria_changes[:top], "quality": quality, "evidence": evidence,
             "thresholds": {"pct": thresholds.pct, "per_metric": thresholds.per_metric},
             "directions_defined": sorted(m for m, v in directions.items() if v is not None),
-            "findings": fnd, "model_ids": model_ids,
+            "findings": fnd, "model_ids": model_ids, "noise": noise_note(history, len(spread)),
             "note": "higher_is_better 未定義的指標只標示『changed』，不判斷好壞。"}

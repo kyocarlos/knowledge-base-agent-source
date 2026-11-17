@@ -110,7 +110,7 @@ def create_router(connect: Callable | None = None, tasks: TaskQueue | None = Non
 
     def _pack(conn, run_ids: list[str], focus: dict | None = None) -> dict:
         try:
-            return compare.compare_runs(compare.load_runs(conn, run_ids, roles_()), compare.load_directions(conn), focus=focus)
+            return compare.build_pack(conn, run_ids, roles_(), focus)
         except compare.CompareError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from None
 
