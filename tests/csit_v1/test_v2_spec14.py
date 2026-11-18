@@ -465,3 +465,42 @@ def test_outbound_scopes_are_configurable_and_analysis_is_off_by_default(dsettin
     os.environ["KM_CSIT_OUTBOUND_SCOPES"]="csit.document.read,csit.km.status.write,csit.km.deletion-status.write"
     try:assert Settings.from_env().outbound_scopes==("csit.document.read","csit.km.status.write","csit.km.deletion-status.write")
     finally:del os.environ["KM_CSIT_OUTBOUND_SCOPES"]
+
+
+# ---------- equipmentId is CSIT's text equipment number, not a UUID (HTTP 400 fix, 2026-11-18) ----------
+EQ_ID = "A202611010810254176647"
+
+def test_equipment_text_number_passes_job_and_deletion_and_is_stored_unchanged(client, vrepo):
+    job = job_body("EquipmentAttachment")
+    job["source"]["equipmentId"] = EQ_ID
+    assert client.post(JOBS, json=job, headers=auth()).status_code == 202
+    b = del_body(job)
+    b["resource"]["equipmentId"] = EQ_ID
+    r = client.post(DELS, json=b, headers={**auth("deletions"), "Idempotency-Key": b["deletionRequestId"]})
+    assert r.status_code == 202 and r.json()["status"] == "Accepted"
+    with vrepo.connect() as c:
+        d = c.execute("SELECT request_payload,resource FROM km_csit_deletion_jobs WHERE deletion_request_id=%s", (b["deletionRequestId"],)).fetchone()
+        j = c.execute("SELECT request_payload FROM km_csit_v2_jobs").fetchone()
+    assert d["request_payload"]["resource"]["equipmentId"] == EQ_ID and d["resource"]["equipmentId"] == EQ_ID
+    assert j["request_payload"]["source"]["equipmentId"] == EQ_ID
+
+def test_equipment_id_is_kept_verbatim_by_the_resource_model():
+    from src.csit_integration_v1.v2_models import V2Resource
+    base = {"sourceType": "EquipmentAttachment", "sourceEntityId": str(uuid.uuid4()), "documentId": str(uuid.uuid4()), "version": 1, "sha256": SHA(b"x"),
+            "applicationId": None, "recordId": None, "vendorId": None, "canonicalIngestionEventId": str(uuid.uuid4()), "scope": "DocumentVersion"}
+    res = V2Resource.model_validate({**base, "equipmentId": EQ_ID})
+    assert res.equipmentId == EQ_ID and res.wire()["equipmentId"] == EQ_ID and res.exec_resource()["equipmentId"] == EQ_ID    # the callback echoes wire()
+    u = str(uuid.uuid4())
+    assert V2Resource.model_validate({**base, "equipmentId": u}).wire()["equipmentId"] == u                                   # UUID-shaped ids still work, as text
+    assert V2Resource.model_validate({**base, "equipmentId": None}).wire()["equipmentId"] is None
+    assert V2Resource.model_validate({**base, "equipmentId": "E" * 128}).equipmentId == "E" * 128
+
+@pytest.mark.parametrize("bad", ["", "A\nB", "A\x00B", "E" * 129])
+def test_bad_equipment_id_is_still_rejected_with_400(client, bad):
+    job = job_body("EquipmentAttachment")
+    b = del_body(job)
+    b["resource"]["equipmentId"] = bad
+    assert client.post(DELS, json=b, headers=auth()).status_code == 400
+    j = job_body("EquipmentAttachment")
+    j["source"]["equipmentId"] = bad
+    assert client.post(JOBS, json=j, headers=auth()).status_code == 400
