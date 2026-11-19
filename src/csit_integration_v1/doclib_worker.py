@@ -66,7 +66,7 @@ class DocLibWorker:
         p=delivery["payload"]
         ids={k:p[k] for k in ("eventId","csitJobId","kmJobId","changeId","kmChangeJobId","deletionRequestId","kmDeletionJobId","analysisResultId","documentId","version") if k in p}
         entry={"callbackId":str(delivery["callback_id"]),"kind":delivery["kind"],"attempt":delivery["attempt_count"],
-               "status":p.get("status"),"lastErrorCode":error.code if error else None,**({"ids":ids} if error else {})}
+               "status":p.get("status"),"lastErrorCode":error.code if error else None,**({"ids":ids,"detail":error.message} if error else {})}
         (logger.warning if error else logger.info)(json.dumps(entry))
         return True
     def run(self,stop_event):
