@@ -3,6 +3,7 @@ import hashlib,json,shutil,uuid
 from datetime import datetime,timezone
 from pathlib import Path
 from .embedding_text import embedding_text
+from . import pdf_ocr
 from .errors import IntegrationError,LeaseLost
 from .pipeline import FORMAT_MIME,validate_file,normalize,stable_id
 from .v2_pipeline import V2Parser,validate_v2_file
@@ -68,7 +69,9 @@ class DocLibPipeline:
         if suffix in EXTRA_SUFFIXES:validate_v2_file(path,suffix,job["original_file_name"],s)
         else:validate_file(path,{"file_name":job["original_file_name"],"content_type":FORMAT_MIME[suffix]},s)
         self.repo.phase(job,"Parsing")
-        extraction=normalize(self.parser.parse(path,suffix),job,())
+        parsed=self.parser.parse(path,suffix)
+        if suffix==".pdf":parsed,_pdf_ocr_warning,_pdf_ocr_used=pdf_ocr.apply(parsed,path,root)
+        extraction=normalize(parsed,job,())
         if not extraction.text.strip():raise IntegrationError("EMPTY_EXTRACTION","No text could be extracted from the document")
         semantic=None
         if self.semantic:
