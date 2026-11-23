@@ -6,6 +6,7 @@ import json,re,shutil,zipfile
 from datetime import datetime,timezone
 from html import unescape
 from pathlib import Path
+from .embedding_text import embedding_text
 from .errors import IntegrationError,LeaseLost
 from .pipeline import FORMAT_MIME,Parser,Extraction,validate_file,check_ooxml,normalize,stable_id
 from .doclib_metadata import detect_language,clean_semantic,semantic_warning,_page_count
@@ -191,7 +192,7 @@ class V2QdrantWriter:
         from qdrant_client.models import PointStruct
         ident=identity_payload(job)
         chunks=[text[i:i+self.chunk_size] for i in range(0,len(text),self.chunk_size) if text[i:i+self.chunk_size].strip()]
-        vectors=self.embedder(chunks) if chunks else []
+        vectors=self.embedder([embedding_text(c) for c in chunks]) if chunks else []
         if len(vectors)!=len(chunks):raise IntegrationError("EMBEDDING_INVALID","Embedding result shape invalid")
         req=job["request_payload"]
         cls={k:(v or {}).get("name") for k,v in (req.get("classification") or {}).items() if isinstance(v,dict) or v is None}

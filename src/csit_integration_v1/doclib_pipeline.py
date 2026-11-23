@@ -2,6 +2,7 @@
 import hashlib,json,shutil,uuid
 from datetime import datetime,timezone
 from pathlib import Path
+from .embedding_text import embedding_text
 from .errors import IntegrationError,LeaseLost
 from .pipeline import FORMAT_MIME,validate_file,normalize,stable_id
 from .v2_pipeline import V2Parser,validate_v2_file
@@ -31,7 +32,7 @@ class DocLibQdrantWriter:
         from qdrant_client.models import PointStruct
         fid=str(job["document_file_id"])
         chunks=[text[i:i+self.chunk_size] for i in range(0,len(text),self.chunk_size) if text[i:i+self.chunk_size].strip()]
-        vectors=self.embedder(chunks)
+        vectors=self.embedder([embedding_text(c) for c in chunks])
         if len(vectors)!=len(chunks):raise IntegrationError("EMBEDDING_INVALID","Embedding result shape invalid")
         cls=(job["request_payload"].get("classification") or {})
         names={k:(v or {}).get("name") for k,v in cls.items() if isinstance(v,dict) or v is None}
