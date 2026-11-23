@@ -12,11 +12,11 @@ from concurrent.futures import ThreadPoolExecutor
 from functools import lru_cache
 from typing import Annotated
 
-from fastapi import APIRouter, HTTPException, Query, Request, UploadFile
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, UploadFile
 from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel, Field
 
-from ..csit_integration_v1.zones import PAGE_KEY, UNCLASSIFIED, ZONE_BY_ID, search_names
+from ..csit_integration_v1.zones import PAGE_KEY, UNCLASSIFIED, ZONES, ZONE_BY_ID, search_names
 from ..wifi8 import feedback, progress, userfiles
 from ..zone_pages import views
 from ..zone_pages.agent import TaskStore, ZoneAgent
@@ -25,7 +25,24 @@ from ..zone_pages.digest import DigestService
 from ..zone_pages.stats import ReportStats
 
 logger = logging.getLogger("km.zones")
-router = APIRouter(prefix="/api/zones/{zone}", tags=["Knowledge zones"])
+
+
+def _gate(zone: str, request: Request) -> None:
+    """Zone-level permission, checked before anything else on every zone route: an account that was not granted the zone gets 403 and nothing of it
+    (documents, search, answers, attachments). Off while KM_ZONE_ACL_ENFORCE is off."""
+    from ..zone_pages import acl
+    if not acl.enforce_enabled():
+        return
+    zone_id = PAGES.get(zone)
+    if zone_id is None:
+        raise HTTPException(status_code=404, detail="no such zone")
+    allowed = acl.zones_for(_identity(request), lookup=acl.control_zone_lookup)
+    if allowed is not None and zone_id not in allowed:
+        raise HTTPException(status_code=403, detail="您沒有這個專區的權限。如需使用,請向 KM 管理者申請。")
+
+
+router = APIRouter(prefix="/api/zones/{zone}", tags=["Knowledge zones"], dependencies=[Depends(_gate)])
+access_router = APIRouter(prefix="/api", tags=["Knowledge zones"])
 PAGES = {PAGE_KEY.get(z, z): z for z in ZONE_BY_ID if z != "wifi"}      # page id -> zone id (the page "csit" is 產品驗證專區)
 _pool = ThreadPoolExecutor(max_workers=4, thread_name_prefix="zone-agent")
 
@@ -39,11 +56,26 @@ def _zone(zone: str) -> tuple[str, str, list[str]]:
     return zone_id, ZONE_BY_ID[zone_id], names + ([UNCLASSIFIED[1]] if zone_id == "verification" else [])
 
 
+@access_router.get("/zone-access")
+def zone_access(request: Request):
+    """The zones the signed-in account may enter: what the left navigation shows (a zone that is not listed is not shown and cannot be opened)."""
+    from ..zone_pages import acl
+    allowed = acl.zones_for(_identity(request), lookup=acl.control_zone_lookup)
+    return {"enforced": allowed is not None,
+            "zones": [{"id": z, "page": PAGE_KEY.get(z, z), "label": name} for z, name in ZONES if allowed is None or z in allowed]}
+
+
 def _identity(request: Request) -> dict:
     identity = getattr(request.state, "km_identity", None)
     if not identity:
         raise HTTPException(status_code=401, detail="KM login required")
     return identity
+
+
+def _v(request: Request):
+    """Who is asking, as the document permissions see them (None while KM_ZONE_ACL_ENFORCE is off). Taken from the signed-in session only."""
+    from ..zone_pages import acl
+    return acl.viewer_for(_identity(request), lookup=acl.control_lookup)
 
 
 def _owner(identity: dict) -> dict:
@@ -56,7 +88,8 @@ def _catalog() -> ZoneCatalog:
     store = VectorStore()
     if not store.available or store.client is None:
         raise HTTPException(status_code=503, detail="向量檢索目前無法使用")
-    return ZoneCatalog(store.client, store.encode)
+    from ..zone_pages import acl
+    return ZoneCatalog(store.client, store.encode, enforce=acl.enforce_enabled())
 
 
 def _redis():
@@ -95,23 +128,23 @@ def _digest() -> DigestService:
 
 @router.get("/overview")
 async def zone_overview(zone: str, request: Request):
-    _identity(request)
+    v = _v(request)
     _, label, names = _zone(zone)
-    docs = await run_in_threadpool(lambda: _catalog().documents(names))
+    docs = await run_in_threadpool(lambda: _catalog().documents(names, viewer=v))
     return views.overview(docs, label)
 
 
 @router.get("/documents")
 async def zone_documents(zone: str, request: Request, query: str = "", publisher: str | None = None, document_role: str | None = None, include_history: str = "",
                          page: int = Query(1, ge=1), page_size: int = Query(20, ge=1, le=100)):
-    _identity(request)
+    v = _v(request)
     _, _, names = _zone(zone)
-    docs = await run_in_threadpool(lambda: _catalog().documents(names))
+    docs = await run_in_threadpool(lambda: _catalog().documents(names, viewer=v))
     return views.list_documents(docs, query=query, publisher=publisher, role=document_role, history=include_history in ("on", "true", "1"), page=page, size=page_size)
 
 
-def _doc(zone_names: list[str], revision_id: str) -> dict:
-    doc = _catalog().document(zone_names, revision_id)
+def _doc(zone_names: list[str], revision_id: str, viewer=None) -> dict:
+    doc = _catalog().document(zone_names, revision_id, viewer=viewer)
     if doc is None:
         raise HTTPException(status_code=404, detail="document not found")
     return doc
@@ -119,21 +152,21 @@ def _doc(zone_names: list[str], revision_id: str) -> dict:
 
 @router.get("/documents/{revision_id:path}/chunks")
 async def zone_document_chunks(zone: str, revision_id: str, request: Request, count: int = Query(8, ge=1, le=200), figures: str = ""):
-    _identity(request)
+    v = _v(request)
     _, _, names = _zone(zone)
     if figures in ("true", "1"):
         return {"chunks": [], "total": 0}                       # no figures are extracted from CSIT documents
-    doc = await run_in_threadpool(lambda: _doc(names, revision_id))
-    rows, total = await run_in_threadpool(lambda: _catalog().chunks(doc, count))
+    doc = await run_in_threadpool(lambda: _doc(names, revision_id, v))
+    rows, total = await run_in_threadpool(lambda: _catalog().chunks(doc, count, viewer=v))
     return {"chunks": rows, "total": total}
 
 
 @router.get("/documents/{revision_id:path}")
 async def zone_document(zone: str, revision_id: str, request: Request):
-    _identity(request)
+    v = _v(request)
     _, _, names = _zone(zone)
-    doc = await run_in_threadpool(lambda: _doc(names, revision_id))
-    return {"document": views.doc_view(doc), "versions": [views.doc_view(d) for d in _catalog().versions(names, doc)]}
+    doc = await run_in_threadpool(lambda: _doc(names, revision_id, v))
+    return {"document": views.doc_view(doc), "versions": [views.doc_view(d) for d in _catalog().versions(names, doc, viewer=v)]}
 
 
 class SearchBody(BaseModel):
@@ -144,19 +177,19 @@ class SearchBody(BaseModel):
 
 @router.post("/search")
 async def zone_search(zone: str, body: SearchBody, request: Request):
-    _identity(request)
+    v = _v(request)
     _, _, names = _zone(zone)
-    hits = await run_in_threadpool(lambda: _catalog().search(body.query.strip(), names, body.top_k, body.include_history))
+    hits = await run_in_threadpool(lambda: _catalog().search(body.query.strip(), names, body.top_k, body.include_history, viewer=v))
     return {"policy": "向量檢索（專區內）", "results": [views.search_result(h) for h in hits]}
 
 
 @router.get("/feed")
 async def zone_feed(zone: str, request: Request):
-    _identity(request)
+    v = _v(request)
     _, label, names = _zone(zone)
 
     def work():
-        docs = _catalog().documents(names)
+        docs = _catalog().documents(names, viewer=v)
         return views.feed(docs, _digest().build(label, docs))
 
     return await run_in_threadpool(work)
@@ -177,7 +210,7 @@ class AgentBody(BaseModel):
 
 
 def _run(task_id: str, zone_label: str, names: list[str], body: AgentBody, owner: dict, records: dict, with_stats: bool = False,
-         custom=None, profile=None) -> None:
+         custom=None, profile=None, viewer=None) -> None:
     redis = _redis()
     emit = progress.Emitter(redis, task_id)
     store = TaskStore(redis)
@@ -185,7 +218,7 @@ def _run(task_id: str, zone_label: str, names: list[str], body: AgentBody, owner
         complete = custom if custom is not None else _complete()     # custom: the model the asker chose (already checked against the zone's policy)
         agent = ZoneAgent(_catalog(), complete, stats=_stats(complete) if with_stats and complete else None)
         result = agent.answer(task_id=task_id, zone_label=zone_label, zone_names=names, question=body.question.strip(), history=[t.model_dump() for t in body.history],
-                              owner=owner, file_records=records, emit=emit, with_stats=with_stats)
+                              owner=owner, file_records=records, emit=emit, with_stats=with_stats, viewer=viewer)
         if profile is not None:
             result["llm"] = {"profile": profile.id, "label": profile.label}
         store.save(task_id, result)
@@ -200,6 +233,7 @@ def _run(task_id: str, zone_label: str, names: list[str], body: AgentBody, owner
 @router.post("/agent", status_code=202)
 async def zone_ask(zone: str, body: AgentBody, request: Request):
     owner = _owner(_identity(request))
+    viewer = _v(request)
     zone_id, label, names = _zone(zone)
     file_ids = list(dict.fromkeys(body.file_ids))
     if not all(userfiles.FILE_ID.match(i) for i in file_ids):
@@ -216,7 +250,7 @@ async def zone_ask(zone: str, body: AgentBody, request: Request):
         raise llm_profiles.http_error(exc) from exc
     task_id = str(uuid.uuid4())
     progress.register(_redis(), task_id, owner)
-    _pool.submit(_run, task_id, label, names, body, owner, records, zone_id == "verification", custom, profile)
+    _pool.submit(_run, task_id, label, names, body, owner, records, zone_id == "verification", custom, profile, viewer)
     return {"task_id": task_id, "status": "submitted", "stream": True, "feedback": _feedback_enabled()}
 
 

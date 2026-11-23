@@ -109,6 +109,10 @@ def create_app(sim:Sim)->FastAPI:
     def inspect():
         if sim.inspect is None:raise HTTPException(404,"KM inspection is only available in the local demo")
         return sim.inspect()
+    @app.get("/api/units")
+    def units():
+        """The organisation unit list CSIT would provide to KM (code,name). KM imports it; a document's accessControl names units by these codes."""
+        return {"units":[{"code":"HR","name":"人資部"},{"code":"RD","name":"研發部"},{"code":"QA","name":"品保部"},{"code":"FIN","name":"財務部"},{"code":"ENG-WIFI","name":"研發部/無線組"}]}
     @app.post("/api/reset")
     def reset():sim.reset();return {"ok":True}
     @app.get("/",response_class=HTMLResponse)

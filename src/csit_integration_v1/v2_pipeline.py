@@ -168,7 +168,10 @@ def metadata_payload(change_payload):
     # A document moved to another CSIT classification moves to the zone that classification maps to; when the table does not decide, the zone KM chose from the content stays.
     zone_id=zone_by_classification(names["l1"],names["l2"],names["l3"]) if change_payload.get("sourceType")!="TestReport" else None
     if zone_id:out.update({"zone_id":zone_id,"topic_zone":ZONE_BY_ID[zone_id],"zone_basis":"classification_table"})
+    out.update(acl_payload(change_payload)) # only when the change carries accessControl: otherwise the stored permission stays as it is
     return out
+
+from .access_control import acl_payload
 
 class V2QdrantWriter:
     """Chunks go to the document-library collection stamped with the exact source identity (source, entity, document, version)."""
@@ -178,7 +181,7 @@ class V2QdrantWriter:
         self.extra_collections=tuple(extra_collections) # Test Report v1 vectors live in the report collections
     def ensure_index(self):
         from qdrant_client.models import PayloadSchemaType
-        for field in self.FIELDS+("zone_id","topic_zone"):
+        for field in self.FIELDS+("zone_id","topic_zone","acl_mode","allowed_principals"):
             try:self.client.create_payload_index(self.collection,field,field_schema=PayloadSchemaType.INTEGER if field=="document_version" else PayloadSchemaType.KEYWORD)
             except Exception:pass
     @staticmethod
@@ -197,7 +200,7 @@ class V2QdrantWriter:
         cls={k:(v or {}).get("name") for k,v in (req.get("classification") or {}).items() if isinstance(v,dict) or v is None}
         ids={k:(v or {}).get("id") for k,v in (req.get("classification") or {}).items() if isinstance(v,dict) or v is None}
         src=req.get("source") or {}
-        extra={"classification":cls,"classification_ids":ids,**zone_fields(job["source_type"],cls,semantic,text),**(overrides or {})}
+        extra={"classification":cls,"classification_ids":ids,**zone_fields(job["source_type"],cls,semantic,text),**acl_payload(req),**(overrides or {})}
         # A re-ingest of the same version replaces its points instead of accumulating stale ones.
         self.client.delete(self.collection,points_selector=self.flt(job["source_entity_id"],job["document_id"],job["version"]),wait=True)
         points=[PointStruct(id=stable_id("CSIT",job["source_type"],str(job["source_entity_id"]),str(job["document_id"]),job["version"],job["expected_sha256"],"chunk",i),
@@ -227,6 +230,11 @@ class V2QdrantWriter:
         self.client.set_payload(self.collection,payload=payload,wait=True,
             points=Filter(must=[FieldCondition(key="document_file_id",match=MatchValue(value=str(document_id)))]))
     def apply_metadata(self,flt,payload):
+        if "acl_version" in payload:
+            # A permission change that is not newer than what the points hold is ignored (an old or replayed change must not undo a newer one).
+            from qdrant_client.models import FieldCondition,Filter,IsEmptyCondition,PayloadField,Range
+            flt=Filter(must=[flt,Filter(should=[IsEmptyCondition(is_empty=PayloadField(key="acl_version")),
+                                                FieldCondition(key="acl_version",range=Range(lt=payload["acl_version"]))])])
         self.client.set_payload(self.collection,payload=payload,points=flt,wait=True)
 
 class V2Pipeline:

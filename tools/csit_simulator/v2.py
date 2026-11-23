@@ -198,6 +198,26 @@ class V2Mixin:
         return answer(204,None,d["id"])
 
     # ---------- documents ----------
+    # ---- document-level read permission (accessControl): what CSIT would send so KM can enforce who may read a document ----
+    def _principal_issuer(self):
+        return getattr(getattr(self,"identity",None),"issuer",None) or __import__("os").environ.get("SIM_ISSUER") or "https://csit-sim:8443/"
+    def _access_from(self,ac,version=1):
+        """spec {"mode":"Public"|"Restricted","principals":"alice, group:hr, role:auditor"} -> the wire object; None = send nothing (an old-style document)."""
+        if not ac:return None
+        if not isinstance(ac,dict) or ac.get("mode") not in ("Public","Restricted"):raise HTTPException(400,"accessControl.mode must be Public or Restricted")
+        raw=ac.get("principals") or ""
+        items=raw if isinstance(raw,list) else str(raw).replace(";",",").split(",")
+        out=[]
+        for it in items:
+            if isinstance(it,dict):
+                out.append({"type":it.get("type","User"),"id":str(it["id"]),"issuer":it.get("issuer") or self._principal_issuer()});continue
+            t=str(it).strip()
+            if not t:continue
+            kind="User"
+            for pre,k in (("unit:","Unit"),("group:","Group"),("g:","Group"),("role:","Role"),("user:","User"),("u:","User")):
+                if t.lower().startswith(pre):kind=k;t=t[len(pre):].strip();break
+            out.append({"type":kind,"id":t,"issuer":None if kind=="Unit" else self._principal_issuer()})
+        return {"mode":ac["mode"],"version":int(version),"allowedPrincipals":out if ac["mode"]=="Restricted" else []}
     def _v2_fields(self,spec,d):
         st=spec.get("sourceType","DocumentLibraryFile")
         if st not in ("DocumentLibraryFile","TestReport") and st not in SOURCE_TYPES_V2:raise HTTPException(400,"unknown sourceType "+str(st))
@@ -229,6 +249,10 @@ class V2Mixin:
         self._send_job_v2(d,self.jobs[cid]);self._save();return self.view(d)
 
     def _job_body(self,d,job):
+        body=self._job_body_base(d,job)
+        if d.get("access"):body["accessControl"]=d["access"]
+        return body
+    def _job_body_base(self,d,job):
         f=d["faults"];st=d["sourceType"]
         old=self.docs.get(d["supersedesDocId"]) if d["supersedesDocId"] else None
         return {"schemaVersion":"2.0","eventId":job["eventId"],"csitJobId":job["csitJobId"],"eventType":EVENT_TYPE[st],"sourceSystem":"CSIT",
@@ -291,12 +315,17 @@ class V2Mixin:
             if k in spec:attrs[k]=[str(x) for x in spec[k]]
         for k in ("displayName","vendorReference"):
             if k in spec:attrs[k]=spec[k] or None
+        new_access=d.get("access")
+        if "accessControl" in spec:
+            new_access=self._access_from(spec["accessControl"],(d["access"]["version"]+1) if d.get("access") else 1)
+        same=lambda a,b:(a is None and b is None) or (a is not None and b is not None and a["mode"]==b["mode"] and a["allowedPrincipals"]==b["allowedPrincipals"])
         changed=[]
+        if not same(new_access,d.get("access")):changed.append("accessControl")
         if cls!=before["classification"]:changed.append("classification")
         changed+=["attributes."+k for k in attrs if attrs[k]!=before["attributes"][k]]
         if not changed:raise HTTPException(409,"nothing changed")
         with self.lock:
-            d["classification"]=cls;d["attributes"]=attrs;d["revision"]+=1
+            d["classification"]=cls;d["attributes"]=attrs;d["revision"]+=1;d["access"]=new_access
             cid=str(uuid.uuid4())
             x={"changeId":cid,"docId":d["id"],"revision":d["revision"],"kmChangeJobId":None,"state":"New","callbacks":[],"verdicts":[],"timeline":[]}
             self.changes[cid]=x;d["changeIds"].append(cid)
@@ -307,6 +336,7 @@ class V2Mixin:
         body={"schemaVersion":"2.0","changeId":x["changeId"],"sourceSystem":"CSIT","sourceType":d["sourceType"],"sourceEntityId":d["entityId"],
               "documentId":d["id"],"version":d["version"],"sourceRevision":bad_revision or x["revision"],"occurredAt":self._now(),
               "classification":d["classification"],"attributes":d["attributes"],"changedFields":changed or x.get("changed") or []}
+        if d.get("access"):body["accessControl"]=d["access"]
         x["changed"]=body["changedFields"];path=KM_V2+"/document-metadata-changes";self.ev(x,"CSIT→KM 分類/標籤變更")
         t0=time.monotonic()
         try:r=httpx.post(self.km+path,json=body,headers=self._headers(x["changeId"],False,"changes"),timeout=self.timeout)

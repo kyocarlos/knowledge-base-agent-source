@@ -118,6 +118,7 @@ class Sim(V2Mixin):
            "faults":{"download":"none","downloadFailures":2,"badToken":False,"noIdempotencyKey":False,"wrongDeclaredSha":False},
            "jobIds":[],"delIds":[],"timeline":[],"verdicts":[],"content":content,"uploadedAt":now(),"kmStatus":None,"deleteState":None}
         self._v2_fields(spec,d)
+        d["access"]=self._access_from(spec.get("accessControl"))
         if "downloadFault" in spec:d["faults"]["download"]=spec["downloadFault"]
         if "downloadFailures" in spec:d["faults"]["downloadFailures"]=int(spec["downloadFailures"])
         for k in ("badToken","noIdempotencyKey","wrongDeclaredSha"):
@@ -180,6 +181,7 @@ class Sim(V2Mixin):
               "file":{"originalFileName":d["name"],"standardFileName":d["name"],"contentType":d["contentType"],"fileSizeBytes":d["size"],
                       "sha256":sha,"downloadUrl":f"{self.km}{BASE}/document-library/files/{d['id']}/content"},
               "classification":d["classification"]}
+        if d.get("access"):body["accessControl"]=d["access"]
         job["sendCount"]+=1
         path="/api/integrations/csit/v1/document-library/jobs"
         self.ev(job,"CSIT→KM 派送通知",f"第 {job['sendCount']} 次")

@@ -19,6 +19,18 @@ class Classification(Wire):
     l2: Optional[Level] = None
     l3: Optional[Level] = None
 
+class Principal(Wire):
+    """Who may read a document: a user, a group or a role, named by the identity provider's own immutable id (never a display name or an e-mail)."""
+    type: Literal["User", "Group", "Role", "Unit"]      # Unit: an organisation unit of CSIT's unit list, named by its code
+    id: str = Field(min_length=1, max_length=256)
+    issuer: Optional[str] = Field(default=None, max_length=512)
+
+class AccessControl(Wire):
+    """Document-level read permission as CSIT owns it. version only goes up: KM ignores a change that is not newer than what it holds."""
+    mode: Literal["Public", "Restricted"]
+    version: StrictInt = Field(ge=1, le=2147483647)
+    allowedPrincipals: list[Principal] = Field(default_factory=list, max_length=500)
+
 class FileInfo(Wire):
     originalFileName: str = Field(min_length=1, max_length=255)
     standardFileName: Optional[str] = Field(default=None, max_length=255)
@@ -44,6 +56,7 @@ class DocLibRequest(Wire):
     occurredAt: datetime
     file: FileInfo
     classification: Classification = Classification()
+    accessControl: Optional[AccessControl] = None
     @field_validator("occurredAt")
     @classmethod
     def tz(cls, value):
