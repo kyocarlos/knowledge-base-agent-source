@@ -225,6 +225,10 @@ pyjwt==2.13.0
     # via
     #   -c deploy/csit-integration-v1/requirements.lock.txt
     #   -r deploy/csit-integration-v1/requirements.txt
+pypdf==5.9.0
+    # via
+    #   -c deploy/csit-integration-v1/requirements.lock.txt
+    #   -r deploy/csit-integration-v1/requirements.txt
 pypdfium2==5.14.0
     # via
     #   -c deploy/csit-integration-v1/requirements.lock.txt

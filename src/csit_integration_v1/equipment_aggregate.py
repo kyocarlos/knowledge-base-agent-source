@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import uuid
 from dataclasses import dataclass
 from typing import Optional, Protocol
@@ -23,6 +24,40 @@ from .equipment_synthesis import IDENTITY_FIELDS, _key, _sources_of, _text, extr
 
 IDENTITY_LABELS = {"productNames": "產品名稱", "modelNumbers": "型號", "vendorNames": "廠牌", "technologies": "技術",
                     "standards": "標準", "softwareVersions": "軟體版本", "hardwareVersions": "硬體版本"}
+
+
+# How a conflict is told from a multi-valued fact (CSIT's review of 2026-11-23: the old rule reported every field with two different values as a conflict):
+#   1. supported capabilities / lists (技術, 標準, 型號, 產品名稱, 軟硬體版本) are several true values at once   -> listed together, never a conflict;
+#   2. one document that gives several values for a field (several models compared, base vs. option, 4x4 vs 8x8)  -> listed together, with the condition;
+#   3. only when two DIFFERENT documents give values for the same field and condition that share none of them   -> conflict, nothing is chosen.
+# Vendor names stay a conflict when they differ: documents of one equipment item that name different makers are a real inconsistency.
+LIST_IDENTITY = ("productNames", "modelNumbers", "technologies", "standards", "softwareVersions", "hardwareVersions")
+_QUALIFIERS = {"option", "optional", "standard", "typical", "typ", "max", "min", "future", "選配", "選購", "標配", "選項", "未來", "典型", "最大", "最小"}
+_QUAL = re.compile(r"^(.*\S)\s*[（(]\s*([^()（）]{1,30}?)\s*[)）]\s*$")
+
+
+def _split_qualifier(value):
+    """"3.8 GHz to 6.0 GHz (Option)" -> ("3.8 GHz to 6.0 GHz", "Option"): a condition the document wrote next to the value, not a different value."""
+    if isinstance(value, str):
+        m = _QUAL.match(value.strip())
+        if m and m.group(2).strip().casefold() in _QUALIFIERS:
+            return m.group(1).strip(), m.group(2).strip()
+    return value, None
+
+
+def _shown(cl):
+    return cl["value"] + (" " + cl["unit"] if cl["unit"] else "")
+
+
+def _documents_disagree(claims: dict) -> bool:
+    """True when two different documents each state values for the field and the two sets share no value (a document that says more than the other
+    does not contradict it)."""
+    per_doc: dict = {}
+    for key, cl in claims.items():
+        for doc in cl["docs"]:
+            per_doc.setdefault(doc, set()).add(key)
+    sets = list(per_doc.values())
+    return any(not (a & b) for i, a in enumerate(sets) for b in sets[i + 1:])
 
 
 @dataclass(frozen=True)
@@ -115,10 +150,13 @@ def analyze(request, source: MetadataSource) -> dict:
     for doc, meta, c in used:
         for claim in c["claims"]:
             eid = evidence_for(doc, claim.get("evidence"))
-            nkey, value, unit = normalise_claim(claim["value"], claim.get("unit"))
-            group = specs.setdefault((claim["kind"], _key(claim["field"]), _key(claim.get("context") or "") if claim["kind"] == "measurement" else ""),
-                                      {"field": claim["field"], "kind": claim["kind"], "context": claim.get("context"), "claims": {}})
-            bucket = group["claims"].setdefault(nkey, {"value": value, "unit": unit, "evidenceIds": []})
+            raw_value, qualifier = _split_qualifier(claim["value"]) if claim["kind"] == "specification" and not claim.get("unit") else (claim["value"], None)
+            nkey, value, unit = normalise_claim(raw_value, claim.get("unit"))
+            context = claim.get("context") if claim["kind"] == "measurement" else qualifier
+            group = specs.setdefault((claim["kind"], _key(claim["field"]), _key(context or "")),
+                                      {"field": claim["field"], "kind": claim["kind"], "context": context, "claims": {}})
+            bucket = group["claims"].setdefault(nkey, {"value": value, "unit": unit, "evidenceIds": [], "docs": set()})
+            bucket["docs"].add(str(doc.fileId).lower())
             if eid not in bucket["evidenceIds"]:
                 bucket["evidenceIds"].append(eid)
         for text in c["capabilities"]:
@@ -137,27 +175,43 @@ def analyze(request, source: MetadataSource) -> dict:
         if c["summary"]:
             summaries.append(c["summary"])
 
-    technical_specifications, conflicts = [], []
+    technical_specifications, conflicts, multi_valued, variants = [], [], [], []
+
+    def add_spec(name, value, unit, ids):
+        for existing in technical_specifications:                    # the same fact read as a specification and as a measurement is shown once
+            if existing["name"] == name and existing["value"] == value and existing["unit"] == unit:
+                existing["evidenceIds"] = sorted(set(existing["evidenceIds"]) | set(ids))
+                return
+        technical_specifications.append({"name": name, "value": value, "unit": unit, "evidenceIds": list(ids)})
+
     for group in sorted(specs.values(), key=lambda g: (g["kind"], _key(g["field"]), _key(g["context"] or ""))):
         claims = list(group["claims"].values())
+        name = group["field"] if not group["context"] else group["field"] + "（" + group["context"] + "）"
         if len(claims) == 1:
             cl = claims[0]
-            name = group["field"] if not group["context"] else group["field"] + "（" + group["context"] + "）"
-            technical_specifications.append({"name": name, "value": cl["value"], "unit": cl["unit"], "evidenceIds": cl["evidenceIds"]})
+            add_spec(name, cl["value"], cl["unit"], cl["evidenceIds"])
         else:
             all_ids = sorted({e for cl in claims for e in cl["evidenceIds"]})
-            values = "；".join(sorted({(cl["value"] + (" " + cl["unit"] if cl["unit"] else "")) for cl in claims}))
-            conflicts.append({"field": group["field"], "description": "文件對此欄位的描述不一致：" + values, "evidenceIds": all_ids})
+            values = "；".join(sorted({_shown(cl) for cl in claims}))
+            if _documents_disagree(group["claims"]):
+                conflicts.append({"field": name, "description": "不同文件對此欄位給出互不相同的值：" + values, "evidenceIds": all_ids})
+            else:
+                add_spec(name, values, None, all_ids)                # several values of one field (conditions, options, models): all listed, no conflict
+                multi_valued.append(name)
 
     for f in IDENTITY_FIELDS:
         entries = sorted(identity[f].values(), key=lambda e: _key(e["value"]))
         if len(entries) == 1:
-            technical_specifications.append({"name": IDENTITY_LABELS[f], "value": entries[0]["value"], "unit": None,
-                                              "evidenceIds": entries[0]["evidenceIds"]})
+            add_spec(IDENTITY_LABELS[f], entries[0]["value"], None, entries[0]["evidenceIds"])
         elif len(entries) > 1:
             all_ids = sorted({e for entry in entries for e in entry["evidenceIds"]})
-            conflicts.append({"field": IDENTITY_LABELS[f], "description": "文件對此欄位的描述不一致：" + "；".join(e["value"] for e in entries),
-                               "evidenceIds": all_ids})
+            values = "；".join(e["value"] for e in entries)
+            if f in LIST_IDENTITY:
+                add_spec(IDENTITY_LABELS[f], values, None, all_ids)
+                if f in ("modelNumbers", "productNames"):
+                    variants.append(IDENTITY_LABELS[f] + "：" + values)
+            else:
+                conflicts.append({"field": IDENTITY_LABELS[f], "description": "不同文件對此欄位給出互不相同的值：" + values, "evidenceIds": all_ids})
 
     test_capabilities = [{"name": entry["value"], "description": None, "evidenceIds": entry["evidenceIds"]}
                           for entry in sorted(capabilities.values(), key=lambda e: _key(e["value"]))]
@@ -166,6 +220,8 @@ def analyze(request, source: MetadataSource) -> dict:
     warnings = []
     if conflicts:
         warnings.append("文件對 %d 個欄位的描述不一致，KM 未自行判斷或覆蓋，詳見 conflicts。" % len(conflicts))
+    if variants:
+        warnings.append("文件提到多個型號或產品名稱（" + "；".join(variants) + "），KM 已全部列出，未判斷哪一個才是這台設備。")
     if excluded:
         warnings.append("%d 份文件因缺少對應的 KM 分析結果、識別資訊不符或沒有可用的技術內容而未納入綜合分析。" % len(excluded))
 
