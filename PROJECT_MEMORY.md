@@ -127,3 +127,22 @@ Source commit：`556643b6f04083b3fd2cd1eded295fa26a0cc429`，分支 `feature/equ
 - 驗證(da40 實例,專區問答程式實測):「MT8821C 支援哪些頻率範圍?」「基本機和選配的頻率範圍分別是多少?」「MT8821C Radio Communication Analyzer 的頻率範圍是多少?」皆答對並附引用;MT8821C 與 MT8820C 差別、Combiner、選配 RF 硬體也答得出來。IxVeriWave、Telefonica Veriwave 回找不到是因為這些文件不在 da40 的真實資料裡(只在測試堆疊)。只驗證了這組問題,不是完整的檢索品質評測。
 - 還原:`cp ~/.km-control/csit-mode/images.env.before-embed-clean-20261123 ~/.km-control/csit-mode/images.env && ~/.km-control/csit-mode/csit-mode.sh reapply`;向量還原:用舊 worker 映像或同一映像執行 `python /tools/reembed_zone_documents.py --backup-dir DIR --restore <備份檔>`。
 - 未做:先清掉參考行再切段(會改變段落編號,要重新匯入);zone 問答仍會把參考行當成段落內容給模型與使用者看。
+
+## 2026-11-24 PR #64 各 commit 與 KM DEV 執行中映像的對照(逐檔 md5 比對)
+- 方法:用暫時容器讀映像內 `src/`、`migrations/` 檔案的 md5,與 #64(24572a5..b39d329)每個 commit 當時的檔案版本比對;沒有動執行中的容器。程式路徑:worker 映像在 /app,API 映像在 /integration。
+- 對照(PR #64 已於 2026-11-24 合併進 main,合併本身不改變執行中的系統,CI 只跑測試、沒有部署步驟):
+
+| commit | 內容 | CSIT worker `km-csit-worker:embed-clean-20261123` | CSIT API `km-csit-integration:9d5805d-callback-409-detail-20261119` |
+|---|---|---|---|
+| 4aa54cc | v2 equipmentId 接受 CSIT 文字編號 | 已上線 | 已上線 |
+| 9d5805d | 409 回應原因寫進日誌 | 已上線 | 已上線 |
+| cf06d87 | worker 還原 Tesseract OCR 疊層與自我測試 | 映像內有 tesseract,應已上線(只確認執行檔,沒比對疊層內容) | 沒有這一層 |
+| 30476da | 設備彙總:多值事實不算衝突 | 已上線 | 未上線(仍是舊版) |
+| 4a6c330 | embedding 去掉頁面快照/圖片參考行 | 已上線 | 未上線(仍是舊版) |
+| 8f92994 | PDF OCR(KM_CSIT_PDF_OCR=1 才啟用,預設關) | 未上線(pdf_ocr.py 不在映像內) | 未上線 |
+| b39d329 | CI 測試映像補 pypdf==5.9.0(requirements.txt 與 lock) | 未上線(只改相依檔;worker 映像本來就有 pypdf) | 未上線;下次重建 API 映像會多裝 pypdf,加密 PDF 會被辨識為 ENCRYPTED_DOCUMENT |
+| 0008911、99f3675、10c6e09 | 只有 PROJECT_MEMORY 紀錄 | 無程式 | 無程式 |
+
+- 限制:只比對 CSIT 的兩個映像;km-da40-web 等其他映像未比對(#64 改到的檔案都在 csit_integration_v1/ 底下,預期不影響)。Dockerfile.worker-ocr 這類部署檔不在映像檔案裡,無法逐檔驗證。
+- 同日發現(尚未修,需先討論):RCA 的驗收器(src/report_numeric/rca.py 的 `allowed_numbers`/驗收)會把韌體版本 `V0.0.7` 拆出 `0.7` 誤判為「證據包以外的數字」,基準測試 12 個案例中 10 個第一次回答被打回、多一輪修正。建議方案 B:證據裡出現過的三段以上點分版本字串,連同相鄰片段一併登記為允許數字(只擴大允許集合)。RCA 評估案例與結果在主機 ~/km-rca-eval/(合成案例,未進 git)。
+- 原則(2026-11-24 使用者指示):RCA 的任何設計與修改,都不能碰到或影響真實 KM 與 CSIT 的現有功能與程式碼;若會影響,必須先討論。
