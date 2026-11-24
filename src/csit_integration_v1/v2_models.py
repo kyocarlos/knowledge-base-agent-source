@@ -2,10 +2,10 @@
 import copy
 import re
 from datetime import datetime
-from typing import Literal, Optional
+from typing import Annotated, Literal, Optional
 from uuid import UUID
 from jsonschema import Draft202012Validator
-from pydantic import BaseModel, Field, StrictInt, field_validator, model_validator
+from pydantic import AfterValidator, BaseModel, Field, StrictInt, field_validator, model_validator
 from .doclib_models import (Wire, Classification, DOCUMENT_TYPES, CLEANUP_ITEMS, RESULT_SCHEMA, _ts)
 from .models import safe_filename
 
@@ -33,6 +33,15 @@ def _sha(value):
         raise ValueError("sha256 must be 64 hex characters")
     return value
 
+def _equipment_id(value):
+    """CSIT identifies equipment by its existing text number (e.g. A202611010810254176647), not a UUID: keep it exactly as sent."""
+    if not value or any(ord(c) < 32 or ord(c) == 127 for c in value) or value != value.strip():
+        raise ValueError("equipmentId must be a non-empty printable string without surrounding whitespace")
+    return value
+
+
+EquipmentId = Annotated[str, Field(min_length=1, max_length=128), AfterValidator(_equipment_id)]
+
 # ---- CSIT -> KM: document-jobs (spec 4.2) ----
 class V2Source(Wire):
     type: Literal["VerificationApplicationAttachment", "VendorFile", "EquipmentAttachment", "TestReport", "DocumentLibraryFile"]
@@ -41,7 +50,7 @@ class V2Source(Wire):
     applicationId: Optional[UUID] = None
     recordId: Optional[UUID] = None
     vendorId: Optional[UUID] = None
-    equipmentId: Optional[UUID] = None
+    equipmentId: Optional[EquipmentId] = None
 
 class V2Approval(Wire):
     mode: Literal["Approved", "ApprovalBypassed"]
@@ -141,7 +150,7 @@ class V2Resource(Wire):
     applicationId: Optional[UUID] = None
     recordId: Optional[UUID] = None
     vendorId: Optional[UUID] = None
-    equipmentId: Optional[UUID] = None
+    equipmentId: Optional[EquipmentId] = None
     canonicalIngestionEventId: UUID
     scope: Literal["DocumentVersion"]
     _sha = field_validator("sha256")(_sha)

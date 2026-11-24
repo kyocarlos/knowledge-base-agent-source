@@ -1,0 +1,11 @@
+# OCR overlay for the CSIT integration worker (2026-11-20).
+# Adds Tesseract (Traditional Chinese + English) on top of an already built km-csit-worker image, so the code and Python
+# dependencies of that image stay exactly as tested. image_reader.py calls the binary found by shutil.which("tesseract").
+# Why this exists: worker images built from deploy/csit-integration-v1/Dockerfile.worker of the km-chat-v2-secure recipe
+# (556643b, 4aa54cc, 9d5805d) had no Tesseract, so PNG jobs fell through to the vision model only.
+# Build: docker build -f Dockerfile.worker-ocr --build-arg BASE_IMAGE=<existing worker image> -t <new tag> <empty context dir>
+ARG BASE_IMAGE
+FROM ${BASE_IMAGE}
+USER root
+RUN apt-get update && apt-get install -y --no-install-recommends tesseract-ocr tesseract-ocr-chi-tra tesseract-ocr-eng \
+    && rm -rf /var/lib/apt/lists/*

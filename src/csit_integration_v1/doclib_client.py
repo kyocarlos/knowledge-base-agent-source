@@ -31,6 +31,17 @@ V2_DOWNLOAD_PATHS={"VerificationApplicationAttachment":"/api/integrations/km/v1/
     "EquipmentAttachment":"/api/integrations/km/v1/equipment-documents/{id}/content",
     "DocumentLibraryFile":"/api/integrations/km/v1/document-library/files/{id}/content"}
 
+def conflict_detail(r):
+    """Short, safe reason from a CSIT 409 body (only error / code / title / detail / message strings, 120 chars each), for the WARNING log."""
+    try:body=r.json()
+    except ValueError:return ""
+    if not isinstance(body,dict):return ""
+    parts=[]
+    for k in ("error","code","title","detail","message"):
+        v=body.get(k)
+        if isinstance(v,str) and v.strip():parts.append(k+"="+"".join(ch for ch in v if ch.isprintable())[:120])
+    return "; ".join(parts)
+
 class DocLibClient(CsitIntegrationClient):
     def download_file(self,job,destination):
         """Stream by documentFileId only (the payload downloadUrl is never followed) and verify size and SHA256."""
@@ -86,7 +97,8 @@ class DocLibClient(CsitIntegrationClient):
                     except ValueError:code=None
                     code=code if code in EQUIPMENT_AGGREGATE_409_CODES else "unknown"
                     raise IntegrationError("CSIT_EQUIPMENT_AGGREGATE_"+code.upper(),"CSIT answered 409 ("+code+"); not retried",False)
-                raise IntegrationError("CSIT_CALLBACK_CONFLICT","CSIT answered 409 (conflict); not retried",False)
+                detail=conflict_detail(r)
+                raise IntegrationError("CSIT_CALLBACK_CONFLICT","CSIT answered 409 (conflict"+(": "+detail if detail else "")+"); not retried",False)
             if not 200<=r.status_code<300:raise response_error(r.status_code,"callback")
         except httpx.HTTPError:raise IntegrationError("CSIT_CALLBACK_NETWORK_ERROR","CSIT callback unavailable",True) from None
     def download_v2(self,job,destination):

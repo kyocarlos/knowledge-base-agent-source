@@ -95,3 +95,35 @@ Source commit：`556643b6f04083b3fd2cd1eded295fa26a0cc429`，分支 `feature/equ
 - 驗證：新測試 11 筆通過；正式報告實測結果與部署前完全相同（132 筆顯著差異）。目前每個產品只有 1 份報告，所以此功能暫不會生效，等同一產品累積到 6 份以上才啟動。
 - 還原：以 llm-profiles（web）與 llm-backup（worker）override 為最後一個檔重新 up 即回到 llm-usage-0e9a163／llm-backup-86afb14。
 - 已知既有問題：tests/zone_pages/test_zone_pages.py::test_the_page_endpoints_answer_in_the_wifi_pages_shapes 在 main 上本來就失敗，與本次無關。
+
+## 2026-11-18：CSIT v2 equipmentId 改為文字編號（修正設備附件刪除 HTTP 400，分支 agent/csit-v2-equipment-id-string-20261118，commit 4aa54cc，已推送 origin，尚未併入 main）
+- 原因：`v2_models.py` 的 `V2Source.equipmentId` 與 `V2Resource.equipmentId` 是 `Optional[UUID]`，但 CSIT 送的是既有設備編號（`ApparatusFile.ApparatusId`，例如 A202611010810254176647，22 字元，不是 UUID）。重現結果：`resource.equipmentId`、`uuid_parsing`，API 回 400 `INVALID_CSIT_CONTRACT`。API 日誌與 kb-nginx 日誌在保留期間內沒有該筆真實請求，所以欄位是用同一份 payload 在部署前的程式碼重現確認，不是讀日誌。
+- 修正：`equipmentId` 改為文字（1 到 128 字元、不得含控制字元），原樣保存在 request_payload、resource、清理執行檢視與 callback 回聲，不轉成 UUID；UUID 形狀的值仍可用（當文字）。其他欄位與文件類型不變。DB 的 `km_csit_deletion_jobs.source_type` 約束（DEV 實測）已包含 VendorFile／EquipmentAttachment，無需 migration。
+- 測試：拋棄式 Postgres 上跑 tests/csit_v1、tests/csit_simulator、tests/test_csit_equipment_synthesis.py，713 通過；新增 3 組測試（含編號 A202611010810254176647 經 document-jobs 與 document-deletions 回 202 且儲存值不變）。另外 6 筆失敗（test_timescale_real_retry_no_duplicates、test_invalid_required_timestamp_rejected、CORRUPT_FILE 一筆、test_existing_zone_grant_selection 三筆）在未修改的 main 上同樣失敗，與本次無關。
+- 部署（KM DEV）：部署前 in flight=0。用既有 Dockerfile（~/knowledge-base/deploy/csit-integration-v1）以 4aa54cc 建 `km-csit-integration:4aa54cc-equipment-id-20261118`（sha256:d3a95ad2cbffbdf2b4783b9925bf11bcd10d089a94bdcd4ab67a0e954bd8cfff）、`km-csit-worker:4aa54cc-equipment-id-20261118`（sha256:ff592373d0627d753a1ffa32b1ab973077334cb98a7dc1f2d55157bdd81ab201）。images.env 舊值備份 `~/.km-control/csit-mode/images.env.before-4aa54cc-equipment-id-20261118`，容器 inspect 備份 `~/.km-control/equipment-id-deploy-20261118/`，用 `csit-mode.sh reapply` 換上。注意：映像由 main 後續 commit 建成，所以 worker 影像也帶入 RCA 雜訊門檻的 report_numeric 檔案（只影響 RCA 讀取端，不在 CSIT 入庫路徑）。
+- 驗證：API／Worker healthy、in flight 0；兩個容器內以 A202611010810254176647 驗證 v2 刪除請求皆通過；經 kb-nginx 所有 csit 路由無 token 皆回 401；`KM_CSIT_EQUIPMENT_AGGREGATE_ENABLED` 仍為 false。沒有重送 CSIT 那筆真實刪除工作。
+- 還原：`cp ~/.km-control/csit-mode/images.env.before-4aa54cc-equipment-id-20261118 ~/.km-control/csit-mode/images.env && ~/.km-control/csit-mode/csit-mode.sh reapply`（回到 556643b-equipment-aggregate-20261117）。
+
+## 2026-11-19 CSIT 回呼 409 日誌補強（KM-DEL-000061 調查後）
+- KM-DEL-000061：KM 端 Completed/Completed、七項清理已驗證；兩筆 deletion2 callback（序號 221 Processing、222 Completed）收到 CSIT 409，依既定設計不重試，狀態 Failed（CSIT_CALLBACK_CONFLICT）。409 原因當時未被記錄，無法判定。
+- 修改（commit 9d5805d，分支 agent/csit-callback-409-detail-20261119）：doclib_client.py 新增 conflict_detail()，409 時把回應 body 的 error/code/title/detail/message（各 120 字、僅可列印字元）放進 IntegrationError.message；doclib_worker.py 在失敗的 WARNING 日誌加上 detail。錯誤碼、重試規則、資料表不變。測試 tests/csit_v1/test_v2_spec141.py 新增 1 項，55 項通過；csit_v1 全套 629 通過，7 項為既有失敗（與修改前相同）。
+- 部署（KM DEV）：in flight=0；用 ~/knowledge-base/deploy/csit-integration-v1 的 Dockerfile 與 Dockerfile.worker 以 src 為 context 建 km-csit-integration / km-csit-worker:9d5805d-callback-409-detail-20261119；舊 images.env 備份為 images.env.before-9d5805d-callback-409-detail-20261119，csit-mode.sh reapply。
+- 未做：沒有重送、沒有改動 221/222；受控恢復需 CSIT 回報 409 原因後再決定。
+
+## 2026-11-23 設備綜合分析:多值欄位不再當作衝突(設備 6666 調查後)
+- 原因:`equipment_aggregate.py` 舊規則是「同一欄位出現兩個以上不同的值就是衝突」。設備 6666(兩份 Anritsu MT8821C 文件)因此得到 7 項衝突(MIMO、frequency、Supported 3GPP/3GPP2 Standards、產品名稱、型號、技術、標準),其實都不是互相矛盾:型號/技術/標準是清單,frequency 是基本範圍加選配,MIMO 是 4x4 與 8x8 的不同情境,且 frequency、MIMO 的兩個值來自同一份文件。
+- 修改(分支 feature/equipment-aggregate-conflicts-20261123,工作目錄 ~/km-agg-fix,未 commit):依 Patty(CSIT)2026-11-23 的建議分三類。(1) 產品名稱/型號/技術/標準/軟硬體版本是清單,合併成一個值列出;(2) 同一份文件對同一欄位給多個值,或值後面寫了 (Option) 之類條件,不算衝突,條件拆成「欄位（條件）」;(3) 只有兩份不同文件對同一欄位、同一條件給出完全沒有交集的值才列為衝突。廠牌不同仍是衝突。多個型號時 warnings 改寫為「已全部列出,未判斷哪一個才是這台設備」。回傳格式(十個鍵與各欄位名稱)不變。
+- 測試:新增 tests/csit_v1/test_equipment_aggregate_conflicts.py,7 項通過(含 6666 案例、不同文件互斥值仍為衝突、廠牌衝突仍在)。用 KM 資料庫實際儲存的 6666 兩份文件資料(唯讀)重算:舊規則 7 項衝突,新規則 0 項衝突,規格項目 15 變 22。沒有重跑需要 Postgres 的既有 test_equipment_aggregate.py。
+- 部署(KM DEV):in flight=0;只重建 worker(分析在 worker 執行):`docker build -f ~/knowledge-base/deploy/csit-integration-v1/Dockerfile.worker -t km-csit-worker:agg-conflicts-20261123 ~/km-agg-fix`(sha256:c2cb6b45664e...,含 Tesseract OCR),API 映像不變(km-csit-integration:9d5805d-callback-409-detail-20261119)。舊 images.env 備份 `images.env.before-aggregate-conflicts-20261123`,容器 inspect 與修改內容備份在 `~/.km-control/aggregate-conflicts-deploy-20261123/`(含 patch,sha256 d9ed1f31...),用 `csit-mode.sh reapply` 換上。
+- 驗證:worker 與 API healthy,in flight 0,KM_CSIT_EQUIPMENT_AGGREGATE_ENABLED 仍為 true,新映像內 Tesseract 在、新規則存在。沒有主動送出任何 CSIT 分析請求;CSIT 端要在重新觸發 6666 的分析後才會看到新結果,也還沒確認 CSIT 對合併後較長字串(技術欄約 500 字)的接受情形。
+- 還原:`cp ~/.km-control/csit-mode/images.env.before-aggregate-conflicts-20261123 ~/.km-control/csit-mode/images.env && ~/.km-control/csit-mode/csit-mode.sh reapply`(回到 km-csit-worker:9d5805d-ocr-20261120)。
+
+## 2026-11-23 設備儀器專區問不到 MT8821C 頻率:嵌入向量去掉頁面快照/圖片連結行
+- 現象:KM DEV da40 實例的設備儀器專區問「MT8821C 支援哪些頻率範圍?」回「找不到相關內容」,但型錄封面寫著 30 MHz to 3.8 GHz / 3.8 GHz to 6.0 GHz (Option)。原因:PDF 轉文字每頁加「頁面快照引用/內嵌圖片/圖片 n」的 asset:// 行,這些行被一起切段、一起算向量,封面段落的向量被稀釋,搜尋排名第 22,而專區問答只把前 8 段給模型。
+- 另一個容易混淆的原因:nginx 依 cookie `km_instance_route` 分流,default/test → kb-web(test 實例,資料庫 km_csit_docs_test,只有壓力測試假文件),da40 → km-da40-web-1(km_csit_docs,CSIT 真實文件)。連到 test 實例問 MT8821C 一定找不到。
+- 修改(分支 feature/equipment-aggregate-conflicts-20261123,工作目錄 ~/km-agg-fix,未 commit):新增 src/csit_integration_v1/embedding_text.py(去掉參考行,整段只剩參考時退回原文);doclib_pipeline.py 與 v2_pipeline.py 的 Qdrant writer 只對「算向量的文字」套用,存下來的 content、段落編號、id、引用都不變。v1 writer(Test Report)不動。新增 tests/csit_v1/test_embedding_text.py,6 項通過。
+- 現有資料:tools/reembed_zone_documents.py(預設 dry run;--apply 先備份舊向量再更新;--restore 還原)。km_csit_docs 150 段中 26 段(2 份 PDF:MT8821C_Product Brochure.pdf 19 段、Askey_SIT_ MT8821C 修改檔 V1.pdf 7 段)重算向量,新舊向量餘弦相似度 min 0.526 / mean 0.896 / max 0.992;集合仍為 150 段,沒有重新下載文件,沒有連 CSIT。備份:~/.km-control/embed-clean-deploy-20261123/km_csit_docs-vectors-before-20261123-054824.json。
+- 部署(KM DEV):in flight=0;只重建 worker 映像 km-csit-worker:embed-clean-20261123(含前一個衝突判斷修改與 Tesseract OCR),API 不變。舊 images.env 備份 images.env.before-embed-clean-20261123;容器 inspect、diff(sha256 a1bc10c1aa73...)備份在 ~/.km-control/embed-clean-deploy-20261123/。
+- 驗證(da40 實例,專區問答程式實測):「MT8821C 支援哪些頻率範圍?」「基本機和選配的頻率範圍分別是多少?」「MT8821C Radio Communication Analyzer 的頻率範圍是多少?」皆答對並附引用;MT8821C 與 MT8820C 差別、Combiner、選配 RF 硬體也答得出來。IxVeriWave、Telefonica Veriwave 回找不到是因為這些文件不在 da40 的真實資料裡(只在測試堆疊)。只驗證了這組問題,不是完整的檢索品質評測。
+- 還原:`cp ~/.km-control/csit-mode/images.env.before-embed-clean-20261123 ~/.km-control/csit-mode/images.env && ~/.km-control/csit-mode/csit-mode.sh reapply`;向量還原:用舊 worker 映像或同一映像執行 `python /tools/reembed_zone_documents.py --backup-dir DIR --restore <備份檔>`。
+- 未做:先清掉參考行再切段(會改變段落編號,要重新匯入);zone 問答仍會把參考行當成段落內容給模型與使用者看。

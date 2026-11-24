@@ -120,6 +120,13 @@ def test_a_409_on_a_v2_callback_is_not_retried(dsettings,kind):
     err,csit=post(dsettings,kind,[(409,"conflict")])
     assert err.code=="CSIT_CALLBACK_CONFLICT" and err.retryable is False
 
+def test_a_409_reason_from_the_body_is_kept_in_the_message_but_nothing_else(dsettings):
+    err,_=post(dsettings,"deletion2",[(409,'{"error":"stale_state","detail":"x\\ny","token":"SECRET"}')])
+    assert err.code=="CSIT_CALLBACK_CONFLICT" and err.retryable is False
+    assert "error=stale_state" in err.message and "SECRET" not in err.message and "\n" not in err.message
+    err,_=post(dsettings,"deletion2",[(409,"<html>nope</html>")])
+    assert err.message=="CSIT answered 409 (conflict); not retried"
+
 def test_only_analysis_job_not_completed_is_retried_on_409(dsettings):
     for body in ('{"code":"job_not_completed"}','job_not_completed','{"error":"JOB_NOT_COMPLETED"}'):
         err,_=post(dsettings,"analysis",[(409,body)]);assert err.code=="CSIT_ANALYSIS_JOB_NOT_COMPLETED" and err.retryable is True
