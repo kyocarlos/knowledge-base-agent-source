@@ -44,6 +44,18 @@ def _norm(x: float) -> str:
     return f"{x:g}"
 
 
+def _dotted_pairs(text: str) -> set[str]:
+    """A version such as V0.0.7 is read by the checker as 0.0 and then 0.7 (a number that follows a dot is not blocked by the letter before the first part), but
+    the findall in allowed_numbers only registers 0.0 and 7. Every neighbouring pair of a dotted token (three parts or more) that occurs in the evidence is
+    therefore allowed too; a version the model makes up is not in the evidence and is still caught."""
+    out: set[str] = set()
+    for token in re.findall(r"\d+(?:\.\d+){2,}", text):
+        parts = token.split(".")
+        for left, right in zip(parts, parts[1:]):
+            out.add(_norm(float(f"{left}.{right}")))
+    return out
+
+
 def allowed_numbers(evidence: dict[str, dict], extra_text: str = "") -> set[str]:
     """Every number the model may quote: those in the evidence (plus common roundings and magnitudes) and in the user's own question."""
     out: set[str] = set()
@@ -57,6 +69,7 @@ def allowed_numbers(evidence: dict[str, dict], extra_text: str = "") -> set[str]
         elif isinstance(v, str):
             for m in re.findall(r"-?\d+(?:\.\d+)?", v):
                 out.add(_norm(float(m))); out.add(_norm(abs(float(m))))
+            out.update(_dotted_pairs(v))
         elif isinstance(v, dict):
             for x in v.values():
                 walk(x)
@@ -66,6 +79,7 @@ def allowed_numbers(evidence: dict[str, dict], extra_text: str = "") -> set[str]
     walk(evidence)
     for m in re.findall(r"-?\d+(?:\.\d+)?", extra_text):
         out.add(_norm(float(m)))
+    out.update(_dotted_pairs(extra_text))
     return out
 
 
