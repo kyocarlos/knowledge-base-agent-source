@@ -146,3 +146,18 @@ Source commit：`556643b6f04083b3fd2cd1eded295fa26a0cc429`，分支 `feature/equ
 - 限制:只比對 CSIT 的兩個映像;km-da40-web 等其他映像未比對(#64 改到的檔案都在 csit_integration_v1/ 底下,預期不影響)。Dockerfile.worker-ocr 這類部署檔不在映像檔案裡,無法逐檔驗證。
 - 同日發現(尚未修,需先討論):RCA 的驗收器(src/report_numeric/rca.py 的 `allowed_numbers`/驗收)會把韌體版本 `V0.0.7` 拆出 `0.7` 誤判為「證據包以外的數字」,基準測試 12 個案例中 10 個第一次回答被打回、多一輪修正。建議方案 B:證據裡出現過的三段以上點分版本字串,連同相鄰片段一併登記為允許數字(只擴大允許集合)。RCA 評估案例與結果在主機 ~/km-rca-eval/(合成案例,未進 git)。
 - 原則(2026-11-24 使用者指示):RCA 的任何設計與修改,都不能碰到或影響真實 KM 與 CSIT 的現有功能與程式碼;若會影響,必須先討論。
+
+## 2026-11-24 RCA 驗收器修正(PR #67)部署到 KM DEV
+- 修改:`src/report_numeric/rca.py` 加 `_dotted_pairs`(+14 行),證據包或使用者問題裡出現的三段以上點分版本字串,相鄰片段登記為允許數字;只擴大允許集合,模型自己編造的版本仍會被抓到。新增 `tests/csit_v1/test_rca_verify_versions.py`(6 項)。PR #67 已合併進 main(合併提交 d002d3a),CI 腳本 695 通過、5 略過、0 失敗。
+- 映像:以 `km-da40-web:rca-noise-95e19d0` / `km-test-web:rca-noise-95e19d0` 為底,只多一層 `COPY rca.py`,新標籤 `rca-verify-d002d3a`(兩個映像各一)。檔案內容取自修正提交 1435632,md5 `7aaa5e17…`;映像標籤用合併提交 d002d3a 命名,未另外核對合併提交裡此檔的內容。
+- 部署(KM DEV,使用者授權):換前 CSIT 進行中任務 real/live=0、sim=0,搜尋 worker 兩個節點皆無執行中任務。只重建 `km-da40-web-1` 與 `km-da40-celery_search_worker-1`(`docker compose -p km-da40 --env-file ~/.km-control/planes/da40.env` 加原設定檔鏈,最後加 `~/.km-control/compose/km-da40.rca-verify.image.override.yml`,`up -d --no-deps`)。換後兩容器內 rca.py md5 皆為 7aaa5e17…,Celery 回應 pong,CSIT API、worker 仍 healthy 且映像未變。正式 KM(kb-*)與所有 CSIT 容器未動。
+- 還原:設定檔鏈最後改成 `km-da40.rca-noise.image.override.yml`(舊檔未動),再對這兩個服務執行 `up -d --no-deps`。
+- 限制:尚未用真實 RCA 請求做端到端測試;基準重跑只有 3 個案例加 c01 兩次,只代表方向。單位誤寫(dB 寫成 %)與數量詞(「其中一個」對 3)兩類驗收缺口尚未處理。
+
+## 2026-11-24 RCA 頁面文字改為「測試報告差異分析」(靜態檔,不在 git)
+- 原因:現行 RCA 實際是「差異比對加待驗證假設」,不是真正的根因分析,為避免讓使用者期待過高,使用者要求把名稱改為「測試報告差異分析」。
+- 位置:`/srv/knowledge-base-production-rebaseline-20260829-v3/.frontend-build-runtime-user8/zones/csit/`(只被 kb-nginx 唯讀掛載;改主機檔案即生效,沒有重啟容器)。這兩個檔案不在 git,沒有 PR。
+- `rca.html`:分頁標題、左側選單項目、頁面副標題、狀態列(`RCA 報告分析`/`RCA 分析` → `測試報告差異分析`);頁尾 `RCA 結果為待驗證的假設…` → `差異分析結果為待驗證的假設…`;區塊標題 `③ 可能的原因分析` → `③ 差異的可能原因`(新名稱由我擬定);後端未啟用的錯誤訊息 `RCA 後端尚未啟用…` → `差異分析後端尚未啟用…`。程式用的字串 `RCA is not enabled`、變數名 RCA_TITLE/RCA_NOTE、API 路徑 /api/rca/v1 沒動。
+- `rca-nav.78869cc29c6f.js`:專區其他頁面的左側選單 `RCA 分析` → `測試報告差異分析`。檔名帶雜湊碼沒改,瀏覽器可能快取舊文字,需強制重新整理。
+- 備份(同目錄):`rca.html.before-title-20261124`(改標題前)、`rca.html.before-footer-20261124`(改頁尾與區塊標題前)、`rca.html.before-errmsg-20261124`(改錯誤訊息前)、`rca-nav.78869cc29c6f.js.before-title-20261124`。還原:把需要的備份複製回原檔名;要完全還原則複製 `before-title` 的兩份。
+- 限制:錯誤訊息平常看不到,只確認檔案內容,沒有在畫面實際觸發。API 路徑、後端模組與程式名稱仍叫 rca,沒有改。
