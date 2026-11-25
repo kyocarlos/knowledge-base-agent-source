@@ -1,9 +1,11 @@
 """Durable v2 jobs, metadata changes, v2 deletions and the analysis-result queue (spec v1.4). Shares the v1.3 callback outbox."""
+import logging
 import uuid
 from psycopg.types.json import Jsonb
 from .errors import IntegrationError, LeaseLost
 from .doclib_repository import DocLibRepository, doc_file_id
 from .equipment_aggregate_repository import EquipmentAggregateRepository
+from . import duplicate_content
 from .v2_models import identity_key, build_job_callback, build_change_callback, build_analysis_payload
 
 LIVE = ("Accepted", "Processing", "Completed")
@@ -42,11 +44,23 @@ class V2Repository(DocLibRepository, EquipmentAggregateRepository):
             if src["type"] == "DocumentLibraryFile" and c.execute("SELECT 1 FROM km_csit_doclib_jobs WHERE document_file_id=%s", (d["id"],)).fetchone():
                 raise IntegrationError("V1_JOB_EXISTS", "This source version was already delivered through the v1 route")
             km_job = "KM-ING-%06d" % c.execute("SELECT nextval('km_csit_v2_job_seq') AS n").fetchone()["n"]
-            return c.execute("""INSERT INTO km_csit_v2_jobs(event_id,csit_job_id,km_job_id,event_type,source_type,source_entity_id,document_id,
+            new_row = c.execute("""INSERT INTO km_csit_v2_jobs(event_id,csit_job_id,km_job_id,event_type,source_type,source_entity_id,document_id,
                   version,request_payload,original_file_name,content_type,file_size_bytes,expected_sha256,occurred_at,status)
                 VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'Accepted') RETURNING *""",
                 (request.eventId, request.csitJobId, km_job, request.eventType, src["type"], src["entityId"], d["id"], d["version"],
                  Jsonb(p), d["originalFileName"], d["contentType"], d["sizeBytes"], d["sha256"], request.occurredAt)).fetchone()
+        # The job is committed; from here on nothing may turn this intake into a failure.
+        self._warn_duplicate_content(new_row)
+        return new_row
+
+    def _warn_duplicate_content(self, row):
+        """Detect only (decision of 2026-11-25): equal bytes under another CSIT record are logged, never blocked."""
+        try:
+            duplicate_content.warn_if_duplicate(self.connect, row["expected_sha256"], row["km_job_id"])
+        except Exception:
+            logging.getLogger("km.csit.duplicate_content").warning(
+                "duplicate-content check failed for %s; intake is unaffected", row.get("km_job_id"), exc_info=True)
+
     def get_job(self, event_id):
         with self.connect() as c:
             return c.execute("SELECT * FROM km_csit_v2_jobs WHERE event_id=%s", (event_id,)).fetchone()
