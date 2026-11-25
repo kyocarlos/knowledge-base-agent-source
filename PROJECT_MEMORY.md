@@ -113,7 +113,7 @@ Source commit：`556643b6f04083b3fd2cd1eded295fa26a0cc429`，分支 `feature/equ
 ## 2026-11-23 設備綜合分析:多值欄位不再當作衝突(設備 6666 調查後)
 - 原因:`equipment_aggregate.py` 舊規則是「同一欄位出現兩個以上不同的值就是衝突」。設備 6666(兩份 Anritsu MT8821C 文件)因此得到 7 項衝突(MIMO、frequency、Supported 3GPP/3GPP2 Standards、產品名稱、型號、技術、標準),其實都不是互相矛盾:型號/技術/標準是清單,frequency 是基本範圍加選配,MIMO 是 4x4 與 8x8 的不同情境,且 frequency、MIMO 的兩個值來自同一份文件。
 - 修改(分支 feature/equipment-aggregate-conflicts-20261123,工作目錄 ~/km-agg-fix,未 commit):依 Patty(CSIT)2026-11-23 的建議分三類。(1) 產品名稱/型號/技術/標準/軟硬體版本是清單,合併成一個值列出;(2) 同一份文件對同一欄位給多個值,或值後面寫了 (Option) 之類條件,不算衝突,條件拆成「欄位（條件）」;(3) 只有兩份不同文件對同一欄位、同一條件給出完全沒有交集的值才列為衝突。廠牌不同仍是衝突。多個型號時 warnings 改寫為「已全部列出,未判斷哪一個才是這台設備」。回傳格式(十個鍵與各欄位名稱)不變。
-- 測試:新增 tests/csit_v1/test_equipment_aggregate_conflicts.py,7 項通過(含 6666 案例、不同文件互斥值仍為衝突、廠牌衝突仍在)。用 KM 資料庫實際儲存的 6666 兩份文件資料(唯讀)重算:舊規則 7 項衝突,新規則 0 項衝突,規格項目 15 變 22。沒有重跑需要 Postgres 的既有 test_equipment_aggregate.py。
+- 測試:新增 tests/csit_v1/test_equipment_aggregate_conflicts.py,7 項通過(含 6666 案例、不同文件互斥值仍為衝突、廠牌衝突仍在)。用 KM 資料庫實際儲存的 6666 兩份文件資料(唯讀)重算:舊規則 7 項衝突,新規則 0 項衝突,規格項目 15 變 22(這是當時那批舊入庫資料的數字;該批已刪除重新入庫,對目前資料應為 16 變 21,見 2026-11-25 一節)。沒有重跑需要 Postgres 的既有 test_equipment_aggregate.py。
 - 部署(KM DEV):in flight=0;只重建 worker(分析在 worker 執行):`docker build -f ~/knowledge-base/deploy/csit-integration-v1/Dockerfile.worker -t km-csit-worker:agg-conflicts-20261123 ~/km-agg-fix`(sha256:c2cb6b45664e...,含 Tesseract OCR),API 映像不變(km-csit-integration:9d5805d-callback-409-detail-20261119)。舊 images.env 備份 `images.env.before-aggregate-conflicts-20261123`,容器 inspect 與修改內容備份在 `~/.km-control/aggregate-conflicts-deploy-20261123/`(含 patch,sha256 d9ed1f31...),用 `csit-mode.sh reapply` 換上。
 - 驗證:worker 與 API healthy,in flight 0,KM_CSIT_EQUIPMENT_AGGREGATE_ENABLED 仍為 true,新映像內 Tesseract 在、新規則存在。沒有主動送出任何 CSIT 分析請求;CSIT 端要在重新觸發 6666 的分析後才會看到新結果,也還沒確認 CSIT 對合併後較長字串(技術欄約 500 字)的接受情形。
 - 還原:`cp ~/.km-control/csit-mode/images.env.before-aggregate-conflicts-20261123 ~/.km-control/csit-mode/images.env && ~/.km-control/csit-mode/csit-mode.sh reapply`(回到 km-csit-worker:9d5805d-ocr-20261120)。
@@ -161,3 +161,21 @@ Source commit：`556643b6f04083b3fd2cd1eded295fa26a0cc429`，分支 `feature/equ
 - `rca-nav.78869cc29c6f.js`:專區其他頁面的左側選單 `RCA 分析` → `測試報告差異分析`。檔名帶雜湊碼沒改,瀏覽器可能快取舊文字,需強制重新整理。
 - 備份(同目錄):`rca.html.before-title-20261124`(改標題前)、`rca.html.before-footer-20261124`(改頁尾與區塊標題前)、`rca.html.before-errmsg-20261124`(改錯誤訊息前)、`rca-nav.78869cc29c6f.js.before-title-20261124`。還原:把需要的備份複製回原檔名;要完全還原則複製 `before-title` 的兩份。
 - 限制:錯誤訊息平常看不到,只確認檔案內容,沒有在畫面實際觸發。API 路徑、後端模組與程式名稱仍叫 rca,沒有改。
+
+## 2026-11-24 報告差異分析頁面:加入摘要與「能不能直接比」檢查(靜態檔,不在 git)
+- 位置與備份:同上資料夾的 `rca.html`;換版前備份為 `rca.html.before-readability-20261124`(換版前已確認線上檔與修改底稿 md5 相同)。新檔 32,809 位元組,md5 `c640091fde1015e11792e3981d45c4ba`。不需重啟,瀏覽器需 Ctrl+F5。
+- 內容:純前端,用比較結果現成欄位產生,不呼叫模型、不改後端、不動 API。結果區新增「摘要」與「這幾份報告能直接比嗎?」兩區塊;排序改為摘要 → 能不能比 → Pass/Fail 變化 → 重點範圍(依變化幅度由大到小)→ 原有統計/變因/明細/門檻/資料缺口。
+- 判斷規則為我擬定、未經領域人員確認:測試日期相差超過 30 天算「不同」;韌體不同只標「不同」不計為前提問題;範圍層級的百分比只寫正負,不標退步/進步。
+- 方向資料:此次真實比較結果顯示 `directions_defined` 有 23 個指標(退步 85、進步 47),先前「全為空」的說法已過時;誰何時填、是否經領域人員確認,沒有紀錄可證實。
+- 驗證:用 KM 主機兩份真實 Throughput 報告的比較結果,在本機頁面(網路請求以測試資料取代)渲染,各區塊正常、主控台無錯誤;換版後以發布埠 3030 讀取回應 200 且含新區塊文字。只測過這一組;RvR、三份以上、單一變因情形未渲染;線上頁面尚未實際用瀏覽器看過。
+- 還原:把備份複製回 `rca.html`。
+- 未做:RvR 曲線疊圖、圖表、篩選、離門檻距離等第二、三優先項目;此檔案仍不在 git。
+
+## 2026-11-25 設備 6666 分析結果 21 筆 vs 先前預期 22 筆(唯讀根因確認,Patty 要求)
+- 結論:21 筆是目前資料的正確結果,KM 程式沒有 Bug,不需修改。22 筆是舊入庫資料的重算數字,不是目前資料該有的。
+- Worker:KM-EQAGG-000007(2026-11-23 17:15 台北)與 000008(2026-11-25 09:21)同一個 worker_id、同一個容器(km-csit-v1-dev-worker-1,2026-11-23 13:47 啟動後 RestartCount 0),映像 km-csit-worker:embed-clean-20261123(sha256:1a7223b1...)。舊 Job 執行時新的衝突判斷已生效。
+- 輸入:兩個 Job 的請求只有 requestId、requestedAt 不同;documents、kmJobId(KM-ING-000031/32)、analysisResultId、SHA256 完全相同;Result JSON 完全相同。用同一請求與資料離線重算(目前映像與 ~/km-agg-fix 原始碼各一次)得 21 筆,與實際回傳逐項相同,所以不是快取。
+- 21/22 差異原因:資料差異。2026-11-23 17:13 兩個附件被重新送入,舊 KM-ING-000029/30(舊文件 ID 00d178a7…、443e6e2c…)狀態 Deleted、結果已清空,新文件 ID 5ba51829…、6e43ed00… 產生了不同的單檔分析(檔案 SHA256 相同,抽出欄位不同,例如廠牌 ANRITSU 變 Anritsu)。舊批:舊規則 15 筆規格+7 項衝突,新規則 22;新批:舊規則(映像 556643b)16 筆+5 項衝突,新規則 21。舊批多出的兩項衝突是 frequency 與 Supported 3GPP/3GPP2 Standards,新批沒有。舊批資料已不存在,22 無法重現。
+- 單檔分析由模型抽取,推測同一檔案重新入庫會讓抽出欄位略有不同(推測,單檔結果沒有記錄所用模型)。
+- 驗收建議:不要以規格筆數為準;看 0 項衝突,以及基本頻率、選配頻率、MIMO、多型號警告是否正確。
+- 沒有做:未改任何資料庫、程式或 CSIT,未重送文件、未重跑 E2E、未啟用 OCR。
