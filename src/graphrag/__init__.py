@@ -185,7 +185,8 @@ class GraphRAGPipeline:
 
                 for rel in result.get("relationships", []):
                     rel["chunk_index"] = i
-                    rel["source"] = chunk["metadata"]["source"]
+                    # rel["source"] is the LLM-given source ENTITY name; the document goes in its own key
+                    rel["doc_source"] = chunk["metadata"]["source"]
                     all_relationships.append(rel)
 
                 logger.info(f"完成萃取區塊 {i+1}/{len(chunks)}")
@@ -234,7 +235,7 @@ class GraphRAGPipeline:
             MATCH (target:Entity {name: rel.target})
             MERGE (source)-[r:RELATES_TO {type: rel.type}]->(target)
             SET r.description = rel.description,
-                r.source = rel.source
+                r.source = rel.doc_source
             """
 
             self.graph.query(relationships_cypher, params={
