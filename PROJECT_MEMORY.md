@@ -188,3 +188,21 @@ Source commit：`556643b6f04083b3fd2cd1eded295fa26a0cc429`，分支 `feature/equ
 - KM DEV 真實資料試跑(唯讀):6 組內容相同文件,其中 5 組 TestReport(4、3、2、2 份,檔名如 SIT-SR-SC-NR-Handover-SCU2050-EV-V004.xlsx)、1 組 3 份 VendorFile(同一張螢幕截圖);最後一組檔名不同、內容相同(live-drill-report.xlsx 與 zone-report.xlsx)。不知道是真實重複上傳還是測試演練。先前只掃 v2 與文件專區而說「只有 1 組」是錯的,當時漏掃 v1 測試報告表。內容相同的兩份測試報告,差異分析比較結果會全為 0。
 - 權限模擬實測(隔離測試堆疊,未碰 KM DEV 與正式 KM):內容相同、文件 ID 不同的兩份文件,KM 各自入庫(各有 kmJobId、各自權限),改其中一份權限不影響另一份。缺口:(1) 一份限制、一份公開時,公開副本讓無權限者讀到內容(規格決定的結果,要由 CSIT 在來源端保證相同檔案權限一致);(2) 專區問答先檢查「最符合問題的段落」使用者能否讀,不能就整題拒絕,相同內容時排序偏向較晚入庫的副本,導致有權限讀另一份的人被誤拒(實驗碼缺口,尚未修)。測試集合留有 4 份 twin-* 測試文件;測試腳本在主機 /tmp,未入庫。
 - 未做:收件時日誌警告(會動共用的 v2_repository.py)、回報 CSIT、資料庫欄位(需契約變更與遷移);報告顯示權限一致性(主線無權限概念,僅實驗分支 #65 有);向 CSIT 確認權限繼承、歷史查詢、保留期限。
+
+## 2026-11-25 重複偵測工具(PR #69)部署到 KM DEV
+- 部署前:in flight 真實/模擬皆 0。只換 worker,API 不變(仍 km-csit-integration:9d5805d-callback-409-detail-20261119,啟動時間 11/20)。
+- 做法:疊加映像,以現行 km-csit-worker:embed-clean-20261123 為底,只 COPY 一個檔案 `src/csit_integration_v1/duplicate_content.py`(取自 main 8c29d8e,md5 f73f4f79…,與審過版本相同),標籤 km-csit-worker:dup-report-20261125(sha256:72a61981fea356c66d5df2449aede7f2a788665222e2e923a2863d44fc0535d0)。改 `~/.km-control/csit-mode/images.env` 的 KM_CSIT_WORKER_IMAGE 後執行 `csit-mode.sh reapply`。
+- 驗證:worker healthy,容器使用新映像,容器內檔案 md5 正確;worker 環境變數換版前後逐項相同;工具在容器內可執行並報出 6 組內容相同文件(與試跑一致),只讀。沒有送文件測試收件,也沒有看換版後 worker 日誌內容。
+- 使用:`ssh da40_ai_gb10@100.65.63.58 "docker exec -w /app km-csit-v1-dev-worker-1 python -m src.csit_integration_v1.duplicate_content"`,加 `--json` 輸出 JSON。
+- 備份與還原:`~/.km-control/dup-report-deploy-20261125/`(含 worker-inspect-before.json、建置內容)與 `images.env.before-dup-report-20261125`。還原:`cp ~/.km-control/csit-mode/images.env.before-dup-report-20261125 ~/.km-control/csit-mode/images.env && ~/.km-control/csit-mode/csit-mode.sh reapply`(回到 embed-clean-20261123)。
+- 範圍:只在 KM DEV,不碰正式 KM、CSIT;收件流程沒改,文件仍照常接受、不阻擋。
+
+## 2026-11-25 BUG-003 修正(PR #71)與收件時重複警告(PR #72)部署到 KM DEV
+- PR #71(已合併,main 5c1cd69):`src/graphrag/__init__.py` 的 `GraphRAGPipeline.extract_entities` 原本把關係的來源實體名稱 `rel["source"]` 覆寫成文件名,`build_graph` 因此找不到實體、關係寫不進圖譜。改為實體名稱留在 `source`,文件名放 `doc_source`,寫入邊時 `r.source = rel.doc_source`(與 `extract_entities.py` 慣例一致)。`GraphRAGPipeline` 全專案沒有呼叫端,屬潛在缺陷,線上行為不變。新增 `tests/test_graphrag_relationship_source.py`(2 項,修正前失敗、後通過);該檔不在 CI 腳本收集範圍,不會自動執行。**未部署**(無呼叫端,不需要)。
+- PR #72(已合併,main 8549b10):v2 收件(`V2Repository.submit_job`)交易提交後,另開唯讀連線(`SET TRANSACTION READ ONLY`)查三張工作表中 SHA256 相同、文件身分不同的有效工作,記一筆 WARNING(記錄器 `km.csit.duplicate_content`,內容含新舊 kmJobId 與 SHA256 前 12 碼)。只偵測不阻擋:工作照常接受、回應不變、不回報 CSIT。檢查在提交之後並以 try/except 包住,出錯(含資料庫錯誤)不會讓收件失敗或回滾;同 eventId 重播不重複警告。新增 `tests/csit_v1/test_duplicate_intake_warning.py`(6 項)。CI:710 通過、5 略過(原 704)。只涵蓋 v2 路徑,v1 測試報告與文件庫舊路徑沒有警告。未做反向驗證(移除實作看測試是否失敗)。
+- 部署前唯讀檢查:三表筆數 24/26/32,SHA256 欄位無索引(全表掃描),新查詢實測 0.14 毫秒;資料到數十萬筆以上才需要補索引。
+- 部署(KM DEV):部署前 in flight 真實/模擬皆 0,模式 real。API 與 worker 都換:疊加映像,各自以現行映像為底(API 底 km-csit-integration:9d5805d-callback-409-detail-20261119,worker 底 km-csit-worker:dup-report-20261125),只 COPY `v2_repository.py` 與 `duplicate_content.py`(取自 main 8549b10)。先確認兩底映像的 v2_repository.py 等於 #72 之前的 main(md5 309014c0…)才疊加。新標籤 km-csit-integration:dup-intake-20261125(811538c90177)、km-csit-worker:dup-intake-20261125(a042b1ce35ba)。改 `images.env` 後 `csit-mode.sh reapply`。API 重啟有短暫空窗(CSIT 是否重試未確認)。
+- 驗證:兩容器 healthy、API 重啟 0 次、日誌無 error;容器內 v2_repository.py md5 87b7f06f… 與 main 相同。**沒有送測試事件,警告尚未在 KM DEV 實際出現**;要等下一個內容相同的 CSIT 文件進來才會看到。
+- 備份與還原:`~/.km-control/dup-intake-deploy-20261125/`(api/worker-inspect-before.json、建置內容)、`images.env.before-dup-intake-20261125`。還原:`cp ~/.km-control/csit-mode/images.env.before-dup-intake-20261125 ~/.km-control/csit-mode/images.env && ~/.km-control/csit-mode/csit-mode.sh reapply`(回到 API 9d5805d-callback-409-detail、worker dup-report-20261125)。
+- 範圍:只在 KM DEV,不碰正式 KM、CSIT、Shared Identity;契約、回應、資料表結構都沒改。
+- 對照上一段:「未做」清單中的「收件時日誌警告」現已完成(僅 v2 路徑);回報 CSIT 與資料庫欄位仍未做。
