@@ -10,10 +10,12 @@ A job is live when it is not Failed or Deleted and, for v2, its index is not Sup
 """
 import argparse
 import json
+import logging
 import sys
 from collections import defaultdict
 
 LIVE_EXCLUDED = ("Failed", "Deleted")
+LOG = logging.getLogger("km.csit.duplicate_content")
 
 # One SELECT per lane, all returning the same columns.
 LANE_SQL = {
@@ -31,6 +33,10 @@ LANE_SQL = {
              FROM km_csit_v2_jobs WHERE expected_sha256 IS NOT NULL AND status NOT IN ('Failed','Deleted')
               AND COALESCE(index_state,'') <> 'Superseded'""",
 }
+
+
+# The same three lanes, narrowed to one SHA256 (used at intake time).
+PEER_SQL = "SELECT * FROM (" + " UNION ALL ".join(LANE_SQL.values()) + ") lanes WHERE lower(sha256) = %s"
 
 
 def _identity(row):
@@ -72,6 +78,23 @@ def fetch_rows(conn):
     for sql in LANE_SQL.values():
         rows.extend(conn.execute(sql).fetchall())
     return rows
+
+
+def warn_if_duplicate(connect, sha256, km_job_id, log=LOG):
+    """Log one warning when a live job of another CSIT document has the same bytes as km_job_id. Read only; never blocks, merges or changes anything.
+    connect: a callable returning a new connection (the intake transaction must already be committed)."""
+    sha = str(sha256 or "").strip().lower()
+    if not sha:
+        return []
+    with connect() as c:
+        c.execute("SET TRANSACTION READ ONLY")      # first statement of this transaction: the server refuses any write
+        groups = group_duplicates(c.execute(PEER_SQL, (sha,)).fetchall())
+    mine = [g for g in groups if any(m["km_job_id"] == km_job_id for m in g["members"])]
+    for g in mine:
+        others = [m["km_job_id"] for m in g["members"] if m["km_job_id"] != km_job_id]
+        log.warning("duplicate content: %s has the same SHA256 (%s...) as %d other CSIT document(s): %s; kept as independent documents",
+                    km_job_id, sha[:12], len(others), ", ".join(others))
+    return mine
 
 
 def render_text(groups):
