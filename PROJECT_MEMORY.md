@@ -179,3 +179,12 @@ Source commit：`556643b6f04083b3fd2cd1eded295fa26a0cc429`，分支 `feature/equ
 - 單檔分析由模型抽取,推測同一檔案重新入庫會讓抽出欄位略有不同(推測,單檔結果沒有記錄所用模型)。
 - 驗收建議:不要以規格筆數為準;看 0 項衝突,以及基本頻率、選配頻率、MIMO、多型號警告是否正確。
 - 沒有做:未改任何資料庫、程式或 CSIT,未重送文件、未重跑 E2E、未啟用 OCR。
+
+## 2026-11-25 相同內容文件:KM 只偵測、不阻擋(PR #69)與權限模擬的相關實測
+- 決定:CSIT 送來「不同紀錄、內容相同(SHA256 相同)」的文件時,KM 先偵測、不阻擋、不合併。規格 v1.4.1 3.1 明寫不得以檔名或 SHA256 合併不同來源紀錄(同一檔案可能合法附在兩張申請單),且 KM 不是文件的權威。
+- KM 現況(讀 KM DEV 的 v2 收件程式,未實際送請求驗證):只以識別碼去重,不看內容。同 eventId 重送回原 kmJobId;同 (sourceType, sourceEntityId, version) 已有 Accepted/Processing/Completed 工作回 CANONICAL_JOB_EXISTS;Failed 或 Deleted 的會被當成新的接受;已刪除版本回 DOCUMENT_DELETED。SHA256 只用於下載後比對 CSIT 宣告值(CHECKSUM_MISMATCH),不用於找重複。
+- 版本取代(規格 v1.4/v1.4.1 第 6.1 節):新版帶 supersedes(舊文件 ID、舊版本、舊 SHA256);KM 先完成新版索引,再把舊版標 Superseded、不可供現行檢索;新版失敗舊版不動;永久刪除另走第 7 節精確刪除。KM 實作:標記向量片段 index_state=Superseded 與工作紀錄,不刪除;專區預設搜尋排除,問題含歷史字眼時才一併找(此為 KM 自加行為,規格未要求)。KM 不比較版本號大小,只檢查 supersedes 不得指向自己;沒帶 supersedes 的同內容新文件 ID 會成為另一份現行文件。TestReport 新版本不支援(REPLACEMENT_NOT_SUPPORTED)。規格沒定義權限在取代時是否繼承。
+- PR #69(已合併,main 8c29d8e):新增 `src/csit_integration_v1/duplicate_content.py` 與 `tests/csit_v1/test_duplicate_content.py`。唯讀報告:掃 v1 測試報告、v1 文件專區、v2 三張工作表,依 SHA256 分組;同一文件的重試、Failed、Deleted、Superseded 不算;SHA256 相同但大小不同會標出;連線在伺服器端設為唯讀。不改既有檔案、不碰收件流程、無資料庫遷移。用法(worker 容器內):`python -m src.csit_integration_v1.duplicate_content [--json]`。CI:704 通過、5 略過(原 695)。**未部署**:KM DEV 目前映像沒有此檔,要用需重建 worker 映像並重啟 worker。
+- KM DEV 真實資料試跑(唯讀):6 組內容相同文件,其中 5 組 TestReport(4、3、2、2 份,檔名如 SIT-SR-SC-NR-Handover-SCU2050-EV-V004.xlsx)、1 組 3 份 VendorFile(同一張螢幕截圖);最後一組檔名不同、內容相同(live-drill-report.xlsx 與 zone-report.xlsx)。不知道是真實重複上傳還是測試演練。先前只掃 v2 與文件專區而說「只有 1 組」是錯的,當時漏掃 v1 測試報告表。內容相同的兩份測試報告,差異分析比較結果會全為 0。
+- 權限模擬實測(隔離測試堆疊,未碰 KM DEV 與正式 KM):內容相同、文件 ID 不同的兩份文件,KM 各自入庫(各有 kmJobId、各自權限),改其中一份權限不影響另一份。缺口:(1) 一份限制、一份公開時,公開副本讓無權限者讀到內容(規格決定的結果,要由 CSIT 在來源端保證相同檔案權限一致);(2) 專區問答先檢查「最符合問題的段落」使用者能否讀,不能就整題拒絕,相同內容時排序偏向較晚入庫的副本,導致有權限讀另一份的人被誤拒(實驗碼缺口,尚未修)。測試集合留有 4 份 twin-* 測試文件;測試腳本在主機 /tmp,未入庫。
+- 未做:收件時日誌警告(會動共用的 v2_repository.py)、回報 CSIT、資料庫欄位(需契約變更與遷移);報告顯示權限一致性(主線無權限概念,僅實驗分支 #65 有);向 CSIT 確認權限繼承、歷史查詢、保留期限。
