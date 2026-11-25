@@ -75,7 +75,7 @@ function draw(){drawNav();({docs:drawDocs,traffic:drawTraffic,km:drawKm,live:dra
 
 // ---------- 文件專區 ----------
 function taxOpts(nodes,sel){return '<option value="">—</option>'+nodes.map(n=>`<option value="${n.id}" ${n.id===sel?'selected':''}>${esc(n.name)}</option>`).join('')}
-let up={l1:'',l2:'',l3:'',text:'CSIT 測試文件。This manual describes the Wi-Fi 7 access point FSW26 setup procedure. Spectrum analyzer calibration steps are listed in section 3.',name:'manual.txt',auto:false,st:'DocumentLibraryFile',sup:'',pj:{number:'PRJ-001',name:'模擬專案'},cs:{number:'CASE-001',name:'模擬測試案例'},tk:{number:'TASK-001',name:'模擬測試任務'}};
+let up={acm:'',acp:'',l1:'',l2:'',l3:'',text:'CSIT 測試文件。This manual describes the Wi-Fi 7 access point FSW26 setup procedure. Spectrum analyzer calibration steps are listed in section 3.',name:'manual.txt',auto:false,st:'DocumentLibraryFile',sup:'',pj:{number:'PRJ-001',name:'模擬專案'},cs:{number:'CASE-001',name:'模擬測試案例'},tk:{number:'TASK-001',name:'模擬測試任務'}};
 function drawUp(){const e=$('upc');if(!e)return;const f=$('f')?.files?.[0];e.innerHTML=uploadCard();if(f){try{const dt=new DataTransfer();dt.items.add(f);$('f').files=dt.files}catch(x){}}}
 function uploadCard(){
   const l1=taxo.find(n=>n.id===up.l1),l2=l1?.children.find(n=>n.id===up.l2);
@@ -89,11 +89,14 @@ function uploadCard(){
   <div class="row" style="margin-top:8px"><label>分類 L1<select onchange="up.l1=this.value;up.l2='';up.l3='';drawUp()">${taxOpts(taxo,up.l1)}</select></label>
   <label>L2<select onchange="up.l2=this.value;up.l3='';drawUp()">${taxOpts(l1?.children||[],up.l2)}</select></label>
   <label>L3<select onchange="up.l3=this.value">${taxOpts(l2?.children||[],up.l3)}</select></label>
+  <label>可讀取對象(權限)<select onchange="up.acm=this.value;drawUp()"><option value="" ${up.acm===''?'selected':''}>不送(舊式,無權限資料)</option><option value="Public" ${up.acm==='Public'?'selected':''}>公開(所有人)</option><option value="Restricted" ${up.acm==='Restricted'?'selected':''}>限定帳號 / 群組</option></select></label>
+  ${up.acm==='Restricted'?`<label>允許的帳號或群組<input size="28" placeholder="unit:HR, unit:RD, alice" value="${esc(up.acp)}" oninput="up.acp=this.value"></label>`:''}
   <label style="flex-direction:row;align-items:center;gap:6px;color:var(--fg)"><input type="checkbox" ${up.auto?'checked':''} onchange="up.auto=this.checked"> 上傳後自動核准 / 歸檔 / 派送</label>
   <button onclick="upload()">上傳</button></div>
   <div class="mute" style="margin-top:6px">專區由 KM 讀內容決定:${up.st==='TestReport'?'<b>測試報告固定歸產品驗證專區</b>':'測試報告類內容歸產品驗證專區,其他文件依內容主題歸入各專區(WiFi、行動通訊、固網寬頻、認證…)'};CSIT 這裡選的分類只是帶給 KM 的參考,不決定專區。</div>
   <div class="mute" style="margin-top:6px">預設停在「待核准」,每一步由你手動按,方便觀察 KM 在哪個時間點收到什麼。</div></div>`}
 async function upload(){const f=$('f').files[0],spec={fileName:f?f.name:up.name,classification:{l1:up.l1,l2:up.l2,l3:up.l3},autoRun:up.auto,sourceType:up.st,supersedesDocId:up.sup||undefined};
+  if(up.acm)spec.accessControl={mode:up.acm,principals:up.acp};
   if(up.st==='TestReport'){spec.project={...up.pj};spec.case={...up.cs};spec.task={...up.tk}}
   if(f){const buf=new Uint8Array(await f.arrayBuffer());let s='';for(let i=0;i<buf.length;i+=8192)s+=String.fromCharCode.apply(null,buf.subarray(i,i+8192));spec.contentBase64=btoa(s);spec.contentType=f.type||'application/octet-stream'}
   else spec.contentText=up.text;
@@ -116,13 +119,13 @@ function drawDetail(){const el=$('detail');if(!el)return;const d=S.docs.find(x=>
    ${d.stage==='PendingApproval'?`<button class="alt" onclick="act('${d.id}','reject')">退回</button>`:''}
    ${['PendingApproval','Approved','Archived'].includes(d.stage)?`<button class="alt" onclick="act('${d.id}','run-all')">一鍵跑完</button>`:''}
    ${d.archived&&d.stage!=='Purged'&&d.stage!=='Deleting'&&d.jobIds.length?`<button class="alt" onclick="act('${d.id}','dispatch')" title="同一個 csitJobId,驗證冪等">重送(同工作)</button><button class="alt" onclick="act('${d.id}','dispatch',{newJob:true})" title="新的 csitJobId">新工作重送</button>`:''}
-   ${d.archived&&d.jobIds.length&&!['Purged','Deleting'].includes(d.stage)?`<button class="alt" onclick="chg('${d.id}')" title="規格 §6.2:只改分類/標籤,KM 不重新取檔">改標籤(v2)</button>${(d.changes||[]).length?`<button class="alt" onclick="act('${d.id}','stale-change')" title="用舊的 sourceRevision 再送,KM 應回 409">送舊修訂(應被拒)</button>`:''}`:''}
+   ${d.archived&&d.jobIds.length&&!['Purged','Deleting'].includes(d.stage)?`<button class="alt" onclick="chg('${d.id}')" title="規格 §6.2:只改分類/標籤,KM 不重新取檔">改標籤(v2)</button><button class="alt" onclick="chgAcl('${d.id}')" title="只改可讀取對象:新版本號,KM 不重新取檔">改權限(v2)</button>${(d.changes||[]).length?`<button class="alt" onclick="act('${d.id}','stale-change')" title="用舊的 sourceRevision 再送,KM 應回 409">送舊修訂(應被拒)</button>`:''}`:''}
    ${d.archived&&!['Purged','Deleting'].includes(d.stage)?`<button class="danger" onclick="if(confirm('通知 KM 刪除這份文件?'))act('${d.id}','delete')">刪除</button>`:''}
    ${d.stage==='Deleting'||d.stage==='Purged'?`<button class="alt" onclick="act('${d.id}','delete',{deletionRequestId:'${d.delIds[0]}'})">重送刪除通知(同請求)</button>`:''}
    ${d.stage==='Purged'?`<button class="alt" onclick="act('${d.id}','dispatch')" title="KM 應回 409">再派送上傳通知(應被拒絕)</button>`:''}</div>
   <div class="kv"><div>來源</div><div>${esc(d.sourceType||'DocumentLibraryFile')}${d.sourceType&&d.sourceType!=='DocumentLibraryFile'?` · v${d.version}`:''}</div>
    ${d.sourceType&&d.sourceType!=='DocumentLibraryFile'?`<div>sourceEntityId</div><div class="mono">${d.entityId}</div><div>KM 取檔位置</div><div class="mono">${esc(d.downloadPath)}</div>${d.supersedesDocId?`<div>取代</div><div class="mono">${d.supersedesDocId}</div>`:''}`:''}
-   <div>documentFileId / documentId</div><div class="mono">${d.id}</div><div>sha256</div><div class="mono">${d.sha256}</div><div>分類</div><div>${cls(d)}</div>
+   <div>documentFileId / documentId</div><div class="mono">${d.id}</div><div>sha256</div><div class="mono">${d.sha256}</div><div>分類</div><div>${cls(d)}</div><div>可讀取對象</div><div>${accTxt(d)}</div>
    ${last?`<div>csitJobId</div><div class="mono">${last.csitJobId}</div><div>kmJobId</div><div class="mono">${esc(last.kmJobId||'—')}</div>`:''}
    ${d.dels[0]?`<div>deletionRequestId</div><div class="mono">${d.dels[0].deletionRequestId}</div><div>kmDeletionJobId</div><div class="mono">${esc(d.dels[0].kmDeletionJobId||'—')}</div>`:''}</div></div>
   <div class="card"><h2>情境注入(影響這份文件)</h2><div class="row">
@@ -138,6 +141,8 @@ function drawDetail(){const el=$('detail');if(!el)return;const d=S.docs.find(x=>
   ${d.dels.some(x=>x.result)?delCard(d.dels.find(x=>x.result).result):''}
   <div class="card"><h2>時間線</h2><div class="tl">${[...d.timeline,...d.jobs.flatMap(j=>j.timeline),...d.dels.flatMap(j=>j.timeline),...(d.changes||[]).flatMap(j=>j.timeline)].sort((a,b)=>a.t<b.t?-1:1).map(e=>`<div><span class="mono mute">${e.t.slice(11,23)}</span> ${esc(e.kind)}${e.detail?` <span class="mute">${esc(typeof e.detail==='string'?e.detail:JSON.stringify(e.detail))}</span>`:''}</div>`).join('')}</div></div>
   <div class="card"><h2>這份文件的 API 往返(${calls.length})</h2>${calls.length?calls.map(trow).join(''):'<span class="mute">尚無</span>'}</div>`}
+function accTxt(d){const a=d.access;if(!a)return '<span class="mute">未送(舊式,KM 視為無權限資料)</span>';return a.mode==='Public'?'公開 · v'+a.version:'限定 · '+(a.allowedPrincipals.map(p=>esc(p.type.toLowerCase()+':'+p.id)).join(', ')||'(無人)')+' · v'+a.version}
+async function chgAcl(id){const t=prompt('可讀取對象:輸入「公開」,或以逗號分隔的帳號/群組(群組前加 group:)','alice');if(t===null)return;const pub=['公開','public'].includes(t.trim().toLowerCase());act(id,'change',{accessControl:pub?{mode:'Public'}:{mode:'Restricted',principals:t}})}
 async function chg(id){const t=prompt('新的標籤(以逗號分隔;留空表示清除)','wifi');if(t===null)return;act(id,'change',{tags:t.split(',').map(x=>x.trim()).filter(Boolean)})}
 async function fault(id,b){const d=await api('/api/docs/'+id+'/faults',b);if(d)await load()}
 function metaCard(r){const D=r.document,X=r.extraction,I=r.indexing,Tc=r.technical;

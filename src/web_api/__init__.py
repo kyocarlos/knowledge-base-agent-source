@@ -1181,6 +1181,8 @@ from .legacy_routes import router as legacy_router
 app.include_router(legacy_router)
 from .zone_routes import router as zone_router
 app.include_router(zone_router)
+from .zone_routes import access_router as zone_access_router
+app.include_router(zone_access_router)
 from .keeper_routes import router as keeper_router
 app.include_router(keeper_router)
 from .llm_profile_routes import router as llm_profile_router

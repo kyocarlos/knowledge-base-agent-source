@@ -16,6 +16,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterator
 
+from .csit_integration_v1.access_control import normalize_unit, principal_key
 from .instance_isolation import VALID_INSTANCE_IDS
 from .km_accounts import hash_password, verify_password
 
@@ -253,10 +254,116 @@ class ControlRegistry:
                     CHECK(status IN ('active','invalid'))
                 )
             """))
+            for statement in (
+                "CREATE TABLE IF NOT EXISTS km_units (unit_code TEXT PRIMARY KEY, name TEXT NOT NULL, active BOOLEAN NOT NULL DEFAULT TRUE, source TEXT NOT NULL DEFAULT 'csit', imported_by TEXT NOT NULL, updated_at BIGINT NOT NULL)",
+                "CREATE TABLE IF NOT EXISTS km_user_units (user_id TEXT NOT NULL REFERENCES km_users(user_id) ON DELETE CASCADE, unit_code TEXT NOT NULL REFERENCES km_units(unit_code), assigned_by TEXT NOT NULL, assigned_at BIGINT NOT NULL, PRIMARY KEY (user_id, unit_code))",
+                "CREATE TABLE IF NOT EXISTS km_user_zones (user_id TEXT NOT NULL REFERENCES km_users(user_id) ON DELETE CASCADE, zone_id TEXT NOT NULL, granted_by TEXT NOT NULL, granted_at BIGINT NOT NULL, PRIMARY KEY (user_id, zone_id))",
+            ):
+                connection.execute(statement)
 
     def _audit(self, connection: object, event_type: str, actor_user_id: str | None, target_user_id: str | None, detail: dict | None = None) -> None:
         connection.execute(self._sql("INSERT INTO km_audit_events (event_id, occurred_at, actor_user_id, target_user_id, event_type, detail_json) VALUES (?, ?, ?, ?, ?, ?)"),
             (str(uuid.uuid4()), _now(), actor_user_id, target_user_id, event_type, json.dumps(detail or {}, separators=(",", ":"), sort_keys=True)))
+
+    # ---- organisation units: the list is CSIT's (imported here), who belongs to which unit is set here; a document names the units that may read it ----
+    UNIT_LIMIT = 2000
+
+    @staticmethod
+    def _unit_code(value) -> str:
+        code = normalize_unit(value)
+        if not code or len(code) > 128 or any(ord(ch) < 32 for ch in code):
+            raise ControlError("invalid unit code")
+        return code
+
+    def import_units(self, actor_user_id: str, units: list, deactivate_missing: bool = False) -> dict:
+        """Upsert CSIT's unit list ({code, name}). With deactivate_missing, units absent from this list stop counting (their members keep the rows)."""
+        rows: dict[str, str] = {}
+        for item in units or []:
+            code = self._unit_code(item.get("code") if isinstance(item, dict) else item)
+            rows[code] = str((item.get("name") if isinstance(item, dict) else "") or code).strip()[:200]
+        if not rows or len(rows) > self.UNIT_LIMIT:
+            raise ControlError("the unit list is empty or too long")
+        now, added, updated, deactivated = _now(), 0, 0, 0
+        with self._connection() as connection:
+            existing = {r["unit_code"]: r for r in connection.execute(self._sql("SELECT unit_code, name, active FROM km_units")).fetchall()}
+            for code, name in rows.items():
+                if code in existing:
+                    if existing[code]["name"] != name or not existing[code]["active"]:
+                        connection.execute(self._sql("UPDATE km_units SET name = ?, active = TRUE, imported_by = ?, updated_at = ? WHERE unit_code = ?"), (name, actor_user_id, now, code))
+                        updated += 1
+                else:
+                    connection.execute(self._sql("INSERT INTO km_units (unit_code, name, active, source, imported_by, updated_at) VALUES (?, ?, TRUE, 'csit', ?, ?)"), (code, name, actor_user_id, now))
+                    added += 1
+            if deactivate_missing:
+                for code, row in existing.items():
+                    if code not in rows and row["active"]:
+                        connection.execute(self._sql("UPDATE km_units SET active = FALSE, updated_at = ? WHERE unit_code = ?"), (now, code))
+                        deactivated += 1
+            self._audit(connection, "units_imported", actor_user_id, None, {"added": added, "updated": updated, "deactivated": deactivated, "total": len(rows)})
+        return {"added": added, "updated": updated, "deactivated": deactivated, "total": len(rows)}
+
+    def list_units(self) -> list[dict]:
+        with self._connection() as connection:
+            rows = connection.execute(self._sql("SELECT u.unit_code, u.name, u.active, (SELECT COUNT(*) FROM km_user_units m WHERE m.unit_code = u.unit_code) AS members FROM km_units u ORDER BY u.unit_code")).fetchall()
+        return [{"code": r["unit_code"], "name": r["name"], "active": bool(r["active"]), "members": int(r["members"])} for r in rows]
+
+    def set_user_units(self, actor_user_id: str, user_id: str, codes: list) -> list[str]:
+        """Replace the account's units. Only active units of CSIT's list can be assigned; every change is audited with the before and after sets."""
+        wanted = sorted({self._unit_code(c) for c in codes or []})
+        if self.get_user(user_id) is None:
+            raise ControlError("account not found")
+        with self._connection() as connection:
+            active = {r["unit_code"] for r in connection.execute(self._sql("SELECT unit_code FROM km_units WHERE active = TRUE")).fetchall()}
+            unknown = [c for c in wanted if c not in active]
+            if unknown:
+                raise ControlError("unknown or inactive unit: " + ", ".join(unknown))
+            before = sorted(r["unit_code"] for r in connection.execute(self._sql("SELECT unit_code FROM km_user_units WHERE user_id = ?"), (user_id,)).fetchall())
+            if before == wanted:
+                return wanted
+            now = _now()
+            for code in sorted(set(before) - set(wanted)):
+                connection.execute(self._sql("DELETE FROM km_user_units WHERE user_id = ? AND unit_code = ?"), (user_id, code))
+            for code in sorted(set(wanted) - set(before)):
+                connection.execute(self._sql("INSERT INTO km_user_units (user_id, unit_code, assigned_by, assigned_at) VALUES (?, ?, ?, ?)"), (user_id, code, actor_user_id, now))
+            self._audit(connection, "user_units_set", actor_user_id, user_id, {"before": before, "after": wanted})
+        return wanted
+
+    def units_for(self, user_id: str) -> list[str]:
+        """The account's active units, read on every call (a change applies to the next question, no re-login). Raises if the tables are not migrated."""
+        with self._connection() as connection:
+            rows = connection.execute(self._sql("SELECT m.unit_code FROM km_user_units m JOIN km_units u ON u.unit_code = m.unit_code WHERE m.user_id = ? AND u.active = TRUE ORDER BY m.unit_code"), (user_id,)).fetchall()
+        return [r["unit_code"] for r in rows]
+
+    def unit_keys_for(self, user_id: str) -> list[str]:
+        return [principal_key("unit", None, code) for code in self.units_for(user_id)]
+
+    # ---- knowledge zones an account may enter (the sidebar entries of KM); an account with no row holds no zone ----
+    def set_user_zones(self, actor_user_id: str, user_id: str, zone_ids: list) -> list[str]:
+        """Replace the zones the account may enter. Only the nine KM zones can be named; every change is audited with the before and after sets."""
+        from .csit_integration_v1.zones import ZONE_BY_ID
+        wanted = sorted({str(z).strip().lower() for z in zone_ids or []})
+        unknown = [z for z in wanted if z not in ZONE_BY_ID]
+        if unknown:
+            raise ControlError("unknown zone: " + ", ".join(unknown))
+        if self.get_user(user_id) is None:
+            raise ControlError("account not found")
+        with self._connection() as connection:
+            before = sorted(r["zone_id"] for r in connection.execute(self._sql("SELECT zone_id FROM km_user_zones WHERE user_id = ?"), (user_id,)).fetchall())
+            if before == wanted:
+                return wanted
+            now = _now()
+            for zone in sorted(set(before) - set(wanted)):
+                connection.execute(self._sql("DELETE FROM km_user_zones WHERE user_id = ? AND zone_id = ?"), (user_id, zone))
+            for zone in sorted(set(wanted) - set(before)):
+                connection.execute(self._sql("INSERT INTO km_user_zones (user_id, zone_id, granted_by, granted_at) VALUES (?, ?, ?, ?)"), (user_id, zone, actor_user_id, now))
+            self._audit(connection, "user_zones_set", actor_user_id, user_id, {"before": before, "after": wanted})
+        return wanted
+
+    def zones_for(self, user_id: str) -> list[str]:
+        """The zones the account may enter, read on every call (a change applies to the next request, no re-login). Raises if the table is not migrated."""
+        with self._connection() as connection:
+            rows = connection.execute(self._sql("SELECT zone_id FROM km_user_zones WHERE user_id = ? ORDER BY zone_id"), (user_id,)).fetchall()
+        return [r["zone_id"] for r in rows]
 
     @staticmethod
     def _user(row: object | None) -> ControlUser | None:

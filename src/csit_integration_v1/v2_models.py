@@ -6,7 +6,7 @@ from typing import Annotated, Literal, Optional
 from uuid import UUID
 from jsonschema import Draft202012Validator
 from pydantic import AfterValidator, BaseModel, Field, StrictInt, field_validator, model_validator
-from .doclib_models import (Wire, Classification, DOCUMENT_TYPES, CLEANUP_ITEMS, RESULT_SCHEMA, _ts)
+from .doclib_models import (Wire, Classification, AccessControl, DOCUMENT_TYPES, CLEANUP_ITEMS, RESULT_SCHEMA, _ts)
 from .models import safe_filename
 
 JOB_SOURCE_TYPES = ("VerificationApplicationAttachment", "VendorFile", "EquipmentAttachment", "TestReport", "DocumentLibraryFile")
@@ -88,6 +88,7 @@ class DocumentJobRequest(Wire):
     source: V2Source
     document: V2Document
     classification: Classification = Classification()
+    accessControl: Optional[AccessControl] = None
     supersedes: Optional[V2Supersedes] = None
     occurredAt: datetime
     _tz = field_validator("occurredAt")(_tz)
@@ -130,6 +131,7 @@ class MetadataChangeRequest(Wire):
     occurredAt: datetime
     classification: Classification
     attributes: Attributes
+    accessControl: Optional[AccessControl] = None
     changedFields: list[str] = Field(default_factory=list, max_length=100)
     _tz = field_validator("occurredAt")(_tz)
     def key(self):

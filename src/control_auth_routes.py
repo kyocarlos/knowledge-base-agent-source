@@ -71,6 +71,44 @@ class BindingRejection(BaseModel):
     reason: str = Field(min_length=1, max_length=1000)
 
 
+class UnitImport(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    units: list[dict] | None = Field(default=None, max_length=5000)
+    csv: str | None = Field(default=None, max_length=400000)
+    deactivate_missing: bool = False
+
+
+class UserZones(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    zones: list[str] = Field(default_factory=list, max_length=20)
+
+
+class UserUnits(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    units: list[str] = Field(default_factory=list, max_length=200)
+
+
+def _parse_units_csv(text: str) -> list[dict]:
+    """CSIT's unit list pasted as lines of `code,name` (comma, tab or semicolon). A first line `code,name` is a header and is skipped."""
+    out = []
+    for n, line in enumerate((text or "").splitlines()):
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        parts = [p.strip() for p in line.replace("\t", ",").replace(";", ",").split(",", 1)]
+        if n == 0 and parts[0].lower() in ("code", "unit_code", "unitcode", "單位代碼"):
+            continue
+        out.append({"code": parts[0], "name": parts[1] if len(parts) > 1 else parts[0]})
+    return out
+
+
+def _units_safe(registry: ControlRegistry, user_id: str) -> list[str]:
+    try:
+        return registry.units_for(user_id)
+    except Exception:  # noqa: BLE001 - the admin page stays usable on a store that has not been migrated
+        return []
+
+
 def _enabled_instance_ids() -> frozenset[str]:
     """Return deployment-enabled entries, never a client-selected scope."""
     configured = os.getenv("KM_ENABLED_INSTANCE_IDS", "test,da40,rd2")
@@ -462,7 +500,8 @@ async def list_users(request: Request):
         catalog = []  # the admin page stays usable without the capability column
     return {"enabled_instances": sorted(enabled), "capability_catalog": catalog,
             "users": [{**user.__dict__, "instances": [grant for grant in registry.grants_for(user.user_id) if grant["instance_id"] in enabled],
-                       "capabilities": [c for c in registry.capabilities_for(user.user_id) if c["instance_id"] in enabled]} for user in registry.list_users()]}
+                       "capabilities": [c for c in registry.capabilities_for(user.user_id) if c["instance_id"] in enabled],
+                       "units": _units_safe(registry, user.user_id), "zones": _zones_safe(registry, user.user_id)} for user in registry.list_users()]}
 
 
 @router.post("/admin/users", status_code=201)
@@ -507,6 +546,57 @@ async def grant(user_id: str, instance_id: str, payload: dict, request: Request)
     except ControlError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return {"user_id": user_id, "instances": _visible_grants(user_id)}
+
+
+@router.get("/admin/units")
+async def list_units(request: Request):
+    _admin(request)
+    try:
+        return {"units": ControlRegistry.from_environment().list_units()}
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=503, detail="unit tables are not available (migration 20261122 not applied?)") from exc
+
+
+@router.put("/admin/units")
+async def import_units(payload: UnitImport, request: Request):
+    admin = _admin(request)
+    units = payload.units if payload.units is not None else _parse_units_csv(payload.csv or "")
+    try:
+        return ControlRegistry.from_environment().import_units(admin["sub"], units, payload.deactivate_missing)
+    except ControlError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+def _zones_safe(registry, user_id: str) -> list[str]:
+    try:
+        return registry.zones_for(user_id)
+    except Exception:  # noqa: BLE001 - the zone table is an explicit migration; the admin page stays usable without it
+        return []
+
+
+@router.get("/admin/zones")
+async def list_zones(request: Request):
+    _admin(request)
+    from .csit_integration_v1.zones import ZONES
+    return {"zones": [{"id": zone_id, "label": label} for zone_id, label in ZONES]}
+
+
+@router.put("/admin/users/{user_id}/zones")
+async def set_user_zones(user_id: str, payload: UserZones, request: Request):
+    admin = _admin(request)
+    try:
+        return {"user_id": user_id, "zones": ControlRegistry.from_environment().set_user_zones(admin["sub"], user_id, payload.zones)}
+    except ControlError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@router.put("/admin/users/{user_id}/units")
+async def set_user_units(user_id: str, payload: UserUnits, request: Request):
+    admin = _admin(request)
+    try:
+        return {"user_id": user_id, "units": ControlRegistry.from_environment().set_user_units(admin["sub"], user_id, payload.units)}
+    except ControlError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
 @router.put("/admin/users/{user_id}/capabilities/{instance_id}/{capability}")

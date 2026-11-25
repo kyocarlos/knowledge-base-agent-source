@@ -104,6 +104,17 @@ class TaskStore:
         return json.loads(raw.decode("utf-8") if isinstance(raw, bytes) else raw)
 
 
+ACCESS_DENIED = "此問題涉及您目前沒有權限查看的文件，所以無法回答。如需查閱，請向文件的管理者申請權限。"
+
+
+def _deny_score() -> float:
+    import os
+    try:
+        return float(os.getenv("KM_ZONE_ACL_DENY_MIN_SCORE", "0") or 0)
+    except ValueError:
+        return 0.0
+
+
 class ZoneAgent:
     def __init__(self, catalog: ZoneCatalog, complete: Callable[[list[dict]], str] | None, clock: Callable[[], float] = time.monotonic, stats: Any = None):
         self.catalog, self.complete, self.clock, self.stats = catalog, complete, clock, stats   # stats: zone_pages.stats.ReportStats, for the zones that hold test reports
@@ -126,14 +137,21 @@ class ZoneAgent:
                 "elapsed_ms": int((self.clock() - started) * 1000)}
 
     def answer(self, *, task_id: str, zone_label: str, zone_names: list[str], question: str, history: list[dict], owner: dict, file_records: dict[str, dict],
-               emit: Callable[[dict], None], with_stats: bool = False) -> dict[str, Any]:
+               emit: Callable[[dict], None], with_stats: bool = False, viewer=None) -> dict[str, Any]:
         started = self.clock()
+        if viewer is not None and self.catalog.best_passage_is_restricted(question, zone_names, viewer, include_history=bool(HISTORY_WORDS.search(question)), min_score=_deny_score()):
+            __import__("logging").getLogger("km.zones.agent").warning("zone answer refused by document permission zone=%s user=%s", zone_label, (owner or {}).get("user_id"))
+            emit({"type": "tool", "label": "檢查文件權限"})
+            emit({"type": "delta", "text": ACCESS_DENIED})
+            return {"task_id": task_id, "owner": owner, "status": "completed", "question": question, "answer_main": ACCESS_DENIED, "citations": [],
+                    "stop_reason": "access_denied（無權限）", "trace": [{"tool": "check_access"}], "grounding": NO_CLAIMS, "extension": {"related": "", "followups": []},
+                    "elapsed_ms": int((self.clock() - started) * 1000)}
         consult = self.stats.consult(question, history) if with_stats and self.stats is not None and self.complete is not None else None
         if consult and consult["ask"]:           # technology, kind of report and project are settled in that order before any number is fetched
             return self._ask(task_id, question, owner, consult["ask"], started, emit)
         trace = [{"tool": "search_documents"}]
         emit({"type": "tool", "label": "搜尋專區文件"})
-        hits = self.catalog.search(question, zone_names, top_k=PASSAGES, include_history=bool(HISTORY_WORDS.search(question)))
+        hits = self.catalog.search(question, zone_names, top_k=PASSAGES, include_history=bool(HISTORY_WORDS.search(question)), viewer=viewer)
         passages = [{"source": h["doc"]["title"], "revision_id": h["doc"]["revision_id"], "location_label": h["chunk"]["location_label"], "publisher": h["doc"]["publisher"],
                      "analysis_eligible": h["doc"]["analysis_eligible"], "content": h["chunk"]["content"]} for h in hits]
         if file_records:

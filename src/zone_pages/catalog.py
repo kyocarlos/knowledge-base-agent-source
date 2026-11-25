@@ -56,17 +56,29 @@ def identity(collection: str, p: dict[str, Any]) -> dict[str, Any]:
             "match": [("document_file_id", fid)]}
 
 
-def _zone_filter(zone_names: list[str], extra=(), must_not_superseded=False):
+def _zone_filter(zone_names: list[str], extra=(), must_not_superseded=False, viewer=None):
     from qdrant_client.models import FieldCondition, Filter, MatchAny, MatchValue
+    from . import acl
     must = [FieldCondition(key="topic_zone", match=MatchAny(any=list(zone_names))), *[FieldCondition(key=k, match=MatchValue(value=v)) for k, v in extra]]
+    if (cond := acl.condition(viewer)) is not None:        # permission is part of the query itself: a passage the viewer may not read is never fetched
+        must.append(cond)
     return Filter(must=must, must_not=[FieldCondition(key="index_state", match=MatchValue(value="Superseded"))] if must_not_superseded else None)
 
 
 class ZoneCatalog:
-    def __init__(self, client, encode: Callable, sources=SOURCES, ttl: float = 15.0, clock: Callable[[], float] = time.monotonic):
+    def __init__(self, client, encode: Callable, sources=SOURCES, ttl: float = 15.0, clock: Callable[[], float] = time.monotonic, enforce: bool = False):
         self.client, self.encode, self.sources, self.ttl, self.clock = client, encode, sources, ttl, clock
+        self.enforce = enforce      # KM_ZONE_ACL_ENFORCE: off = exactly the behaviour before document permissions existed
         self._cache: dict[tuple, tuple[float, list[dict]]] = {}
         self._lock = threading.Lock()
+
+    def _viewer(self, viewer):
+        """Fail closed: with enforcement on, a caller that names no viewer gets nothing, never everything."""
+        if not self.enforce:
+            return None
+        if viewer is None:
+            raise PermissionError("a viewer is required while zone permissions are enforced")
+        return viewer
 
     # ---------- documents ----------
     def _points(self, collection: str, flt):
@@ -80,15 +92,16 @@ class ZoneCatalog:
             if offset is None:
                 return
 
-    def documents(self, zone_names: list[str], fresh: bool = False) -> list[dict]:
-        key = tuple(zone_names)
+    def documents(self, zone_names: list[str], fresh: bool = False, viewer=None) -> list[dict]:
+        viewer = self._viewer(viewer)
+        key = (tuple(zone_names), viewer.cache_key() if viewer is not None else None)      # one cache entry per permission set, never shared across viewers
         with self._lock:
             hit = self._cache.get(key)
             if hit and not fresh and self.clock() - hit[0] < self.ttl:
                 return hit[1]
         docs: dict[str, dict] = {}
         for collection, _using, text_key, extra in self.sources:
-            for point in self._points(collection, _zone_filter(zone_names, extra)):
+            for point in self._points(collection, _zone_filter(zone_names, extra, False, viewer)):
                 p = point.payload or {}
                 ident = identity(collection, p)
                 d = docs.get(ident["revision_id"])
@@ -118,15 +131,20 @@ class ZoneCatalog:
             self._cache[key] = (self.clock(), out)
         return out
 
-    def document(self, zone_names: list[str], revision_id: str) -> dict | None:
-        return next((d for d in self.documents(zone_names) if d["revision_id"] == revision_id), None)
+    def document(self, zone_names: list[str], revision_id: str, viewer=None) -> dict | None:
+        return next((d for d in self.documents(zone_names, viewer=viewer) if d["revision_id"] == revision_id), None)
 
-    def versions(self, zone_names: list[str], doc: dict) -> list[dict]:
-        return sorted((d for d in self.documents(zone_names) if d["family"] == doc["family"]), key=lambda d: d["document_date"] or "", reverse=True)
+    def versions(self, zone_names: list[str], doc: dict, viewer=None) -> list[dict]:
+        return sorted((d for d in self.documents(zone_names, viewer=viewer) if d["family"] == doc["family"]), key=lambda d: d["document_date"] or "", reverse=True)
 
-    def chunks(self, doc: dict, count: int = 8) -> tuple[list[dict], int]:
+    def chunks(self, doc: dict, count: int = 8, viewer=None) -> tuple[list[dict], int]:
         from qdrant_client.models import FieldCondition, Filter, MatchValue
-        flt = Filter(must=[FieldCondition(key=k, match=MatchValue(value=v)) for k, v in doc["_match"]])
+        from . import acl
+        viewer = self._viewer(viewer)
+        must = [FieldCondition(key=k, match=MatchValue(value=v)) for k, v in doc["_match"]]
+        if (cond := acl.condition(viewer)) is not None:      # checked again here: a document handle obtained earlier does not outlive a revoked permission
+            must.append(cond)
+        flt = Filter(must=must)
         text_key = next(t for c, _u, t, _e in self.sources if c == doc["_collection"])
         rows = [{"chunk_index": (p.payload or {}).get("chunk_index") or 0, "location_label": location(doc["_collection"], p.payload or {}), "content": (p.payload or {}).get(text_key) or ""}
                 for p in self._points(doc["_collection"], flt)]
@@ -134,13 +152,14 @@ class ZoneCatalog:
         return rows[:count], len(rows)
 
     # ---------- search ----------
-    def search(self, query: str, zone_names: list[str], top_k: int = 10, include_history: bool = False) -> list[dict]:
-        docs = {d["revision_id"]: d for d in self.documents(zone_names)}
+    def search(self, query: str, zone_names: list[str], top_k: int = 10, include_history: bool = False, viewer=None) -> list[dict]:
+        viewer = self._viewer(viewer)
+        docs = {d["revision_id"]: d for d in self.documents(zone_names, viewer=viewer)}
         vector = list(map(float, self.encode([query])[0]))
         hits = []
         for collection, using, text_key, extra in self.sources:
             try:
-                points = self.client.query_points(collection, query=vector, using=using, query_filter=_zone_filter(zone_names, extra, not include_history),
+                points = self.client.query_points(collection, query=vector, using=using, query_filter=_zone_filter(zone_names, extra, not include_history, viewer),
                                                   limit=CANDIDATES, with_payload=True).points
             except Exception:
                 continue
@@ -152,6 +171,28 @@ class ZoneCatalog:
                         "chunk_index": p.get("chunk_index") or 0, "location_label": location(collection, p), "content": p.get(text_key) or ""}})
         hits.sort(key=lambda h: h["score"], reverse=True)
         return spread(hits, query, top_k)
+
+
+    def best_passage_is_restricted(self, query: str, zone_names: list[str], viewer, include_history: bool = False, min_score: float = 0.0) -> bool:
+        """True when the single most relevant passage of the zone, permissions ignored, is one this viewer may not read. The answer is then refused outright by
+        the caller: nothing of that passage (nor anything else) is handed to the model. Only a yes/no leaves this method, never text."""
+        viewer = self._viewer(viewer)
+        if viewer is None or viewer.is_admin:
+            return False
+        from . import acl
+        vector = list(map(float, self.encode([query])[0]))
+        best = None
+        for collection, using, _text_key, extra in self.sources:
+            try:
+                points = self.client.query_points(collection, query=vector, using=using, query_filter=_zone_filter(zone_names, extra, not include_history),
+                                                  limit=1, with_payload=True).points
+            except Exception:
+                continue
+            for point in points:
+                score = float(getattr(point, "score", 0) or 0)
+                if best is None or score > best[0]:
+                    best = (score, point.payload or {})
+        return best is not None and best[0] >= min_score and not acl.visible(viewer, best[1])
 
 
 def subjects(query: str, hits: list[dict]) -> list[str]:
